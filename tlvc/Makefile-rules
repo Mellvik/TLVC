@@ -68,7 +68,7 @@ ARCH		= i86
 #########################################################################
 # Specify the target for the netboot image.
 
-TARGET_NB_IMAGE	= $(TOPDIR)/elks/nbImage
+TARGET_NB_IMAGE	= $(TOPDIR)/tlvc/nbImage
 
 #########################################################################
 #									#
@@ -94,7 +94,7 @@ endif
 
 ARCH_DIR	= arch/$(ARCH)
 
-INCLUDES = -I$(TOPDIR)/include -I$(TOPDIR)/elks/include
+INCLUDES = -I$(TOPDIR)/include -I$(TOPDIR)/tlvc/include
 
 MYDIR		= $(shell pwd | sed 's:^$(TOPDIR):.:')
 
@@ -103,7 +103,7 @@ MYDIR		= $(shell pwd | sed 's:^$(TOPDIR):.:')
 # directory in, in such a way that no . or .. directories occur. This
 # also makes this an absolute path, but that fact is not important.
 
-DISTDIR 	= $(shell $(BASEDIR)/scripts/setdir $(TOPDIR)/elks-$(DIST)/$(MYDIR))
+DISTDIR 	= $(shell $(BASEDIR)/scripts/setdir $(TOPDIR)/tlvc-$(DIST)/$(MYDIR))
 
 #########################################################################
 # Specify the standard definitions to be given to system programs.
@@ -126,7 +126,7 @@ endif
 # Use GCC-IA16 compiler
 
 # Not linked to any target C library ('freestanding')
-# Use ES only for segment ('elks')
+# Use ES only for segment ('tlvc')
 # Small memory model: CS != DS == SS
 # No relocation stuff related to MSDOS 'MZ' executable
 
@@ -262,10 +262,10 @@ endif
 
 #########################################################################
 # Default target, to allow standard targets to be included. This simply
-# allows `make elks` to be called from any directory in the tree, and
+# allows `make tlvc` to be called from any directory in the tree, and
 # results in `make all` being called in the root directory of the tree.
 
-elks:
+tlvc:
 	${MAKE} -C $(BASEDIR) all
 
 #########################################################################

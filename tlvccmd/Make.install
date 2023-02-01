@@ -1,7 +1,7 @@
-# ELKSCMD install Makefile
+# TLVCCMD install Makefile
 
 ifndef TOPDIR
-$(error TOPDIR is not defined, ELKS not configured yet)
+$(error TOPDIR is not defined, TLVC not configured yet)
 endif
 
 # include selected config file for installation instructions
@@ -12,7 +12,7 @@ INSTALL=install
 LN=ln
 
 # Application Package List
-PACKAGE=$(TOPDIR)/elkscmd/Applications
+PACKAGE=$(TOPDIR)/tlvccmd/Applications
 # Install destination
 DESTDIR=$(TOPDIR)/target
 TAGS=

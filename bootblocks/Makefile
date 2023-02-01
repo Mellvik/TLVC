@@ -4,7 +4,7 @@ include $(TOPDIR)/.config
 CC = ia16-elf-gcc
 # See boot_minix.c on -fno-top-level-reorder.
 CROSS_CFLAGS = -mregparmcall -fno-toplevel-reorder -fno-inline -mcmodel=tiny -mno-segment-relocation-stuff -ffreestanding -mtune=i8086
-INCLUDES = -I $(TOPDIR)/include -I $(TOPDIR)/elks/include
+INCLUDES = -I $(TOPDIR)/include -I $(TOPDIR)/tlvc/include
 CFLAGS = -Wall -Wno-strict-aliasing -Os $(CROSS_CFLAGS) $(INCLUDES)
 
 AS = ia16-elf-as
@@ -12,7 +12,7 @@ AS = ia16-elf-as
 ASFLAGS = --divide
 
 LD = ia16-elf-ld
-LDFLAGS = -T $(TOPDIR)/elks/elks-raw.ld
+LDFLAGS = -T $(TOPDIR)/tlvc/elks-raw.ld
 
 .PHONY: all
 

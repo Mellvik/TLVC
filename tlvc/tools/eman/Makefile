@@ -1,4 +1,4 @@
-# eman - display ELKS manual pages on host
+# eman - display TLVC manual pages on host
 #
 #########################################################################
 #
@@ -35,7 +35,7 @@ include $(BASEDIR)/Makefile-rules
 #########################################################################
 # Objects to be compiled.
 
-SRCS=$(TOPDIR)/elkscmd/sys_utils/man.c
+SRCS=$(TOPDIR)/tlvccmd/sys_utils/man.c
 
 #OBJS=$(SRCS:.c=.o)
 
@@ -45,7 +45,7 @@ SRCS=$(TOPDIR)/elkscmd/sys_utils/man.c
 all:	../bin/eman
 
 ../bin/eman: $(SRCS)
-	$(CC) -D_PATH_MANPAGES=\"$(TOPDIR)/elkscmd/man\" -o ../bin/eman $(CFLAGS) $(SRCS)
+	$(CC) -D_PATH_MANPAGES=\"$(TOPDIR)/tlvccmd/man\" -o ../bin/eman $(CFLAGS) $(SRCS)
 
 #########################################################################
 ### Dependencies:

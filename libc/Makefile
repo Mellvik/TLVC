@@ -1,4 +1,4 @@
-# Makefile of ELKS C Library
+# Makefile of TLVC C Library
 
 ifndef TOPDIR
 $(error TOPDIR is not defined)
@@ -146,10 +146,10 @@ install: $(LIBC) uninstall
 		 $(MULTIINCDIR)/netinet $(MULTIINCDIR)/linuxmt
 ifeq "" "$(filter -mcmodel=medium,$(MULTILIB))"
 	$(INSTALL_DATA) $(LIBC) $(CRT0) \
-	    $(TOPDIR)/elks/elks-small.ld $(TOPDIR)/elks/elks-tiny.ld \
+	    $(TOPDIR)/tlvc/elks-small.ld $(TOPDIR)/tlvc/elks-tiny.ld \
 	    $(DESTDIR)/ia16-elf/lib/$(MULTISUBDIR)
 else
-	$(INSTALL_DATA) $(LIBC) $(CRT0) $(TOPDIR)/elks/elks-medium.ld \
+	$(INSTALL_DATA) $(LIBC) $(CRT0) $(TOPDIR)/tlvc/elks-medium.ld \
 	    $(DESTDIR)/ia16-elf/lib/$(MULTISUBDIR)
 endif
 	$(INSTALL_DATA) include/*.h $(TOPDIR)/include/autoconf.h $(MULTIINCDIR)
@@ -157,8 +157,8 @@ endif
 	$(INSTALL_DATA) include/sys/*.h $(MULTIINCDIR)/sys
 	$(INSTALL_DATA) include/arpa/*.h $(MULTIINCDIR)/arpa
 	$(INSTALL_DATA) include/netinet/*.h $(MULTIINCDIR)/netinet
-	$(INSTALL_DATA) $(TOPDIR)/elks/include/arch/*.h $(MULTIINCDIR)/arch
-	$(INSTALL_DATA) $(TOPDIR)/elks/include/linuxmt/*.h \
+	$(INSTALL_DATA) $(TOPDIR)/tlvc/include/arch/*.h $(MULTIINCDIR)/arch
+	$(INSTALL_DATA) $(TOPDIR)/tlvc/include/linuxmt/*.h \
 	    $(MULTIINCDIR)/linuxmt
 uninstall:
 	$(RM) $(DESTDIR)/ia16-elf/lib/$(MULTISUBDIR)/$(notdir $(LIBC)) \
@@ -210,14 +210,14 @@ install uninstall:
 		    $(lastword $(subst ;, ,$(ml)))))'; \
 		$(MAKE) $@)
 	set -e; \
-	dest1=$(DESTDIR)/share/misc/elks; \
+	dest1=$(DESTDIR)/share/misc/tlvc; \
 	dest2=$(DESTDIR)/ia16-elf/lib/rt-specs; \
 	case $@ in \
 	    install) \
 		mkdir -p "$$dest1" "$$dest2"; \
 		cp build-ml/$(MAINMULTISUBDIR)/system/call_tab.v \
 		   build-ml/$(MAINMULTISUBDIR)/system/defn_tab.v "$$dest1"; \
-		cp $(TOPDIR)/elks/r-elks.spec "$$dest2";; \
+		cp $(TOPDIR)/tlvc/r-elks.spec "$$dest2";; \
 	    *) \
 		$(RM) "$$dest1"/call_tab.v "$$dest1"/defn_tab.v \
 		      "$$dest2"/r-elks.spec; \

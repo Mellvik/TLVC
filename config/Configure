@@ -678,7 +678,7 @@ CFG_IN=./config.in
 if [ "$1" != "" ] ; then
     CFG_IN=$1
 fi
-DEFAULTS=elks/arch/i86/defconfig
+DEFAULTS=tlvc/arch/i86/defconfig
 if [ -f .config ]; then
     DEFAULTS=.config
 fi

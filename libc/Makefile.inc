@@ -1,5 +1,5 @@
 
-INCLUDES=-I$(TOPDIR)/include -I$(TOPDIR)/libc/include -I$(TOPDIR)/elks/include
+INCLUDES=-I$(TOPDIR)/include -I$(TOPDIR)/libc/include -I$(TOPDIR)/tlvc/include
 DEFINES=-D__LIBC__
 
 INCS=$(INCLUDES)

@@ -1,4 +1,4 @@
-# Makefile for ELKS images
+# Makefile for TLVC images
 
 # include selected config file for image instructions
 include $(CONFIG)
@@ -11,7 +11,7 @@ include Make.defs
 TARGETS =
 
 ifdef CONFIG_IMG_BOOT
-TARGETS += $(FD_MINIX_BOOT) $(FD_FAT_BOOT) $(ELKS_DIR)/arch/i86/boot/Image
+TARGETS += $(FD_MINIX_BOOT) $(FD_FAT_BOOT) $(TLVC_DIR)/arch/i86/boot/Image
 endif
 
 ifdef CONFIG_IMG_MINIX
@@ -46,15 +46,15 @@ template:
 	-rm -rf $(DESTDIR)
 	cp -a $(TEMPLATE_DIR) $(DESTDIR)
 	find $(DESTDIR) -name .keep -delete
-	$(MAKE) -C $(ELKSCMD_DIR) -f Make.install install "CONFIG=$(CONFIG)"
+	$(MAKE) -C $(TLVCCMD_DIR) -f Make.install install "CONFIG=$(CONFIG)"
 ifdef CONFIG_APPS_COMPRESS
 	cd $(TOPDIR)/target/bin; elks-compress *
 endif
 	$(MAKE) -C $(BOOTBLOCKS_DIR)
-	bash -c "./ver.pl $(ELKS_DIR)/Makefile-rules > $(DESTDIR)/etc/issue"
+	bash -c "./ver.pl $(TLVC_DIR)/Makefile-rules > $(DESTDIR)/etc/issue"
 	#git log --abbrev-commit | head -1 | sed 's/commit/ELKS built from commit/' > $(DESTDIR)/etc/motd
 ifdef CONFIG_IMG_BOOT
-	install $(ELKS_DIR)/arch/i86/boot/Image $(DESTDIR)/linux
+	install $(TLVC_DIR)/arch/i86/boot/Image $(DESTDIR)/linux
 endif
 ifdef CONFIG_TIME_TZ
 	echo 'if test "$$TZ" = ""; then export' "TZ=$(CONFIG_TIME_TZ); fi" >> $(DESTDIR)/etc/profile
@@ -66,7 +66,7 @@ endif
 
 # Create MINIX filesystem from template
 
-# Create bootable ELKS MINIX disk image:
+# Create bootable TLVC MINIX disk image:
 #	Select tagged files into filelist
 #	Create empty filesystem
 #	Add tagged files into filesystem (regular, directories, links)
@@ -90,14 +90,14 @@ endif
 
 # Create FAT filesystem from template
 
-# Create bootable ELKS MSDOS disk image:
+# Create bootable TLVC MSDOS disk image:
 #	Select tagged files into filelist
 #	Create empty filesystem
 #	Create \linux as first directory entry
 #	Add tagged files into filesystem (regular, directories, links)
 #		Filename case is preserved
 #		Note: filenames larger than 8.3 will create VFAT LFN entries
-#	Write boot sector and modify ELKS PB
+#	Write boot sector and modify TLVC PB
 # all mtools commands require image file
 # -i image	image filename
 
@@ -120,7 +120,7 @@ endif
 	done
 	# Protect contiguous /linux by marking as RO, System and Hidden
 	mattrib -i $(TARGET_FILE) +r +s +h ::/linux
-	# Read boot sector, skip FAT BPB, set ELKS PB sectors/heads and write boot
+	# Read boot sector, skip FAT BPB, set TLVC PB sectors/heads and write boot
 ifdef CONFIG_IMG_BOOT
 ifdef CONFIG_IMG_FD1232
 	setboot $(TARGET_FILE) -K -F $(BPB) $(FD_FAT_BOOT)
@@ -138,6 +138,6 @@ romfs:
 
 # Create RAW filesystem
 
-raw: $(ELKS_DIR)/arch/i86/boot/Image
+raw: $(TLVC_DIR)/arch/i86/boot/Image
 	dd if=/dev/zero of=$(TARGET_FILE) bs=1024 count=$(TARGET_BLKS)
-	dd if=$(ELKS_DIR)/arch/i86/boot/Image of=$(TARGET_FILE) conv=notrunc
+	dd if=$(TLVC_DIR)/arch/i86/boot/Image of=$(TARGET_FILE) conv=notrunc

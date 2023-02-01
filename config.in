@@ -1,27 +1,27 @@
 #
-# ELKS Main
+# TLVC Main
 #
 
-mainmenu_name "ELKS Main"
+mainmenu_name "TLVC Main"
 
 #
-# ELKS Kernel
+# TLVC Kernel
 #
 
 mainmenu_option next_comment
 	comment 'Kernel & Hardware'
-	source elks/config.in
+	source tlvc/config.in
 
 endmenu
 
 #
-# ELKS Userland (commands)
+# TLVC Userland (commands)
 #
 
-source elkscmd/config.in
+source tlvccmd/config.in
 
 #
-# ELKS Images
+# TLVC Images
 #
 
 source image/config.in

@@ -81,7 +81,7 @@ LIBGCC = "`$(CC) $(CFLAGS) -print-libgcc-file-name`"
 .PHONY: toolkit
 
 boot/bootsect:   boot/bootsect.o
-	$(LD) $(LDFLAGS) $(SIBOFLAGS) -M -T $(TOPDIR)/elks/elks-tiny.ld -o boot/bootsect boot/bootsect.o > boot/bootsect.map
+	$(LD) $(LDFLAGS) $(SIBOFLAGS) -M -T $(TOPDIR)/tlvc/elks-tiny.ld -o boot/bootsect boot/bootsect.o > boot/bootsect.map
 	$(POSTLINK) --tiny boot/bootsect
 
 boot/netbootsect:	boot/netbootsect.o
@@ -91,7 +91,7 @@ boot/netbootsect:	boot/netbootsect.o
 boot/netbootsect.o:	boot/netbootsect.s
 
 boot/setup:   boot/setup.o
-	$(LD) $(LDFLAGS) $(SIBOFLAGS) -M -T $(TOPDIR)/elks/elks-tiny.ld -o boot/setup boot/setup.o > boot/setup.map
+	$(LD) $(LDFLAGS) $(SIBOFLAGS) -M -T $(TOPDIR)/tlvc/elks-tiny.ld -o boot/setup boot/setup.o > boot/setup.map
 	$(POSTLINK) --tiny boot/setup
 
 toolkit:
@@ -128,7 +128,7 @@ else
 # Begin PC image build
 
 boot/system:	$(XINCLUDE) $(AARCHIVES) $(ADRIVERS) boot/crt0.o
-	(cd $(BASEDIR) ; $(LD) $(CPU_LD) -M $(ARCH_LD) -T $(TOPDIR)/elks/elks-small.ld \
+	(cd $(BASEDIR) ; $(LD) $(CPU_LD) -M $(ARCH_LD) -T $(TOPDIR)/tlvc/elks-small.ld \
 		$(ARCH_DIR)/boot/crt0.o \
 		init/main.o '-(' $(ARCHIVES) $(DRIVERS) '-)' $(LIBGCC) \
 		-o $(ARCH_DIR)/boot/system > $(ARCH_DIR)/boot/system-full.map ; \

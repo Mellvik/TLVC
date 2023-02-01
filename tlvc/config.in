@@ -106,19 +106,19 @@ fi
 
 # Networking support
 
-source elks/net/config.in
+source tlvc/net/config.in
 
 # Filesystem support
 
-source elks/fs/config.in
+source tlvc/fs/config.in
 
 # Drivers configuration
 
 mainmenu_option next_comment
 	comment 'Drivers'
 
-	source elks/arch/i86/drivers/block/config.in
-	source elks/arch/i86/drivers/char/config.in
-	source elks/arch/i86/drivers/net/config.in
+	source tlvc/arch/i86/drivers/block/config.in
+	source tlvc/arch/i86/drivers/char/config.in
+	source tlvc/arch/i86/drivers/net/config.in
 
 endmenu
