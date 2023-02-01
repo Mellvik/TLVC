@@ -263,7 +263,7 @@ floppy_part:
 
 	.global	banner
 banner:
-	.asciz	"Welcome to ELKS MBR Boot Manager\r\n"
+	.asciz	"Welcome to TLVC MBR Boot Manager\r\n"
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //

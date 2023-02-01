@@ -26,7 +26,7 @@ match_str=SEDNOMATCH
 if test "$#" -ge 2; then match_str=$2; fi
 
 # template strings
-hostname=elks$id
+hostname=tlvc$id
 localip=$network.$id
 gateway=$network.2
 
@@ -38,10 +38,10 @@ mv /tmp/bootopts $bootopts
 # rewrite /etc/hosts
 cat << EOF > $hosts
 #127.0.0.1	localhost
-$network.$id	elks$id
-$network.15	elks15
-$network.16	elks16
-$network.17	elks17
+$network.$id	tlvc$id
+$network.15	tlvc15
+$network.16	tlvc16
+$network.17	tlvc17
 $gateway	gateway
 EOF
 

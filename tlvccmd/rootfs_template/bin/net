@@ -1,4 +1,4 @@
-# Start/stop ELKS networking
+# Start/stop TLVC networking
 #
 # Usage: net [start|stop|restart|show] [ne0|slip|cslip] [baud] [device]
 #
@@ -10,7 +10,7 @@
 #	net show				shows settings for 'net start'
 #
 # See slattach.sh for Linux slip setup
-# See qemu.sh NET= line for host forwarding into ELKS using QEMU
+# See qemu.sh NET= line for host forwarding into TLVC using QEMU
 #
 #set -x
 

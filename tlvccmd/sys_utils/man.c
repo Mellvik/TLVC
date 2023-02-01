@@ -33,7 +33,7 @@
 #include <ctype.h>
 #include <string.h>
 
-#ifdef __ia16__			/* ELKS */
+#ifdef __ia16__			/* TLVC */
 #include <paths.h>
 #define MORE			"more"
 #else					/* Host */
@@ -41,7 +41,7 @@
 #endif
 
 /* default .TH [extra1] value */
-#define DEFAULT_EXTRA1	"ELKS Embeddable Linux Kernel Subset"
+#define DEFAULT_EXTRA1	"TLVC - Tiny Linux for Vintage Computers"
 
 /* font translations to ANSI sequences (\fB -> bold, \fI -> underline) */
 #define ANSI_NORMAL	 "\e[0m"	/* no attribute */

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// ELKS boot sector
+// ELKS/TLVC boot sector
 //------------------------------------------------------------------------------
 
 // If BOOT_FAT is undefined, this assembles to a filesystem-independent boot
@@ -540,6 +540,7 @@ run_prog:
 	mov %ax,%ds
 
 	mov elks_magic,%ax  // check for ELKS magic number
+			    // TLVC useing the same #
 	cmp $0x4C45,%ax
 	jnz not_elks
 	mov elks_magic+2,%ax
@@ -572,7 +573,7 @@ boot_it:
 //------------------------------------------------------------------------------
 
 msg_boot:
-	.asciz "ELKS"
+	.asciz "TLVC"
 
 msg_error:
 	.ascii "!\r\n"
@@ -591,7 +592,7 @@ tvram_x:
 end_of_code:
 //------------------------------------------------------------------------------
 
-// ELKS disk parameter structure
+// ELKS/TLVC disk parameter structure
 // For future expansion, fields should be added at the _front_ of structure
 
 #ifdef BOOT_FAT
@@ -669,7 +670,7 @@ head_max:
 	.byte 0
 #endif
 
-// Marker to indicate presence and size of ELKS parameter structure
+// Marker to indicate presence and size of ELKS/TLVC parameter structure
 
 	.byte . - elks_parms_start
 	.ascii "eL"
