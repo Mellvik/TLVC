@@ -1,5 +1,5 @@
 /*
- * elkscmd/sys_utils/getty.c
+ * tlvccmd/sys_utils/getty.c
  *
  * Copyright (C) 1998 Alistair Riddoch <ajr@ecs.soton.ac.uk>
  *
