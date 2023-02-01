@@ -8,4 +8,4 @@ while (<>) {
         /^\s*EXTRAVERSION\s*=\s*(.*)/	&& ($ext = $1);
 }
 
-print "\nELKS ${ver}.${pat}.${sub}${ext}\n\n";
+print "\nTLVC ${ver}.${pat}.${sub}${ext}\n\n";

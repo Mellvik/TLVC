@@ -722,7 +722,7 @@ hex4sp: call hex4
 	ret
 
 hello_mess:
-	.ascii "\r\nELKS Setup "
+	.ascii "\r\nTLVC Setup "
 	.byte 0
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
