@@ -24,7 +24,7 @@ mainmenu_option next_comment
 	    fi
 	fi
 	if [ "$CONFIG_CONSOLE_DIRECT" = "y" ]; then
-	    source elks/arch/i86/drivers/char/KeyMaps/config.in
+	    source tlvc/arch/i86/drivers/char/KeyMaps/config.in
 	fi
 
 	comment 'Other character devices'

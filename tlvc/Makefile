@@ -141,7 +141,7 @@ include/linuxmt/compiler-generated.h:
 
 xlint:	$(TOPDIR)/include/autoconf.h
 	@echo
-	$(LINT) -I$(TOPDIR)/elks/include -c init/main.c
+	$(LINT) -I$(TOPDIR)/tlvc/include -c init/main.c
 	@echo
 	@echo Checking with lint is now complete.
 	@echo
@@ -149,8 +149,8 @@ xlint:	$(TOPDIR)/include/autoconf.h
 #########################################################################
 # Specification files for archives.
 
-elks.spec: Makefile
-	@scripts/elksspec $(DISTDIR) $(DIST) $(shell date +%Y.%m.%d)
+tlvc.spec: Makefile
+	@scripts/tlvcspec $(DISTDIR) $(DIST) $(shell date +%Y.%m.%d)
 
 #########################################################################
 # Standard commands.
@@ -230,9 +230,9 @@ dep:	$(TOPDIR)/include/autoconf.h
 	@echo
 
 dup:
-	rm -fr ../elks-test
-	mkdir ../elks-test
-	tar c * | ( cd ../elks-test ; tar xv )
+	rm -fr ../tlvc-test
+	mkdir ../tlvc-test
+	tar c * | ( cd ../tlvc-test ; tar xv )
 	@echo
 	@echo ' * Created backup tree for testing.'
 	@echo
@@ -250,9 +250,9 @@ dup:
 #
 #	make dep	Create a full set of dependencies.
 #
-#	make Image	Compile ELKS and create the standard image file.
+#	make Image	Compile TLVC and create the standard image file.
 #
-#	make nbImage	Compile ELKS and create the NetBoot Image file.
+#	make nbImage	Compile TLVC and create the NetBoot Image file.
 #
 #	make nodep	Remove all of the dependency information.
 #

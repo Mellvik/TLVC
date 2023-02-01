@@ -10,7 +10,7 @@ include $(BASEDIR)/Make.rules
 
 ###############################################################################
 
-ELKS_LIB=$(ELKS_DIR)/arch/i86/lib
+TLVC_LIB=$(TLVC_DIR)/arch/i86/lib
 
 # clock enabled and has direct I/O port access
 # knl, insmod removed as useless
@@ -105,8 +105,8 @@ console: console.o
 makeboot: makeboot.o $(TINYPRINTF)
 	$(LD) $(LDFLAGS) -o makeboot makeboot.o $(TINYPRINTF) $(LDLIBS)
 
-unreal.o: $(ELKS_LIB)/unreal.S
-	$(LD) -melks-libc -mcmodel=small -c $(ELKS_LIB)/unreal.S -o unreal.o
+unreal.o: $(TLVC_LIB)/unreal.S
+	$(LD) -melks-libc -mcmodel=small -c $(TLVC_LIB)/unreal.S -o unreal.o
 
 unreal16: unreal16.o unreal.o
 	$(LD) -melks-libc -mcmodel=small -c unreal16.S -o unreal16.o

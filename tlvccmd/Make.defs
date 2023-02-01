@@ -1,7 +1,7 @@
 # ***** IMPORTANT NOTE *****
 #
-# This file has been revised to remove the requirement that the elkscmd
-# and elks trees are located under /usr/src on the developer's system.
+# This file has been revised to remove the requirement that the tlvccmd
+# and tlvc trees are located under /usr/src on the developer's system.
 # This requires that the variable BASEDIR be defined in every Makefile
 # that includes this header file, prior to including it, and the value
 # given to BASEDIR is required to be the relative path from the directory
@@ -49,10 +49,10 @@ PLATFORM=i86-ELKS
 #
 # Specify directories.
 
-ELKS_DIR=$(TOPDIR)/elks
-ELKSCMD_DIR=$(TOPDIR)/elkscmd
+TLVC_DIR=$(TOPDIR)/tlvc
+TLVCCMD_DIR=$(TOPDIR)/tlvccmd
 
-INCLUDES=-I$(TOPDIR)/include -I$(TOPDIR)/libc/include -I$(ELKS_DIR)/include
+INCLUDES=-I$(TOPDIR)/include -I$(TOPDIR)/libc/include -I$(TLVC_DIR)/include
 
 # temporarily turn off typical non-K&R warnings for now
 WARNINGS = -Wno-implicit-int
@@ -61,14 +61,14 @@ WARNINGS += -Wno-parentheses
 
 ##############################################################################
 #
-# Determine the ELKS kernel version.
+# Determine the TLVC kernel version.
 
-E_V=$(shell if [ -f $(ELKS_DIR)/Makefile-rules ]; then \
-		grep -v '^\#' $(ELKS_DIR)/Makefile-rules \
+E_V=$(shell if [ -f $(TLVC_DIR)/Makefile-rules ]; then \
+		grep -v '^\#' $(TLVC_DIR)/Makefile-rules \
 		    | fgrep = | head -4 | tr '\#' = | cut -d = -f 2 ;\
 	    else echo Version not known ; fi)
 
-ELKS_VSN=$(shell printf '%s.%s.%s-pre%s' $(E_V) | sed 's/-pre$$//')
+TLVC_VSN=$(shell printf '%s.%s.%s-pre%s' $(E_V) | sed 's/-pre$$//')
 
 ##############################################################################
 #
@@ -94,12 +94,12 @@ ifeq ($(PLATFORM),DEFAULT)
 	AS=as
 endif
 
-CFLAGS=$(CFLBASE) $(WARNINGS) $(LOCALFLAGS) $(INCLUDES) -D__ELKS__ -DELKS_VERSION=\"$(ELKS_VSN)\"
+CFLAGS=$(CFLBASE) $(WARNINGS) $(LOCALFLAGS) $(INCLUDES) -D__ELKS__ -DELKS_VERSION=\"$(TLVC_VSN)\"
 
 ###############################################################################
 #
 # Special libraries for some programs
-TINYPRINTF=$(ELKSCMD_DIR)/lib/tiny_vfprintf.o
+TINYPRINTF=$(TLVCCMD_DIR)/lib/tiny_vfprintf.o
 
 
 ###############################################################################

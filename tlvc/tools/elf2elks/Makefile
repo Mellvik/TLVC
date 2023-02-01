@@ -34,8 +34,8 @@ NOINDENT	=
 include $(BASEDIR)/Makefile-rules
 
 ELFTOOLCHAIN = lib/elftoolchain-0.7.1
-INCLUDES	+= -I$(TOPDIR)/elks/tools/elf2elks/$(ELFTOOLCHAIN)/libelf \
-		   -I$(TOPDIR)/elks/tools/elf2elks/$(ELFTOOLCHAIN)/common
+INCLUDES	+= -I$(TOPDIR)/tlvc/tools/elf2elks/$(ELFTOOLCHAIN)/libelf \
+		   -I$(TOPDIR)/tlvc/tools/elf2elks/$(ELFTOOLCHAIN)/common
 
 #########################################################################
 # Objects to be compiled.

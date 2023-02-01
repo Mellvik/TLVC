@@ -7,5 +7,5 @@ endif
 ifeq ($(TOPDIR)/.config,$(wildcard $(TOPDIR)/.config))
 include $(TOPDIR)/.config
 else
-$(warning ELKS is not configured yet)
+$(warning TLVC is not configured yet)
 endif

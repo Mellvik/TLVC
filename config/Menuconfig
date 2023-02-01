@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This script is used to configure the ELKS kernel.
+# This script is used to configure the TLVC kernel.
 #
 # It was inspired by a desire to not have to hit <enter> 9 million times
 # or startup the X server just to change a single kernel parameter.  
@@ -107,7 +107,7 @@ set -h +o posix
 function set_x_info () {
     eval x=\$$1
     if [ -z "$x" ]; then
-	eval `sed -n -e 's/# \(.*\) is not set.*/\1=n/' -e "/^$1=/p" elks/arch/i86/defconfig`
+	eval `sed -n -e 's/# \(.*\) is not set.*/\1=n/' -e "/^$1=/p" tlvc/arch/i86/defconfig`
 	eval x=\${$1:-"$2"}
 	eval $1=$x
 	eval INFO_$1="' (NEW)'"
@@ -736,7 +736,7 @@ function l_choice () {
 # Call awk, and watch for error codes, etc.
 
 function callawk () {
-    awk "$1" || echo "Awk died with error code $?. Giving up." || exit 1
+    awk "$1" || echo "Awk died with error code $?, file $1. Giving up." || exit 1
 }
 
 # A faster awk based recursive parser. (I hope)
@@ -1380,7 +1380,7 @@ else
 	${VERSION} ${PATCHLEVEL} ${SUBLEVEL} ${PRE} ${EXTRAVERSION}`
 fi
 
-backtitle="ELKS v${kernel_version} Configuration"
+backtitle="TLVC v${kernel_version} Configuration"
 
 trap "cleanup ; exit 1" 1 2 15
 
@@ -1391,7 +1391,7 @@ if [ "$1" != "" ] ; then
     CFG_IN=$1
 fi
 
-DEFAULTS=elks/arch/i86/defconfig
+DEFAULTS=tlvc/arch/i86/defconfig
 if [ -f .config ]; then
     DEFAULTS=.config
 fi
@@ -1444,7 +1444,7 @@ then
     save_configuration
     cat <<-.EOM
 
-	 * End of ELKS kernel configuration.
+	 * End of TLVC kernel configuration.
 	 *
 	 * You may now run \`make clean\` and \`make\` to build.
 
@@ -1452,7 +1452,7 @@ then
 else
     cat <<-.EOM
 
-	 * Your ELKS configuration changes were NOT saved.
+	 * Your TLVC configuration changes were NOT saved.
 
 .EOM
 fi

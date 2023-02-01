@@ -12,7 +12,7 @@ include $(BASEDIR)/Make.rules
 
 PRGS=netstat nslookup arp
 
-LOCALFLAGS=-I$(ELKSCMD_DIR)
+LOCALFLAGS=-I$(TLVCCMD_DIR)
 
 all: $(PRGS)
 

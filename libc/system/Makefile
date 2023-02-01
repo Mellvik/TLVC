@@ -1,4 +1,4 @@
-SYSCALLDAT=${TOPDIR}/elks/arch/i86/kernel/syscall.dat
+SYSCALLDAT=${TOPDIR}/tlvc/arch/i86/kernel/syscall.dat
 
 ifeq "$(VPATH)" ""
 	dir	=

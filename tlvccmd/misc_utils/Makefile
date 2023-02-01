@@ -10,7 +10,7 @@ include $(BASEDIR)/Make.rules
 
 HOSTCC = gcc
 HOST_CFLAGS = -O2
-KERNEL_LIBS = $(TOPDIR)/elks/arch/i86/lib/lib86.a
+KERNEL_LIBS = $(TOPDIR)/tlvc/arch/i86/lib/lib86.a
 
 ###############################################################################
 

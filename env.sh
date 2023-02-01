@@ -2,11 +2,11 @@
 
 # Set up the build environment
 
-# Must be executed with top directory /elks as the current one
+# Must be executed with top directory /TLVC as the current one
 
 if [ ! -e "env.sh" ]; then
 	echo "ERROR: You did not sourced this script from the top directory.";
-	echo "       Set the top directory of ELKS as the current one,";
+	echo "       Set the top directory of TLVC as the current one,";
 	echo "       then source this script again.";
 	return 1;
 fi
@@ -25,11 +25,11 @@ add_path () {
 
 add_path "$CROSSDIR/bin"
 
-# Set up internal ELKS tools path
+# Set up internal TLVC tools path
 
-ELKSTOOLSDIR="$TOPDIR/elks/tools"
+TLVCTOOLSDIR="$TOPDIR/tlvc/tools"
 
-add_path "$ELKSTOOLSDIR/bin"
+add_path "$TLVCTOOLSDIR/bin"
 
 echo PATH set to $PATH
 

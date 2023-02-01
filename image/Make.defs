@@ -7,9 +7,9 @@ endif
 # Dependencies folders
 
 IMG_DIR = $(TOPDIR)/image
-ELKS_DIR = $(TOPDIR)/elks
-ELKSCMD_DIR = $(TOPDIR)/elkscmd
-TEMPLATE_DIR = $(ELKSCMD_DIR)/rootfs_template
+TLVC_DIR = $(TOPDIR)/tlvc
+TLVCCMD_DIR = $(TOPDIR)/tlvccmd
+TEMPLATE_DIR = $(TLVCCMD_DIR)/rootfs_template
 
 BOOTBLOCKS_DIR = $(TOPDIR)/bootblocks
 FD_MINIX_BOOT = $(BOOTBLOCKS_DIR)/minix.bin
