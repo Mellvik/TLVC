@@ -26,6 +26,7 @@
 #include 	<dirent.h>
 
 #define		BLOAT
+#define		DEBUG
 
 #ifdef BLOAT
 #define GLOB
@@ -599,10 +600,6 @@ int main(int argc, char **argv) {
 	struct sockaddr_in servaddr, myaddr;
 	char *cp;
 
-	if (argc > 2) {	/* FIXME - improve parameter checking */
-		usage();
-		exit(1);
-	}
 
 	while (--argc) {
 		argv++;
@@ -614,14 +611,19 @@ int main(int argc, char **argv) {
 				qemu++;
 			} else
 				usage(), exit(-1);
-		} else 
+		} else {
 			myport = atoi(argv[0]);
+			break;	/* ignore rest of command line if any */
+		}
 	}
-	if ((cp = getenv("QEMU")) != NULL) {
+	if ((cp = getenv("QEMU")) != NULL) 
 		qemu = atoi(cp);
-		//printf("QEMU set to %d\n", qemu);
-		if (qemu) debug++;	//FIXME: Temporary - for debugging
+#ifdef DEBUG
+	if (qemu) {
+		debug++;	//FIXME: Temporary - for debugging
+		printf("QEMU mode\n");
 	}
+#endif
 		
 	if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket error");
@@ -657,7 +659,7 @@ int main(int argc, char **argv) {
 		perror("getsockname");
 		//return -1;
 	}
-	//if (debug) printf("ftpd running - debug on.\n");
+	//if (debug) printf("ftpd running - debug level %d.\n", debug);
 	if (debug < 2) {
 		/* become daemon, debug output on 1 and 2*/
 		if ((ret = fork()) == -1) {
@@ -672,7 +674,8 @@ int main(int argc, char **argv) {
 		if (ret > STDERR_FILENO)
 			close(ret);
 		setsid();
-	}
+	} else
+		printf("Not disconnecting from terminal.\n");
 
 	struct sockaddr_in client;
 	ret = sizeof(client);

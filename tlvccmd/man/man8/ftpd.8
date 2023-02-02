@@ -26,12 +26,21 @@ option is specified or the environment variable
 .I QEMU=1 
 is present,
 .B ftpd
-will assume it is running in the QEMU emulator and remap ports and IP-addresses accordingly.
+will enter QEMU mode and assume it is running in the QEMU emulator and remap ports and IP-addresses accordingly.
 The mappings correspond with the setup provided for QEMU in the 
 .I qemu.sh
 script in the ELKS distribution. When QEMU mode is active, the server 
 will look for loopback connections (ELKS internal) and turn off QEMU mode 
 if detected, in order for file transfers to work correctly. This is meaningful for testing only.
+.PP
+In QEMU mode, debug is always activated. This means that if 
+.B \-q 
+and
+.B \-d
+are both present on the command line or the QEMU environment variable is set and 
+.B \-d is used,
+.B ftpd
+will not disconnect form the controlling terminal. This is intentional.
 .PP
 The ftp server
 will timeout an inactive session after 15 minutes. 
@@ -107,6 +116,8 @@ Anonymous authentication is not supported.
 .B Ftpd
 implements no securtity measures, and runs from the authenticated user's (currently root) home directory.
 CWD to any directory is allowed, which - in combination with the DELETE and RMDIR commands - may be very dangerous.
+.SH FILES
+/etc/net.cfg, /bin/net
 .SH "SEE ALSO"
 ftp(1), ftpget(1), ftpput(1)
 .SH BUGS
