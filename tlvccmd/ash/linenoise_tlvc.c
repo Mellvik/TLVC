@@ -209,6 +209,7 @@ enum KEY_ACTION{
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
+int linenoiseHistoryList(void);
 static void refreshLine(struct linenoiseState *l);
 
 /* Debugging macro. */
@@ -1226,12 +1227,28 @@ char *linenoise(const char *prompt) {
             len--;
             buf[len] = '\0';
         }
-        return strdup(buf);
+        //return strdup(buf);
     } else {
         count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
         if (count == -1) return NULL;
-        return strdup(buf);
+        //return strdup(buf);
     }    
+    /* Do bang (history) processing */
+    if (buf[0] == '!') {
+    	if (buf[1] == '!')
+		count = history_len - 1;
+	else
+		if (buf[1] == '-') count = history_len - atoi(&buf[2]);
+	else
+		count = atoi(&buf[1]);
+	//printf("history: got %d\n", count);
+	if (count < 0) {
+		printf("History index out of range\n");
+		return strdup("\n");
+	} else
+		return(strdup(history[count]));
+    }
+    return strdup(buf);
 }
 
 /* This is just a wrapper the user may want to call in order to make sure
@@ -1296,6 +1313,18 @@ int linenoiseHistoryAdd(const char *line) {
     history[history_len] = linecopy;
     history_len++;
     return 1;
+}
+
+/* The history builtin command calls this routine to print the history
+ * list at the terminal.
+ * @mellvik - feb23
+ */
+int linenoiseHistoryList(void) {
+	int i;
+	if (!history_len) return -1;
+	for (i = 0; i < history_len; i++) 
+		printf("%4d %s\n", i, history[i]);
+	return i;
 }
 
 #if HISTORY_SAVE
