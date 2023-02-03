@@ -44,6 +44,9 @@ echocmd.o: echo.c bltin.h ../shell.h
 	$(CC) -DSHELL $(CFLAGS) -c echo.c
 	mv echo.o $@
 
+history: history.c bltin.h ../shell.h
+	$(CC) $(CFLAGS) -o $@ history.c
+
 line: line.c bltin.h ../shell.h
 	$(CC) $(CFLAGS) -o $@ line.c
 
