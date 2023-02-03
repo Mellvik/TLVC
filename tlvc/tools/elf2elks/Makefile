@@ -66,6 +66,11 @@ ifeq "Linux" "$(shell uname -s)"
 	cd $(ELFTOOLCHAIN)/common; \
 	./native-elf-format > native-elf-format.h
 endif
+# get Apple ARM platform right
+ifeq "Darwin arm" "$(shell uname -po)"
+	set -e; \
+	sed -i bak 's/#ifdef __FreeBSD__/#if defined(__APPLE__) || defined(__FreeBSD)/' $(ELFTOOLCHAIN)/libelf/_libelf_config.h
+endif
 	set -e; \
 	cd $(ELFTOOLCHAIN)/libelf; \
 	m4 -DSRCDIR=. libelf_convert.m4 > libelf_convert.c; \
