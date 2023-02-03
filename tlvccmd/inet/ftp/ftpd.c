@@ -26,6 +26,7 @@
 #include 	<dirent.h>
 
 #define		BLOAT
+#define		DEBUG
 
 #ifdef BLOAT
 #define GLOB
@@ -120,6 +121,7 @@ struct cmd_tab cmdtab[] = {
 
 static int debug = 0;
 static int qemu = 0;
+static int nofork = 0;
 static int timeout = 900;
 static int maxtimeout = 7200;
 static int controlfd;
@@ -374,7 +376,6 @@ int do_list(int datafd, char *input) {
 				i++;
 			} else {
 				write(datafd, iobuf, strlen(iobuf));
-				//if (debug) write(1, iobuf, strlen(iobuf));
 				len = 0;
 				bzero(iobuf, sizeof(iobuf));
 			}
@@ -390,7 +391,6 @@ int do_list(int datafd, char *input) {
 					len += dp->d_namlen +2;
 				} else {
 					write(datafd, iobuf, strlen(iobuf));
-					//if (debug) write(1, iobuf, strlen(iobuf));
 					len = 0;
 					bzero(iobuf, sizeof(iobuf));
 				}
@@ -599,29 +599,30 @@ int main(int argc, char **argv) {
 	struct sockaddr_in servaddr, myaddr;
 	char *cp;
 
-	if (argc > 2) {	/* FIXME - improve parameter checking */
-		usage();
-		exit(1);
-	}
 
 	while (--argc) {
 		argv++;
 		if (*argv[0] == '-') {
 			if (argv[0][1] == 'd')
 				debug++;
+			else if (argv[0][1] == 'D') 
+				nofork++;
 			else if (argv[0][1] == 'q') {
-				debug++;
 				qemu++;
 			} else
 				usage(), exit(-1);
-		} else 
+		} else {
 			myport = atoi(argv[0]);
+			break;	/* ignore rest of command line if any */
+		}
 	}
-	if ((cp = getenv("QEMU")) != NULL) {
+	if ((cp = getenv("QEMU")) != NULL) 
 		qemu = atoi(cp);
-		//printf("QEMU set to %d\n", qemu);
-		if (qemu) debug++;	//FIXME: Temporary - for debugging
+#ifdef DEBUG
+	if (qemu) {
+		printf("QEMU mode\n");
 	}
+#endif
 		
 	if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket error");
@@ -638,7 +639,6 @@ int main(int argc, char **argv) {
 	if (setsockopt(listenfd, SOL_SOCKET, SO_RCVBUF, &ret, sizeof(int)) < 0)
 		perror("SO_RCVBUF");
 
-	//bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family      = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port	= htons(myport);
@@ -657,8 +657,8 @@ int main(int argc, char **argv) {
 		perror("getsockname");
 		//return -1;
 	}
-	//if (debug) printf("ftpd running - debug on.\n");
-	if (debug < 2) {
+	//if (debug) printf("ftpd running - debug level %d.\n", debug);
+	if (!nofork) {
 		/* become daemon, debug output on 1 and 2*/
 		if ((ret = fork()) == -1) {
 			fprintf(stderr, "ftpd: Can't fork to become daemon\n");
@@ -672,7 +672,8 @@ int main(int argc, char **argv) {
 		if (ret > STDERR_FILENO)
 			close(ret);
 		setsid();
-	}
+	} else
+		printf("Debug: Not disconnecting from terminal.\n");
 
 	struct sockaddr_in client;
 	ret = sizeof(client);
@@ -896,6 +897,20 @@ int main(int argc, char **argv) {
 					bzero(namebuf, sizeof(namebuf));
 					if (get_param(command, namebuf) < 0) {
 						send_reply(501, "Syntax error - SITE needs subcommand");
+						break;
+					}
+					if (!strncasecmp(namebuf, "DEBU", 4)) {
+						debug++;
+						send_reply(200, "Debug level increased");
+						break;
+					}
+					if (!strncasecmp(namebuf, "QEMU", 4)) {
+						qemu++;
+						qemu &= 1;
+						if (qemu) 
+							send_reply(200, "QEMU mode now active");
+						else 
+							send_reply(200, "QEMU mode deactivated");
 						break;
 					}
 					if (strncasecmp(namebuf, "IDLE", 4)) {
