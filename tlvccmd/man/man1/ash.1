@@ -566,6 +566,33 @@ silently discards nul characters.  Any other character will be handled
 correctly by
 .IR ash ,
 including characters with the high order bit set.
+.SS Command line editing and history
+On TLVC, 
+.I ash
+includes the 
+.I linenoise
+command line editing facility which provides
+.I bash 
+like command line editing using the arrow keys on compatible terminals.
+Autocompletion using the TAB key is also supported.
+.PP
+.I Ash
+also implements partial
+.I csh
+like command history, including the 
+.I history
+command to list the history buffer. The history commands suported are
+.nf
+!!	- repeat last command
+!-#	- repeat the command # positions behind the current, like '!-34'.
+!#	- repeat command number # 
+!<text> - search backwards in the history list for a command that starts with the given character(s).
+:p	- the :p modifier at the end of a history command means 'make the command current, but 
+	  don't execute'. 
+.fi
+Example: '!ls -l' -- repeat the last 
+.I ls -l
+command if found. The history commands require that the leading '!' is the first character on the line.
 .SS "Job Names and Job Control"
 The term
 .I job

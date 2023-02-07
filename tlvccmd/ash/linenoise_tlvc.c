@@ -166,6 +166,7 @@ static int atexit_registered = 0; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
 static char **history = NULL;
+static int hist_index = 0;
 
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
@@ -211,6 +212,7 @@ static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 int linenoiseHistoryList(void);
 static void refreshLine(struct linenoiseState *l);
+int hist_search(char *);
 
 /* Debugging macro. */
 #if 0
@@ -871,7 +873,7 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -946,7 +948,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
 
         switch((unsigned int)c) {
         case ENTER:    /* enter */
-            history_len--;
+            history_len--; hist_index--;
             free(history[history_len]);
             if (mlmode) linenoiseEditMoveEnd(&l);
 #if HINTS_ON
@@ -972,7 +974,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             if (l.len > 0) {
                 linenoiseEditDelete(&l);
             } else {
-                history_len--;
+                history_len--; hist_index--;
                 free(history[history_len]);
                 return -1;      // this will cause the shell to exit
             }
@@ -1203,6 +1205,7 @@ static char *linenoiseNoTTY(void) {
     }
 }
 
+
 /* The high level function that is the main API of the linenoise library.
  * This function checks if the terminal has basic capabilities, just checking
  * for a blacklist of stupid terminals, and later either calls the line
@@ -1210,14 +1213,15 @@ static char *linenoiseNoTTY(void) {
  * something even in the most desperate of the conditions. */
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
+    char *ret;
     int count;
+    size_t len;
 
     if (!isatty(STDIN_FILENO)) {
         /* Not a tty: read from file / pipe. In this mode we don't want any
          * limit to the line size, so we call a function to handle that. */
         return linenoiseNoTTY();
     } else if (isUnsupportedTerm()) {
-        size_t len;
 
         out1str((char *)prompt);
         flushout(out1);
@@ -1227,30 +1231,59 @@ char *linenoise(const char *prompt) {
             len--;
             buf[len] = '\0';
         }
-        //return strdup(buf);
     } else {
         count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
         if (count == -1) return NULL;
-        //return strdup(buf);
     }    
+    if (buf[0] != '!') 
+    	return strdup(buf);
+
     /* Do bang (history) processing */
-    if (buf[0] == '!') {
-    	if (buf[1] == '!')
-		count = history_len - 1;
-	else
-		if (buf[1] == '-') count = history_len - atoi(&buf[2]);
-	else
-		count = atoi(&buf[1]);
-	//printf("history: got %d\n", count);
-	if (count < 0) {
-		printf("History index out of range\n");
-		return strdup("\n");
-	} else
-		return(strdup(history[count]));
+    len = strlen(buf);
+    if (buf[1] == '!')	/* just double-bang */
+	count = history_len -1;
+    else {
+	if (buf[1] == '-') 
+	    count = (hist_index - atoi(&buf[2])) - (hist_index - history_len);
+	else {		/* referencing command by number */
+	    if (isdigit(buf[1]))
+		count = atoi(&buf[1]) - (hist_index - history_len);
+	    else {	/* do history search */
+		count = hist_search(&buf[1]);
+		if (count == -1) {
+	    	    write(STDOUT_FILENO, "sh: Event not found\n", 20);
+	    	    return strdup("");
+		}
+	    }
+	}
     }
-    return strdup(buf);
+    ret = history[count];
+    //printf("history index %d (%s,%d)\n", count,buf,len);
+    if (count < 0 || count > history_len) {
+	write(STDOUT_FILENO, "sh: History index out of range\n", 31);
+	ret = "";
+    }
+    if (buf[len-1] == 'p' && buf[len-2] == ':') {
+			/* just add the line to the buffer */
+	linenoiseHistoryAdd(history[count]);
+	ret = "";
+    }
+    printf("%s\n", history[count]);
+    return(strdup(ret));
 }
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+
+int hist_search(char *s) {
+    int i;
+    for (i = history_len -1; i >= 0; i--) {
+   	//printf("srch: %s|%s %d ", s, history[i], MIN(strlen(history[i]), strlen(s)));
+	if (!strncmp(history[i], s, MIN(strlen(history[i]), strlen(s))))
+	    return(i);
+    }
+    return(-1);
+}
+	
 /* This is just a wrapper the user may want to call in order to make sure
  * the linenoise returned buffer is freed with the same allocator it was
  * created with. Useful when the main program is using an alternative
@@ -1312,6 +1345,7 @@ int linenoiseHistoryAdd(const char *line) {
     }
     history[history_len] = linecopy;
     history_len++;
+    hist_index++;
     return 1;
 }
 
@@ -1323,7 +1357,7 @@ int linenoiseHistoryList(void) {
 	int i;
 	if (!history_len) return -1;
 	for (i = 0; i < history_len; i++) 
-		printf("%4d %s\n", i, history[i]);
+		printf("%4d %s\n", hist_index - history_len + i, history[i]);
 	return i;
 }
 
