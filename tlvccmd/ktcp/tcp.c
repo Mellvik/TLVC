@@ -180,6 +180,8 @@ static void tcp_listen(struct iptcp_s *iptcp, struct tcpcb_s *lcb)
 
     if (!(h->flags & TF_SYN)) {
 	debug_tcp("tcp: no SYN in listen\n");
+	tcp_reject(iptcp->iph);	/* courtesy, not required, reduce noise on the network */
+				/* caused by lingering connections after hangs/reboots */
 	return;
     }
 
@@ -445,6 +447,41 @@ static void tcp_last_ack(struct iptcp_s *iptcp, struct tcpcb_s *cb)
     }
 }
 
+/* Prepare and send RST for non-existing connections 
+ * (typically lingering connections  after a reboot) */
+void tcp_reject(struct iphdr_s *iph) {
+	struct tcpcb_list_s *cbnode;
+	struct tcphdr_s *tcph;
+	struct tcpcb_s *cb = NULL;
+	__u32 seqno;
+
+	tcph = (struct tcphdr_s *)(((char *)iph) + 4 * IP_HLEN(iph));
+	seqno = ntohl(tcph->seqnum);
+	printf("tcp: refusing packet from %s:%u to :%u fl 0x%04x\n", in_ntoa(iph->saddr),
+		ntohs(tcph->sport), ntohs(tcph->dport), tcph->flags);
+
+	/* Dummy up a new control block and send RST to shutdown sender */
+	cbnode = tcpcb_new(1);		/* bufsize = 1, dummy */
+	if (cbnode) {
+	    cb = &cbnode->tcpcb;
+	    cb->state = TS_CLOSED;
+	    cb->localaddr = iph->daddr;
+	    cb->localport = ntohs(tcph->dport);
+	    cb->remaddr = iph->saddr;
+	    cb->remport = ntohs(tcph->sport);
+	    if (tcph->flags & TF_ACK) {
+		cb->flags = TF_RST;
+		cb->send_nxt = ntohl(tcph->acknum);
+	    } else
+		cb->flags = TF_RST|TF_ACK;
+	    cb->rcv_nxt = (tcph->flags & TF_SYN)? seqno+1: seqno;
+	    cb->datalen = 0;
+	    tcp_output(cb);		/* send RST*/
+	    tcpcb_remove(cbnode);	/* deallocate*/
+	}
+	return;
+}
+
 /* process an incoming TCP packet*/
 void tcp_process(struct iphdr_s *iph)
 {
@@ -469,30 +506,8 @@ void tcp_process(struct iphdr_s *iph)
     }
 
     if (!cbnode) {
-	printf("tcp: refusing packet from %s:%u to :%u\n", in_ntoa(iph->saddr),
-		ntohs(tcph->sport), ntohs(tcph->dport));
-
-	if (tcph->flags & TF_RST)
-		return;
-
-	/* Dummy up a new control block and send RST to shutdown sender */
-	cbnode = tcpcb_new(1);
-	if (cbnode) {
-	    __u32 seqno = ntohl(tcph->seqnum);
-	    cbnode->tcpcb.state = TS_CLOSED;
-	    cbnode->tcpcb.localaddr = iph->daddr;
-	    cbnode->tcpcb.localport = ntohs(tcph->dport);
-	    cbnode->tcpcb.remaddr = iph->saddr;
-	    cbnode->tcpcb.remport = ntohs(tcph->sport);
-	    if (tcph->flags & TF_ACK) {
-		cbnode->tcpcb.flags = TF_RST;
-		cbnode->tcpcb.send_nxt = ntohl(tcph->acknum);
-	    } else
-		cbnode->tcpcb.flags = TF_RST|TF_ACK;
-	    cbnode->tcpcb.rcv_nxt = (tcph->flags & TF_SYN)? seqno+1: seqno;
-	    tcp_output(&cbnode->tcpcb);		/* send RST*/
-	    tcpcb_remove_cb(&cbnode->tcpcb);	/* deallocate*/
-	}
+	if (!(tcph->flags & TF_RST))
+		tcp_reject(iph);
 
 	netstats.tcpdropcnt++;
 	return;

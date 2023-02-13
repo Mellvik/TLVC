@@ -73,8 +73,10 @@ struct tcpcb_list_s *tcpcb_new(int bufsize)
 	return NULL;
     }
     debug_mem("Alloc CB %d bytes\n", sizeof(struct tcpcb_list_s) + bufsize);
+    printf("Alloc CB %d bytes (0x%04x)\n", sizeof(struct tcpcb_list_s) + bufsize, (unsigned int)n);
 
-    memset(&n->tcpcb, 0, sizeof(struct tcpcb_s));
+    memset(n, 0, sizeof(struct tcpcb_list_s));
+    //memset(&n->tcpcb, 0, sizeof(struct tcpcb_s));
     n->tcpcb.buf_size = bufsize;
     n->tcpcb.rtt = TIMEOUT_INITIAL_RTT;
 
@@ -127,7 +129,8 @@ void tcpcb_remove(struct tcpcb_list_s *n)
     else {
 	/* Head update */
 	n = next;
-	n->prev = NULL;
+	if (n)
+	    n->prev = NULL;
 
 	rmv_all_retrans(tcpcbs);
 	free(tcpcbs);
