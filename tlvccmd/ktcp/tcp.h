@@ -201,6 +201,7 @@ void tcp_send_ack(struct tcpcb_s *cb);
 void tcp_send_fin(struct tcpcb_s *cb);
 void tcp_send_reset(struct tcpcb_s *cb);
 void tcp_reset_connection(struct tcpcb_s *cb);
+void tcp_reject(struct iphdr_s *);
 
 void hexdump(unsigned char *addr, int count, int summary, char *prefix);
 

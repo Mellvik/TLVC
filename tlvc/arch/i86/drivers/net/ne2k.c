@@ -7,6 +7,8 @@
  * 8 bit i/f support and autoconfig added by Helge Skrivervik (@mellvik) april 2022
  * based on the RTL8019AS chip in the interface card from Weird Electronics.
  *
+ * TLVC FEB 2023 - Added experimental io buffering (Helge Skrivervik)
+ *
  */
 
 #include <arch/io.h>
@@ -26,6 +28,7 @@
 // Shared declarations between low and high parts
 
 #include "ne2k.h"
+#include "netbuf.h"
 
 /* runtime configuration set in /bootopts or defaults in ports.h */
 #define net_irq     (netif_parms[ETH_NE2K].irq)
@@ -37,16 +40,20 @@ int net_port;	    /* required for ne2k-asm.S */
 static unsigned char usecount;
 static unsigned char found;
 static unsigned int verbose;
+static int getsem;
 static struct wait_queue rxwait;
 static struct wait_queue txwait;
 static struct netif_stat netif_stat;
 static byte_t model_name[] = "ne2k";
 static byte_t dev_name[] = "ne0";
+static size_t ne2k_getpkg(char *, size_t);
+struct netbuf *netbuf_init(struct netbuf *, int);
 
 extern int ne2k_next_pk;
 extern word_t ne2k_flags;
 extern word_t ne2k_has_data;
 extern struct eth eths[];
+
 
 /*
  * Read a complete packet from the NIC buffer
@@ -54,85 +61,144 @@ extern struct eth eths[];
 
 static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size_t len)
 {
-	size_t res;
-	word_t nhdr[2];	/* buffer header from the NIC, for debugging */
 
-	while (1) {
-		size_t size;  // actual packet size
+	size_t res;  // actual packet size
 
-		//printk("R");
+	//printk("R");
+	while(1) {
 		prepare_to_wait_interruptible(&rxwait);
-		if (!ne2k_has_data) {
-		//if (ne2k_rx_stat() != NE2K_STAT_RX) {
-
-			if (filp->f_flags & O_NONBLOCK) {
-				res = -EAGAIN;
-				break;
-			}
-			do_wait();
-			if (current->signal) {
-				res = -EINTR;
-				break;
-			}
-		}
-		size = ne2k_pack_get(data, len, nhdr);
-
-		//printk("r%04x|%04x/",nhdr[0], nhdr[1]);	// NIC buffer header
-		debug_eth("ne0: read: req %d, got %d real %d\n", len, size, nhdr[1]);
-
-		//if ((nhdr[1] > size) || (nhdr[0] == 0)) {
-		if ((nhdr[0]&~0x7f21) || (nhdr[0] == 0)) {	//EXPERIMENTAL: Upper byte = block #, max 7f
-
-			/* Sanity check, should not happen.
-			 * If this happens, we're reading garbage from the NIC, all pointers
-			 * may be invalid, clear device and buffers.
-			 *	
-			 * Likely reason: We have a 8 bit interface running with 16k buffer enabled.
-			 * 
-			 * May want to add more tests for nhdr[0]:
-			 * 	Low byte should be 1 or 21	(receive status reg)
-			 *	High byte is a pointer to the next packet in the NIC ring buffer,
-			 *		should be < 0x80 and > 0x45
-			 */
-
-			netif_stat.rq_errors++;
-			printk("$%04x.%02x$", ne2k_getpage(), ne2k_next_pk&0xff);
-			if (verbose) printk(EMSG_DMGPKT, dev_name, nhdr[0], nhdr[1]);
-
-#if 0
-			if (nhdr[0] == 0) { 	// When this happens, the NIC has serious trouble,
-						// need to reset as if we had a buffer overflow.
-				res = ne2k_clr_oflow(0); 
-				//printk("<%04x>", res);
-			} else
-#endif
-				ne2k_rx_init();	// Resets the ring buffer pointers to initial values,
-						// effectively purging the buffer.
-			res = -EIO;
+#if (NET_IBUFCNT > 0)
+		if (rnext->len) {	/* data in buffer */
+			res = rnext->len;
+			verified_memcpy_tofs(data, rnext->data, res);
+			rnext->len = 0;
+			rnext = rnext->next;
 			break;
 		}
-		res = size;
-		break;
+#endif
+		/* The local buffers are empty. If the ne2k_has_data flag is set, there is
+		 * more data buffered in the NIC, and we might as well go get them 
+		 * instead of waiting for another round tripå through the interrupt
+		 * handler.
+		 * NOTE: Possible race condition. A RCV INTR may happen
+		 * while we're reading a packet - thus the semaphore in getpkg 
+		 */
+		if (ne2k_has_data) { 
+#if (NET_IBUFCNT > 0)
+			rnext->len++;	/* mark as busy */
+			res = ne2k_getpkg(rnext->data, len);
+			if (res > 0) {
+				verified_memcpy_tofs(data, rnext->data, res);
+				rnext->len = 0;
+				printk("B");
+				break;
+			}
+			rnext->len = 0;	/* getpkg is busy, fall thru */
+#else
+			res = ne2k_getpkg(data, len);
+			break;
+#endif
+		}
+		if (filp->f_flags & O_NONBLOCK) {
+			res = -EAGAIN;
+			break;
+		}
+		do_wait();
+		if (current->signal) {
+			res = -EINTR;
+			break;
+		}
 	}
-
 	finish_wait(&rxwait);
 	return res;
+}
+
+/*
+ * Get a packet from the NIC.
+ * May be called from the INTR routine and from read(),
+ * thus the semaphore.
+ */
+
+static size_t ne2k_getpkg(char *data, size_t len) {
+
+	size_t size;
+	word_t nhdr[2];	/* buffer header from the NIC, for debugging */
+
+	clr_irq();
+	if (getsem) { set_irq(); return(0);}	/* busy, just return */
+	getsem++;				/* set the busy flag */
+	set_irq();
+
+	size = ne2k_pack_get(data, len, nhdr);
+	//printk("r%04x|%04x/",nhdr[0], nhdr[1]);	// NIC buffer header
+	debug_eth("ne0: read: req %d, got %d real %d\n", len, size, nhdr[1]);
+
+	//if ((nhdr[1] > size) || (nhdr[0] == 0)) {
+	if ((nhdr[0]&~0x7f21) || (nhdr[0] == 0)) {	//EXPERIMENTAL: Upper byte = block #, max 7f
+
+		/* Sanity check, this should not happen.
+		 * If this happens, we're reading garbage from the NIC, all pointers
+		 * may be invalid, clear device and buffers.
+		 *	
+		 * Likely reason: We have a 8 bit interface running with 16k buffer enabled.
+		 * 
+		 * May want to add more tests for nhdr[0]:
+		 * 	Low byte should be 1 or 21	(receive status reg)
+		 *	High byte is a pointer to the next packet in the NIC ring buffer,
+		 *		should be < 0x80 and > 0x45
+		 */
+
+		netif_stat.rq_errors++;
+		printk("$%04x.%02x$", ne2k_getpage(), ne2k_next_pk&0xff);
+		if (verbose) printk(EMSG_DMGPKT, dev_name, nhdr[0], nhdr[1]);
+#if 0
+		if (nhdr[0] == 0) { 	// When this happens, the NIC has serious trouble,
+					// need to reset as if we had a buffer overflow.
+			size = ne2k_clr_oflow(0); 
+			//printk("<%04x>", res);
+		} else {
+#endif
+			ne2k_rx_init();	// Resets the ring buffer pointers to initial values,
+					// effectively purging the buffer.
+			size = -EIO;
+#if 0
+		}
+#endif
+	}
+	getsem = 0;	/* reset busy-flag */
+	return(size);
 }
 
 /*
  * Pass packet to driver for send
  */
 
+#define TX_IS_LOCAL 1
+#define TX_IS_FAR 0
 static size_t ne2k_write(struct inode *inode, struct file *file, char *data, size_t len)
 {
 	size_t res;
 
+	//printk("T");
 	while (1) {
 		prepare_to_wait_interruptible(&txwait);
-
 		// tx_stat() checks the command reg, not the tx_status_reg!
 		if (ne2k_tx_stat() != NE2K_STAT_TX) {
-
+#if (NET_OBUFCNT > 0)
+			/* transmiter is busy, put the data in a buffer if available */
+			struct netbuf *nxt = tnext;
+			while (nxt->len) {	/* search for available buffer */
+				if (nxt == tnext) break;
+				nxt = nxt->next;
+			}
+			if (nxt->len == 0) {
+				printk("t");
+				nxt->len = len;
+				verified_memcpy_fromfs(nxt->data, data, len);
+				res = len;
+				break;
+			}
+#endif
 			if (file->f_flags & O_NONBLOCK) {
 				res = -EAGAIN;
 				break;
@@ -147,7 +213,7 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 		if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
 
 		if (len < 64) len = 64;  /* issue #133 */
-		ne2k_pack_put(data, len);
+		ne2k_pack_put(data, len, TX_IS_FAR);
 
 		res = len;
 		break;
@@ -165,9 +231,14 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 {
 	int res = 0;
 
+	//printk("S");
 	switch (sel_type) {
 		case SEL_OUT:
-			if (ne2k_tx_stat() != NE2K_STAT_TX) {
+#if (NET_OBUFCNT > 0)
+			if ((ne2k_tx_stat() != NE2K_STAT_TX) && tnext->len) {
+#else
+			if ((ne2k_tx_stat() != NE2K_STAT_TX)) {
+#endif
 				select_wait(&txwait);
 				break;
 			}
@@ -176,7 +247,11 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 
 		case SEL_IN:
 			//if (ne2k_rx_stat() != NE2K_STAT_RX) {
+#if (NET_IBUFCNT > 0)
+			if (!rnext->len && !ne2k_has_data) {
+#else
 			if (!ne2k_has_data) {
+#endif
 				select_wait(&rxwait);
 				break;
 			}
@@ -221,17 +296,45 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 
 		if (stat & NE2K_STAT_RX) {
 			ne2k_has_data = 1; 	// data available
+#if (NET_IBUFCNT > 0)
+			int i; struct netbuf *nxt = rnext;
+			for (i = 0; i < NET_IBUFCNT; i++) {
+				if (nxt->len == 0) break;
+				nxt = nxt->next;
+			}
+			if (nxt->len == 0) {	/* buffer available */
+				nxt->len = ne2k_getpkg(nxt->data, MAX_PACKET_ETH);
+				//printk("r%d;", nxt-net_ibuf);
+				//wake_up(&rxwait);
+				nxt = nxt->next;
+			} 
+#endif
 			wake_up(&rxwait);
-			outb(NE2K_STAT_RX, net_port + EN0_ISR); // Clear intr bit
+
+#if (NET_IBUFCNT > 0)
+			/* if there is more data and we have more buffer space, 
+			 * take another round, else reset the ISR bit and we're done.
+			 * This also catches the case when the ne2k_getpkg routine 
+			 * is busy, returning zero.
+			 */
+			if (!(ne2k_has_data && !nxt->next))
+#endif
+				outb(NE2K_STAT_RX, net_port + EN0_ISR); // Clear intr bit
 		}
 
 		if (stat & NE2K_STAT_TX) {
+#if (NET_OBUFCNT > 0)
+			if (tnext->len) {
+				ne2k_pack_put(tnext->data, tnext->len, TX_IS_LOCAL);
+				tnext->len = 0;
+				tnext = tnext->next;
+			}
+#endif
 			outb(NE2K_STAT_TX, net_port + EN0_ISR); // Clear intr bit
 			inb(net_port + EN0_TSR);
-			//ne2k_get_tx_stat();	// clear the TX bit in the ISR 
 			wake_up(&txwait);
 		}
-		debug_eth("%02X/%d/", stat, ne2k_has_data);
+		//printk("%02X/%d/", stat, ne2k_has_data);
 		/* shortcut for speed */
 		if (!(stat&~(NE2K_STAT_TX|NE2K_STAT_RX|NE2K_STAT_OF))) continue;
 
@@ -374,7 +477,7 @@ void ne2k_display_status(void)
 	printk("Receive overflows %d\n", netif_stat.oflow_errors);
 	printk("Receive errors %d\n", netif_stat.rx_errors);
 	printk("NIC buffer errors %d\n", netif_stat.rq_errors);
-	printf("Transmit errors %d\n", netif_stat.tx_errors);
+	printk("Transmit errors %d\n", netif_stat.tx_errors);
 }
 #endif
 
@@ -386,15 +489,15 @@ void ne2k_display_status(void)
 void ne2k_drv_init(void)
 {
 	int err, i;
-	word_t prom[16];	/* PROM containing HW MAC address and more 
-				 * (aka SAPROM, Station Address PROM).
-				 * PROM size is 16 bytes. If read in word (16 bit) mode,
-				 * the upper byte is either a copy of the lower or 00.
-				 * depending on the chip. This may be used to detect 8 vs 16
-				 * bit cards automagically.
-				 * The address occupies the first 6 bytes, followed by a 'card signature'.
-				 * If bytes 14 & 15 == 0x57, this is a ne2k clone.
-				 */
+	word_t prom[16];/* PROM containing HW MAC address and more 
+			 * (aka SAPROM, Station Address PROM).
+			 * PROM size is 16 bytes. If read in word (16 bit) mode,
+			 * the upper byte is either a copy of the lower or 00.
+			 * depending on the chip. This may be used to detect 8 vs 16
+			 * bit cards automagically.
+			 * The address occupies the first 6 bytes, followed by a 'card signature'.
+			 * If bytes 14 & 15 == 0x57, this is a ne2k clone.
+			 */
 	byte_t *cprom, *mac_addr;
 
 	netif_stat.oflow_keep = 0;	/* Default - clear buffer if overflow.
@@ -403,6 +506,13 @@ void ne2k_drv_init(void)
 	mac_addr = (byte_t *)&netif_stat.mac_addr;
 
 	net_port = NET_PORT;    // ne2k-asm.S needs this.
+
+#if (NET_OBUFCNT > 0)	/* redo this if we add more than 2 buffers */
+	tnext = netbuf_init(net_obuf, NET_OBUFCNT);
+#endif
+#if (NET_IBUFCNT > 0)	/* redo this if we add more than 2 buffers */
+	rnext = netbuf_init(net_ibuf, NET_IBUFCNT);
+#endif
 
 	while (1) {
 		int j, k;

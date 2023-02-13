@@ -24,6 +24,7 @@
 #include "netconf.h"
 
 static struct tcp_retrans_list_s *retrans_list;
+static struct tcp_retrans_list_s *retrans_last;
 static unsigned char tcpbuf[TCP_BUFSIZ];
 
 __u16 tcp_chksum(struct iptcp_s *h)
@@ -176,8 +177,11 @@ rmv_from_retrans(struct tcp_retrans_list_s *n)
 
     tcp_timeruse--;
     tcp_retrans_memory -= n->len;
+    //n->cb->rtrns--;	// EXPERIMENTAL
     debug_mem("retrans free: (cnt %d mem %u)\n", tcp_timeruse, tcp_retrans_memory);
 
+    if (n == retrans_last)
+	retrans_last = n->prev;
     if (n->prev)
 	n->prev->next = next;
     else {
@@ -223,6 +227,7 @@ void rmv_all_retrans_cb(struct tcpcb_s *cb)
 	    n = n->next;
 }
 
+/* add packets in the order they are sent so that older packets are always resent first */
 void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 		     struct addr_pair *apair)
 {
@@ -245,6 +250,7 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 
     n->cb = cb;
 
+#if 1	// link to the front
     /* Link it to the list */
     if (retrans_list) {
 	n->next = retrans_list;
@@ -255,6 +261,19 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 	retrans_list = n;
 	n->prev = n->next = NULL;
     }
+#endif
+#if 0	// add new entries to the end of the list
+	if (retrans_list) {
+		retrans_last->next = n;
+		n->prev = retrans_last;
+		n->next = NULL;
+		retrans_last = n;
+	} else {
+		retrans_list = retrans_last = n;
+		n->prev = n->next = NULL;
+	}
+
+#endif
 
     /* start timeout blocking in main loop*/
     tcp_timeruse++;
@@ -276,6 +295,7 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 	    n->rto = TCP_RETRANS_MINWAIT_SLIP;	/* 1/2 sec min retrans timeout on slip/cslip*/
     }
     n->next_retrans = Now + n->rto;
+    //cb->rtrns++;		// count # of outstanding pkts per cb
 }
 
 void tcp_reoutput(struct tcp_retrans_list_s *n)
@@ -284,15 +304,15 @@ void tcp_reoutput(struct tcp_retrans_list_s *n)
 
     if (datalen < n->cb->rcv_wnd)		/* don't record retry if not in recv window*/
 	n->retrans_num++;
-    n->rto <<= 1;				/* double retrans timeout*/
+    n->rto <<= 2;				/* quadruple retrans timeout*/
     if (n->rto > TCP_RETRANS_MAXWAIT)		/* limit retransmit timeouts to 4 seconds*/
 	n->rto = TCP_RETRANS_MAXWAIT;
     n->next_retrans = Now + n->rto;
 
-    printf("tcp retrans: seq %lu+%u size %d rcvwnd %u unack %lu rto %ld rtt %ld (RETRY %d cnt %d mem %u)\n",
+    printf("tcp retrans: seq %lu+%u size %d rcvwnd %u unack %lu rto %ld rtt %ld state %d (RETRY %d cnt %d mem %u)\n",
 	ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
 	n->len - TCP_DATAOFF(&n->tcphdr[0]), n->cb->rcv_wnd, n->cb->send_una - n->cb->iss,
-	n->rto, n->cb->rtt, n->retrans_num, tcp_timeruse, tcp_retrans_memory);
+	n->rto, n->cb->rtt, n->cb->state, n->retrans_num, tcp_timeruse, tcp_retrans_memory);
 
     ip_sendpacket((unsigned char *)n->tcphdr, n->len, &n->apair, n->cb);
     netstats.tcpretranscnt++;
@@ -305,16 +325,15 @@ void tcp_retrans_expire(void)
     int rtt;
     unsigned int datalen;
 
+    n = retrans_list;
     /* avoid running out of memory with excessive retransmits*/
     if (tcp_retrans_memory > TCP_RETRANS_MAXMEM) {
 	printf("ktcp: retransmit memory over limit (cnt %d, mem %u)\n", tcp_timeruse, tcp_retrans_memory);
-	n = retrans_list;
 	while (n != NULL)
 		n = rmv_from_retrans(n);
 	return;
     }
 
-    n = retrans_list;
     while (n != NULL) {
 	datalen = n->len - TCP_DATAOFF(&n->tcphdr[0]);
 	if (n->tcphdr[0].flags & TF_FIN) datalen++;
@@ -327,9 +346,9 @@ void tcp_retrans_expire(void)
 		    n->cb->rtt = (TCP_RTT_ALPHA * n->cb->rtt + (100 - TCP_RTT_ALPHA) * rtt) / 100;
 		debug_tcp("tcp: rtt %d RTT %ld RTO %ld\n", rtt, n->cb->rtt, n->rto);
 	    }
-	    debug_retrans("tcp retrans: remove seq %lu+%u unack %lu\n",
+	    debug_retrans("tcp retrans: remove seq %lu+%u unack %lu rtrns %d\n",
 		ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
-		n->cb->send_una - n->cb->iss);
+		n->cb->send_una - n->cb->iss, n->cb->rtrns);
 	    n = rmv_from_retrans(n);
 	    continue;
 	} else
@@ -347,6 +366,7 @@ void tcp_retrans_retransmit(void)
     struct tcp_retrans_list_s *n;
 
     n = retrans_list;
+    
     while (n != NULL) {
 	/* check for retrans time up*/
 	if (TIME_GEQ(Now, n->next_retrans)) {
