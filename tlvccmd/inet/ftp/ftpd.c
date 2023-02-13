@@ -1,5 +1,5 @@
 /*
- * Minimal FTP server for ELKS
+ * Minimal FTP server for TLVC
  * November 2021 by Helge Skrivervik - helge@skrivervik.com
  *
  * TODO:
@@ -710,7 +710,7 @@ int main(int argc, char **argv) {
 			if (debug)
 				printf("local: %s, remote: %s, QEMU: %d\n", in_ntoa(myaddr.sin_addr.s_addr), real_ip, qemu);
 
-			send_reply(220, "Welcome - ELKS minimal FTP server speaking");
+			send_reply(220, "Welcome - TLVC minimal FTP server speaking");
 
 			/* standard housekeeping */
 			if (do_login(controlfd) < 0) {
