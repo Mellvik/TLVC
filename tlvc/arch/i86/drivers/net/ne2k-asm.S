@@ -32,6 +32,7 @@
 //#include "arch/ports.h"
 #include <arch/asm-offsets.h>
 #include <linuxmt/netstat.h>
+#include "netbuf.h"
 
 	.code16
 
@@ -217,8 +218,14 @@ dma_write:
 	//mov	net_port,%dx
 	add	$io_ne2k_data_io,%dx
 	mov	ne2k_flags,%ax		// Get this before changing the data segment
+#if (NET_OBUFCNT == 0)
+	mov	8(%bp),%bx		// get the 3rd arg from the call
+	cmp	$0,%bx			// not zero means local
+	jnz	1f			// use kernel buffer
+#endif
 	mov	current,%bx		// setup for far memory xfer
 	mov	TASK_USER_DS(%bx),%ds
+1:
 	cld
 	test	$ISA_8B,%ax		// checking ne2k_flags
 	jz	wr_loop_w
@@ -283,11 +290,12 @@ dma_read:
 	mov     %ds,%bx
 	mov     %bx,%es
 	pop	%ax
+#if (NET_IBUFCNT == 0)
 	cmp	$0,%al		// Use local buffer if zero
 	jz	buf_local
 	mov	current,%bx	// Normal: read directly into the (far) buffer
 	mov	TASK_USER_DS(%bx),%es
-
+#endif
 buf_local:
 	mov	net_port,%dx	// command register
 	mov	$0x0a,%al	// set RD0 & STA
@@ -572,6 +580,7 @@ nts_exit:
 //-----------------------------------------------------------------------------
 // arg1 : packet buffer to transfer
 // arg2 : size in bytes
+// arg3 : 0 if data is far, 1 if local
 // returns:
 //	AX : error code
 
