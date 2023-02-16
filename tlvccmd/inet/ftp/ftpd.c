@@ -310,6 +310,13 @@ void toolong() {	/* session timeout, close connection */
 	send_reply(421, cmd_buf);
 }
 
+void reapchildren()
+{
+	while (wait4(-1, NULL, WNOHANG, NULL) > 0)
+		;
+	signal(SIGCHLD, reapchildren);
+}
+
 int checknum(char *s) {
 	while (*s != '\0')
 		if (!isdigit(*s++)) return 0;
@@ -590,6 +597,7 @@ int do_stor(int datafd, char *input) {
 
 void usage() {
 	printf("Usage: ftpd [-d] [-q] [<listen-port>]\n");
+	exit(1);
 }
 
 
@@ -610,7 +618,7 @@ int main(int argc, char **argv) {
 			else if (argv[0][1] == 'q') {
 				qemu++;
 			} else
-				usage(), exit(-1);
+				usage();
 		} else {
 			myport = atoi(argv[0]);
 			break;	/* ignore rest of command line if any */
@@ -671,46 +679,54 @@ int main(int argc, char **argv) {
 		dup2(ret, STDERR_FILENO);
 		if (ret > STDERR_FILENO)
 			close(ret);
-		setsid();
+		//setsid();
 	} else
 		printf("Debug: Not disconnecting from terminal.\n");
 
 	struct sockaddr_in client;
 	ret = sizeof(client);
 	while (1) {
+		int kcount = 0;				/* avoid looping in case of errors */
+
 		if ((controlfd = accept(listenfd, (struct sockaddr *)&client, (unsigned int *)&ret)) < 0) {
+			/* socket code bug, retruns error code 512 on interrupt */
+			if ((errno == 512 || errno == EINTR) && !kcount++) continue;
 			perror("Accept error");
 			break;
 		}
 
-		waitpid(-1, NULL, WNOHANG);		/* reap previous accepts*/
+		waitpid(-1, NULL, WNOHANG);		/* Insurance, handled in reapchildren() */
 		if (debug) printf("Accepted connection from %s:%u.\n",
 			in_ntoa(client.sin_addr.s_addr), ntohs(client.sin_port));
 
 		if ((ret = fork()) == -1)       /* handle new accept*/
 			fprintf(stderr, "ftpd: No processes\n");
-		else if (ret != 0)
+		else if (ret != 0) {
 			close(controlfd);
-		else {							/* child process */
-			close(listenfd);
+			signal(SIGCHLD, reapchildren);
+		} else {					/* child process */
 
 			int datafd = -1, code, quit = FALSE;
 			unsigned int client_port = 0;
-			//char type = 'I';
+			//char type = 'I';		/* treat everything as binary */
 			char client_ip[50], command[CMDBUFSIZ], namebuf[MAXPATHLEN];
 			char *str;
 			char *complete = "226 Transfer Complete.\r\n";
 
+			close(listenfd);
+			signal(SIGCHLD, SIG_DFL);
+
 			strncpy(real_ip, in_ntoa(client.sin_addr.s_addr), 20); // Save for QEMU hack
-			// Turn off qemu mode if we're talking to ourselves (loopback)
+			/* Turn off qemu mode if we're talking to ourselves (loopback) */
 			if (qemu && (myaddr.sin_addr.s_addr == client.sin_addr.s_addr)) {
 				if (debug) printf("Loopback detected, disabling qemu mode.\n");
 				qemu = 0; 
 			}
 			if (debug)
-				printf("local: %s, remote: %s, QEMU: %d\n", in_ntoa(myaddr.sin_addr.s_addr), real_ip, qemu);
+				printf("local: %s, remote: %s, QEMU: %d\n", 
+					in_ntoa(myaddr.sin_addr.s_addr), real_ip, qemu);
 
-			send_reply(220, "Welcome - TLVC minimal FTP server speaking");
+			send_reply(220, "TLVC minimal FTP server speaking");
 
 			/* standard housekeeping */
 			if (do_login(controlfd) < 0) {
@@ -956,8 +972,10 @@ int main(int argc, char **argv) {
 			alarm(0);
     			if (debug) printf("Child process exiting...\n");
     			close(controlfd);
-    			_exit(1);
+    			_exit(0);
+							/* End child process */
 		}
-		/* End child process */
 	}
 }
+
+
