@@ -64,6 +64,7 @@ again:
 		close(STDERR_FILENO);
 		close(*pty_fd);
 
+		setsid();	   /* required to get the tty right in ps(1) */
 		pty_name[5] = 't'; /* results in /dev/ttyp%d, slave side (TTY) /dev/ttyp0 = 4,8 */
 		if ((tty_fd = open(pty_name, O_RDWR)) < 0) {
 			errmsg("telnetd: Can't open pty ");
