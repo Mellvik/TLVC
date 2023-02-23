@@ -104,6 +104,9 @@ bltin/operators.o:	bltin/operators.c
 bltin/regexp.o:	bltin/regexp.c
 	cd bltin && $(CC) -I.. $(CFLAGS) -c regexp.c
 
+bltin/history.o:	bltin/history.c
+	cd bltin && $(CC) -I.. $(CFLAGS) -c history.c
+
 # Dependencies you say?  This will have to do.
 $(OBJS): error.h eval.h exec.h expand.h init.h input.h \
 	jobs.h machdep.h mail.h main.h memalloc.h mystring.h options.h \

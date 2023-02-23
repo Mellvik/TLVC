@@ -118,17 +118,20 @@ void ktcp_run(void)
 
 	loopagain = 0;
 
+	/* reversed the order of these two feb 20th 2023 HS - elimiated ktcp 
+	 * hang situation under heavy incoming telnet load */
+
+	/* process application socket actions*/
+	if (FD_ISSET(tcpdevfd, &fdset)) {
+		tcpdev_process();
+		loopagain = 1;
+	}
+
 	/* process received packets*/
 	if (FD_ISSET(intfd, &fdset)) {
 		if (linkprotocol == LINK_ETHER)
 			eth_process();
 		else slip_process();
-		loopagain = 1;
-	}
-
-	/* process application socket actions*/
-	if (FD_ISSET(tcpdevfd, &fdset)) {
-		tcpdev_process();
 		loopagain = 1;
 	}
 

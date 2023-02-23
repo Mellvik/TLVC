@@ -23,8 +23,12 @@
 #include "tcpdev.h"
 #include "netconf.h"
 
+#define REVERSE_LIST	/* for debugging --- to be removed */
+
 static struct tcp_retrans_list_s *retrans_list;
+#ifdef REVERSE_LIST
 static struct tcp_retrans_list_s *retrans_last;
+#endif
 static unsigned char tcpbuf[TCP_BUFSIZ];
 
 __u16 tcp_chksum(struct iptcp_s *h)
@@ -180,8 +184,10 @@ rmv_from_retrans(struct tcp_retrans_list_s *n)
     //n->cb->rtrns--;	// EXPERIMENTAL
     debug_mem("retrans free: (cnt %d mem %u)\n", tcp_timeruse, tcp_retrans_memory);
 
+#ifdef REVERSE_LIST
     if (n == retrans_last)
 	retrans_last = n->prev;
+#endif
     if (n->prev)
 	n->prev->next = next;
     else {
@@ -250,7 +256,7 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 
     n->cb = cb;
 
-#if 1	// link to the front
+#ifndef REVERSE_LIST	// link to the front
     /* Link it to the list */
     if (retrans_list) {
 	n->next = retrans_list;
@@ -261,8 +267,8 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 	retrans_list = n;
 	n->prev = n->next = NULL;
     }
-#endif
-#if 0	// add new entries to the end of the list
+
+#else	// add new entries to the end of the list
 	if (retrans_list) {
 		retrans_last->next = n;
 		n->prev = retrans_last;
