@@ -11,7 +11,7 @@
 //#define CHECK	/* check matched sleep/wakeup when writing/testing drivers */
 
 /*
- *	Wait queue functionality for Linux ELKS. Taken from sched.c/h of
+ *	Wait queue functionality for Linux TLVC. Taken from sched.c/h of
  *	its big brother..
  *
  *	Copyright (C) 1991, 1992  Linus Torvalds
@@ -151,7 +151,7 @@ void _wake_up(register struct wait_queue *q, int it)
 }
 
 /*
- *	Semaphores. These are not IRQ safe nor needed to be so for ELKS
+ *	Semaphores. These are not IRQ safe nor needed to be so for TLVC
  */
 
 void up(register sem_t *s)

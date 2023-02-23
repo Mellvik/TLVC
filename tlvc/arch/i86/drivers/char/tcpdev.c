@@ -61,11 +61,12 @@ static size_t tcpdev_read(struct inode *inode, struct file *filp, char *data,
      *  buffer it will lose data, so the tcpip stack should read BIG.
      */
     if (len < tdout_tail)
-	debug_net("TCPDEV(%d) read len too small %u\n", len);
+	debug_net("TCPDEV(%d) read len too small %u\n", current->pid, len);
+	//printk("TCPDEV read len too small %u (%u)\n", len, tdout_tail);
     else len = tdout_tail;
     memcpy_tofs(data, tdout_buf, len);
     tdout_tail = 0;
-    up(&bufout_sem);
+    up(&bufout_sem);		/* flag buffer available */
 
     debug("TCPDEV(%d) read retval %u bufout_sem %d\n", current->pid, len, bufout_sem);
     //if (bufout_sem > 0)
@@ -109,7 +110,6 @@ static size_t tcpdev_write(struct inode *inode, struct file *filp,
 	/* Call the af_inet code to handle the data */
 	inet_process_tcpdev((char *)tdin_buf, len);
     }
-    debug("TCPDEV(%d) write retval %u\n", current->pid, len);
     return len;
 }
 

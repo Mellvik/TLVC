@@ -596,7 +596,7 @@ int do_stor(int datafd, char *input) {
 }
 
 void usage() {
-	printf("Usage: ftpd [-d] [-q] [<listen-port>]\n");
+	printf("Usage: ftpd [-d] [-D] [-q] [<listen-port>]\n");
 	exit(1);
 }
 

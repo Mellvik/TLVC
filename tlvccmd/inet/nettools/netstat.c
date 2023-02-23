@@ -104,8 +104,10 @@ int main(int ac, char **av)
     printf("IP Packets       %7lu  IP Packets       %7lu\n", ns->iprcvcnt, ns->ipsndcnt);
     printf("IP Bad Checksum  %7lu  IP Bad Headers   %7lu\n", ns->ipbadchksum, ns->ipbadhdr);
     printf("ICMP Packets     %7lu  ICMP Packets     %7lu\n", ns->icmprcvcnt, ns->icmpsndcnt);
-    printf("SLIP Packets     %7lu  SLIP Packets     %7lu\n", ns->sliprcvcnt, ns->slipsndcnt);
-    printf("ETH Packets      %7lu  ETH Packets      %7lu\n", ns->ethrcvcnt, ns->ethsndcnt);
+    if (((ns->sliprcvcnt + ns->slipsndcnt) > 0) && ((ns->ethrcvcnt + ns->ethsndcnt) == 0))
+	printf("SLIP Packets     %7lu  SLIP Packets     %7lu\n", ns->sliprcvcnt, ns->slipsndcnt);
+    if (((ns->sliprcvcnt + ns->slipsndcnt) == 0) && ((ns->ethrcvcnt + ns->ethsndcnt) > 0))
+	printf("ETH Packets      %7lu  ETH Packets      %7lu\n", ns->ethrcvcnt, ns->ethsndcnt);
     printf("ARP Reqs Sent    %7lu  ARP Replies Rcvd %7lu\n", ns->arpsndreqcnt, ns->arprcvreplycnt);
     printf("ARP Reqs Rcvd    %7lu  ARP Replies Sent %7lu\n", ns->arprcvreqcnt, ns->arpsndreplycnt);
     printf("ARP Cache Adds   %7lu\n", ns->arpcacheadds);

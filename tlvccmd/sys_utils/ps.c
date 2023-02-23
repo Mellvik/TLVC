@@ -119,23 +119,23 @@ int main(int argc, char **argv)
 	word_t cseg, dseg;
 	struct task_struct task_table;
 	struct passwd * pwent;
-    int f_listall = 0;
-    char *progname = argv[0];
-    int f_uptime = !strcmp(progname, "uptime");
+	int f_listall = 0;
+	char *progname = argv[0];
+	int f_uptime = !strcmp(progname, "uptime");
 
-    while ((c = getopt(argc, argv, "lu")) != -1) {
-        switch (c) {
-        case 'l':       /* list all - CSEG/DSEG */
-            f_listall = 1;
-            break;
-        case 'u':       /* uptime */
-            f_uptime = 1;
-            break;
-        default:
-            printf("Usage: %s: [-lu]\n", progname);
-            exit(1);
-        }
-    }
+	while ((c = getopt(argc, argv, "lu")) != -1) {
+        	switch (c) {
+        	case 'l':       /* list all - CSEG/DSEG */
+        		f_listall = 1;
+        		break;
+        	case 'u':       /* uptime */
+        		f_uptime = 1;
+        		break;
+        	default:
+        		printf("Usage: %s: [-lu]\n", progname);
+        		exit(1);
+        	}
+	}
 
 	if ((fd = open("/dev/kmem", O_RDONLY)) < 0) {
 		perror("ps");
@@ -196,12 +196,12 @@ int main(int argc, char **argv)
 		switch (task_table.state) {
 		case TASK_UNUSED:			continue;
 		case TASK_RUNNING:			c = 'R'; break;
-		case TASK_INTERRUPTIBLE:	c = 'S'; break;
-		case TASK_UNINTERRUPTIBLE:	c = 's'; break;
+		case TASK_INTERRUPTIBLE:		c = 'S'; break;
+		case TASK_UNINTERRUPTIBLE:		c = 's'; break;
 		case TASK_STOPPED:			c = 'T'; break;
 		case TASK_ZOMBIE:			c = 'Z'; break;
 		case TASK_EXITING:			c = 'E'; break;
-		default:					c = '?'; break;
+		default:				c = '?'; break;
 		}
 		pwent = (getpwuid(task_table.uid));
 
