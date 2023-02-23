@@ -457,7 +457,7 @@ void tcp_reject(struct iphdr_s *iph) {
 
 	tcph = (struct tcphdr_s *)(((char *)iph) + 4 * IP_HLEN(iph));
 	seqno = ntohl(tcph->seqnum);
-	printf("tcp: refusing packet from %s:%u to :%u fl 0x%04x\n", in_ntoa(iph->saddr),
+	printf("tcp: refusing packet from %s:%u to :%u fl 0x%02x\n", in_ntoa(iph->saddr),
 		ntohs(tcph->sport), ntohs(tcph->dport), tcph->flags);
 
 	/* Dummy up a new control block and send RST to shutdown sender */
@@ -538,21 +538,25 @@ void tcp_process(struct iphdr_s *iph)
     switch (cb->state) {
 
 	case TS_LISTEN:
+	    //write(1, "LI;", 3);
 	    debug_tcp("TS_LISTEN\n");
 	    tcp_listen(&iptcp, cb);
 	    break;
 
 	case TS_SYN_SENT:
+	    //write(1, "SS;", 3);
 	    debug_tcp("TS_SYN_SENT\n");
 	    tcp_syn_sent(&iptcp, cb);
 	    break;
 
 	case TS_SYN_RECEIVED:
+	    //write(1, "SR;", 3);
 	    debug_tcp("TS_SYN_RECEIVED\n");
 	    tcp_synrecv(&iptcp, cb);
 	    break;
 
 	case TS_ESTABLISHED:
+	    //write(1, "ES;", 3);
 	    tcp_established(&iptcp, cb);
 	    break;
 

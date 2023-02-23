@@ -178,6 +178,7 @@ void tcpdev_notify_accept(struct tcpcb_s *cb)
     struct tcpcb_list_s *lp;
     struct tdb_accept_ret accept_ret;
 
+    //write(1,"NA;", 3);
     debug_tcpdev("tcpdev_notify_accept\n");
     if (!cb->unaccepted)
 	return;
@@ -207,6 +208,7 @@ void tcpdev_notify_accept(struct tcpcb_s *cb)
     cb->sock = listencb->newsock;
     listencb->newsock = 0;
 
+    //write(1,"NA;", 3);
     write(tcpdevfd, &accept_ret, sizeof(accept_ret));
 }
 
@@ -231,6 +233,7 @@ static void tcpdev_connect(void)
 
     if (n->tcpcb.remport == NETCONF_PORT && n->tcpcb.remaddr == 0) {
 	n->tcpcb.state = TS_ESTABLISHED;
+	write(1,"TCN;", 4);
 	notify_sock(n->tcpcb.sock, TDT_CONNECT, 0);	/* success*/
     } else
 	tcp_connect(&n->tcpcb);
@@ -461,14 +464,17 @@ void tcpdev_process(void)
 	switch (sbuf[0]){
 	case TDC_BIND:
 	    debug_tcpdev("tcpdev_bind\n");
+	    //write(1,"TB;", 3);
 	    tcpdev_bind();
 	    break;
 	case TDC_ACCEPT:
 	    debug_tcpdev("tcpdev_accept\n");
+	    //write(1,"TA;", 3);
 	    tcpdev_accept();
 	    break;
 	case TDC_CONNECT:
 	    debug_tcpdev("tcpdev_connect\n");
+	    //write(1,"TC;", 3);
 	    tcpdev_connect();
 	    break;
 	case TDC_LISTEN:
