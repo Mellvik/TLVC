@@ -52,8 +52,8 @@ void notify_sock(void *sock, int type, int value)
 /* inform kernel of socket data bytes available*/
 void notify_data_avail(struct tcpcb_s *cb)
 {
-    if (cb->bytes_to_push <= 0)
-	return;
+    //if (cb->bytes_to_push <= 0)	/* always checked before call */
+	//return;
 
     notify_sock(cb->sock, TDT_AVAIL_DATA, cb->bytes_to_push);
 }
@@ -233,7 +233,7 @@ static void tcpdev_connect(void)
 
     if (n->tcpcb.remport == NETCONF_PORT && n->tcpcb.remaddr == 0) {
 	n->tcpcb.state = TS_ESTABLISHED;
-	write(1,"TCN;", 4);
+	//write(1,"TCN;", 4);
 	notify_sock(n->tcpcb.sock, TDT_CONNECT, 0);	/* success*/
     } else
 	tcp_connect(&n->tcpcb);
@@ -347,7 +347,7 @@ static void tcpdev_write(void)
      */
     size = db->size;
 
-    /* This is a bit ugly but I'm to lazy right now */
+    /* This is a bit ugly but I'm too lazy right now */
     if (tcp_retrans_memory > TCP_RETRANS_MAXMEM) {
 	printf("ktcp: RETRANS memory limit exceeded\n");
 	retval_to_sock(sock, -ENOMEM);
@@ -464,17 +464,14 @@ void tcpdev_process(void)
 	switch (sbuf[0]){
 	case TDC_BIND:
 	    debug_tcpdev("tcpdev_bind\n");
-	    //write(1,"TB;", 3);
 	    tcpdev_bind();
 	    break;
 	case TDC_ACCEPT:
 	    debug_tcpdev("tcpdev_accept\n");
-	    //write(1,"TA;", 3);
 	    tcpdev_accept();
 	    break;
 	case TDC_CONNECT:
 	    debug_tcpdev("tcpdev_connect\n");
-	    //write(1,"TC;", 3);
 	    tcpdev_connect();
 	    break;
 	case TDC_LISTEN:

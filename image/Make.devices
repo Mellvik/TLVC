@@ -41,7 +41,7 @@ devices:
 # Solid state disk
 
 ifneq ($(CONFIG_DEV_BLK_NONE), y)
-	$(MKDEV) /dev/ssd	b 2 0
+	$(MKDEV) /dev/ssd	b 7 0
 endif
 
 ##############################################################################
@@ -118,15 +118,24 @@ endif
 # Direct PATA / IDE disks. (Not working)
 # Limit to 4 primary partitions per disk (MBR).
 
-#	$(MKDEV) /dev/dhda b 5  0    # Currently.
-#	$(MKDEV) /dev/dhda b 5  0 4  # Currently.
-#	$MKSET   0 15 $(MKDEV) /dev/dhda b 5	# Currently.
-#	$(MKDEV) /dev/dhdb b 5 64    # Currently.
-#	$(MKDEV) /dev/dhdb b 5 64 4  # Currently.
-#	$MKSET  64 15 $(MKDEV) /dev/dhdb b 5	# Currently.
+ifeq ($(CONFIG_BLK_DEV_HD), y)
+	$(MKDEV) /dev/dhda b 5  0    # Currently.
+	$(MKDEV) /dev/dhda b 5  0 4  # Currently.
+	$MKSET   0 15 $(MKDEV) /dev/dhda b 5	# Currently.
+	$(MKDEV) /dev/dhdb b 5 64    # Currently.
+	$(MKDEV) /dev/dhdb b 5 64 4  # Currently.
+	$MKSET  64 15 $(MKDEV) /dev/dhdb b 5	# Currently.
+endif
 
 #	$MKSET   0 63 $(MKDEV) /dev/dhda b 3	# Ought to be.
 #	$MKSET  64 63 $(MKDEV) /dev/dhdb b 3	# Ought to be.
+
+##############################################################################
+# Direct floppy drives (experimental)
+ifeq ($(CONFIG_BLK_DEV_FD), y)
+	$(MKDEV) /dev/dfd0 b 3 0
+	$(MKDEV) /dev/dfd1 b 3 64
+endif
 
 ##############################################################################
 # Virtual consoles, pseudo-tty slaves and serial ports.
