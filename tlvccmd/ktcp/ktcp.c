@@ -118,14 +118,11 @@ void ktcp_run(void)
 
 	loopagain = 0;
 
-	/* reversed the order of these two feb 20th 2023 HS - elimiated ktcp 
-	 * hang situation under heavy incoming telnet load */
-
-	/* process application socket actions*/
-	if (FD_ISSET(tcpdevfd, &fdset)) {
-		tcpdev_process();
-		loopagain = 1;
-	}
+	/* NOTE:
+	 * Changing the order of processing (socket actions before receive actions)
+	 * will reduce the outgoing transfer rate by 80% while increasing incoming
+	 * rate by 10%.
+	 */
 
 	/* process received packets*/
 	if (FD_ISSET(intfd, &fdset)) {
@@ -134,6 +131,13 @@ void ktcp_run(void)
 		else slip_process();
 		loopagain = 1;
 	}
+
+	/* process application socket actions*/
+	if (FD_ISSET(tcpdevfd, &fdset)) {
+		tcpdev_process();
+		loopagain = 1;
+	}
+
 
 	/* check for expired retrans packets and free them*/
 	if (tcp_timeruse > 0)

@@ -472,11 +472,11 @@ ne2k_pack_get:
 #if 0
 	// -------------------------------------------------------------
 	// Packet size check not required since the NIC will not
-	// accept such packets per our initialization. Note, in order to handle
-	// erroneous packets, rx_get (BOUNDARY) pointer must be updated
-	// to point to the next packet.
+	// accept such packets per our initialization. Note, when handling
+	// erroneous packets manually, the rx_get (BOUNDARY) pointer must subsequently
+	// be updated do point to the next packet.
 	// If oversized packets still occur, it's a driver problem (most likely
-	// reading the wrong buffer page).
+	// reading the wrong buffer page from the NIC).
 	// -------------------------------------------------------------
 	or      %cx,%cx		// zero length
 	jz      npg_err2
