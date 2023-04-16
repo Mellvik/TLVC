@@ -129,15 +129,15 @@
 #define DMA_MODE_CASCADE 0xC0	/* pass thru DREQ->HRQ, DACK<-HLDA only */
 
 /* These are in kernel/dma.c: */
-extern void enable_dma(unsigned char);
-extern void disable_dma(unsigned char);
-extern void clear_dma_ff(unsigned char);
-extern void set_dma_mode(unsigned char,unsigned char);
-extern void set_dma_page(unsigned char,unsigned char);
-extern void set_dma_addr(unsigned char,unsigned long);
-extern void set_dma_count(unsigned char,unsigned int);
-extern int get_dma_residue(unsigned char);
-extern int request_dma(unsigned char,void *);
-extern void free_dma(unsigned char);
+void enable_dma(unsigned char);
+void disable_dma(unsigned char);
+void clear_dma_ff(unsigned char);
+void set_dma_mode(unsigned char,unsigned char);
+void set_dma_page(unsigned char,unsigned char);
+void set_dma_addr(unsigned char,unsigned long);
+void set_dma_count(unsigned char,unsigned int);
+int get_dma_residue(unsigned char);
+int request_dma(unsigned char,void *);
+void free_dma(unsigned char);
 
 #endif
