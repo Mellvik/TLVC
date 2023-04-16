@@ -39,6 +39,9 @@ include $(BASEDIR)/Makefile-rules
 UNUSED = dma.o
 OBJS  = sched.o printk.o sleepwake.o version.o sys.o sys2.o fork.o \
 	exit.o time.o signal.o
+ifeq ($(CONFIG_BLK_DEV_FD), y)
+OBJS  += dma.o
+endif
 
 #########################################################################
 # Commands:
