@@ -137,7 +137,6 @@ void add_timer(struct timer_list * timer)
 
     timer->tl_next = NULL;
     p = next_timer;
-    //printk("add%04x/%04x;", timer, p);
     save_flags(flags);
     clr_irq();
     while (p) {
@@ -157,7 +156,6 @@ int del_timer(struct timer_list * timer)
     flag_t flags;
     int ret = 0;
 
-    //printk("del0x%04x;", timer);
     p = next_timer;
     save_flags(flags);
     clr_irq();
