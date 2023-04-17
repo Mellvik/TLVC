@@ -119,13 +119,19 @@
 #define REL_INITSEG	0x70  /* 0x200 bytes setup data */
 #define DMASEG		0x90  /* 0x400 bytes floppy sector buffer */
 
+/* Note: DMASEG is used by the BIOS HD driver if XMS buffers are in use.
+ * If we have CONFIG_FS_XMS_BUFFER and CONFIG_TRACK_CACHE and 
+ * CONFIG_BLK_DEV_FD (block floppy driver)
+ * and use the bioshd driver, they may crash on concurrent DMASEG usage. */
+
 #ifdef CONFIG_TRACK_CACHE     /* floppy track buffer in low mem */
 #define DMASEGSZ	0x2400	      /* SECTOR_SIZE * 18 (9216) */
 #define REL_SYSSEG	0x2D0 /* kernel code segment */
 #else
 #define DMASEGSZ	0x0400	      /* BLOCK_SIZE (1024) */
 #define REL_SYSSEG	0x0D0 /* kernel code segment */
-#endif
+#endif /* CONFIG_TRACK_CACHE */
+
 #define SETUP_DATA	REL_INITSEG
 #endif /* (CONFIG_ARCH_IBMPC || CONFIG_ARCH_8018X) && !CONFIG_ROMCODE */
 

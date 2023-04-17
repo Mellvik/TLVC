@@ -60,7 +60,7 @@ endif
 ifeq ($(CONFIG_BLK_DEV_HD), y)
 OBJS += directhd.o
 endif
-# experimental (and not compiling) direct fd support
+# now works (april 2023)
 ifeq ($(CONFIG_BLK_DEV_FD), y)
 OBJS += directfd.o
 endif

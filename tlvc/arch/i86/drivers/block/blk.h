@@ -19,10 +19,11 @@ struct request {
     unsigned char rq_cmd;	/* READ or WRITE */
     unsigned char rq_status;
     block32_t rq_blocknr;
-    char *rq_buffer;
+    unsigned char *rq_buffer;
     ramdesc_t rq_seg;		/* L2 main/xms buffer segment */
     struct buffer_head *rq_bh;
     struct request *rq_next;
+    int rq_errors;		/* FIXME: direct floppy only, needs #ifdef */
 
 #ifdef BLOAT_FS
 /* This may get used for dealing with waiting for requests later*/
@@ -68,6 +69,7 @@ extern unsigned char hd_drive_map[];
 extern struct blk_dev_struct blk_dev[MAX_BLKDEV];
 extern void resetup_one_dev(struct gendisk *dev, int drive);
 
+
 #ifdef MAJOR_NR
 
 /*
@@ -101,6 +103,7 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 static void floppy_on();	/*(unsigned int nr); */
 static void floppy_off();	/*(unsigned int nr); */
+extern struct wait_queue wait_for_request;
 
 #define DEVICE_NAME "fd"
 #define DEVICE_INTR do_floppy
@@ -152,6 +155,7 @@ static void end_request(int uptodate)
     register struct buffer_head *bh;
 
     req = CURRENT;
+    //printk("ER%04x;", req);
 
     if (!uptodate) {
 	printk("%s: I/O error: ", DEVICE_NAME);
@@ -189,7 +193,7 @@ static void end_request(int uptodate)
     }
 #endif
 
-    DEVICE_OFF(req->dev);
+    DEVICE_OFF(req->rq_dev);
     CURRENT = req->rq_next;
 #ifdef BLOAT_FS
     struct task_struct *p;
@@ -201,12 +205,17 @@ static void end_request(int uptodate)
     }
 #endif
 
-    req->rq_dev = -1;
+    req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
-#ifdef MULTI_BH
+#if defined(MULTI_BH) || defined(FLOPPYDISK)
+    /* When we generalize this routine, change this so wake_up only
+     * gets called when it's necessary (i.e. when wait_for_request is set)
+     * or something */
+    //if (MAJOR_NR == 2) printk("WK%04x;", &wait_for_request);
     wake_up(&wait_for_request);
 #endif
 }
+
 #endif /* MAJOR_NR */
 
 #define INIT_REQUEST(req) \

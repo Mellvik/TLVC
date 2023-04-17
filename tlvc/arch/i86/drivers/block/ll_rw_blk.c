@@ -23,6 +23,13 @@
 #include <arch/io.h>
 #include <arch/irq.h>
 
+#ifdef CONFIG_BLK_DEV_FD
+//#define BDEV_SIZE_CHK	/* needed for direct floppy */
+#define FIXED_SECTOR_SIZE 512 /* Change if variable sect size is introduced */
+#define FLOPPYDISK
+struct wait_queue wait_for_request;
+static struct request *__get_request_wait(int, kdev_t);
+#endif
 #include "blk.h"
 
 #ifdef CONFIG_ROMFS_FS
@@ -40,7 +47,7 @@
 
 #define NR_REQUEST	20
 
-static struct request all_requests[NR_REQUEST];
+static struct request request_list[NR_REQUEST];
 
 /*
  * blk_dev_struct is:
@@ -100,14 +107,14 @@ static struct request *get_request(int n, kdev_t dev)
     register struct request *req;
     register struct request *limit;
 
-    limit = all_requests + n;
+    limit = request_list + n;
     if (limit != prev_limit) {
 	prev_limit = limit;
-	prev_found = all_requests;
+	prev_found = request_list;
     }
     req = prev_found;
     do {
-	req = ((req > all_requests) ? req : limit) - 1;
+	req = ((req > request_list) ? req : limit) - 1;
 	if (req->rq_status == RQ_INACTIVE) {
 	    prev_found = req;
 	    req->rq_status = RQ_ACTIVE;
@@ -148,8 +155,7 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
 	dev->current_request = req;
 	set_irq();
 	(dev->request_fn) ();
-    }
-    else {
+    } else {
 	for (; tmp->rq_next; tmp = tmp->rq_next) {
 	    if ((IN_ORDER(tmp, req) ||
 		!IN_ORDER(tmp, tmp->rq_next)) && IN_ORDER(req, tmp->rq_next))
@@ -166,15 +172,20 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
     struct request *req;
     int max_req;
 
-    debug_blk("BLK %lu %s %lx:%x\n", buffer_blocknr(bh), rw==READ? "read": "write",
+#ifdef CONFIG_FAR_BUFHEADS
+    debug_blk("BLK (%d) %lu %s %lx:%x\n", major, buffer_blocknr(bh), rw==READ? "read": "write",
 	buffer_seg(bh), buffer_data(bh));
+#else
+    debug_blk("BLK (%d) %lu %s %x:%x\n", major, buffer_blocknr(bh), rw==READ? "read": "write",
+	buffer_seg(bh), buffer_data(bh));
+#endif
 
 #ifdef BDEV_SIZE_CHK
-    sector_t count = BLOCK_SIZE / SECTOR_SIZE;	/* FIXME must move to lower level*/
+    sector_t count = BLOCK_SIZE / FIXED_SECTOR_SIZE;	/* FIXME must move to lower level*/
     sector_t sector = buffer_blocknr(bh) * count;
     if (blk_size[major])
 	if (blk_size[major][MINOR(buffer_dev(bh))] < (sector + count) >> 1) {
-	    printk("attempt to access beyond end of device\n");
+	    printk("Attempt to access beyond end of device %d %d %d\n", blk_size[major][MINOR(buffer_dev(bh))], sector, count);
 	    return;
 	}
 #endif
@@ -214,12 +225,12 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 
     if (!req) {
 
-/* I suspect we may need to call get_request_wait() but not at the moment
- * For now I will wait until we start getting panics, and then work out
- * what we have to do - Al <ajr@ecs.soton.ac.uk>
- */
+	/* I suspect we may need to call get_request_wait() but not at the moment
+	 * For now I will wait until we start getting panics, and then work out
+	 * what we have to do - Al <ajr@ecs.soton.ac.uk>
+	 */
 
-#ifdef MULTI_BH
+#if defined(MULTI_BH) || defined(FLOPPYDISK)
 	req = __get_request_wait(max_req, buffer_dev(bh));
 #else
 	panic("Can't get request.");
@@ -244,8 +255,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 }
 
 
-#ifdef MULTI_BH
-struct wait_queue wait_for_request = NULL;
+#if defined(MULTI_BH) || defined(FLOPPYDISK)
 
 /*
  * wait until a free request in the first N entries is available.
@@ -253,14 +263,15 @@ struct wait_queue wait_for_request = NULL;
 static struct request *__get_request_wait(int n, kdev_t dev)
 {
     register struct request *req;
-    printk("Waiting for request...\n");
+    printk("(%lu)Waiting for request %04x...\n", jiffies, &wait_for_request);
 
+    //prepare_to_wait(&wait_for_request);
     wait_set(&wait_for_request);
     current->state = TASK_UNINTERRUPTIBLE;
     goto startgrw;
     do {
 	schedule();
-      startgrw:
+  startgrw:
 #if 0
 	unplug_device(MAJOR(dev) + blk_dev);	/* Device can't be plugged */
 #endif
@@ -273,6 +284,8 @@ static struct request *__get_request_wait(int n, kdev_t dev)
 
     return req;
 }
+#endif
+#ifdef MULTI_BH
 
 /*
  * "plug" the device if there are no outstanding requests: this will
@@ -392,11 +405,11 @@ void INITPROC blk_dev_init(void)
 	dev->current_request = NULL;
     } while (++dev < &blk_dev[MAX_BLKDEV]);
 
-    req = all_requests;
+    req = request_list;
     do {
 	req->rq_status = RQ_INACTIVE;
 	req->rq_next = NULL;
-    } while (++req < &all_requests[NR_REQUEST]);
+    } while (++req < &request_list[NR_REQUEST]);
 
 #ifdef CONFIG_BLK_DEV_RAM
     rd_init();		/* RAMDISK block device*/

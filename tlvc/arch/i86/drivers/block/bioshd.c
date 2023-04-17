@@ -1,5 +1,6 @@
 /*
- * bioshd.c - ELKS floppy and hard disk driver - uses BIOS
+ * bioshd.c - TLVC floppy and hard disk driver - uses BIOS
+ *		imported from ELKS 2023
  *
  * Driver Copyright (C) 1994 Yggdrasil Computing, Inc.
  * Extended and modified for Linux 8086 by Alan Cox.
@@ -67,7 +68,6 @@
 #define DRIVE_FD2	6	/* PC98 only*/
 #define DRIVE_FD3	7	/* PC98 only*/
 
-#define MAJOR_NR BIOSHD_MAJOR
 #define BIOSDISK
 
 #include "blk.h"
@@ -174,44 +174,45 @@ static struct gendisk bioshd_gendisk = {
 };
 
 struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
-static struct drive_infot *cache_drive;
+struct drive_infot *cache_drive;	/* shared by block floppy driver */
 
+/* Beware: The cache is used by the block floppy driver, using them concurrently may
+ * deliver unpredictable results.
+ */
 static void set_cache_invalid(void)
 {
 	cache_drive = NULL;
 }
 
 static int bios_disk_rw(unsigned cmd, unsigned num_sectors, unsigned drive,
-	unsigned cylinder, unsigned head, unsigned sector, unsigned seg, unsigned offset)
+    unsigned cylinder, unsigned head, unsigned sector, unsigned seg, unsigned offset)
 {
 #ifdef CONFIG_ARCH_PC98
-	BD_AX = cmd | drive;
+    BD_AX = cmd | drive;
     if (((0xF0 & drive) == 0x80) || ((0xF0 & drive) == 0xA0)) {
 	BD_BX = (unsigned int) (num_sectors << 9);
 	BD_CX = cylinder;
 	BD_DX = (head << 8) | ((sector - 1) & 0xFF);
-    }
-    else {
+    } else {
 	if ((0xF0 & drive) == 0x90) {
 	    BD_BX = (unsigned int) (num_sectors << 10);
 	    BD_CX = (3 << 8) | cylinder;
-	}
-	else {
+	} else {
 	    BD_BX = (unsigned int) (num_sectors << 9);
 	    BD_CX = (2 << 8) | cylinder;
 	}
 	BD_DX = (head << 8) | sector;
     }
-	BD_ES = seg;
-	BD_BP = offset;
+    BD_ES = seg;
+    BD_BP = offset;
 #else
-	BD_AX = cmd | num_sectors;
-	BD_CX = (unsigned int) ((cylinder << 8) | ((cylinder >> 2) & 0xc0) | sector);
-	BD_DX = (head << 8) | drive;
-	BD_ES = seg;
-	BD_BX = offset;
+    BD_AX = cmd | num_sectors;
+    BD_CX = (unsigned int) ((cylinder << 8) | ((cylinder >> 2) & 0xc0) | sector);
+    BD_DX = (head << 8) | drive;
+    BD_ES = seg;
+    BD_BX = offset;
 #endif
-	return call_bios(&bdt);
+    return call_bios(&bdt);
 }
 
 #ifdef CONFIG_BLK_DEV_BHD
@@ -522,6 +523,7 @@ static void switch_device98(int target, unsigned char device, struct drive_infot
 }
 #endif
 
+#ifdef CONFIG_BLK_DEV_BFD
 static int read_sector(int drive, int cylinder, int sector)
 {
     int count = 2;		/* one retry on probe or boot sector read */
@@ -536,13 +538,12 @@ static int read_sector(int drive, int cylinder, int sector)
 	set_irq();
 	set_ddpt(36);		/* set to large value to avoid BIOS issues*/
 	if (!bios_disk_rw(BIOSHD_READ, 1, drive, cylinder, 0, sector, DMASEG, 0))
-	    return 0;			/* everything is OK */
+	    return 0;		/* everything is OK */
 	reset_bioshd(drive);
     } while (--count > 0);
     return 1;			/* error */
 }
 
-#ifdef CONFIG_BLK_DEV_BFD
 static void probe_floppy(int target, struct hd_struct *hdp)
 {
 /* Check for disk type */
@@ -764,10 +765,10 @@ int INITPROC bioshd_init(void)
     register struct gendisk *ptr;
     int count;
 
+#ifdef CONFIG_BLK_DEV_BFD
     /* FIXME perhaps remove for speed on floppy boot*/
     outb_p(0x0C, FDC_DOR);	/* FD motors off, enable IRQ and DMA*/
 
-#ifdef CONFIG_BLK_DEV_BFD
     _fd_count = bioshd_getfdinfo();
 #if NOTNEEDED
     enable_irq(FLOPPY_IRQ);	/* Floppy */
@@ -908,7 +909,7 @@ static void get_chst(struct drive_infot *drivep, sector_t start, unsigned int *c
 }
 
 /* do bios I/O, return # sectors read/written */
-static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *buf,
+static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigned char *buf,
 	ramdesc_t seg, int cmd, unsigned int count)
 {
 	int drive, errs;
@@ -1018,7 +1019,7 @@ static void bios_readtrack(struct drive_infot *drivep, sector_t start)
 }
 
 /* check whether cache is valid for one sector*/
-static int cache_valid(struct drive_infot *drivep, sector_t start, char *buf,
+static int cache_valid(struct drive_infot *drivep, sector_t start, unsigned char *buf,
 	ramdesc_t seg)
 {
 	unsigned int offset;
@@ -1033,14 +1034,14 @@ static int cache_valid(struct drive_infot *drivep, sector_t start, char *buf,
 }
 
 /* read from cache, return # sectors read*/
-static int do_cache_read(struct drive_infot *drivep, sector_t start, char *buf,
+static int do_cache_read(struct drive_infot *drivep, sector_t start, unsigned char *buf,
 	ramdesc_t seg, int cmd)
 {
 	if (cmd == READ) {
 	    if (cache_valid(drivep, start, buf, seg))	/* try cache first*/
 		return 1;
 	    bios_readtrack(drivep, start);		/* read whole track*/
-	    if (cache_valid(drivep, start, buf, seg)) 	/* try cache again*/
+	    if (cache_valid(drivep, start, buf, seg)) /* try cache again*/
 		return 1;
 	}
 	set_cache_invalid();
@@ -1055,11 +1056,10 @@ static void do_bioshd_request(void)
 	unsigned short minor;
 	sector_t start;
 	int drive, count;
-	char *buf;
+	unsigned char *buf;
 
 	spin_timer(1);
 	while (1) {
-      next_block:
 
 	req = CURRENT;
 	if (!req)	/* break for spin_timer stop before INIT_REQUEST */
@@ -1108,7 +1108,7 @@ static void do_bioshd_request(void)
 
 	    if (num_sectors == 0) {
 		end_request(0);
-		goto next_block;
+		continue;
 	    }
 
 	    count -= num_sectors;

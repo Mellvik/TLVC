@@ -124,7 +124,7 @@
 #endif
 
 struct buffer_head {
-    char			*b_data;	/* Address if in L1 buffer area, else 0 */
+    unsigned char		*b_data;	/* Address if in L1 buffer area, else 0 */
 #ifdef CONFIG_FAR_BUFHEADS
 };
 /* a little tricky here - buffer_head is split into near and far components */
@@ -141,7 +141,7 @@ struct ext_buffer_head_s {
     unsigned char		b_uptodate;
 #ifdef CONFIG_FS_EXTERNAL_BUFFER
     ramdesc_t			b_ds;		/* L2 buffer data segment */
-    char			*b_L2data;	/* Offset into L2 allocation block */
+    unsigned char		*b_L2data;	/* Offset into L2 allocation block */
     char			b_mapcount;	/* count of L2 buffer mapped into L1 */
 #endif
 };
@@ -482,7 +482,7 @@ extern int fd_check(unsigned int,char *,size_t,int,struct file **);
 extern void map_buffer(struct buffer_head *);
 extern void unmap_buffer(struct buffer_head *);
 extern void unmap_brelse(struct buffer_head *);
-extern char *buffer_data(struct buffer_head *);
+extern unsigned char *buffer_data(struct buffer_head *);
 #else
 #define map_buffer(bh)
 #define unmap_buffer(bh)

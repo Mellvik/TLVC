@@ -235,8 +235,13 @@ static struct dev_name_struct {
 	{ "hdb",     0x0320 },
 	{ "hdc",     0x0340 },
 	{ "hdd",     0x0360 },
+#ifdef CONFIG_BLK_DEV_FD
+	{ "f0",      0x0200 },
+	{ "f1",      0x0201 },
+#else
 	{ "fd0",     0x0380 },
 	{ "fd1",     0x03a0 },
+#endif
 	{ "ttyS",    0x0440 },
 	{ "tty1",    0x0400 },
 	{ "tty2",    0x0401 },
@@ -460,6 +465,7 @@ static void INITPROC finalize_options(void)
 	int i;
 
 	/* set ROOTDEV environment variable for rc.sys fsck*/
+	/* HS: Now in mount.cfg */
 	if (envs < MAX_INIT_ENVS)
 		envp_init[envs++] = root_dev_name(ROOT_DEV);
 

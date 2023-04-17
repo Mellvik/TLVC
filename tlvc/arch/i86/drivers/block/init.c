@@ -42,6 +42,7 @@ void INITPROC device_init(void)
 
     for (p = gendisk_head; p; p = p->next)
 	setup_dev(p);
+    printk("boot_rootdev 0x%x\n", boot_rootdev);
 
 #ifdef CONFIG_BLK_DEV_BIOS
     /*
@@ -53,7 +54,11 @@ void INITPROC device_init(void)
 	extern kdev_t INITPROC bioshd_conv_bios_drive(unsigned int biosdrive);
 
 	kdev_t rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);
-
+#ifdef CONFIG_BLK_DEV_FD
+	/* Needed only if we have BIOS HD and non-BIOS fd */
+	if (rootdev == 0x380) rootdev = 0x200; 
+	if (rootdev == 0x3A0) rootdev = 0x201; 
+#endif
 	printk("device_setup: BIOS drive 0x%x, root device 0x%x\n",
 		ROOT_DEV, rootdev);
 	ROOT_DEV = rootdev;
