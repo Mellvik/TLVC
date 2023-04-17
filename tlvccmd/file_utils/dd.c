@@ -35,7 +35,9 @@ static struct param params[] = {
 	{ "bs",		PAR_BS },
 	{ "count",	PAR_COUNT },
 	{ "seek",	PAR_SEEK },
+	{ "oseek",	PAR_SEEK },
 	{ "skip",	PAR_SKIP },
+	{ "iseek",	PAR_SKIP },
 	{ NULL,		PAR_NONE }
 };
 

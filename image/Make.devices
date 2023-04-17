@@ -115,6 +115,15 @@ endif
 #	$MKSET 240 15 $(MKDEV) /dev/ttye x 3
 
 ##############################################################################
+# Direct floppy support
+ifeq ($(CONFIG_BLK_DEV_FD), y)
+	$(MKDEV) /dev/f0 b 2 0
+	$(MKDEV) /dev/f0-1440 b 2 28
+	$(MKDEV) /dev/f1 b 2 1
+	$(MKDEV) /dev/f1-1440 b 2 29
+endif
+
+##############################################################################
 # Direct PATA / IDE disks. (Not working)
 # Limit to 4 primary partitions per disk (MBR).
 
@@ -132,7 +141,7 @@ endif
 
 ##############################################################################
 # Direct floppy drives (experimental)
-ifeq ($(CONFIG_BLK_DEV_FD), y)
+ifeq ($(CONFIG_BLK_DEV_FD_NOTUSED), y)
 	$(MKDEV) /dev/dfd0 b 3 0
 	$(MKDEV) /dev/dfd1 b 3 64
 endif

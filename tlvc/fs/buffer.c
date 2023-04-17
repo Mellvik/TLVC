@@ -134,7 +134,7 @@ static void add_buffers(int nbufs, char *buf, ramdesc_t seg)
 	ebh->b_seg = ebh->b_ds = seg;
 	//bh->b_mapcount = 0;
 	//bh->b_data = (char *)0;	/* not in L1 cache*/
-	ebh->b_L2data = (char *)((n & 63) << BLOCK_SIZE_BITS);	/* L2 offset*/
+	ebh->b_L2data = (unsigned char *)((n & 63) << BLOCK_SIZE_BITS);	/* L2 offset*/
 #else
 	bh->b_data = buf;
 	buf += BLOCK_SIZE;
@@ -588,7 +588,7 @@ void map_buffer(struct buffer_head *bh)
 
 	    /* Unmap/copy L1 to L2 */
 	    xms_fmemcpyw(ebmap->b_L2data, ebmap->b_ds, bmap->b_data, kernel_ds, BLOCK_SIZE/2);
-	    bmap->b_data = (char *)0;
+	    bmap->b_data = (unsigned char *)0;
 	    ebmap->b_seg = ebmap->b_ds;
 	    break;		/* success */
 	}
@@ -602,7 +602,7 @@ void map_buffer(struct buffer_head *bh)
     /* Map/copy L2 to L1 */
     lastL1map = i;
     L1map[i] = bh;
-    bh->b_data = (char *)L1buf + (i << BLOCK_SIZE_BITS);
+    bh->b_data = (unsigned char *)L1buf + (i << BLOCK_SIZE_BITS);
     if (ebh->b_uptodate)
 	xms_fmemcpyw(bh->b_data, kernel_ds, ebh->b_L2data, ebh->b_ds, BLOCK_SIZE/2);
     debug("MAP:   %d -> %d\n", buf_num(bh), i);
@@ -640,7 +640,7 @@ void unmap_brelse(struct buffer_head *bh)
     }
 }
 
-char *buffer_data(struct buffer_head *bh)
+unsigned char *buffer_data(struct buffer_head *bh)
 {
     return (bh->b_data? bh->b_data: EBH(bh)->b_L2data);
 }

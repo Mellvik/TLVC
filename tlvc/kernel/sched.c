@@ -128,46 +128,48 @@ void schedule(void)
 	debug_sched("resched: %d prevstate %d\n", current->pid, prev->state);
 }
 
-static struct timer_list *next_timer;
+static struct timer_list *next_timer = NULL;
 
 void add_timer(struct timer_list * timer)
 {
-    struct timer_list **p;
+    struct timer_list *p;
     flag_t flags;
 
     timer->tl_next = NULL;
-    p = &next_timer;
+    p = next_timer;
     save_flags(flags);
     clr_irq();
-    while (*p) {
-        if ((*p)->tl_expires > timer->tl_expires) {
-            timer->tl_next = *p;
+    while (p) {
+        if (p->tl_expires > timer->tl_expires) {
+            timer->tl_next = p;
             break;
         }
-        p = &(*p)->tl_next;
+        p = p->tl_next;
     }
-    *p = timer;
+    next_timer = timer;
     restore_flags(flags);
 }
 
 int del_timer(struct timer_list * timer)
 {
-    struct timer_list **p;
+    struct timer_list *p;
     flag_t flags;
+    int ret = 0;
 
-    p = &next_timer;
+    p = next_timer;
     save_flags(flags);
     clr_irq();
-    while (*p) {
-        if (*p == timer) {
-            *p = timer->tl_next;
-            restore_flags(flags);
-            return 1;
+    while (p) {
+        if (p == timer) {
+            p = timer->tl_next;
+            ret = 1;
+	    break;
         }
-        p = &(*p)->tl_next;
+        p = p->tl_next;
     }
+    if (timer == next_timer) next_timer = NULL;
     restore_flags(flags);
-    return 0;
+    return ret;
 }
 
 static void run_timer_list(void)

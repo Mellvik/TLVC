@@ -99,15 +99,15 @@
 #ifdef CONFIG_BLK_DEV_BIOS    /* BIOS disk driver*/
 #define DMASEG		0x80  /* 0x400 bytes floppy sector buffer */
 #ifdef CONFIG_TRACK_CACHE     /* floppy track buffer in low mem */
-#define DMASEGSZ 0x2400       /* SECTOR_SIZE * 18 (9216) */
+#define DMASEGSZ	0x2400       /* SECTOR_SIZE * 18 (9216) */
 #define KERNEL_DATA	0x2C0 /* kernel data segment */
 #else
-#define DMASEGSZ 0x040	      /* BLOCK_SIZE (1024) */
+#define DMASEGSZ	0x0400	      /* BLOCK_SIZE (1024) */
 #define KERNEL_DATA	0x0C0 /* kernel data segment */
-#endif
+#endif /* CONFIG_TRACK_CACHE */
 #else
 #define KERNEL_DATA     0x80  /* kernel data segment */
-#endif
+#endif	/* CONFIG_BLK_DEV_BIOS */
 #define SETUP_DATA	CONFIG_ROM_SETUP_DATA
 #endif /* CONFIG_ROMCODE */
 
@@ -115,17 +115,23 @@
 #if (defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_8018X)) && !defined(CONFIG_ROMCODE)
 /* Define segment locations of low memory, must not overlap */
 #define DEF_OPTSEG	0x50  /* 0x200 bytes boot options*/
-#define OPTSEGSZ 0x200    /* max size of /bootopts file (1K max) */
+#define OPTSEGSZ	0x200    /* max size of /bootopts file (1K max) */
 #define REL_INITSEG	0x70  /* 0x200 bytes setup data */
 #define DMASEG		0x90  /* 0x400 bytes floppy sector buffer */
 
+/* Note: DMASEG is used by the BIOS HD driver if XMS buffers are in use.
+ * If we have CONFIG_FS_XMS_BUFFER and CONFIG_TRACK_CACHE and 
+ * CONFIG_BLK_DEV_FD (block floppy driver)
+ * and use the bioshd driver, they may crash on concurrent DMASEG usage. */
+
 #ifdef CONFIG_TRACK_CACHE     /* floppy track buffer in low mem */
-#define DMASEGSZ 0x2400	      /* SECTOR_SIZE * 18 (9216) */
+#define DMASEGSZ	0x2400	      /* SECTOR_SIZE * 18 (9216) */
 #define REL_SYSSEG	0x2D0 /* kernel code segment */
 #else
-#define DMASEGSZ 0x0400	      /* BLOCK_SIZE (1024) */
+#define DMASEGSZ	0x0400	      /* BLOCK_SIZE (1024) */
 #define REL_SYSSEG	0x0D0 /* kernel code segment */
-#endif
+#endif /* CONFIG_TRACK_CACHE */
+
 #define SETUP_DATA	REL_INITSEG
 #endif /* (CONFIG_ARCH_IBMPC || CONFIG_ARCH_8018X) && !CONFIG_ROMCODE */
 
@@ -157,7 +163,7 @@
  * The definitions for UTS_RELEASE and UTS_VERSION are now passed as
  * kernel compilation parameters, and should only be used by elks/kernel/version.c
  */
-#define UTS_SYSNAME "ELKS"
-#define UTS_NODENAME "elks"		/* someday set by sethostname() */
+#define UTS_SYSNAME "TLVC"
+#define UTS_NODENAME "tlvc"		/* someday set by sethostname() */
 
 #endif

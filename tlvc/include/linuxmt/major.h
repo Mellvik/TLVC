@@ -19,14 +19,16 @@
  *      --------------------   --------------------   --------------------
  *  0 - unnamed                unnamed                minor 0 = true nodev
  *  1 - /dev/mem               /dev/rd[01]            block ramdisk
- *  2 - /dev/ptyp*             /dev/ssd               char pty master
+ *  2 - /dev/ptyp*             /dev/f[0,...]          char pty master (c)
+ *						      Direct floppy (bl)
  *  3 - /dev/ttyp*             /dev/{fd*,hd*}         block BIOS fd/hd
  *  4 - /dev/tty*,ttyp*,ttyS*                         char tty, pty slave, serial
  *  5 -
  *  6 - /dev/lp                /dev/rom               block romflash
  *  7 -                        /dev/udd               block meta user device driver
+ *			       /dev/sdd
  *  8 - /dev/tcpdev                                   kernel <-> ktcp comm
- *  9 - /dev/eth                                      NIC driver
+ *  9 - /dev/eth                                      NIC drivers
  * 10 - /dev/cgatext
  */
 
@@ -48,12 +50,12 @@
 /* These are the block devices */
 
 #define RAM_MAJOR         1
-#define FLOPPY_MAJOR      2  /* unused*/
-#define SSD_MAJOR         2
+#define FLOPPY_MAJOR      2  /* Direct FD */
 #define BIOSHD_MAJOR      3
 #define MSCDEX_MAJOR      4  /* unused*/
-#define ATHD_MAJOR        5  /* unused*/
+#define ATHD_MAJOR        5  /* Direct HD */
 #define ROMFLASH_MAJOR    6
+#define SSD_MAJOR         7  /* Was 2 */
 
 
 #endif  /* !__LINUXMT_MAJOR_H */

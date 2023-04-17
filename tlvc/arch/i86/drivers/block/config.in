@@ -30,6 +30,8 @@ mainmenu_option next_comment
 	    bool '  BIOS drive track caching'	CONFIG_TRACK_CACHE	y
 	    bool '  BIOS hard drive support'	CONFIG_BLK_DEV_BHD	y
 	    bool '  IDE hard drive CHS probe'	CONFIG_IDE_PROBE	y
+	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	n
+	    bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	n
 	fi
 
 	if [ "$CONFIG_BLK_DEV_FD" = "y" ]; then
