@@ -27,12 +27,14 @@ mainmenu_option next_comment
 			    2880k	CONFIG_BLK_DEV_BFD1_2880"	None
 		fi
 	    fi
-	    bool '  BIOS drive track caching'	CONFIG_TRACK_CACHE	y
 	    bool '  BIOS hard drive support'	CONFIG_BLK_DEV_BHD	y
 	    bool '  IDE hard drive CHS probe'	CONFIG_IDE_PROBE	y
 	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	n
-	    bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	n
+	else
+	    bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
+	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	y
 	fi
+	bool '  Floppy track caching'	CONFIG_TRACK_CACHE	y
 
 	if [ "$CONFIG_BLK_DEV_FD" = "y" ]; then
 	    define_bool CONFIG_DMA y

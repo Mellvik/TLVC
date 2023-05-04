@@ -231,13 +231,20 @@ static struct dev_name_struct {
 	int num;
 } devices[] = {
 	/* root_dev_name needs first 5 in order*/
+#ifdef CONFIG_BLK_DEV_HD
+	{ "dhda",    0x0500 },
+	{ "dhdb",    0x0520 },
+	{ "dhdc",    0x0540 },
+	{ "dhdd",    0x0560 },
+#else
 	{ "hda",     0x0300 },
 	{ "hdb",     0x0320 },
 	{ "hdc",     0x0340 },
 	{ "hdd",     0x0360 },
+#endif
 #ifdef CONFIG_BLK_DEV_FD
-	{ "f0",      0x0200 },
-	{ "f1",      0x0201 },
+	{ "df0",     0x0200 },
+	{ "df1",     0x0220 },
 #else
 	{ "fd0",     0x0380 },
 	{ "fd1",     0x03a0 },

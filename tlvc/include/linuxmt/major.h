@@ -19,11 +19,11 @@
  *      --------------------   --------------------   --------------------
  *  0 - unnamed                unnamed                minor 0 = true nodev
  *  1 - /dev/mem               /dev/rd[01]            block ramdisk
- *  2 - /dev/ptyp*             /dev/f[0,...]          char pty master (c)
+ *  2 - /dev/ptyp*             /dev/df[0,...]         char pty master (c)
  *						      Direct floppy (bl)
  *  3 - /dev/ttyp*             /dev/{fd*,hd*}         block BIOS fd/hd
  *  4 - /dev/tty*,ttyp*,ttyS*                         char tty, pty slave, serial
- *  5 -
+ *  5 -			       /dev/dhd*	      direct HD
  *  6 - /dev/lp                /dev/rom               block romflash
  *  7 -                        /dev/udd               block meta user device driver
  *			       /dev/sdd

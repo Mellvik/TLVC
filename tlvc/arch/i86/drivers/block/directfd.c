@@ -92,11 +92,13 @@
 #include <arch/io.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
-
+#include <arch/hdreg.h>		/* for ioctl GETGEO */
 
 #define FLOPPYDISK
 #define MAJOR_NR FLOPPY_MAJOR
-#include "blk.h"
+#define MINOR_SHIFT	5	/* shift to get drive num */
+
+#include "blk.h"		/* ugly - blk.h contains code */
 struct wait_queue wait_for_request; /* used in blk.h */
 
 /* This is confusing. DEVICE_INTR is the do_floppy variable.
@@ -443,7 +445,7 @@ static void motor_off_callback(int nr)
  * otherwise start motor and set timer to continue (motor_on_callback).
  * In the latter case, motor_on_callback will call floppy_select();
  *
- * DOR (Data Output Register) is /MOTD/MOTC/MOTB/MOTA/DMA/(RST)/DR1/DR0/
+ * DOR (Data Output Register) is |MOTD|MOTC|MOTB|MOTA|DMA|/RST|DR1|DR0|
  */
 static void floppy_on(int nr)
 {
@@ -529,7 +531,7 @@ static unsigned int changed_floppies = 0, fake_change = 0;
 
 int floppy_change(struct buffer_head *bh)
 {
-    unsigned int mask = 1 << (bh->b_dev & 0x03);
+    unsigned int mask = 1 << ((bh->b_dev & 0x03) >> MINOR_SHIFT;
 
     if (MAJOR(bh->b_dev) != MAJOR_NR) {
 	printk("floppy_change: not a floppy\n");
@@ -817,10 +819,10 @@ static void rw_interrupt(void)
     }
 
     if (probing) {
-	int drive = MINOR(CURRENT->rq_dev);
+	int drive = MINOR(CURRENT->rq_dev) >> MINOR_SHIFT;
 
 	if (ftd_msg[drive])
-	    printk("Auto-detected floppy type %s in fd%d\n",
+	    printk("Auto-detected floppy type %s in df%d\n",
 		   floppy->name, drive);
 	current_type[drive] = floppy;
 #ifdef BDEV_SIZE_CHK
@@ -837,8 +839,8 @@ static void rw_interrupt(void)
 	if (debug) printk("rd:%04x:%04x->%04x:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
 	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
     } else if (command == FD_READ && _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer) >= LAST_DMA_ADDR) {
-	/* if the dest buffer is out of reach for DMA, we need to read into the bounce buffer,
-	 * then move into the buffer system */
+	/* if the dest buffer is out of reach for DMA, we need to use the bounce buffer,
+	 * then move the data to the buffer system */
 	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, tmp_floppy_area, kernel_ds, BLOCK_SIZE/2);
 	printk("directfd: illegal buffer usage, rq_buffer %04x:%04x\n", 
 		CURRENT->rq_seg, CURRENT->rq_buffer);
@@ -902,7 +904,7 @@ static void seek_interrupt(void)
     if (debug) printk("seekI-");
     output_byte(FD_SENSEI);
     if (result() != 2 || (ST0 & 0xF8) != 0x20 || ST1 != seek_track) {
-	printk("%s: seek failed\n", DEVICE_NAME);
+	printk("%s%d: seek failed\n", DEVICE_NAME, current_drive);
 	recalibrate = 1;
 	bad_flp_intr();
 	redo_fd_request();
@@ -1118,7 +1120,7 @@ static void floppy_ready(void)
 		 * means a new medium of the same format as the prev until it fails.
 		 */
 	    if (ftd_msg[current_drive] && current_type[current_drive] != NULL)
-		printk("Disk type is undefined after disk change in fd%d\n",
+		printk("Disk type is undefined after disk change in df%d\n",
 		       current_drive);
 	    current_type[current_drive] = NULL;
 #ifdef BDEV_SIZE_CHK
@@ -1205,7 +1207,7 @@ static void redo_fd_request(void)
     }
     seek = 0;
     probing = 0;
-    device = MINOR(CURRENT_DEVICE);
+    device = MINOR(CURRENT_DEVICE) >> MINOR_SHIFT;
     if (device > 3)
 	floppy = (device >> 2) + floppy_type;
     else {			/* Auto-detection */
@@ -1277,9 +1279,9 @@ static void redo_fd_request(void)
     if (debug) printk("prep %d|%d,%d|%d-", buffer_track, seek_track, buffer_drive, current_drive);
 
     if ((((seek_track << 1) + head) == buffer_track) && (current_drive == buffer_drive)) {
-	/* if the sector count is odd we read sectors+1 when head=0 to get and even
-	 * number of sectors (full blocks). Then we read the entire head01 track,
-	 * and just ognore the forst sector. Don't get confused by the odd numbered
+	/* if the sector count is odd, we read sectors+1 when head=0 to get an even
+	 * number of sectors (full blocks). When head=1 we read the entire track
+	 * and ignore the first sector. Don't get confused by the odd numbered
 	 * sectors from the debug output, for head = 1, they're good.
 	 */
 	if (debug) printk("bufrd tr/s %d/%d\n", seek_track, sector);
@@ -1311,19 +1313,41 @@ void do_fd_request(void)
 }
 
 static int fd_ioctl(struct inode *inode,
-		    struct file *filp, unsigned int cmd, unsigned long param)
+		    struct file *filp, unsigned int cmd, unsigned int param)
 {
 /* FIXME: Get this back in when everything else is working */
 /* Needs a big cleanup */
-#ifdef HAS_IOCTL
     struct floppy_struct *this_floppy;
-    int drive, cnt, okay;
+    int drive, err = -EINVAL;
+    struct hd_geometry *loc = (struct hd_geometry *) param;
 
+#if 0 /* what is this ? */
     switch (cmd) {
 	RO_IOCTLS(inode->i_rdev, param);
     }
-    drive = MINOR(inode->i_rdev);
+#endif
+    if (!inode || !inode->i_rdev)
+	return -EINVAL;
+    drive = MINOR(inode->i_rdev) >> MINOR_SHIFT;
+    if (drive > 3)
+	this_floppy = &floppy_type[drive >> 2];
+    else if ((this_floppy = current_type[drive & 3]) == NULL)
+	return -ENODEV;
+
     switch (cmd) {
+    case HDIO_GETGEO:	/* need this one for the sys/makeboot command */
+    case FDGETPRM:
+	err = verify_area(VERIFY_WRITE, (void *) param, sizeof(struct hd_geometry));
+	if (!err) {
+	    put_user_char(this_floppy->head, &loc->heads);
+	    put_user_char(this_floppy->sect, &loc->sectors);
+	    put_user(this_floppy->track, &loc->cylinders);
+	    put_user_long(0L, &loc->start);
+	}
+	//return verified_memcpy_tofs((char *)param,
+	//	    (char *)this_floppy, sizeof(struct floppy_struct));
+	break;
+#ifdef HAS_IOCTL
     case FDFMTBEG:
 	if (!suser())
 	    return -EPERM;
@@ -1337,13 +1361,6 @@ static int fd_ioctl(struct inode *inode,
 	drive &= 3;
 	cmd = FDCLRPRM;
 	break;
-    case FDGETPRM:
-	if (drive > 3)
-	    this_floppy = &floppy_type[drive >> 2];
-	else if ((this_floppy = current_type[drive & 3]) == NULL)
-	    return -ENODEV;
-	return verified_memcpy_tofs((char *)param,
-		    (char *)this_floppy, sizeof(struct floppy_struct));
     case FDFMTTRK:
 	if (!suser())
 	    return -EPERM;
@@ -1368,11 +1385,11 @@ static int fd_ioctl(struct inode *inode,
 	while (format_status != FORMAT_OKAY && format_status != FORMAT_ERROR)
 	    sleep_on(&format_done);
 	set_irq();
-	okay = format_status == FORMAT_OKAY;
+	err = format_status == FORMAT_OKAY;
 	format_status = FORMAT_NONE;
 	floppy_off(drive & 3);
 	wake_up(&format_done);
-	return okay ? 0 : -EIO;
+	return err ? 0 : -EIO;
     case FDFLUSH:
 	if (!permission(inode, 2))
 	    return -EPERM;
@@ -1430,13 +1447,11 @@ static int fd_ioctl(struct inode *inode,
     case FDSETEMSGTRESH:
 	min_report_error_cnt[drive] = (unsigned short) (param & 0x0f);
 	break;
+#endif
     default:
 	return -EINVAL;
     }
-    return 0;
-#else
-    return -EINVAL;
-#endif
+    return err;
 }
 
 #ifdef TRP_ASM
@@ -1458,10 +1473,10 @@ static struct floppy_struct *find_base(int drive, int code)
 
     if (code > 0 && code < 5) {
 	base = &floppy_types[(code - 1) * 2];
-	printk("fd%d is %s (%d)", drive, base->name, code);
+	printk("df%d is %s (%d)", drive, base->name, code);
 	return base;
     }
-    printk("fd%d is unknown type %d", drive, code);
+    printk("df%d is unknown type %d", drive, code);
     return NULL;
 }
 
@@ -1488,7 +1503,7 @@ static int floppy_open(struct inode *inode, struct file *filp)
 {
     int drive, old_dev, device;
 
-    drive = inode->i_rdev & 3;
+    drive = MINOR(inode->i_rdev) >> MINOR_SHIFT;
     old_dev = fd_device[drive];
     if (fd_ref[drive])
 	if (old_dev != inode->i_rdev)
@@ -1505,20 +1520,20 @@ static int floppy_open(struct inode *inode, struct file *filp)
 #endif
 
 /* FIXME: Put the correct value for inode->i_size */
-    device = MINOR(inode->i_rdev);
-    if (device > 3)		/* forced floppy type */
-	floppy = (device >> 2) + floppy_type;
+    //device = MINOR(inode->i_rdev) >> MINOR_SHIFT;
+    if (drive > 3)		/* forced floppy type */
+	floppy = (drive >> 2) + floppy_type;
     else {			/* Auto-detection */
-	floppy = current_type[device & 3];
+	floppy = current_type[drive & 3];
 	if (!floppy) {
 	    probing = 1;
-	    floppy = base_type[device & 3];
+	    floppy = base_type[drive & 3];
 	    if (!floppy)
 		return -ENXIO;
 	}
     }
     inode->i_size = ((sector_t)(floppy->size)) << 9;	/* NOTE: assumes sector size 512 */
-    printk("fl_open dr %02x, sz %lu, %s\n", inode->i_rdev, inode->i_size, floppy->name);
+    printk("df_open dv %02x, sz %lu, %s\n", inode->i_rdev, inode->i_size, floppy->name);
 
     return 0;
 }
@@ -1568,7 +1583,7 @@ static void floppy_interrupt(int unused, struct pt_regs *unused1)
     handler();
 }
 
-void floppy_init(void)
+void INITPROC floppy_init(void)
 {
 #ifdef BDEV_SIZE_CHK
     extern int *blk_size[];
@@ -1576,7 +1591,7 @@ void floppy_init(void)
     int err;
 
     outb(current_DOR, FD_DOR);	/* all motors off, DMA, /RST  (0x0c) */
-    if (register_blkdev(MAJOR_NR, "fd", &floppy_fops)) {
+    if (register_blkdev(MAJOR_NR, DEVICE_NAME, &floppy_fops)) {
 	printk("Unable to get major %d for floppy\n", MAJOR_NR);
 	return;
     }
@@ -1620,6 +1635,7 @@ void floppy_init(void)
 	reset_floppy();
     }
 }
+
 #if 0
 /* replace separate DMA handler later - this is much more compact and efficient */
 

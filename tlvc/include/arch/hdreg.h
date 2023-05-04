@@ -6,7 +6,7 @@
 
 /* ide.c has it's own port definitions in "ide.h" */
 
-/* Hd controller regs. Ref: IBM AT Bios-listing */
+/* First Hd controller regs. Ref: IBM AT Bios-listing */
 #define HD_DATA		0x1f0	/* _CTL when writing */
 #define HD_ERROR	0x1f1	/* see err-bits */
 #define HD_NSECTOR	0x1f2	/* nr of sectors to read/write */

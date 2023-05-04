@@ -1,9 +1,36 @@
 /*
- * NOTE: experimental direct hd driver - NOT WORKING
- *
  * directhd driver for ELKS kernel
  * Copyright (C) 1998 Blaz Antonic
  * 14.04.1998 Bugfixes by Alastair Bridgewater nyef@sudval.org
+ * 17.04.2023 Rewritten for TLVC by helge@skrivervik.com
+ */
+/*
+ * NOTE:
+ * - This driver may or may not on 8088 and 8 bit bus systems,
+ *   I don't think it will work with pre-IDE drives. HS
+ */
+/*
+ * TODO (HS 04/23):
+ * - create kernel library routines for insw & outsw, make sure they're used
+ *   where local variants are used now.
+ * - Create a library routine for delays/waits, many drivers have their own variant, wastes space.
+ * - use interrupts - it will simplify the logic and improve reliability (and speed)
+ * - test with 2 controllers, 4 drives
+ * - add LBA support
+ * - recognize the presence of solid state devices (to remove request sorting)
+ */
+/*
+ * A note about IDE/ATA:
+ * The read/write sector commands do multisector I/O but each sector needs its own read
+ * or write operation: One command, many response-iterations. IOW we have to handle eachs
+ * sector individually, like waiting for a new DRQ (or interrupt) per sector.
+ * Read/write multiple is different, but make sure to read/write the number of sectors 
+ * specified in the Set Multiple command. If device ID word 47 bits 7:0 are zero, multisector 
+ * read/writes are not supported. This field contains the max # of sectors this device supports
+ * r/w multiple commands. We use 2 only. We use the SET_MULTIPLE command to determine if the 
+ * drive is multisector capable. If the command fails, we're not.
+ * DMA transfers are possible with most devices but not supported by this driver and not really
+ * meaningful because it may be slower than PIO.
  */
 
 #include <linuxmt/major.h>
@@ -11,27 +38,35 @@
 #include <linuxmt/fs.h>
 #include <linuxmt/string.h>
 #include <linuxmt/mm.h>
+#include <linuxmt/heap.h>
 #include <linuxmt/directhd.h>
 #include <linuxmt/debug.h>
+#include <linuxmt/errno.h>
 
 #include <arch/hdreg.h>
+#include <arch/ports.h>
 #include <arch/io.h>
 #include <arch/segment.h>
 
 /* maybe we should have word-wide input here instead of byte-wide ? */
-#define STATUS(port) inb_p(port + DIRECTHD_STATUS)
-#define ERROR(port) inb_p(port + DIRECTHD_ERROR)
+#define STATUS(port) inb_p((port) + ATA_STATUS)
+#define ERROR(port) inb_p((port) + ATA_ERROR)
+#define port_write(port,buf,nr) \
+__asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 
-#define WAITING(port) (STATUS(port) & 0x80) == 0x80
+#define WAITING(port) ((STATUS(port) & BUSY_STAT) == BUSY_STAT)
+#define DRQ_WAIT(port) (STATUS(port) & DRQ_STAT) /* set when ready to transfer */
 
+/* #define USE_ASM */
 /* use asm insw/outsw instead of C version */
 /* asm versions should work on 8088/86, but only with CONFIG_PC_XT */
-/* #define USE_ASM */
 
 /* uncomment this to include debugging code .. this increases size of driver */
 #define USE_DEBUG_CODE
+//#define FORCE_SECTOR_IO	/* disable mutlisector R/W */
 
 #define MAJOR_NR ATHD_MAJOR
+#define MINOR_SHIFT	5
 #define ATDISK
 #include "blk.h"
 
@@ -50,29 +85,30 @@ static struct file_operations directhd_fops = {
     directhd_release		/* release */
 };
 
-/* what is this good for ? */
-static int access_count[4] = { 0, };
+/* MAX_ATA_DRIVES is set in directhd.h - to save RAM, reduce to 2 */
+static int access_count[MAX_ATA_DRIVES] = { 0, };
 
 static int io_ports[2] = { HD1_PORT, HD2_PORT };
+static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
+#ifdef USE_LOCALBUF
+static char localbuf[BLOCK_SIZE];	/* FIXME temporary - debugging */
+#endif
 
 static int directhd_initialized = 0;
+static struct drive_infot drive_info[MAX_ATA_DRIVES] = { 0, };
+static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer {start_sect, num_sects} */
+static int directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 
-static struct drive_infot {
-    int cylinders;
-    int sectors;
-    int heads;
-} drive_info[4] = { 0, };	/* preset to 0 */
-
-static struct hd_struct hd[4 << 6];
-static int directhd_sizes[4 << 6] = { 0, };
 static void directhd_geninit();
+static void reset_controller(int);
+static int drive_busy(int);
 
 static struct gendisk directhd_gendisk = {
-    MAJOR_NR,			/* major number */
-    "dhd",			/* device name */
-    6,
-    1 << 6,
-    4,
+    MAJOR_NR,			/* major: major number */
+    DEVICE_NAME,		/* major_name: device name */
+    MINOR_SHIFT,		/* minor_shift: # rightshifts to get real minor  */
+    1 << MINOR_SHIFT,		/* max_p: Max partitons, FIXME change to 4 */
+    MAX_ATA_DRIVES,
     directhd_geninit,		/* init */
     hd,				/* hd struct */
     directhd_sizes,		/* drive sizes */
@@ -83,33 +119,54 @@ static struct gendisk directhd_gendisk = {
 
 void directhd_geninit(void)
 {
+    struct drive_infot *drivep;
+    struct hd_struct *hdp = hd;
     int i;
 
-    for (i = 0; i < 4 << 6; i++) {
-	if ((i & ((1 << 6) - 1)) == 0) {
-	    hd[i].start_sect = 0;
-	    hd[i].nr_sects = (sector_t)drive_info[i >> 6].sectors *
-		drive_info[i >> 6].heads * drive_info[i >> 6].cylinders;
+    drivep = drive_info;
+    for (i = 0; i < MAX_ATA_DRIVES << MINOR_SHIFT; i++) {
+	if ((i & ((1 << MINOR_SHIFT) - 1)) == 0) {
+	    hdp->start_sect = 0;
+	    hdp->nr_sects = (sector_t)drivep->sectors *
+		drivep->heads * drivep->cylinders;
+	    //printk("%d: %ld$", i, hdp->nr_sects);
+	    drivep++;
 	} else {
-	    hd[i].start_sect = -1;
-	    hd[i].nr_sects = 0;
+	    hdp->start_sect = -1;
+	    hdp->nr_sects = 0;
 	}
+	hdp++;
     }
     return;
 }
 
-#ifndef USE_ASM
-
-void insw(unsigned int port,unsigned int *buffer,int count)
+void insw(unsigned int port, word_t *buffer, int count)
 {
-    int i;
-
-    for (i = 0; i < count / 2; i++)
-	buffer[i] = inw(port);
-    return;
+    //printk("%x,%x,%d;", port, buffer, count);
+    count >>= 1;
+    do {
+	*buffer++ = inw(port);
+    } while (--count);
 }
 
+// FIXME: redo this in asm
+void insw_far(unsigned int port, seg_t seg, word_t *buffer, int count)
+{
+#ifndef USE_LOCALBUF
+    int __far *locbuf = _MK_FP(seg, (word_t)buffer);
+
+    count >>= 1;	/* bytes -> words */
+    //printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
+    do {
+	*locbuf++ = inw(port);
+    } while (--count);
 #else
+    insw(port, (word_t *)localbuf, count);
+    fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
+#endif
+}
+
+#if 0
 
 /* this _should_ work on an 8088/86 now, but I haven't tested it yet */
 
@@ -145,18 +202,40 @@ dhd_insw_loop:
 
 #endif
 
-#ifndef USE_ASM
-
-void outsw(unsigned int port,unsigned int *buffer,int count)
+#ifdef USE_LOCALBUF
+void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
 
-    for (i = 0; i < count / 2; i++)
-	outw(port, buffer[i]);
+    count >>= 1;
+    printk("%04x:", buffer);
+    for (i = 0; i < count; i++) {
+	if (i <16) printk("%04x|", buffer[i]); else printk("%d!",i);
+	outw(buffer[i], port);
+    }
     return;
 }
+#endif
 
+// FIXME: redo this in asm
+void outsw_far(unsigned int port, seg_t seg, word_t *buffer, int count)
+{
+#ifndef USE_LOCALBUF
+    unsigned int __far *locbuf = _MK_FP(seg, (word_t)buffer);
+
+    count >>= 1;
+    //printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
+    do {
+	outw(*locbuf++, port);
+    } while (--count);
 #else
+    fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+    outsw(port, (word_t *)localbuf, count);
+#endif
+}
+
+
+#if 0
 
 /* the assembler version. Again, this should work,
  * but I haven't had a chance to test it yet.
@@ -211,94 +290,106 @@ void swap_order(unsigned char *buffer,int count)
 
 #endif
 
-void out_hd(unsigned int drive,unsigned int nsect,unsigned int sect,
-	    unsigned int head,unsigned int cyl,unsigned int cmd)
+void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
+	    unsigned int head, unsigned int cyl, unsigned int cmd)
 {
-    unsigned int port;
+    word_t port;
 
-    port = io_ports[drive / 2];
+    port = io_ports[drive >> 1];
+
     /* setting WPCOM to 0 is not good. this change uses the last value input to
      * the drive. (my BIOS sets this correctly, so it works for now but we should
      * fix this to work properly)  -- Alastair Bridgewater */
     /* this doesn't matter on newer (IDE) drives, but is important for MFM/RLLs
      * I'll add support for those later and we'll need it then - Blaz Antonic */
     /* meanwhile, I found some documentation that says that for IDE drives
-     * the correct WPCOM value is 0xff. so I changed it.
-     * -- Alastair Bridewater */
-#if 0
-    outb_p(0, ++port);	/* wr_precompensation .. */
-    port++;
-#endif
-    outb(0xff, ++port);		/* the supposedly correct value for WPCOM on IDE */
+     * the correct WPCOM value is 0xff. so I changed it. - Alastair Bridewater */
+
+    outb_p(0xff, ++port);		/* the supposedly correct value for WPCOM on IDE */
     outb_p(nsect, ++port);
     outb_p(sect, ++port);
     outb_p(cyl, ++port);
     outb_p(cyl >> 8, ++port);
-    outb_p(0xA0 | ((drive % 2) << 4) | head, ++port);
-    outb_p(cmd, ++port);
+    outb_p(0xA0 | ((drive & 1) << 4) | head, ++port); /* setup for 2 drives, fix for 4 (&2 instead) */
+    outb(cmd, ++port);
 
     return;
 }
+#if 1
+static void dump_ide(word_t *buffer, int size) {
+        int counter = 0;
 
-int directhd_init(void)
+        do {
+                printk("%04X ", *buffer++);
+                if (++counter == 16) {
+                        printk("\n");
+                        counter = 0;
+                }
+        } while (--size);
+        if (counter) printk("\n");
+}
+#endif
+
+int INITPROC directhd_init(void)
 {
-    unsigned int buffer[256];
+    word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
     struct gendisk *ptr;
-    int i, j, hdcount = 0, drive;
+    int i, hdcount = 0, drive;
     unsigned int port;
 
     /* .. once for each drive */
-    /* note, however, that this breaks if you don't have two IDE interfaces
+    /* note, however, that this breaks (hangs) if you don't have two IDE interfaces
      * in your computer. If you only have one, change the 4 to a 2.
      * (this explains why your computer was locking up after mentioning the
      * serial port, doesn't it? :-) -- Alastair Bridgewater */
     /* this should work now, IMO - Blaz Antonic */
-    for (drive = 0; drive < 2; drive++) {
+    /* "If Drive 1 is not detected as being present, Drive 0 clears the Drive
+     * 1 Status Register to 00h." From the spec. Making ST=0 a safe indication of
+     * non presence.
+     * Also, we shjould do a CMOS check for the number of drive which would make 
+     * this logic faster and more reliable FIXME */ 
+
+    /* FIXME: AMI board hangs when trying to access 2nd controller, disable for now */
+    for (drive = 0; drive < 2/*MAX_ATA_DRIVES*/; drive++) {
+	if (!drive&1) reset_controller(drive/2);
 	/* send drive_ID command to drive */
-	out_hd(drive, 0, 0, 0, 0, DIRECTHD_DRIVE_ID);
+	out_hd(drive, 0, 0, 0, 0, ATA_DRIVE_ID);
 
 	port = io_ports[drive / 2];
 
 	/* wait */
 	while (WAITING(port));
-
-	if ((STATUS(port) & 1) == 1) {
+	i = STATUS(port);
+	printk("st%x;", i);
+	if (!i || (i & 1) == 1) {	/* this one may not be safe FIXME */
 	    /* error - drive not found or non-ide */
 #ifdef USE_DEBUG_CODE
-	    printk("athd: drive %d (%d on port 0x%x) not found\n", drive,
-		   drive / 2, port);
+	    //printk("athd: drive %d (%d on port 0x%x) not found\n", drive,
+		   //drive/2, port);
 #endif
-	    continue;		/* this jumps to the start of for loop and
-				 * proceeds with checking for other drives
-				 */
-	    /* this could use some optimisation as it is unlikely for
-	     * computer to have slave drive on channel where master is
-	     * missing
-	     *
-	     * Actually, that does occur, so any such optimisation is most
-	     * probably just plain broken - Riley Williams, April 2002.
-	     */
+	    continue;	/* Jump to the start of for loop and
+			 * proceed with checking for other drives.
+			 * Always do this, even if the master drive
+			 * is missing.
+			 */
 	}
 
 	/* get drive info */
 
-	insw(port, buffer, 512);
+	insw(port, ide_buffer, 512);
 #if 0
 	swap_order(buffer, 512);
 #endif
-
-#if 0			/* this is a bug - read CD info few lines lower */
-	if (!*buffer) {
+#if 0		/* this is a bug - read CD info few lines lower */
+	if (!*ide_buffer) {
 	    /* unexpected 0; drive doesn't exist ? */
 	    /* something went wrong */
 	    debug("athd: drive not found\n");
 	    break;
-
 	}
 #endif
-	/* Gather useful info
-	 * FIXME: LBA support will be added here, later .. maybe ..
-	 * MFM/RLL support will be added after that .. maybe
+	/* Gather useful info - note that text bytes are swapped.
+	 * FIXME: LBA support, MFM/RLL support, BIOS/CMOS drive info...
 	 *
 	 * Safety check - check for heads returned and assume CD
 	 * if we get typical CD response .. this is a good place for
@@ -319,28 +410,61 @@ int directhd_init(void)
 	 * This is some sort of bugfix, we will use same method as real Linux -
 	 * work with disk geometry set in current translation mode rather than
 	 * using physical drive info. Physical info might correspond to logical
-	 * info for some drives (those which don't support/use LBA mode
+	 * info for some drives (those which don't support/use LBA mode).
 	 */
 
-	if ((buffer[0x6c / 2] < 34096) && (*buffer != 0)
-	    && (buffer[0x6c / 2] != 0) && (buffer[0x6e / 2] != 0)
-	    && (buffer[0x70 / 2] != 0)) {
+	struct drive_infot *dp = &drive_info[drive];
+	dp->ctl = 0;
+	if ((ide_buffer[54] < 34096) && (*ide_buffer != 0)
+	    && (ide_buffer[54] != 0) && (ide_buffer[55] != 0)
+	    && (ide_buffer[56] != 0)) {
 	    /* Physical value offsets: cyl 0x2, heads 0x6, sectors 0C */
-	    drive_info[drive].cylinders = buffer[0x6c / 2];
-	    drive_info[drive].heads = buffer[0x6e / 2];
-	    drive_info[drive].sectors = buffer[0x70 / 2];
+	    dp->cylinders = ide_buffer[54];
+	    dp->heads = ide_buffer[55];
+	    dp->sectors = ide_buffer[56];
 
 	    hdcount++;
+	    printk("IDE CHS: %d/%d/%d serial %s\n", ide_buffer[1], ide_buffer[3], ide_buffer[6],
+		&ide_buffer[10]);
+
+	    /* initialize settings, some drives need this */
+	    //out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
+	    //while(WAITING(port));
+
+	    /* Set multiple IO mode, 2 sectors per op */
+	    /* FIXME: Must check that multi is available */
+	    out_hd(drive, 2, 0, 0, 0, ATA_SET_MULT);
+	    while (WAITING(port));
+	    if (STATUS(port) & ERR_STAT) {
+	    	printk("athd%d: Multisector I/O not supported\n", drive);
+		dp->ctl |= ATA_CFG_NMULT;
+	    }
+#ifdef FORCE_SECTOR_IO
+	    dp->ctl |= ATA_CFG_NMULT; /*DEBUG DELETE force single sector transfers */
+#endif
+#if 0	/* DELETE */
+	    /* look for the QEMU serial - default or added by the qemu.sh script */
+	    char *serial = (char *) &ide_buffer[10];
+	    if (!strncmp(serial, "QEMU_IDE",7) || !strncmp(serial, "MQ0000 1", 8)) qemu_flag++;
+#endif
+
+#ifdef USE_DEBUG_CODE
+	    dump_ide(ide_buffer, 64);
+	    ide_buffer[20] = 0; /* String termination */
+	    //printk("IDE data 47-49: %04x, %04x, %04x\n", ide_buffer[94], ide_buffer[96], ide_buffer[98]);
+#endif
 	}
     }
+    //if (qemu_flag) printk("IDE: QEMU hack enabled\n");
 
+    heap_free(ide_buffer);
     if (!hdcount) {
 	printk("athd: no drives found\n");
 	return 0;
     }
 
     directhd_gendisk.nr_real = hdcount;
-
+ 
     if (register_blkdev(MAJOR_NR, DEVICE_NAME, &directhd_fops)) {
 	printk("athd: unable to register\n");
 	return -1;
@@ -386,7 +510,7 @@ static int directhd_ioctl(struct inode *inode, struct file *filp,
 	return -EINVAL;
 
     dev = DEVICE_NR(inode->i_rdev);
-    if (dev >= MAX_DRIVES)
+    if (dev >= MAX_ATA_DRIVES)
 	return -ENODEV;
 
     switch (cmd) {
@@ -410,13 +534,13 @@ static int directhd_ioctl(struct inode *inode, struct file *filp,
 
 static int directhd_open(struct inode *inode, struct file *filp)
 {
-    unsigned int minor;
+    unsigned int minor = MINOR(inode->i_rdev);
     int target = DEVICE_NR(inode->i_rdev);
 
     if (target >= 4 || !directhd_initialized)
 	return -ENXIO;
-    minor = MINOR(inode->i_rdev);
-    if (((int) hd[minor].start_sect) == -1)
+
+    if (((int) hd[minor].start_sect) == -1)	/* FIXME is this initialized */
 	return -ENXIO;
 
     access_count[target]++;
@@ -429,6 +553,9 @@ static int directhd_open(struct inode *inode, struct file *filp)
      */
 
     inode->i_size = (hd[minor].nr_sects) << 9;
+    /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
+    if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
+        inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
     return 0;
 }
 
@@ -448,16 +575,19 @@ void do_directhd_request(void)
     sector_t count;		/* # of sectors to read/write */
     int this_pass;		/* # of sectors read/written */
     sector_t start;		/* first sector */
-    char *buff;			/* max_sect * sector_size, 63 * 512 bytes; it seems that all requests are only 1024 bytes */
+    unsigned char *buff;	/* max_sect * sector_size, 63 * 512 bytes; it seems that all requests are only 1024 bytes */
     short sector;		/* 1 .. 63 ? */
     short cylinder;		/* 0 .. 1024 and maybe more */
     short head;			/* 0 .. 16 */
     unsigned int tmp;
     int minor;
     int drive;			/* 0 .. 3 */
+#if 0
     unsigned char i;		/* 0 .. (sectors per track - 1) .. 62 or less */
     unsigned char j;		/* 0 .. 255 */
+#endif
     int port;
+    struct drive_infot *dp;
 
     while (1) {			/* process HD requests */
 	struct request *req = CURRENT;
@@ -469,10 +599,11 @@ void do_directhd_request(void)
 	}
 
 	minor = MINOR(req->rq_dev);
-	drive = minor >> 6;
+	drive = minor >> MINOR_SHIFT;
+	dp = &drive_info[drive];
 
 	/* check if drive exists */
-	if (drive > 3 || drive < 0 || drive_info[drive].heads == 0) {
+	if (drive > 3 || drive < 0 || dp->heads == 0) {
 	    printk("Non-existent drive\n");
 	    end_request(0);
 	    continue;
@@ -483,6 +614,8 @@ void do_directhd_request(void)
 	buff = req->rq_buffer;
 
 	/* safety check should be here */
+	//printk("m%d d%d s%d c%d;", minor, drive, hd[minor].start_sect, hd[minor].nr_sects);
+	//printk("BF: %x:%04x(%04x);", req->rq_seg, buff, kernel_ds);
 
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {
 	    printk("Bad partition start\n");
@@ -493,65 +626,54 @@ void do_directhd_request(void)
 	start += hd[minor].start_sect;
 
 	while (count > 0) {
-	    sector = (start % drive_info[drive].sectors) + 1;
-	    tmp = start / drive_info[drive].sectors;
-	    head = tmp % drive_info[drive].heads;
-	    cylinder = tmp / drive_info[drive].heads;
+	    sector = (start % dp->sectors) + 1;
+	    tmp = start / dp->sectors;
+	    head = tmp % dp->heads;
+	    cylinder = tmp / dp->heads;
 
-#if 0
-	    this_pass = count;	/* this is redundant */
-#endif
-	    if (count <= (drive_info[drive].sectors - sector + 1))
+	    /* Handle odd # of sectors per track - such as 63, which is common 
+	     * It seems the IDE READ and WRITE commands don't automatically 
+	     * change head or cylinder even though multiple sectors are requested
+	     */
+
+	    if (count <= (dp->sectors - sector + 1))
 		this_pass = count;
 	    else
-		this_pass = drive_info[drive].sectors - sector + 1;
+		this_pass = dp->sectors - sector + 1;
 
 #ifdef USE_DEBUG_CODE
 	    printk
-		("athd: drive: %d cylinder: %d head: %d sector: %d start: %d\n",
+		("athd: drive: %d cylinder: %d head: %d sector: %d start: %u\n",
 		 drive, cylinder, head, sector, start);
 #endif
 
 	    port = io_ports[drive / 2];
 
 	    if (req->rq_cmd == READ) {
-#ifdef USE_DEBUG_CODE
-		printk("athd: drive: %d this_pass: %d sector: %d head: %d\n", drive, this_pass, sector, head);
-		printk("athd: cyl: %d start: %ld tmp: %d count: %ld di[d].s: %d di[0].s: %d\n", cylinder, start, tmp, count, drive_info[drive].sectors, drive_info[0].sectors);
+#ifdef USE_DEBUG_CODE_X
+		printk("athd: drive: %d this_pass: %d sector: %d head: %d\n",
+					drive, this_pass, sector, head);
 #endif
-		/* read to buffer */
 		while (WAITING(port));
 		/* send drive parameters */
-		out_hd(drive, this_pass, sector, head, cylinder,
-		       DIRECTHD_READ);
+		out_hd(drive, this_pass, sector, head, cylinder, 
+		       dp->ctl&ATA_CFG_NMULT? ATA_READ : ATA_READM);
 
 		/* wait */
-		while (WAITING(port)) {
-#ifdef USE_DEBUG_CODE
-		    //printk("athd: statusa: 0x%x\n", STATUS(port));
-#endif
-		}
-		if ((STATUS(port) & 1) == 1) {
-
-		    /* something went wrong */
-		    printk("athd: status: 0x%x error: 0x%x\n", STATUS(port),
+		while (WAITING(port));
+		if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
+		    printk("athd: RD status: 0x%x error: 0x%x\n", STATUS(port),
 			   ERROR(port));
-
+ 		    end_request(0);	/* not sure about this one */
 		    break;
-#if 0
- 		    end_request(0);
-#endif
 		}
-
 		tmp = 0x00;
-		while ((tmp & 0x08) != 0x08) {
-		    if ((tmp & 1) == 1) {
-
-			printk("athd: status: 0x%x error: 0x%x\n",
+		while ((tmp & DRQ_STAT) != DRQ_STAT) {
+		    if ((tmp & ERR_STAT) == ERR_STAT) {
+			printk("athd: RD DRQ status: 0x%x error: 0x%x\n",
 			       STATUS(port), ERROR(port));
-
-			break;
 			end_request(0);
+			break;  // dunno why these were reversed ...
 		    } else {
 			tmp = STATUS(port);
 #ifdef USE_DEBUG_CODE
@@ -559,45 +681,47 @@ void do_directhd_request(void)
 #endif
 		    }
 		}
-
-
-		/* read this_pass * 512 bytes, which is 63 * 512 b max. */
-		insw(port, buff, this_pass * 512);
+		//while (DRQ_WAIT(port));
+		if (dp->ctl & ATA_CFG_NMULT) {
+		    insw_far(port, req->rq_seg, (word_t *)buff, 512);
+		    if (this_pass > 1) {
+			while (!DRQ_WAIT(port));
+			insw_far(port, req->rq_seg, (word_t *)(buff + 512), 512);
+		    }
+		} else
+		    insw_far(port, req->rq_seg, (word_t *)buff, this_pass*512);
 	    }
 	    if (req->rq_cmd == WRITE) {
-		/* write from buffer */
 		while (WAITING(port));
-		/* send drive parameters */
-		out_hd(drive, this_pass, sector, head, cylinder,
-		       DIRECTHD_WRITE);
+		/* send transaction parameters */
+		out_hd(drive, this_pass, sector, head, cylinder, 
+		    dp->ctl&ATA_CFG_NMULT? ATA_WRITE : ATA_WRITEM);
 
-		/* wait */
+		tmp = 10000;
 		while (WAITING(port)) {
 #ifdef USE_DEBUG_CODE
-		    //printk("athd: statusa: 0x%x\n", STATUS(port));
+		    if (!tmp--) {
+		    	printk("athd: statusa: 0x%x\n", STATUS(port));
+			tmp = 10000;
+		    }
 #endif
 		}
-		if ((STATUS(port) & 1) == 1) {
-
-		    /* something went wrong */
-		    printk("athd: status: 0x%x error: 0x%x\n", STATUS(port),
+		if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
+		    printk("athd: WR status: 0x%x error: 0x%x\n", STATUS(port),
 			   ERROR(port));
-
-		    break;
 #if 0
 		    end_request(0);
 #endif
+		    break;
 		}
 
-		tmp = 0x00;
-		while ((tmp & 0x08) != 0x08) {
+		tmp = 0x00;	/* Wait for DRQ */
+		while ((tmp & DRQ_STAT) != DRQ_STAT) {
 		    if ((tmp & 1) == 1) {
-
 			printk("athd: status: 0x%x error: 0x%x\n",
 			       STATUS(port), ERROR(port));
-
-			break;
 			end_request(0);
+			break;
 		    } else {
 			tmp = STATUS(port);
 #ifdef USE_DEBUG_CODE
@@ -606,7 +730,18 @@ void do_directhd_request(void)
 		    }
 		}
 
-		outsw(port, buff, this_pass * 512);
+		/* NOTE: It may take the drive up to 5 usec to raise BSY after a write,
+		 */
+		printk("WR: CHS %d %d %d %d\n", cylinder, head, sector, this_pass);
+		while (!DRQ_WAIT(port));
+		if (dp->ctl & ATA_CFG_NMULT) {	/* one sector at a time */
+		    outsw_far(port, req->rq_seg, (word_t *)buff, 512);
+		    if (this_pass > 1) {
+			while (!DRQ_WAIT(port));
+			outsw_far(port, req->rq_seg, (word_t *)(buff + 512), 512);
+		    }
+		} else
+		    outsw_far(port, req->rq_seg, (word_t *)buff, this_pass * 512);
 	    }
 
 	    count -= this_pass;
@@ -616,4 +751,41 @@ void do_directhd_request(void)
 	end_request(1);
     }
     return;
+}
+
+/*
+ * NOTE: Toggle the soft reset bit for the controller
+ */
+static void reset_controller(int controller)
+{
+	int	i;
+	int	cport = cmd_ports[controller];
+
+	outb_p(4, cport);		/* reset controller */
+	for(i = 0; i < 2000; i++) /* was 1000 */
+		outb(i, 0x80);		/* FIXME: Better delay loop */
+	//outb(hd_info[0].ctl & 0x0f ,HD1_CMD);
+	outb_p(2, cport);		/* Change this to enable interrupts */
+	if ((i = drive_busy(cport)))
+		printk("athd%i: still busy (%x)\n", controller, i);
+	if ((i = inb(io_ports[controller]+ATA_ERROR)) != 1)
+		printk("athd%i: Reset failed: %02x\n", controller, i);
+}
+
+/*
+ * Delay loop and status test, should do this with a micro_delay timer a la minix 
+ * FIXME: Maybe WAITING could do this??
+ */
+static int drive_busy(int port)
+{
+	unsigned int i;
+	unsigned char c;
+
+	for (i = 0; i < 50000; i++) {
+		// FIXME: More bits to test here? Check other drivers.
+		c = STATUS(port) & (BUSY_STAT | READY_STAT);
+		if (c == READY_STAT)
+			return 0;
+	}
+	return(c);
 }

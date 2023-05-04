@@ -163,7 +163,8 @@ static struct gendisk bioshd_gendisk = {
     MAJOR_NR,			/* Major number */
     "hd",			/* Major name */
     MINOR_SHIFT,		/* Bits to shift to get real from partition */
-    1 << MINOR_SHIFT,		/* Number of partitions per real */
+    1 << MINOR_SHIFT,		/* Number of partitions per real */ /* FIXME
+				 * we don't support 32 partitions, wastes space */
     NUM_DRIVES,			/* maximum number of real */
     bioshd_geninit,		/* init function */
     hd,				/* hd struct */
@@ -765,7 +766,7 @@ int INITPROC bioshd_init(void)
     register struct gendisk *ptr;
     int count;
 
-#ifdef CONFIG_BLK_DEV_BFD
+#ifdef CONFIG_BLK_DEV_BFD_XXX	/* removed HS 04/23 */
     /* FIXME perhaps remove for speed on floppy boot*/
     outb_p(0x0C, FDC_DOR);	/* FD motors off, enable IRQ and DMA*/
 
@@ -1082,7 +1083,7 @@ static void do_bioshd_request(void)
 	    continue;
 	}
 
-	/* all ELKS requests are 1K blocks*/
+	/* all block i/o requests are in units of 1K blocks*/
 	count = BLOCK_SIZE / drivep->sector_size;
 	start = req->rq_blocknr * count;
 

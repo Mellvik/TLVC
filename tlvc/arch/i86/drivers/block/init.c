@@ -34,6 +34,7 @@ int boot_rootdev;	/* set by /bootopts options if configured*/
 void INITPROC device_init(void)
 {
     register struct gendisk *p;
+    kdev_t rootdev;
 
     chr_dev_init();
     blk_dev_init();
@@ -44,25 +45,46 @@ void INITPROC device_init(void)
 	setup_dev(p);
     printk("boot_rootdev 0x%x\n", boot_rootdev);
 
-#ifdef CONFIG_BLK_DEV_BIOS
+//#ifdef CONFIG_BLK_DEV_BIOS
     /*
      * The bootloader may have passed us a ROOT_DEV which is actually a BIOS
      * drive number.  If so, convert it into a proper <major, minor> block
      * device number.  -- tkchia 20200308
      */
+    /*
+     * The bootloader ALWAYS uses BIOS, regardless of the CONFIG_BLK_DEV_BIOS
+     * setting. So biosdrive is what we got for now. mellvik/20230421 for TLVC
+     */ 
     if (!boot_rootdev && (SETUP_ELKS_FLAGS & EF_BIOS_DEV_NUM) != 0) {
+#ifdef CONFIG_BLK_DEV_BIOS
 	extern kdev_t INITPROC bioshd_conv_bios_drive(unsigned int biosdrive);
 
-	kdev_t rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);
+	rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);
+	printk("device_setup: BIOS drive 0x%x, root device 0x%x\n",
+		ROOT_DEV, rootdev);
 #ifdef CONFIG_BLK_DEV_FD
 	/* Needed only if we have BIOS HD and non-BIOS fd */
 	if (rootdev == 0x380) rootdev = 0x200; 
-	if (rootdev == 0x3A0) rootdev = 0x201; 
 #endif
-	printk("device_setup: BIOS drive 0x%x, root device 0x%x\n",
-		ROOT_DEV, rootdev);
-	ROOT_DEV = rootdev;
-    }
+#else   
+	/* find the device (maj/min) we booted from */
+	int minor, partition = 0;
+	extern int boot_partition;
+#define MINOR_SHIFT	5	/* FIXME move to include file, this is bad */
+				/* or create a conv_drive function in directhd.c */
+
+	if (ROOT_DEV & 0x80) {		/* hard drive*/
+		minor = ROOT_DEV & 0x03;
+		partition = boot_partition;	/* saved from add_partition()*/
+		rootdev = MKDEV(ATHD_MAJOR, (minor >> MINOR_SHIFT) + partition);
+	} else
+		rootdev = MKDEV(FLOPPY_MAJOR, 0);
 #endif
 
+    } else
+	/* use boot_rootdev from /bootopts */
+	rootdev = boot_rootdev;
+
+    printk("device_setup: root device 0x%x\n", rootdev);
+    ROOT_DEV = rootdev;
 }

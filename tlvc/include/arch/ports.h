@@ -114,7 +114,7 @@
 /* bioshd.c*/
 #define FDC_DOR		0x3F2		/* floppy digital output register*/
 
-/* obsolete - experimental IDE hard drive, directhd.c (broken)*/
+/* experimental IDE hard drive, directhd.c */
 #define HD1_PORT	0x1f0
 #define HD2_PORT	0x170
 #define HD_IRQ		5		/* missing request_irq call*/

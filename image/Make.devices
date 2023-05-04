@@ -117,10 +117,12 @@ endif
 ##############################################################################
 # Direct floppy support
 ifeq ($(CONFIG_BLK_DEV_FD), y)
-	$(MKDEV) /dev/f0 b 2 0
-	$(MKDEV) /dev/f0-1440 b 2 28
-	$(MKDEV) /dev/f1 b 2 1
-	$(MKDEV) /dev/f1-1440 b 2 29
+	$(MKDEV) /dev/df0 b 2 0
+	$(MKDEV) /dev/df0-1440 b 2 1
+	$(MKDEV) /dev/df0-1200 b 2 2
+	$(MKDEV) /dev/df1 b 2 32
+	$(MKDEV) /dev/df1-1440 b 2 33
+	$(MKDEV) /dev/df1-1200 b 2 34
 endif
 
 ##############################################################################
@@ -128,12 +130,18 @@ endif
 # Limit to 4 primary partitions per disk (MBR).
 
 ifeq ($(CONFIG_BLK_DEV_HD), y)
-	$(MKDEV) /dev/dhda b 5  0    # Currently.
-	$(MKDEV) /dev/dhda b 5  0 4  # Currently.
-	$MKSET   0 15 $(MKDEV) /dev/dhda b 5	# Currently.
-	$(MKDEV) /dev/dhdb b 5 64    # Currently.
-	$(MKDEV) /dev/dhdb b 5 64 4  # Currently.
-	$MKSET  64 15 $(MKDEV) /dev/dhdb b 5	# Currently.
+	$(MKDEV) /dev/dhda  b 5 0  # Currently.
+	$(MKDEV) /dev/dhda1 b 5 1  # Currently.
+	$(MKDEV) /dev/dhda2 b 5 2  # Currently.
+	$(MKDEV) /dev/dhda3 b 5 3  # Currently.
+	$(MKDEV) /dev/dhda4 b 5 4  # Currently.
+#	$MKSET   0 8 $(MKDEV) /dev/dhda b 5	# Currently.
+	$(MKDEV) /dev/dhdb b 5 32  # Currently.
+	$(MKDEV) /dev/dhdb1 b 5 33  # Currently.
+	$(MKDEV) /dev/dhdb2 b 5 34  # Currently.
+	$(MKDEV) /dev/dhdb3 b 5 35  # Currently.
+	$(MKDEV) /dev/dhdb4 b 5 36  # Currently.
+#	$MKSET  32 8 $(MKDEV) /dev/dhdb b 5	# Currently.
 endif
 
 #	$MKSET   0 63 $(MKDEV) /dev/dhda b 3	# Ought to be.

@@ -18,6 +18,12 @@
 #ifdef CONFIG_FS_DEV
 /* FAT device table, increase DEVDIR_SIZE and DEVINO_BASE to add entries*/
 struct msdos_devdir_entry devnods[DEVDIR_SIZE] = {
+    { "dhda",	S_IFBLK | 0644, MKDEV(5, 0) },
+    { "dhda1",	S_IFBLK | 0644, MKDEV(5, 1) },
+    { "dhda2",	S_IFBLK | 0644, MKDEV(5, 2) },
+    { "dhda3",	S_IFBLK | 0644, MKDEV(5, 3) },
+    { "dhda4",	S_IFBLK | 0644, MKDEV(5, 4) },
+    { "dhdb",	S_IFBLK | 0644, MKDEV(5, 32)},
     { "hda",	S_IFBLK | 0644, MKDEV(3, 0) },
     { "hda1",	S_IFBLK | 0644, MKDEV(3, 1) },
     { "hda2",	S_IFBLK | 0644, MKDEV(3, 2) },
@@ -38,6 +44,7 @@ struct msdos_devdir_entry devnods[DEVDIR_SIZE] = {
     { "hdd2",	S_IFBLK | 0644, MKDEV(3, 98)},
     { "hdd3",	S_IFBLK | 0644, MKDEV(3, 99)},
     { "hdd4",	S_IFBLK | 0644, MKDEV(3,100)},
+    { "df0",	S_IFBLK | 0644, MKDEV(2,  0)},
     { "fd0",	S_IFBLK | 0644, MKDEV(3,128)},
     { "fd1",	S_IFBLK | 0644, MKDEV(3,160)},
     { "fd2",    S_IFBLK | 0644, MKDEV(3,192)},
