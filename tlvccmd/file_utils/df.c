@@ -325,11 +325,12 @@ struct dnames *devname(char *dirname)
 /*
  * Convert a block device number to name.
  * From mount.c
+ * This setup doesn't allow for mixed direct/bios configs.
  */
 static struct dev_name_struct {
         char *name;
         dev_t num;
-} devices[] = {
+} bios_devices[] = {
         /* root_dev_name needs first 5 in order*/
         { "hda",     0x0300 },
         { "hdb",     0x0320 },
@@ -337,21 +338,40 @@ static struct dev_name_struct {
         { "hdd",     0x0360 },
         { "fd0",     0x0380 },
         { "fd1",     0x03a0 },
-        { "ssd",     0x0200 },
+        { "ssd",     0x0700 },
+        { "rd",      0x0100 },
+        { NULL,           0 }
+};
+static struct dev_name_struct direct_devices[] = {
+        /* root_dev_name needs first 5 in order*/
+        { "dhda",    0x0500 },
+        { "dhdb",    0x0520 },
+        { "dhdc",    0x0540 },
+        { "dhdd",    0x0560 },
+        { "df0",     0x0200 },
+        { "df1",     0x0220 },
+        { "ssd",     0x0700 },
         { "rd",      0x0100 },
         { NULL,           0 }
 };
 
+#define NAMEOFF 5
 static char *dev_name(dev_t dev)
 {
-	int i;
-#define NAMEOFF 5
 	static char name[10] = "/dev/";
+	struct dev_name_struct *devices = bios_devices;
+	char *rootdev = getenv("ROOTDEV");
 
-	for (i=0; i<sizeof(devices)/sizeof(devices[0])-1; i++) {
-		if (devices[i].num == (dev & 0xfff0)) {
-			strcpy(&name[NAMEOFF], devices[i].name);
-			if (i < 4) {
+	if (!rootdev)
+		printf("df: Cannot get ROOTDEV from environment, assuming BIOS I/O\n");
+	else 
+		if (*(strrchr(rootdev, '/')+1) == 'd')
+			devices = direct_devices;
+
+	while (devices->num) {
+		if (devices->num == (dev & 0xfff0)) {
+			strcpy(&name[NAMEOFF], devices->name);
+			if (name[1] == 'h') {	/* for paritioned devices */
 				if (dev & 0x07) {
 					name[NAMEOFF+3] = '0' + (dev & 7);
 					name[NAMEOFF+4] = 0;
@@ -359,6 +379,7 @@ static char *dev_name(dev_t dev)
 			}
 			return name;
 		}
+		devices++;
 	}
 	return NULL;
 }

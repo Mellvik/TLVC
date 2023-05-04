@@ -22,8 +22,8 @@ create_dev_dir()
 	mknod $MNT/dev/hda4	b 3 4
 	mknod $MNT/dev/fd0	b 3 128
 	mknod $MNT/dev/fd1	b 3 160
-	mknod $MNT/dev/f0	b 2 0
-	mknod $MNT/dev/f1	b 2 1
+	mknod $MNT/dev/df0	b 2 0
+	mknod $MNT/dev/df1	b 2 32
 	mknod $MNT/dev/kmem	c 1 2
 	mknod $MNT/dev/null	c 1 3
 	mknod $MNT/dev/zero	c 1 5

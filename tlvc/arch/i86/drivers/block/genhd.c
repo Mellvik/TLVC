@@ -44,7 +44,7 @@ int boot_partition = 0;		/* MBR boot partition, if any*/
 extern int blk_size[];
 #endif
 
-#ifdef CONFIG_BLK_DEV_BHD
+#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD)
 
 static unsigned short current_minor;
 
@@ -84,7 +84,7 @@ static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
 	return;
     }
 #endif
-
+#ifndef CONFIG_BLK_DEV_HD
     /*
      * Save boot partition # based on start offset.  This is needed if
      * ROOT_DEV is still a BIOS drive number at this point (see init.c), and
@@ -98,6 +98,7 @@ static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
 	if (start == boot_start)
 	    boot_partition = minor & 0x7;
     }
+#endif
 }
 
 static int INITPROC is_extended_partition(register struct partition *p)
@@ -221,11 +222,10 @@ static int INITPROC msdos_partition(struct gendisk *hd,
 	return 0;
     }
     map_buffer(bh);
-
     /* In some cases we modify the geometry of the drive (below), so ensure
      * that nobody else tries to re-use this data.
      */
-    if (*(unsigned short *) (bh->b_data + 0x1fe) != 0xAA55) {
+    if (*(int *) (bh->b_data + 0x1fe) != 0xAA55) {
 out:
 	printk(" no mbr,");
 	unmap_brelse(bh);
@@ -320,7 +320,7 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
 	return;
 #endif
 
-    printk(" none.\n");
+    printk(" none: Flat drive.\n");
 }
 #endif
 
@@ -355,7 +355,7 @@ void INITPROC setup_dev(register struct gendisk *dev)
 	memset((void *)dev->part, 0, sizeof(struct hd_struct)*dev->max_nr*dev->max_p);
 	dev->init(dev);
 
-#ifdef CONFIG_BLK_DEV_BHD
+#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD)
 	for (int i = 0; i < dev->nr_real; i++) {
 		int first_minor = i << dev->minor_shift;
 		current_minor = (unsigned short) (first_minor + 1);

@@ -42,10 +42,11 @@ struct request {
  *
  * Update: trying with writes being preferred due to test
  * by Alessandro Rubini..
+ * Reversed back to the std Linux way - HS 2023
  */
 
 #define IN_ORDER(s1,s2) \
-((s1)->rq_cmd > (s2)->rq_cmd || ((s1)->rq_cmd == (s2)->rq_cmd && \
+((s1)->rq_cmd < (s2)->rq_cmd || ((s1)->rq_cmd == (s2)->rq_cmd && \
 ((s1)->rq_dev < (s2)->rq_dev || (((s1)->rq_dev == (s2)->rq_dev && \
 (s1)->rq_blocknr < (s2)->rq_blocknr)))))
 
@@ -54,17 +55,23 @@ struct blk_dev_struct {
     struct request *current_request;
 };
 
-/* For bioshd.c, idequery.c */
+/* For bioshd.c, idequery.c, directfd.c, directhd.c */
 struct drive_infot {            /* CHS per drive*/
     int cylinders;
     int sectors;
     int heads;
     int sector_size;
-    int fdtype;                 /* floppy fd_types[] index  or -1 if hd */
+#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
+    int fdtype;                 /* floppy fd_types[] index or -1 if hd */
+#else		/* direct HD */
+    int ctl;	/* settings for IDE drives, such as interrupt, LBA mode etc. */
+#endif
 };
 extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
 
+#ifdef CONFIG_BLK_DEV_BHD
 extern unsigned char hd_drive_map[];
+#endif
 
 extern struct blk_dev_struct blk_dev[MAX_BLKDEV];
 extern void resetup_one_dev(struct gendisk *dev, int drive);
@@ -99,26 +106,26 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 #endif
 
-#ifdef FLOPPYDISK
+#ifdef FLOPPYDISK	/* direct floppy */
 
 static void floppy_on();	/*(unsigned int nr); */
 static void floppy_off();	/*(unsigned int nr); */
 extern struct wait_queue wait_for_request;
 
-#define DEVICE_NAME "fd"
+#define DEVICE_NAME "df"
 #define DEVICE_INTR do_floppy
 #define DEVICE_REQUEST do_fd_request
-#define DEVICE_NR(device) ((device) & 3)
+#define DEVICE_NR(device) (MINOR(device) >> MINOR_SHIFT)
 #define DEVICE_ON(device) floppy_on(DEVICE_NR(device))
 #define DEVICE_OFF(device) floppy_off(DEVICE_NR(device))
 
 #endif
 
-#ifdef ATDISK
+#ifdef ATDISK		/* direct hd */
 
-#define DEVICE_NAME "hd"
+#define DEVICE_NAME "dhd"
 #define DEVICE_REQUEST do_directhd_request
-#define DEVICE_NR(device) (MINOR(device)>>6)
+#define DEVICE_NR(device) (MINOR(device)>>MINOR_SHIFT)
 #define DEVICE_ON(device)
 #define DEVICE_OFF(device)
 
@@ -155,7 +162,7 @@ static void end_request(int uptodate)
     register struct buffer_head *bh;
 
     req = CURRENT;
-    //printk("ER%04x;", req);
+    printk("ER%04x;", req);
 
     if (!uptodate) {
 	printk("%s: I/O error: ", DEVICE_NAME);
@@ -208,9 +215,6 @@ static void end_request(int uptodate)
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
 #if defined(MULTI_BH) || defined(FLOPPYDISK)
-    /* When we generalize this routine, change this so wake_up only
-     * gets called when it's necessary (i.e. when wait_for_request is set)
-     * or something */
     //if (MAJOR_NR == 2) printk("WK%04x;", &wait_for_request);
     wake_up(&wait_for_request);
 #endif

@@ -45,7 +45,7 @@ static struct request *__get_request_wait(int, kdev_t);
  * take precedence.
  */
 
-#define NR_REQUEST	20
+#define NR_REQUEST	24
 
 static struct request request_list[NR_REQUEST];
 
@@ -119,6 +119,7 @@ static struct request *get_request(int n, kdev_t dev)
 	    prev_found = req;
 	    req->rq_status = RQ_ACTIVE;
 	    req->rq_dev = dev;
+	    printk("RQ:%04x|%x", req, dev);
 	    return req;
 	}
     } while (req != prev_found);
@@ -263,11 +264,12 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 static struct request *__get_request_wait(int n, kdev_t dev)
 {
     register struct request *req;
-    printk("(%lu)Waiting for request %04x...\n", jiffies, &wait_for_request);
+    printk("(%lu) Waiting for request ...\n", jiffies);
 
-    //prepare_to_wait(&wait_for_request);
-    wait_set(&wait_for_request);
-    current->state = TASK_UNINTERRUPTIBLE;
+    //prepare_to_wait(&wait_for_request);	// maybe set interruptible ...
+    //wait_set(&wait_for_request);
+    //current->state = TASK_UNINTERRUPTIBLE;
+    sleep_on(&wait_for_request);	// or interruptible_sleep_on()
     goto startgrw;
     do {
 	schedule();
