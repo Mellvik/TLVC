@@ -822,7 +822,7 @@ static void rw_interrupt(void)
 	int drive = MINOR(CURRENT->rq_dev) >> MINOR_SHIFT;
 
 	if (ftd_msg[drive])
-	    printk("Auto-detected floppy type %s in f%d\n",
+	    printk("Auto-detected floppy type %s in df%d\n",
 		   floppy->name, drive);
 	current_type[drive] = floppy;
 #ifdef BDEV_SIZE_CHK
@@ -1120,7 +1120,7 @@ static void floppy_ready(void)
 		 * means a new medium of the same format as the prev until it fails.
 		 */
 	    if (ftd_msg[current_drive] && current_type[current_drive] != NULL)
-		printk("Disk type is undefined after disk change in f%d\n",
+		printk("Disk type is undefined after disk change in df%d\n",
 		       current_drive);
 	    current_type[current_drive] = NULL;
 #ifdef BDEV_SIZE_CHK
@@ -1279,9 +1279,9 @@ static void redo_fd_request(void)
     if (debug) printk("prep %d|%d,%d|%d-", buffer_track, seek_track, buffer_drive, current_drive);
 
     if ((((seek_track << 1) + head) == buffer_track) && (current_drive == buffer_drive)) {
-	/* if the sector count is odd we read sectors+1 when head=0 to get and even
-	 * number of sectors (full blocks). Then we read the entire head01 track,
-	 * and just ognore the forst sector. Don't get confused by the odd numbered
+	/* if the sector count is odd, we read sectors+1 when head=0 to get an even
+	 * number of sectors (full blocks). When head=1 we read the entire track
+	 * and ignore the first sector. Don't get confused by the odd numbered
 	 * sectors from the debug output, for head = 1, they're good.
 	 */
 	if (debug) printk("bufrd tr/s %d/%d\n", seek_track, sector);

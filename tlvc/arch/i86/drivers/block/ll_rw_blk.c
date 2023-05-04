@@ -45,7 +45,7 @@ static struct request *__get_request_wait(int, kdev_t);
  * take precedence.
  */
 
-#define NR_REQUEST	24
+#define NR_REQUEST	24	/* was 20, increased for debugging FIXME */
 
 static struct request request_list[NR_REQUEST];
 
