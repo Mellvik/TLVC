@@ -116,17 +116,20 @@ endif
 
 ##############################################################################
 # Direct floppy support
+ifeq ($(CONFIG_BLK_DEV_FD), y)
 	$(MKDEV) /dev/df0 b 2 0
 	$(MKDEV) /dev/df0-1440 b 2 1
 	$(MKDEV) /dev/df0-1200 b 2 2
 	$(MKDEV) /dev/df1 b 2 32
 	$(MKDEV) /dev/df1-1440 b 2 33
 	$(MKDEV) /dev/df1-1200 b 2 34
+endif
 
 ##############################################################################
 # Direct PATA / IDE disks. (Not working)
 # Limit to 4 primary partitions per disk (MBR).
 
+ifeq ($(CONFIG_BLK_DEV_HD), y)
 	$(MKDEV) /dev/dhda  b 5 0  # Currently.
 	$(MKDEV) /dev/dhda1 b 5 1  # Currently.
 	$(MKDEV) /dev/dhda2 b 5 2  # Currently.
@@ -139,6 +142,17 @@ endif
 	$(MKDEV) /dev/dhdb3 b 5 35  # Currently.
 	$(MKDEV) /dev/dhdb4 b 5 36  # Currently.
 #	$MKSET  32 8 $(MKDEV) /dev/dhdb b 5	# Currently.
+endif
+
+#	$MKSET   0 63 $(MKDEV) /dev/dhda b 3	# Ought to be.
+#	$MKSET  64 63 $(MKDEV) /dev/dhdb b 3	# Ought to be.
+
+##############################################################################
+# Direct floppy drives (experimental)
+ifeq ($(CONFIG_BLK_DEV_FD_NOTUSED), y)
+	$(MKDEV) /dev/dfd0 b 3 0
+	$(MKDEV) /dev/dfd1 b 3 64
+endif
 
 ##############################################################################
 # Virtual consoles, pseudo-tty slaves and serial ports.

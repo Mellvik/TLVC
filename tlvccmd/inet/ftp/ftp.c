@@ -567,9 +567,10 @@ int do_ls(int controlfd, int datafd, char **cmdline, int mode) {
 
 int do_get(int controlfd, char *src, char *dst, int mode) {
 	char iobuf[IOBUFLEN+1];
-	int status = 1, bcnt = 0, fd, n, datafd = -1;
+	int status = 1, fd, n, datafd = -1;
 	int maxfdp1, data_finished = FALSE, control_finished = FALSE;
 	fd_set rdset;
+	long bcnt = 0, start, timeused;
 
 	if (dst == NULL) dst = src;
 
@@ -620,6 +621,7 @@ int do_get(int controlfd, char *src, char *dst, int mode) {
 	 */
 	struct timeval tv; int select_return, icount = 0;
 	long usec = 500;
+	start = time(NULL);
 
 	while (1) {
 		if (control_finished == FALSE) FD_SET(controlfd, &rdset);
@@ -674,6 +676,8 @@ int do_get(int controlfd, char *src, char *dst, int mode) {
 			break;
 
 	}
+	timeused = time(NULL) - start;
+	printf("%ld bytes received in %ld secs (%u.%02u kB/s)\n", bcnt, timeused, (int) (bcnt/timeused)/1000, (int)(bcnt/timeused)%1000);
 get_out:
 	if (datafd >= 0) close(datafd);
 	close(fd);
@@ -683,6 +687,7 @@ get_out:
 int do_put(int controlfd, char *src, char *dst, int mode){
 	char iobuf[IOBUFLEN+1];
 	int datafd, fd, n, status = 1;
+	long start, timeused, bcnt = 0;
 
 	bzero(iobuf, sizeof(iobuf));
 
@@ -720,6 +725,7 @@ int do_put(int controlfd, char *src, char *dst, int mode){
 		}
 		datafd = n;
 	}
+	start = time(NULL);
 
 #if PUTSELECT
 	int maxfdp1, data_finished = FALSE, control_finished = FALSE;
@@ -750,6 +756,7 @@ int do_put(int controlfd, char *src, char *dst, int mode){
 			bzero(iobuf, (int)sizeof(iobuf));
 			while ((n = read(fd, iobuf, IOBUFLEN)) > 0) {
 				write(datafd, iobuf, n);	// FIXME: NO error checking
+				bcnt += n;
 			}
 			close(datafd);
 			data_finished = TRUE;
@@ -765,8 +772,11 @@ int do_put(int controlfd, char *src, char *dst, int mode){
 			perror("put");
 			break;
 		}
+		bcnt += n;
 	}
 #endif
+	timeused = time(NULL) - start;
+	printf("%ld bytes sent in %ld secs (%u.%02u kB/s)\n", bcnt, timeused, (int) (bcnt/timeused)/1000, (int)(bcnt/timeused)%1000);
 	close(datafd);
 	get_reply(controlfd, iobuf, sizeof(iobuf), 1);
 
