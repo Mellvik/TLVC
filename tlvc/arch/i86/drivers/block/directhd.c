@@ -51,8 +51,6 @@
 /* maybe we should have word-wide input here instead of byte-wide ? */
 #define STATUS(port) inb_p((port) + ATA_STATUS)
 #define ERROR(port) inb_p((port) + ATA_ERROR)
-#define port_write(port,buf,nr) \
-__asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 
 #define WAITING(port) ((STATUS(port) & BUSY_STAT) == BUSY_STAT)
 #define DRQ_WAIT(port) (STATUS(port) & DRQ_STAT) /* set when ready to transfer */
@@ -61,9 +59,13 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 /* use asm insw/outsw instead of C version */
 /* asm versions should work on 8088/86, but only with CONFIG_PC_XT */
 
-/* uncomment this to include debugging code .. this increases size of driver */
-#define USE_DEBUG_CODE
-//#define FORCE_SECTOR_IO	/* disable mutlisector R/W */
+/* We've instructed GCC to generate 8086 code, this does not fit */
+/* FIXME: Use #pragmas */
+#define port_write(port,buf,nr) \
+__asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
+
+
+//#define FORCE_SECTOR_IO	/* DEBUG: disable mutlisector R/W */
 
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
@@ -93,6 +95,8 @@ static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
 #ifdef USE_LOCALBUF
 static char localbuf[BLOCK_SIZE];	/* FIXME temporary - debugging */
 #endif
+#define PORT_IO	port_io
+void (*PORT_IO)() = NULL;
 
 static int directhd_initialized = 0;
 static struct drive_infot drive_info[MAX_ATA_DRIVES] = { 0, };
@@ -315,7 +319,7 @@ void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
 
     return;
 }
-#if 1
+#ifdef DEBUG
 static void dump_ide(word_t *buffer, int size) {
         int counter = 0;
 
@@ -363,10 +367,8 @@ int INITPROC directhd_init(void)
 	printk("st%x;", i);
 	if (!i || (i & 1) == 1) {	/* this one may not be safe FIXME */
 	    /* error - drive not found or non-ide */
-#ifdef USE_DEBUG_CODE
-	    //printk("athd: drive %d (%d on port 0x%x) not found\n", drive,
-		   //drive/2, port);
-#endif
+
+	    debug_blkdrv("athd%d: (%d on port 0x%x) not found\n", drive, drive/2, port);
 	    continue;	/* Jump to the start of for loop and
 			 * proceed with checking for other drives.
 			 * Always do this, even if the master drive
@@ -440,22 +442,17 @@ int INITPROC directhd_init(void)
 		dp->ctl |= ATA_CFG_NMULT;
 	    }
 #ifdef FORCE_SECTOR_IO
-	    dp->ctl |= ATA_CFG_NMULT; /*DEBUG DELETE force single sector transfers */
-#endif
-#if 0	/* DELETE */
-	    /* look for the QEMU serial - default or added by the qemu.sh script */
-	    char *serial = (char *) &ide_buffer[10];
-	    if (!strncmp(serial, "QEMU_IDE",7) || !strncmp(serial, "MQ0000 1", 8)) qemu_flag++;
+	    dp->ctl |= ATA_CFG_NMULT; /*DEBUG force single sector transfers */
 #endif
 
-#ifdef USE_DEBUG_CODE
+#ifdef DEBUG
 	    dump_ide(ide_buffer, 64);
 	    ide_buffer[20] = 0; /* String termination */
-	    //printk("IDE data 47-49: %04x, %04x, %04x\n", ide_buffer[94], ide_buffer[96], ide_buffer[98]);
 #endif
+	    debug_blkdrv("athd%d: IDE data 47-49: %04x, %04x, %04x\n", drive, 
+		ide_buffer[94], ide_buffer[96], ide_buffer[98]);
 	}
     }
-    //if (qemu_flag) printk("IDE: QEMU hack enabled\n");
 
     heap_free(ide_buffer);
     if (!hdcount) {
@@ -575,18 +572,15 @@ void do_directhd_request(void)
     sector_t count;		/* # of sectors to read/write */
     int this_pass;		/* # of sectors read/written */
     sector_t start;		/* first sector */
-    unsigned char *buff;	/* max_sect * sector_size, 63 * 512 bytes; it seems that all requests are only 1024 bytes */
+    unsigned char *buff;	/* Always 1K because all TLVC disk i/o os in 1 K blocks */
     short sector;		/* 1 .. 63 ? */
     short cylinder;		/* 0 .. 1024 and maybe more */
     short head;			/* 0 .. 16 */
     unsigned int tmp;
     int minor;
     int drive;			/* 0 .. 3 */
-#if 0
-    unsigned char i;		/* 0 .. (sectors per track - 1) .. 62 or less */
-    unsigned char j;		/* 0 .. 255 */
-#endif
     int port;
+    int cmd;
     struct drive_infot *dp;
 
     while (1) {			/* process HD requests */
@@ -622,6 +616,13 @@ void do_directhd_request(void)
 	    end_request(0);
 	    continue;
 	}
+	if (req->rq_cmd == READ) {
+	    cmd = (dp->ctl&ATA_CFG_NMULT)? ATA_READ : ATA_READM; 
+	    port_io = insw_far;
+	} else {
+	    cmd = (dp->ctl&ATA_CFG_NMULT)? ATA_WRITE : ATA_WRITEM;
+	    port_io = outsw_far;
+	}
 
 	start += hd[minor].start_sect;
 
@@ -631,9 +632,9 @@ void do_directhd_request(void)
 	    head = tmp % dp->heads;
 	    cylinder = tmp / dp->heads;
 
-	    /* Handle odd # of sectors per track - such as 63, which is common 
-	     * It seems the IDE READ and WRITE commands don't automatically 
-	     * change head or cylinder even though multiple sectors are requested
+	    /* Handle odd # of sectors per track - such as 63, which is common. 
+	     * Surprisingly, IDE READ and WRITE commands don't automatically 
+	     * change head or cylinder when multiple sectors are requested.
 	     */
 
 	    if (count <= (dp->sectors - sector + 1))
@@ -641,108 +642,44 @@ void do_directhd_request(void)
 	    else
 		this_pass = dp->sectors - sector + 1;
 
-#ifdef USE_DEBUG_CODE
-	    printk
-		("athd: drive: %d cylinder: %d head: %d sector: %d start: %u\n",
+	    debug_blkdrv("athd%d: cyl: %d hd: %d sec: %d st: %u\n",
 		 drive, cylinder, head, sector, start);
-#endif
 
 	    port = io_ports[drive / 2];
 
-	    if (req->rq_cmd == READ) {
-#ifdef USE_DEBUG_CODE_X
-		printk("athd: drive: %d this_pass: %d sector: %d head: %d\n",
-					drive, this_pass, sector, head);
-#endif
-		while (WAITING(port));
-		/* send drive parameters */
-		out_hd(drive, this_pass, sector, head, cylinder, 
-		       dp->ctl&ATA_CFG_NMULT? ATA_READ : ATA_READM);
+	    while (WAITING(port));
+	    /* send drive parameters */
+	    out_hd(drive, this_pass, sector, head, cylinder, cmd);
 
-		/* wait */
-		while (WAITING(port));
-		if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
-		    printk("athd: RD status: 0x%x error: 0x%x\n", STATUS(port),
-			   ERROR(port));
- 		    end_request(0);	/* not sure about this one */
-		    break;
-		}
-		tmp = 0x00;
-		while ((tmp & DRQ_STAT) != DRQ_STAT) {
-		    if ((tmp & ERR_STAT) == ERR_STAT) {
-			printk("athd: RD DRQ status: 0x%x error: 0x%x\n",
-			       STATUS(port), ERROR(port));
-			end_request(0);
-			break;  // dunno why these were reversed ...
-		    } else {
-			tmp = STATUS(port);
-#ifdef USE_DEBUG_CODE
-			//printk("athd: statusb: 0x%x\n", tmp);
-#endif
-		    }
-		}
-		//while (DRQ_WAIT(port));
-		if (dp->ctl & ATA_CFG_NMULT) {
-		    insw_far(port, req->rq_seg, (word_t *)buff, 512);
-		    if (this_pass > 1) {
-			while (!DRQ_WAIT(port));
-			insw_far(port, req->rq_seg, (word_t *)(buff + 512), 512);
-		    }
-		} else
-		    insw_far(port, req->rq_seg, (word_t *)buff, this_pass*512);
+	    while (WAITING(port));
+	    if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
+		printk("athd: RD status: 0x%x error: 0x%x\n", STATUS(port), ERROR(port));
+ 		end_request(0);
+		break;
 	    }
-	    if (req->rq_cmd == WRITE) {
-		while (WAITING(port));
-		/* send transaction parameters */
-		out_hd(drive, this_pass, sector, head, cylinder, 
-		    dp->ctl&ATA_CFG_NMULT? ATA_WRITE : ATA_WRITEM);
-
-		tmp = 10000;
-		while (WAITING(port)) {
-#ifdef USE_DEBUG_CODE
-		    if (!tmp--) {
-		    	printk("athd: statusa: 0x%x\n", STATUS(port));
-			tmp = 10000;
-		    }
-#endif
-		}
-		if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
-		    printk("athd: WR status: 0x%x error: 0x%x\n", STATUS(port),
-			   ERROR(port));
-#if 0
+	    tmp = 0x00;
+	    while ((tmp & DRQ_STAT) != DRQ_STAT) {
+		if ((tmp & ERR_STAT) == ERR_STAT) {
+		    printk("athd: RD DRQ status: 0x%x error: 0x%x\n",
+			       STATUS(port), ERROR(port));
 		    end_request(0);
-#endif
-		    break;
+		    break;  // dunno why these were reversed ...
+		} else {
+		    tmp = STATUS(port);
+		    debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
 		}
-
-		tmp = 0x00;	/* Wait for DRQ */
-		while ((tmp & DRQ_STAT) != DRQ_STAT) {
-		    if ((tmp & 1) == 1) {
-			printk("athd: status: 0x%x error: 0x%x\n",
-			       STATUS(port), ERROR(port));
-			end_request(0);
-			break;
-		    } else {
-			tmp = STATUS(port);
-#ifdef USE_DEBUG_CODE
-			//printk("athd: statusb: 0x%x\n", tmp);
-#endif
-		    }
-		}
-
-		/* NOTE: It may take the drive up to 5 usec to raise BSY after a write,
-		 */
-		printk("WR: CHS %d %d %d %d\n", cylinder, head, sector, this_pass);
-		while (!DRQ_WAIT(port));
-		if (dp->ctl & ATA_CFG_NMULT) {	/* one sector at a time */
-		    outsw_far(port, req->rq_seg, (word_t *)buff, 512);
-		    if (this_pass > 1) {
-			while (!DRQ_WAIT(port));
-			outsw_far(port, req->rq_seg, (word_t *)(buff + 512), 512);
-		    }
-		} else
-		    outsw_far(port, req->rq_seg, (word_t *)buff, this_pass * 512);
 	    }
+	    /* Do the I/O, either individual sectors or the whole shebang,
+	     * which means 1k (TLVC block size).
+	     */
+	    if (dp->ctl & ATA_CFG_NMULT) {
+		port_io(port, req->rq_seg, (word_t *)buff, 512);
+		if (this_pass > 1) {
+		    while (!DRQ_WAIT(port));
+		    port_io(port, req->rq_seg, (word_t *)(buff + 512), 512);
+		}
+	    } else
+		port_io(port, req->rq_seg, (word_t *)buff, this_pass*512);
 
 	    count -= this_pass;
 	    start += this_pass;

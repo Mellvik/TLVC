@@ -370,11 +370,13 @@ static char *dev_name(dev_t dev)
 
 	while (devices->num) {
 		if (devices->num == (dev & 0xfff0)) {
+			int k;
 			strcpy(&name[NAMEOFF], devices->name);
-			if (name[1] == 'h') {	/* for paritioned devices */
+			k = strlen(name);
+			if (name[k-3] == 'h') {	/* for paritioned devices */
 				if (dev & 0x07) {
-					name[NAMEOFF+3] = '0' + (dev & 7);
-					name[NAMEOFF+4] = 0;
+					name[k] = '0' + (dev & 7);
+					name[k+1] = 0;
 				}
 			}
 			return name;

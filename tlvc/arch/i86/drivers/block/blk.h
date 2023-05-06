@@ -162,7 +162,7 @@ static void end_request(int uptodate)
     register struct buffer_head *bh;
 
     req = CURRENT;
-    printk("ER%04x;", req);
+    debug_blkdrv("blk.h: ER:%04x;", req);
 
     if (!uptodate) {
 	printk("%s: I/O error: ", DEVICE_NAME);
