@@ -64,11 +64,13 @@ static char *dev_name(dev_t dev)
 
 	while (devices->num) {
 		if (devices->num == (dev & 0xfff0)) {
+			int k;
 			strcpy(&name[NAMEOFF], devices->name);
-			if (name[1] == 'h') {	/* for paritioned devices */
+			k = strlen(name);
+			if (name[k-3] == 'h') {	/* for paritioned devices */
 				if (dev & 0x07) {
-					name[NAMEOFF+3] = '0' + (dev & 7);
-					name[NAMEOFF+4] = 0;
+					name[k] = '0' + (dev & 7);
+					name[k+1] = 0;
 				}
 			}
 			return name;
@@ -86,7 +88,7 @@ static int show_mount(dev_t dev)
 		return -1;
 
 	if (statfs.f_type < FST_MSDOS) 
-		printf("%-9s (%5s) blocks %6lu free %6lu mount %s\n",
+		printf("%-10s (%5s) blocks %6lu free %6lu mount %s\n",
 		dev_name(statfs.f_dev), fs_typename[statfs.f_type], statfs.f_blocks,
 		statfs.f_bfree, statfs.f_mntonname);
 	else

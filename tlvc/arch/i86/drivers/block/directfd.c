@@ -70,11 +70,6 @@
  *   don't mix!!
  */
 
-//#define TRP_TIMER
-
-#define REALLY_SLOW_IO
-#define FLOPPY_DMA 2	/* hardwired on old PCs */
-
 #include <linuxmt/config.h>
 #include <linuxmt/sched.h>
 #include <linuxmt/fs.h>
@@ -86,6 +81,7 @@
 #include <linuxmt/fd.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/string.h>
+#include <linuxmt/debug.h>
 
 #include <arch/dma.h>
 #include <arch/system.h>
@@ -97,6 +93,7 @@
 #define FLOPPYDISK
 #define MAJOR_NR FLOPPY_MAJOR
 #define MINOR_SHIFT	5	/* shift to get drive num */
+#define FLOPPY_DMA 2		/* hardwired on old PCs */
 
 #include "blk.h"		/* ugly - blk.h contains code */
 struct wait_queue wait_for_request; /* used in blk.h */
@@ -105,30 +102,11 @@ struct wait_queue wait_for_request; /* used in blk.h */
  * The code is sometimes useing the macro, some times the variable.
  * FIXME
  */
-#ifdef DEVICE_INTR
+#ifdef DEVICE_INTR	/* from blk.h */
 void (*DEVICE_INTR) () = NULL;
-#endif
 
-	/* Not used in TLVC vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
-#ifdef DEVICE_TIMEOUT
-
-#define SET_TIMER \
-		((timer_table[DEVICE_TIMEOUT].tl_expires = jiffies + TIMEOUT_VALUE), \
-		(timer_active |= 1<<DEVICE_TIMEOUT))
-
-#define CLEAR_TIMER	timer_active &= ~(1<<DEVICE_TIMEOUT)
-
-#define SET_INTR(x)	if ((DEVICE_INTR = (x)) != NULL) \
-			SET_TIMER; \
-			else \
-			CLEAR_TIMER;
-
-	/* Not used in TLVC ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
-#else
 #define SET_INTR(x) (DEVICE_INTR = (x))
-#endif
 
-#ifdef DEVICE_INTR
 #define CLEAR_INTR SET_INTR(NULL)
 #else
 #define CLEAR_INTR
@@ -1501,7 +1479,7 @@ static void config_types(void)
  */
 static int floppy_open(struct inode *inode, struct file *filp)
 {
-    int drive, old_dev, device;
+    int drive, old_dev;
 
     drive = MINOR(inode->i_rdev) >> MINOR_SHIFT;
     old_dev = fd_device[drive];
@@ -1520,7 +1498,6 @@ static int floppy_open(struct inode *inode, struct file *filp)
 #endif
 
 /* FIXME: Put the correct value for inode->i_size */
-    //device = MINOR(inode->i_rdev) >> MINOR_SHIFT;
     if (drive > 3)		/* forced floppy type */
 	floppy = (drive >> 2) + floppy_type;
     else {			/* Auto-detection */
@@ -1533,7 +1510,7 @@ static int floppy_open(struct inode *inode, struct file *filp)
 	}
     }
     inode->i_size = ((sector_t)(floppy->size)) << 9;	/* NOTE: assumes sector size 512 */
-    printk("df_open dv %02x, sz %lu, %s\n", inode->i_rdev, inode->i_size, floppy->name);
+    debug_blkdrv("df%d: df_open dv %02x, sz %lu, %s\n", drive,inode->i_rdev, inode->i_size, floppy->name);
 
     return 0;
 }

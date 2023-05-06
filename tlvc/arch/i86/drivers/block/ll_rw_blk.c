@@ -119,7 +119,7 @@ static struct request *get_request(int n, kdev_t dev)
 	    prev_found = req;
 	    req->rq_status = RQ_ACTIVE;
 	    req->rq_dev = dev;
-	    printk("RQ:%04x|%x", req, dev);
+	    debug_blkdrv("ll: RQ:%04x|%x", req, dev);
 	    return req;
 	}
     } while (req != prev_found);
@@ -213,7 +213,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	break;
 
     default:
-	debug("make_request: bad block dev cmd, must be R/W/RA/WA\n");
+	printk("make_request: bad block dev cmd, must be R/W/RA/WA\n");
 	unlock_buffer(bh);
 	return;
     }

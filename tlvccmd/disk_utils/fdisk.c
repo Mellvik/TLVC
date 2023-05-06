@@ -45,7 +45,8 @@ struct geometry {
     unsigned long start;
 };
 
-#define DEFAULT_DEV			"/dev/hda"
+#define DEFAULT_DIRECT_DEV		"/dev/dhda"
+#define DEFAULT_BIOS_DEV		"/dev/hda"
 #define PARTITION_TYPE		0x80	/* ELKS, Old Minix*/
 
 #define PARTITION_START		0x01be	/* offset of partition table in MBR*/
@@ -392,6 +393,16 @@ void list_partition(char *devname)
 	close(fd);
 }
 
+void set_default_dev(char *rdev) {
+	char *rootdev = getenv("ROOTDEV");
+
+	if (!rootdev || strchr(rootdev, 'f') {
+		printf("No default hard disk, device must be specified.\n");
+		usage();
+	} else
+		strcpy(rdev, rootdev);
+}
+
 int main(int argc, char **argv)
 {
 	int i;
@@ -413,13 +424,12 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (argc == 1)
-		strcpy(dev,DEFAULT_DEV);
-
+	if (argc == 1) 
+		set_default_dev(dev);
 
     if (mode == MODE_LIST) {
 	if (*dev == 0)
-	    strcpy(dev,DEFAULT_DEV);
+	    set_default_dev(dev);
 	list_partition(dev);
 	exit(0);
     }

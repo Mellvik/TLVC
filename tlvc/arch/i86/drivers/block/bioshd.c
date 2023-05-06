@@ -213,7 +213,7 @@ static int bios_disk_rw(unsigned cmd, unsigned num_sectors, unsigned drive,
     BD_ES = seg;
     BD_BX = offset;
 #endif
-    return call_bios(&bdt);
+    return call_blkio(&bdt);
 }
 
 #ifdef CONFIG_BLK_DEV_BHD
@@ -270,7 +270,7 @@ static unsigned short int INITPROC bioshd_gethdinfo(void) {
     if (!call_bios(&bdt))
 	ndrives = BD_DX & 0xff;
     else
-	debug_bios("bioshd: get_drive_parms fail on hd\n");
+	debug_blkdrv("bioshd: get_drive_parms fail on hd\n");
 #endif
     if (ndrives > NUM_DRIVES/2)
 	ndrives = NUM_DRIVES/2;
@@ -412,7 +412,7 @@ static unsigned short int INITPROC bioshd_getfdinfo(void)
 	if (!call_bios(&bdt))
 	    ndrives = BD_DX & 0xff;	/* floppy drive count*/
 	else
-	    debug_bios("bioshd: get_drive_parms fail on fd\n");
+	    debug_blkdrv("bioshd: get_drive_parms fail on fd\n");
     }
 
     /* set drive type for floppies*/
@@ -486,7 +486,7 @@ static void copy_ddpt(void)
 	 */
 	fmemcpyw(DDPT, _FP_SEG(DDPT), (void *)(unsigned)oldvec, _FP_SEG(oldvec),
 		sizeof(DDPT)/2);
-	debug_bios("bioshd: DDPT vector %x:%x SPT %d\n", _FP_SEG(oldvec), (unsigned)oldvec, DDPT[SPT]);
+	debug_blkdrv("bioshd: DDPT vector %x:%x SPT %d\n", _FP_SEG(oldvec), (unsigned)oldvec, DDPT[SPT]);
 	*vec1E = (unsigned long)(void __far *)DDPT;
 }
 
@@ -905,7 +905,7 @@ static void get_chst(struct drive_infot *drivep, sector_t start, unsigned int *c
 	*h = (unsigned int) (tmp % (sector_t)drivep->heads);
 	*c = (unsigned int) (tmp / (sector_t)drivep->heads);
 	*t = drivep->sectors - *s + 1;
-	debug_bios("bioshd: lba %ld is CHS %d/%d/%d remaining sectors %d\n",
+	debug_blkdrv("bioshd: lba %ld is CHS %d/%d/%d remaining sectors %d\n",
 		start, *c, *h, *s, *t);
 }
 
@@ -924,7 +924,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 
 	/* limit I/O to requested sector count*/
 	if (this_pass > count) this_pass = count;
-	if (cmd == READ) debug_bios("bioshd(%d): read lba %ld count %d\n",
+	if (cmd == READ) debug_blkdrv("bioshd(%d): read lba %ld count %d\n",
 				drive, start, this_pass);
 
 	errs = MAX_ERRS;	/* BIOS disk reads should be retried at least three times */
@@ -942,7 +942,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 			segment = (seg_t)seg;
 			offset = (unsigned) buf;
 		}
-		debug_bios("bioshd(%d): cmd %d CHS %d/%d/%d count %d\n",
+		debug_blkdrv("bioshd(%d): cmd %d CHS %d/%d/%d count %d\n",
 		    drive, cmd, cylinder, head, sector, this_pass);
 		in_ax = BD_AX;
 		out_ax = 0;
@@ -993,7 +993,7 @@ static void bios_readtrack(struct drive_infot *drivep, sector_t start)
 
 	do {
 		out_ax = 0;
-		debug_bios("bioshd(%d): track read CHS %d/%d/%d count %d\n",
+		debug_blkdrv("bioshd(%d): track read CHS %d/%d/%d count %d\n",
 			drive, cylinder, head, sector, num_sectors);
 
 		set_ddpt(drivep->sectors);
@@ -1015,7 +1015,7 @@ static void bios_readtrack(struct drive_infot *drivep, sector_t start)
 	cache_drive = drivep;
 	cache_startsector = start;
 	cache_endsector = start + num_sectors - 1;
-	debug_bios("bioshd(%d): track read lba %ld to %ld count %d\n",
+	debug_blkdrv("bioshd(%d): track read lba %ld to %ld count %d\n",
 		drive, cache_startsector, cache_endsector, num_sectors);
 }
 
@@ -1029,7 +1029,7 @@ static int cache_valid(struct drive_infot *drivep, sector_t start, unsigned char
 	    return 0;
 
 	offset = (int)(start - cache_startsector) * drivep->sector_size;
-	debug_bios("bioshd(%d): cache hit lba %ld\n", hd_drive_map[drivep-drive_info], start);
+	debug_blkdrv("bioshd(%d): cache hit lba %ld\n", hd_drive_map[drivep-drive_info], start);
 	xms_fmemcpyw(buf, seg, (void *)offset, DMASEG, drivep->sector_size >> 1);
 	return 1;
 }
