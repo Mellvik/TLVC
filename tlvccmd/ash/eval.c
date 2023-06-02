@@ -64,7 +64,11 @@ static char sccsid[] = "@(#)eval.c	5.3 (Berkeley) 4/12/91";
 #include <signal.h>
 #include <unistd.h>
 #include "debug.h"
-
+#if DEBUG > 0
+#include <errno.h>	/* for debugging only */
+#include <stdio.h>
+#include <fcntl.h>
+#endif
 
 /* flags in argument to evaltree */
 #define EV_EXIT 01		/* exit after evaluating tree */
@@ -460,10 +464,12 @@ evalpipe(n)
 	INTOFF;
 	jp = makejob(n, pipelen);
 	prevfd = -1;
+
+	/* loop through the command list, connect with pipes */
 	for (lp = n->npipe.cmdlist ; lp ; lp = lp->next) {
 		prehash(lp->n);
-		pip[1] = -1;
-		if (lp->next) {
+		pip[1] = -1;	/* source end of pipe */
+		if (lp->next) {	/* unless we're the last one, create new pipe */
 			if (pipe(pip) < 0) {
 				close(prevfd);
 				error("Pipe call failed");
@@ -471,16 +477,18 @@ evalpipe(n)
 		}
 		if (forkshell(jp, lp->n, n->npipe.backgnd) == 0) {
 			INTON;
-			if (prevfd > 0) {
+			if (prevfd > 0) {	/* this becomes stdin for the new process */
 				close(0);
 				copyfd(prevfd, 0);
 				close(prevfd);
+				//TRACE(("pipe %d -> stdin (%d)\n", prevfd, get_inode(0)));
 			}
-			if (pip[1] >= 0) {
+			if (pip[1] >= 0) {	/* we're the source end */
 				close(pip[0]);
-				if (pip[1] != 1) {
+				if (pip[1] != 1) {	/* make it stdout */
 					close(1);
 					copyfd(pip[1], 1);
+					//TRACE(("pipe %d -> stdout (%d)\n", pip[1], get_inode(pip[1])));
 					close(pip[1]);
 				}
 			}
@@ -498,6 +506,7 @@ evalpipe(n)
 		TRACE(("evalpipe:  job done exit status %d\n", exitstatus));
 		INTON;
 	}
+	TRACE(("evalpipe done\n"));
 }
 
 
@@ -791,7 +800,9 @@ cmddone:
 			memout.buf = NULL;
 		}
 	} else {
-		trputs("normal command:  ");  trargs(argv);
+#if DEBUG > 0
+		TRACE(("normal command:  "));  trargs(argv);
+#endif
 		clearredir();
 		redirect(cmd->ncmd.redirect, 0);
 		if (varlist.list) {

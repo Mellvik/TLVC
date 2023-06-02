@@ -677,7 +677,6 @@ waitforjob(jp)
 }
 
 
-
 /*
  * Wait for a process to terminate.
  */
@@ -718,7 +717,7 @@ dowait(block, job)
 				if (sp->pid == -1)
 					continue;
 				if (sp->pid == pid) {
-					TRACE(("Changin status of proc %d from 0x%x to 0x%x\n", pid, sp->status, status));
+					TRACE(("Changing status of proc %d from 0x%x to 0x%x\n", pid, sp->status, status));
 					sp->status = status;
 					thisjob = jp;
 				}

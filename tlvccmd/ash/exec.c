@@ -89,7 +89,6 @@ struct tblentry {
 STATIC struct tblentry *cmdtable[CMDTABLESIZE];
 STATIC int builtinloc = -1;		/* index in path of %builtin, or -1 */
 
-
 #ifdef __STDC__
 STATIC void tryexec(char *, char **, char **);
 STATIC void execinterp(char **, char **);
@@ -107,6 +106,13 @@ STATIC void delete_cmd_entry();
 #endif
 
 
+#if DEBUG > 0
+int get_inode(int fd) {
+	struct stat statb;
+	if (fstat(fd, &statb)) return -1;
+	return statb.st_ino;
+}
+#endif
 
 /*
  * Exec a program.  Never returns.  If you change this routine, you may
@@ -121,10 +127,13 @@ shellexec(argv, envp, path, index)
 	char *cmdname;
 	int e;
 
+	TRACE(("shellexec: in=%d, out=%d, err=%d\n", 
+	    get_inode(0), get_inode(1), get_inode(2)));
 	if (strchr(argv[0], '/') != NULL) {
 		tryexec(argv[0], argv, envp);
 		e = errno;
 	} else {
+
 		e = ENOENT;
 		while ((cmdname = padvance(&path, argv[0])) != NULL) {
 			if (--index < 0 && pathopt == NULL) {
@@ -138,7 +147,6 @@ shellexec(argv, envp, path, index)
 	error2(argv[0], errmsg(e, E_EXEC));
 }
 
-
 STATIC void
 tryexec(cmd, argv, envp)
 	register char *cmd;
@@ -148,6 +156,9 @@ tryexec(cmd, argv, envp)
 	int e;
 	char *p;
 
+#if DEBUG > 0
+	TRACE(("tryexec: %s ", cmd)); trargs(argv);
+#endif
 #ifdef SYSV
 	do {
 		execve(cmd, argv, envp);
