@@ -87,7 +87,7 @@ static size_t pipe_read(register struct inode *inode, struct file *filp,
 {
     size_t chars;
 
-    debug("PIPE: read called.\n");
+    debug("PIPE: read\n");
     while (PIPE_EMPTY(inode) || PIPE_LOCK(inode)) {
 	if (!PIPE_LOCK(inode) && !PIPE_WRITERS(inode)) return 0;
 	if (filp->f_flags & O_NONBLOCK) return -EAGAIN;
@@ -116,7 +116,7 @@ static size_t pipe_write(register struct inode *inode, struct file *filp,
 {
     size_t free, head, chars, written = 0;
 
-    debug("PIPE: write called.\n");
+    debug("PIPE: write\n");
     if (!PIPE_READERS(inode)) goto snd_signal;
 
     free = (count <= PIPE_SIZE(inode)) ? count : 1;
@@ -159,14 +159,14 @@ static size_t pipe_write(register struct inode *inode, struct file *filp,
 #ifdef STRICT_PIPES
 static void pipe_read_release(register struct inode *inode, struct file *filp)
 {
-    debug("PIPE: read_release called.\n");
+    debug("PIPE: read_release\n");
     PIPE_READERS(inode)--;
     wake_up_interruptible(&PIPE_WAIT(inode));
 }
 
 static void pipe_write_release(register struct inode *inode, struct file *filp)
 {
-    debug("PIPE: write_release called.\n");
+    debug("PIPE: write_release\n");
     PIPE_WRITERS(inode)--;
     wake_up_interruptible(&PIPE_WAIT(inode));
 }
@@ -175,7 +175,7 @@ static void pipe_write_release(register struct inode *inode, struct file *filp)
 static void pipe_rdwr_release(register struct inode *inode,
 			      register struct file *filp)
 {
-    debug("PIPE: rdwr_release called.\n");
+    debug("PIPE: rdwr_release\n");
 
     if (filp->f_mode & FMODE_READ) PIPE_READERS(inode)--;
     if (filp->f_mode & FMODE_WRITE) PIPE_WRITERS(inode)--;
@@ -192,7 +192,7 @@ static void pipe_rdwr_release(register struct inode *inode,
 #ifdef STRICT_PIPES
 static int pipe_read_open(struct inode *inode, struct file *filp)
 {
-    debug("PIPE: read_open called.\n");
+    debug("PIPE: read_open\n");
     PIPE_READERS(inode)++;
 
     return 0;
@@ -200,7 +200,7 @@ static int pipe_read_open(struct inode *inode, struct file *filp)
 
 static int pipe_write_open(struct inode *inode, struct file *filp)
 {
-    debug("PIPE: write_open called.\n");
+    debug("PIPE: write_open\n");
     PIPE_WRITERS(inode)++;
 
     return 0;
@@ -210,7 +210,7 @@ static int pipe_write_open(struct inode *inode, struct file *filp)
 static int pipe_rdwr_open(register struct inode *inode,
 			  register struct file *filp)
 {
-    debug("PIPE: rdwr called.\n");
+    debug("PIPE: rdwr_open\n");
 
     if (!PIPE_BASE(inode)) {
 	if (!(PIPE_BASE(inode) = get_pipe_mem())) return -ENOMEM;
@@ -252,7 +252,7 @@ static int pipe_rdwr_open(register struct inode *inode,
 static size_t bad_pipe_rw(struct inode *inode, struct file *filp,
 		       char *buf, int count)
 {
-    debug("PIPE: bad rw called.\n");
+    debug("PIPE: bad rw\n");
 
     return -EBADF;
 }
@@ -312,7 +312,8 @@ static int do_pipe(register int *fd)
     int error = -ENOMEM;
 
     if (!(inode = new_inode(NULL, S_IFIFO | S_IRUSR | S_IWUSR)))	/* Create inode */
-	goto no_inodes;
+	//goto no_inodes;
+	return error;
 
     /* read file */
     if ((error = open_fd(O_RDONLY, inode)) < 0) {
@@ -325,7 +326,7 @@ static int do_pipe(register int *fd)
     /* write file */
     if ((error = open_fd(O_WRONLY, inode)) < 0) {
 	sys_close(*fd);
-      no_inodes:
+no_inodes:
 	return error;
     }
     (inode->i_count)++;		/* Increase inode usage count */
