@@ -24,7 +24,6 @@
 #include <arch/irq.h>
 
 #ifdef CONFIG_BLK_DEV_FD
-//#define BDEV_SIZE_CHK	/* needed for direct floppy */
 #define FIXED_SECTOR_SIZE 512 /* Change if variable sect size is introduced */
 #define FLOPPYDISK
 struct wait_queue wait_for_request;
@@ -119,7 +118,7 @@ static struct request *get_request(int n, kdev_t dev)
 	    prev_found = req;
 	    req->rq_status = RQ_ACTIVE;
 	    req->rq_dev = dev;
-	    debug_blkdrv("ll: RQ:%04x|%x", req, dev);
+	    //debug_blkdrv("ll: RQ:%04x|%x", req, dev);
 	    return req;
 	}
     } while (req != prev_found);
@@ -219,6 +218,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
     }
 
     /* find an unused request. */
+    clr_irq();
     req = get_request(max_req, buffer_dev(bh));
     set_irq();
 
@@ -264,12 +264,12 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 static struct request *__get_request_wait(int n, kdev_t dev)
 {
     register struct request *req;
-    printk("(%lu) Waiting for request ...\n", jiffies);
+    printk("[%u] Waiting for request ...", (int)jiffies);
 
     //prepare_to_wait(&wait_for_request);	// maybe set interruptible ...
-    //wait_set(&wait_for_request);
-    //current->state = TASK_UNINTERRUPTIBLE;
-    sleep_on(&wait_for_request);	// or interruptible_sleep_on()
+    wait_set(&wait_for_request);
+    current->state = TASK_UNINTERRUPTIBLE;
+    //sleep_on(&wait_for_request);	// or interruptible_sleep_on()
     goto startgrw;
     do {
 	schedule();

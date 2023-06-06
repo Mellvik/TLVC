@@ -29,8 +29,9 @@
 
 #include "blk.h"
 
-#define NR_SECTS(p)	p->nr_sects
-#define START_SECT(p)	p->start_sect
+#define NR_SECTS(p)		p->nr_sects
+#define START_SECT(p)		p->start_sect
+
 #ifdef CONFIG_ARCH_PC98
 #define NR_SECTS_PC98(p98)	END_SECT_PC98(p98) - START_SECT_PC98(p98) + 1
 #define START_SECT_PC98(p98)	(sector_t) (p98->cyl * last_drive->heads + p98->head) * last_drive->sectors + p98->sector
@@ -84,7 +85,6 @@ static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
 	return;
     }
 #endif
-#ifndef CONFIG_BLK_DEV_HD
     /*
      * Save boot partition # based on start offset.  This is needed if
      * ROOT_DEV is still a BIOS drive number at this point (see init.c), and
@@ -92,13 +92,14 @@ static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
      *
      * If the root device is already fully known, i.e. ROOT_DEV is already
      * a device number, then we do not really need boot_partition.
+     * [But it doesn't hurt to set it ... HS ]
      */
-    if (ROOT_DEV == hd_drive_map[minor >> hd->minor_shift]) {
+    //if (ROOT_DEV == hd_drive_map[minor >> hd->minor_shift]) {
+    //if (ROOT_DEV & 0x80) {
 	sector_t boot_start = SETUP_PART_OFFSETLO | (sector_t) SETUP_PART_OFFSETHI << 16;
 	if (start == boot_start)
 	    boot_partition = minor & 0x7;
-    }
-#endif
+    //}
 }
 
 static int INITPROC is_extended_partition(register struct partition *p)
@@ -227,7 +228,7 @@ static int INITPROC msdos_partition(struct gendisk *hd,
      */
     if (*(int *) (bh->b_data + 0x1fe) != 0xAA55) {
 out:
-	printk(" no mbr,");
+	printk("no mbr");
 	unmap_brelse(bh);
 	return 0;
     }
@@ -320,7 +321,7 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
 	return;
 #endif
 
-    printk(" none: Flat drive.\n");
+    printk(" (flat drive assumed)\n");
 }
 #endif
 
