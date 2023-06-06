@@ -261,6 +261,7 @@ trace(fmt, a1, a2, a3, a4, a5, a6, a7, a8)
 	int e = errno;
 	if (tracefile == NULL)
 		return;
+	fprintf(tracefile, "[%d]", getpid());
 	fprintf(tracefile, fmt, a1, a2, a3, a4, a5, a6, a7, a8);
 	if (strchr(fmt, '\n'))
 		fflush(tracefile);

@@ -113,6 +113,7 @@ void schedule(void)
             timer.tl_expires = timeout;
             timer.tl_data = (int) prev;
             timer.tl_function = process_timeout;
+	    debug_sched("sched: addtimer %d\n", current->pid);
             add_timer(&timer);
         }
 
@@ -122,6 +123,7 @@ void schedule(void)
         tswitch();  /* Won't return for a new task */
 
         if (timeout) {
+	    debug_sched("sched: deltimer %d\n", current->pid);
             del_timer(&timer);
         }
     } else if (current->pid)
@@ -132,42 +134,42 @@ static struct timer_list *next_timer = NULL;
 
 void add_timer(struct timer_list * timer)
 {
-    struct timer_list *p;
+    struct timer_list **p;
     flag_t flags;
 
     timer->tl_next = NULL;
-    p = next_timer;
+    p = &next_timer;
     save_flags(flags);
     clr_irq();
-    while (p) {
-        if (p->tl_expires > timer->tl_expires) {
-            timer->tl_next = p;
+    while (*p) {
+        if ((*p)->tl_expires > timer->tl_expires) {
+            timer->tl_next = *p;
             break;
         }
-        p = p->tl_next;
+        p = &(*p)->tl_next;
     }
-    next_timer = timer;
+    *p = timer;
     restore_flags(flags);
 }
 
 int del_timer(struct timer_list * timer)
 {
-    struct timer_list *p;
+    struct timer_list **p;
     flag_t flags;
     int ret = 0;
 
-    p = next_timer;
+    p = &next_timer;
     save_flags(flags);
     clr_irq();
-    while (p) {
-        if (p == timer) {
-            p = timer->tl_next;
+    while (*p) {
+        if (*p == timer) {
+            *p = timer->tl_next;
             ret = 1;
 	    break;
         }
-        p = p->tl_next;
+        p = &(*p)->tl_next;
     }
-    if (timer == next_timer) next_timer = NULL;
+    //if (timer == next_timer) *next_timer = NULL;
     restore_flags(flags);
     return ret;
 }

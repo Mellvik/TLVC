@@ -162,7 +162,7 @@ static void end_request(int uptodate)
     register struct buffer_head *bh;
 
     req = CURRENT;
-    debug_blkdrv("blk.h: ER:%04x;", req);
+    //debug_blkdrv("blk.h: ER:%04x;", req);
 
     if (!uptodate) {
 	printk("%s: I/O error: ", DEVICE_NAME);
@@ -215,7 +215,7 @@ static void end_request(int uptodate)
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
 #if defined(MULTI_BH) || defined(FLOPPYDISK)
-    //if (MAJOR_NR == 2) printk("WK%04x;", &wait_for_request);
+    //if (MAJOR_NR == 2) printk("WK%04x/%d;", &wait_for_request, current->pid);
     wake_up(&wait_for_request);
 #endif
 }

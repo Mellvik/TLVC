@@ -540,7 +540,7 @@ run_prog:
 	mov %ax,%ds
 
 	mov elks_magic,%ax  // check for ELKS magic number
-			    // TLVC useing the same #
+			    // TLVC using the same #
 	cmp $0x4C45,%ax
 	jnz not_elks
 	mov elks_magic+2,%ax

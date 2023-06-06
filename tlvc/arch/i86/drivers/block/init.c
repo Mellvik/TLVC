@@ -29,7 +29,11 @@
 #include <arch/system.h>
 #include <arch/segment.h>
 
+#define MINOR_SHIFT	5	/* FIXME move to include file, this is bad */
+				/* or create a conv_drive function in directhd.c */
+
 int boot_rootdev;	/* set by /bootopts options if configured*/
+extern int boot_partition;
 
 void INITPROC device_init(void)
 {
@@ -43,43 +47,31 @@ void INITPROC device_init(void)
 
     for (p = gendisk_head; p; p = p->next)
 	setup_dev(p);
-    printk("boot_rootdev 0x%x\n", boot_rootdev);
+    printk("boot_rootdev 0x%x, ", boot_rootdev);
 
-//#ifdef CONFIG_BLK_DEV_BIOS
     /*
      * The bootloader may have passed us a ROOT_DEV which is actually a BIOS
      * drive number.  If so, convert it into a proper <major, minor> block
      * device number.  -- tkchia 20200308
      */
-    /*
-     * The bootloader ALWAYS uses BIOS, regardless of the CONFIG_BLK_DEV_BIOS
-     * setting. So biosdrive is what we got for now. mellvik/20230421 for TLVC
-     */ 
     if (!boot_rootdev && (SETUP_ELKS_FLAGS & EF_BIOS_DEV_NUM) != 0) {
+
 #ifdef CONFIG_BLK_DEV_BIOS
 	extern kdev_t INITPROC bioshd_conv_bios_drive(unsigned int biosdrive);
 
 	rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);
-	printk("device_setup: BIOS drive 0x%x, root device 0x%x\n",
-		ROOT_DEV, rootdev);
-#ifdef CONFIG_BLK_DEV_FD
-	/* Needed only if we have BIOS HD and non-BIOS fd */
-	if (rootdev == 0x380) rootdev = 0x200; 
-#endif
-#else   
-	/* find the device (maj/min) we booted from */
-	int minor, partition = 0;
-	extern int boot_partition;
-#define MINOR_SHIFT	5	/* FIXME move to include file, this is bad */
-				/* or create a conv_drive function in directhd.c */
 
-	if (ROOT_DEV & 0x80) {		/* hard drive*/
-		minor = ROOT_DEV & 0x03;
-		partition = boot_partition;	/* saved from add_partition()*/
-		rootdev = MKDEV(ATHD_MAJOR, (minor >> MINOR_SHIFT) + partition);
-	} else
-		rootdev = MKDEV(FLOPPY_MAJOR, 0);
+#else 	/* Direct HD/FD */
+	/* Should work with BIOS hd + direct FD too */
+	if (ROOT_DEV & 0x80) 	/* hard drive */
+		rootdev = MKDEV(ATHD_MAJOR, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
+						+ boot_partition);
+	else			/* floppy */
+		rootdev = MKDEV(FLOPPY_MAJOR, (ROOT_DEV & 0x03));
 #endif
+
+	//printk("device_setup: BIOS drive 0x%x, root device 0x%x\n",
+		//ROOT_DEV, rootdev);
 
     } else
 	/* use boot_rootdev from /bootopts */

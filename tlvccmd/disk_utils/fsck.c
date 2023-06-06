@@ -554,7 +554,7 @@ void read_tables(void)
 	zone_count = fmemalloc(ZONES);  /* ZONES <= 64K */
 	if (!zone_count) {
 		fprintf(stderr, "ZONES: %u -- ", ZONES);
-		die("Unable to allocate main memory for zone count");
+		die("Out of memory, try to kill some processes.");
 	}
 	if ((IMAPS * BLOCK_SIZE) != read(IN, inode_map, (IMAPS * BLOCK_SIZE)))
 		die("Unable to read inode map");

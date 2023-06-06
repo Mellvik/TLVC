@@ -37,7 +37,7 @@ struct netif_parms netif_parms[MAX_ETHS] = {
     { EL3_IRQ, EL3_PORT, 0, EL3_FLAGS },
 };
 __u16 kernel_cs, kernel_ds;
-static int boot_console;
+static int boot_console = 0;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
 #ifdef CONFIG_SYS_NO_BININIT
@@ -141,7 +141,7 @@ void INITPROC kernel_init(void)
 
 #ifdef CONFIG_BOOTOPTS
     finalize_options();
-    if (!opts) printk("/bootopts ignored: header not ## or size > %d\n", OPTSEGSZ-1);
+    if (!opts) printk("/bootopts not found or wrong format\n");
 #endif
 
     kernel_banner(base, end);
@@ -262,17 +262,18 @@ static struct dev_name_struct {
  */
 static char * INITPROC root_dev_name(int dev)
 {
-	int i;
+	int i, offs;
 #define NAMEOFF	13
 	static char name[18] = "ROOTDEV=/dev/";
 
 	for (i=0; i<5; i++) {
 		if (devices[i].num == (dev & 0xfff0)) {
 			strcpy(&name[NAMEOFF], devices[i].name);
+			offs = strlen(devices[i].name);
 			if (i < 4) {
 				if (dev & 0x07) {
-					name[NAMEOFF+3] = '0' + (dev & 7);
-					name[NAMEOFF+4] = 0;
+					name[NAMEOFF+offs] = '0' + (dev & 7);
+					name[NAMEOFF+offs+1] = 0;
 				}
 			}
 			return name;
@@ -358,6 +359,11 @@ static int parse_options(void)
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 	/* check file starts with ## and max len 511 bytes*/
+	/* If the bootopts file has been recentluy deleted, we may be reading an old
+	 * copy lingering in memory since low memory is not being 
+	 * initialized between runs. FIXME
+	 * Maybe just read a random sector when the file isn't found (bootsect.S)
+	 */
 	if (*(unsigned short *)options != 0x2323 || options[OPTSEGSZ-1])
 		return 0;
 

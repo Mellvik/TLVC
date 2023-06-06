@@ -462,7 +462,9 @@ void mount_root(void)
     debug_sup("MOUNT root\n");
     d_inode = new_inode(NULL, S_IFBLK);
     d_inode->i_rdev = ROOT_DEV;
+#ifdef CONFIG_BLK_DEV_BIOS
   retry_floppy:
+#endif
     retval = open_filp(((root_mountflags & MS_RDONLY) ? 0 : 2), d_inode, &filp);
     if (retval == -EROFS) {
 	root_mountflags |= MS_RDONLY;

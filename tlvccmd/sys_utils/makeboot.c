@@ -3,6 +3,7 @@
  * Part of /bin/sys script for creating ELKS images from ELKS
  *
  * Usage: makeboot [-M][-F] /dev/{fd0,fd1,hda1,hda2,etc}
+ *        makeboot [-M][-F] /dev/{df0,df1,dhda1,dhda2,etc}
  *
  * Copies boot sector from root device to target device
  * Sets EPB and BPB parameters in boot sector
@@ -30,6 +31,7 @@
 #include <arch/hdreg.h>
 #include <linuxmt/minix_fs.h>
 #include <linuxmt/kdev_t.h>
+#include <linuxmt/major.h>
 #include "../../bootblocks/mbr_autogen.c"
 
 #define BUF_SIZE	1024 
@@ -43,7 +45,8 @@
 /* BIOS driver numbers must match bioshd.c*/
 #define BIOS_NUM_MINOR	32		/* max minor devices per drive*/
 #define BIOS_MINOR_MASK	(BIOS_NUM_MINOR - 1)
-#define BIOS_FD0_MINOR	128		/* minor # of first floppy, must match bioshd.c*/
+#define BIOS_FD0_MINOR	128		/* minor # of first BIOS floppy, must match bioshd.c*/
+#define MINOR_SHIFT	5
 
 /* See bootblocks/minix.map for the offsets, these used for MINIX and FAT */
 #define ELKS_BPB_NumTracks	0x1F7		/* offset of number of tracks (word)*/
@@ -54,8 +57,8 @@
 #define MINIX_SectOffset	0x1F3		/* offset of partition start sector (long)*/
 
 /* FAT BPB start and end offsets*/
-#define FATBPB_START	11				/* start at bytes per sector*/
-#define FATBPB_END		61				/* through end of file system type*/
+#define FATBPB_START		11		/* start at bytes per sector*/
+#define FATBPB_END		61		/* through end of file system type*/
 
 /* FAT-only offsets */
 #define FAT_BPB_RootEntCnt	0x11		/* offset of FAT12/16 root directory entry count (word) */
@@ -417,7 +420,8 @@ usage:
 	if (rootdev == targetdev)	/* FIXME: Should be able to MBR rootdev */
 		fatalmsg("Can't specify current boot device as target\n");
 
-	if (MINOR(targetdev) < BIOS_FD0_MINOR) {	/* hard drive*/
+	if (((MAJOR(targetdev) == BIOSHD_MAJOR) && (MINOR(targetdev) < BIOS_FD0_MINOR)) ||
+	     (MAJOR(targetdev) == ATHD_MAJOR)) {	/* hard drive*/
 		if (!opt_writeflat && !opt_writembr) {
 			if ((targetdev & BIOS_MINOR_MASK) == 0)	/* non-partitioned device*/
 				fatalmsg("Must specify partitioned device (example /dev/hda1)\n");
@@ -431,6 +435,7 @@ usage:
 	if (opt_writembr) {
 		int ffd;
 
+					/* OK for direct HD too */
 		char *rawtargetdevice = devname(targetdev & ~BIOS_MINOR_MASK);
 		if (!rawtargetdevice)
 			fatalmsg("Can't find raw target device\n");

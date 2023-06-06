@@ -21,7 +21,7 @@
  */
 /*
  * A note about IDE/ATA:
- * The read/write sector commands do multisector I/O but each sector needs its own read
+ * The IDE read/write sector commands do multisector I/O but each sector needs its own read
  * or write operation: One command, many response-iterations. IOW we have to handle eachs
  * sector individually, like waiting for a new DRQ (or interrupt) per sector.
  * Read/write multiple is different, but make sure to read/write the number of sectors 
@@ -100,8 +100,12 @@ void (*PORT_IO)() = NULL;
 
 static int directhd_initialized = 0;
 static struct drive_infot drive_info[MAX_ATA_DRIVES] = { 0, };
+
+/* NOTE: This is wasting a lot of memory, allocating 32 entries times MAX_ATA_DRIVES,
+ * -> 128 entries while we may need upto 16, say 32 at the most. Each entry = 8 bytes,
+ * save potential > 768 bytes */
 static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer {start_sect, num_sects} */
-static int directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
+static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 
 static void directhd_geninit();
 static void reset_controller(int);
@@ -364,7 +368,7 @@ int INITPROC directhd_init(void)
 	/* wait */
 	while (WAITING(port));
 	i = STATUS(port);
-	printk("st%x;", i);
+	//printk("st%x;", i);
 	if (!i || (i & 1) == 1) {	/* this one may not be safe FIXME */
 	    /* error - drive not found or non-ide */
 
@@ -513,19 +517,16 @@ static int directhd_ioctl(struct inode *inode, struct file *filp,
     switch (cmd) {
     case HDIO_GETGEO:
 	/* safety check .. i presume :) */
-	err = verify_area(VERIFY_WRITE, arg, sizeof(*loc));
+	err = verify_area(VERIFY_WRITE, arg, sizeof(struct hd_geometry));
 	if (err)
 	    return err;
-
-	put_user(drive_info[dev].heads, &loc->heads);
-	put_user(drive_info[dev].sectors, &loc->sectors);
+	put_user_char(drive_info[dev].heads, &loc->heads);
+	put_user_char(drive_info[dev].sectors, &loc->sectors);
 	put_user(drive_info[dev].cylinders, &loc->cylinders);
-	put_user(hd[MINOR(inode->i_rdev)].start_sect, &loc->start);
-
+	put_user_long(hd[MINOR(inode->i_rdev)].start_sect, &loc->start);
 	return 0;
 	break;
     }
-
     return -EINVAL;
 }
 
@@ -553,6 +554,7 @@ static int directhd_open(struct inode *inode, struct file *filp)
     /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
+    debug_blkdrv("dhd[%04x] open, size %ld\n", inode->i_rdev, inode->i_size);
     return 0;
 }
 
@@ -608,7 +610,8 @@ void do_directhd_request(void)
 	buff = req->rq_buffer;
 
 	/* safety check should be here */
-	//printk("m%d d%d s%d c%d;", minor, drive, hd[minor].start_sect, hd[minor].nr_sects);
+	debug_blkdrv("dhd[%04x]: start: %d cnt: %d\n", req->rq_dev,
+			hd[minor].start_sect, hd[minor].nr_sects);
 	//printk("BF: %x:%04x(%04x);", req->rq_seg, buff, kernel_ds);
 
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {
@@ -663,10 +666,10 @@ void do_directhd_request(void)
 		    printk("athd: RD DRQ status: 0x%x error: 0x%x\n",
 			       STATUS(port), ERROR(port));
 		    end_request(0);
-		    break;  // dunno why these were reversed ...
+		    break;
 		} else {
 		    tmp = STATUS(port);
-		    debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
+		    //debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
 		}
 	    }
 	    /* Do the I/O, either individual sectors or the whole shebang,
@@ -703,15 +706,15 @@ static void reset_controller(int controller)
 		outb(i, 0x80);		/* FIXME: Better delay loop */
 	//outb(hd_info[0].ctl & 0x0f ,HD1_CMD);
 	outb_p(2, cport);		/* Change this to enable interrupts */
-	if ((i = drive_busy(cport)))
+	if ((i = drive_busy(io_ports[controller])))
 		printk("athd%i: still busy (%x)\n", controller, i);
-	if ((i = inb(io_ports[controller]+ATA_ERROR)) != 1)
+	if ((i = ERROR(io_ports[controller])) != 1)
 		printk("athd%i: Reset failed: %02x\n", controller, i);
 }
 
 /*
  * Delay loop and status test, should do this with a micro_delay timer a la minix 
- * FIXME: Maybe WAITING could do this??
+ * FIXME
  */
 static int drive_busy(int port)
 {

@@ -79,6 +79,9 @@ void list_types();
 void set_boot();
 void set_type();
 void list_partition(char *dev);
+void usage();
+
+static char *progname;
 
 #define sects_per_cyl ((unsigned long)(geometry.heads * geometry.sectors))
 
@@ -362,7 +365,7 @@ void list_partition(char *devname)
     } else
 	memcpy(table,MBR,512);
     printf("                           START              END          SECTOR\n");
-    printf("Device           #:ID   Cyl Head Sect    Cyl Head Sect  Start   Size\n\n");
+    printf("Device           #:ID    Cyl Head Sect     Cyl Head Sect  Start   Size\n\n");
     for (i=0; i<4; i++) {
 	struct partition *p = (struct partition *)&table[PARTITION_START + (i<<4)];
 	unsigned long start_sect = p->start_sect | ((unsigned long)p->start_sect_hi << 16);
@@ -375,7 +378,7 @@ void list_partition(char *devname)
 		*p = 0;
 	}
 	//if (p->end_head)
-	    printf("%-15s %c%d:%02x    %2d  %3d%5d     %2d  %3d%5d %6lu %6lu\n",
+	    printf("%-15s %c%d:%02x    %3d  %3d%5d     %2d  %3d%5d %6lu %6lu\n",
 		device,
 		p->boot_ind==0?' ':(p->boot_ind==0x80?'*':'?'),
 		i+1,			     		     /* #*/
@@ -396,11 +399,14 @@ void list_partition(char *devname)
 void set_default_dev(char *rdev) {
 	char *rootdev = getenv("ROOTDEV");
 
-	if (!rootdev || strchr(rootdev, 'f') {
+	if (!rootdev || strchr(rootdev, 'f')) {
 		printf("No default hard disk, device must be specified.\n");
 		usage();
-	} else
+	} else {
+		if (isdigit(rootdev[strlen(rootdev)-1]))
+			rootdev[strlen(rootdev)-1] = '\0';
 		strcpy(rdev, rootdev);
+	}
 }
 
 int main(int argc, char **argv)
@@ -409,6 +415,7 @@ int main(int argc, char **argv)
 	int mode = MODE_EDIT;
 
 	dev[0] = 0;
+	progname = argv[0];
 	for (i = 1; i < argc; i++) {
 		if (*argv[i] == '-') {
 			switch(*(argv[i] + 1)) {
@@ -416,10 +423,10 @@ int main(int argc, char **argv)
 				mode = MODE_LIST;
 				break;
 			default:
-				goto usage;
+				usage();
 			}
 		} else {
-			if (*dev != 0) goto usage;
+			if (*dev != 0) usage();
 			else strcpy(dev, argv[i]);
 		}
 	}
@@ -493,8 +500,9 @@ int main(int argc, char **argv)
 	}
     }
     exit(0);
+}
 
-usage:
-    fprintf(stderr, "Usage: %s [-l] device_or_image\n", argv[0]);
+void usage(void) {
+    fprintf(stderr, "Usage: %s [-l] device_or_image\n", progname);
     exit(1);
 }

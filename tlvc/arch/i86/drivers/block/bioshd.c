@@ -81,7 +81,7 @@
 #endif
 
 /* comment out following line for single-line drive info summary*/
-#define PRINT_DRIVE_INFO	NUM_DRIVES
+//#define PRINT_DRIVE_INFO	NUM_DRIVES
 
 struct elks_disk_parms {
     __u16 track_max;		/* number of tracks, little-endian */
@@ -213,7 +213,7 @@ static int bios_disk_rw(unsigned cmd, unsigned num_sectors, unsigned drive,
     BD_ES = seg;
     BD_BX = offset;
 #endif
-    return call_blkio(&bdt);
+    return call_bios(&bdt);
 }
 
 #ifdef CONFIG_BLK_DEV_BHD
@@ -296,14 +296,14 @@ static unsigned short int INITPROC bioshd_gethdinfo(void) {
 #endif
 	    drivep->fdtype = -1;
 	    drivep->sector_size = 512;
-	    printk("bioshd: hd%c BIOS CHS %d,%d,%d\n", 'a'+drive, drivep->cylinders,
+	    printk("bioshd: hd%c BIOS CHS %d/%d/%d", 'a'+drive, drivep->cylinders,
 		drivep->heads, drivep->sectors);
 	}
 #ifdef CONFIG_IDE_PROBE
 	if (sys_caps & CAP_HD_IDE) {		/* Normally PC/AT or higher */
 	    if (!get_ide_data(drive, drivep)) {	/* get CHS from the drive itself */
 		/* sanity checks already done, accepting data */
-		printk("bioshd: hd%c  IDE CHS %d,%d,%d\n", 'a'+drive, drivep->cylinders,
+		printk(", IDE CHS %d/%d/%d\n", 'a'+drive, drivep->cylinders,
 		drivep->heads, drivep->sectors);
 	    }
 	}
@@ -766,15 +766,16 @@ int INITPROC bioshd_init(void)
     register struct gendisk *ptr;
     int count;
 
-#ifdef CONFIG_BLK_DEV_BFD_XXX	/* removed HS 04/23 */
+#ifdef CONFIG_BLK_DEV_BFD
     /* FIXME perhaps remove for speed on floppy boot*/
-    outb_p(0x0C, FDC_DOR);	/* FD motors off, enable IRQ and DMA*/
-
-    _fd_count = bioshd_getfdinfo();
 #if NOTNEEDED
+    outb_p(0x0C, FDC_DOR);	/* FD motors off, enable IRQ and DMA*/
     enable_irq(FLOPPY_IRQ);	/* Floppy */
 #endif
+    _fd_count = bioshd_getfdinfo();
+
 #endif
+
 #ifdef CONFIG_BLK_DEV_BHD
     _hd_count = bioshd_gethdinfo();
 #if NOTNEEDED
@@ -819,21 +820,19 @@ int INITPROC bioshd_init(void)
 	}
     }
 #else /* one line version */
+#ifdef CONFIG_BLK_DEV_BIOS
+    char *p_sep="";
+    printk("bioshd: ");
 #ifdef CONFIG_BLK_DEV_BFD
+    printk("%d floppy drive%s ", _fd_count, _fd_count == 1 ? "" : "s");
+    p_sep = "- ";
+#endif
 #ifdef CONFIG_BLK_DEV_BHD
-    printk("bioshd: %d floppy drive%s and %d hard drive%s\n",
-	   _fd_count, _fd_count == 1 ? "" : "s",
-	   _hd_count, _hd_count == 1 ? "" : "s");
-#else
-    printk("bioshd: %d floppy drive%s\n",
-	   _fd_count, _fd_count == 1 ? "" : "s");
+    printk("%s%d hard drive%s", p_sep, _hd_count, _hd_count == 1 ? "" : "s");
 #endif
-#else
-#ifdef CONFIG_BLK_DEV_BHD
-    printk("bioshd: %d hard drive%s\n",
-	   _hd_count, _hd_count == 1 ? "" : "s");
+    printk("\n");
 #endif
-#endif
+
 #endif /* PRINT_DRIVE_INFO */
 
     if (!(_fd_count + _hd_count)) return 0;

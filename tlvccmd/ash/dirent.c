@@ -52,6 +52,7 @@ static char sccsid[] = "@(#)dirent.c	5.1 (Berkeley) 3/7/91";
 #define	S_ISDIR(mode)		(((mode) & S_IFMT) == S_IFDIR)
 #endif
 
+
 #ifdef BSD
 
 #ifdef __STDC__
@@ -100,7 +101,6 @@ int open();
 int close();
 int fstat();
 #endif
-
 
 DIR *
 opendir(dirname)
