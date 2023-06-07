@@ -29,6 +29,7 @@
 #include <dirent.h>
 #include <pwd.h>
 #include <getopt.h>
+#include <paths.h>
 
 #define LINEARADDRESS(off, seg)		((off_t) (((off_t)seg << 4) + off))
 
@@ -68,6 +69,31 @@ void process_name(int fd, unsigned int off, unsigned int seg)
 	}
 }
 
+/*
+ * getpwuid copied from libc, modified so we don't have to open/close /etc/passwd
+ * for every line of output.
+ */
+struct passwd * __getpwent(int);
+
+struct passwd *getpwuid(uid_t uid)
+{
+	static int passwd_fd;
+	static int firsttime = 1;
+	struct passwd *passwd;
+
+	if (firsttime) {
+		if ((passwd_fd=open(_PATH_PASSWD, O_RDONLY)) < 0)
+			return NULL;
+		firsttime = 0;
+	}
+	lseek(passwd_fd, 0L, SEEK_SET);	/* rewind */
+
+	while ((passwd=__getpwent(passwd_fd))!=NULL)
+		if (passwd->pw_uid == uid) 
+        		return passwd;
+
+	return NULL;
+}
 
 char *devname(unsigned int minor)
 {
