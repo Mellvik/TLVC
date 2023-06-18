@@ -553,7 +553,11 @@ static void setup_DMA(void)
     unsigned int count;
 
     DEBUG("setupDMA ");
+#ifdef CONFIG_FS_XMS_BUFFER
+    dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
+#else
     dma_addr = _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer);
+#endif
     count = BLOCK_SIZE;
     if (command == FD_FORMAT) {
 	dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area);
@@ -567,7 +571,11 @@ static void setup_DMA(void)
     } else if (dma_addr >= LAST_DMA_ADDR) {		/* Not likely */
 	dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area); /* use bounce buffer */
 	if (command == FD_WRITE) {
+#ifdef CONFIG_FS_XMS_BUFFER
+	    xms_fmemcpyw(tmp_floppy_area, kernel_ds, CURRENT->rq_buffer, CURRENT->rq_seg, BLOCK_SIZE/2);
+#else
 	    fmemcpyw(tmp_floppy_area, kernel_ds, CURRENT->rq_buffer, CURRENT->rq_seg, BLOCK_SIZE/2);
+#endif
 	}
     }
     DEBUG("%d/%lx;", count, dma_addr);
@@ -807,18 +815,29 @@ static void rw_interrupt(void)
 #endif
 	probing = 0;
     }
-    /* FIXME: Need to add XMS buffer support here */
     if (read_track) {
 	buffer_track = (seek_track << 1) + head;	/* This encoding is ugly, should
 							 * save block-start, block-end instead */
 	buffer_drive = current_drive;
 	buffer_area = (unsigned char *)(sector << 9);
 	DEBUG("rd:%04x:%04x->%04x:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
+#ifdef CONFIG_FS_XMS_BUFFER
+	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
+#else
 	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
-    } else if (command == FD_READ && _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer) >= LAST_DMA_ADDR) {
-	/* if the dest buffer is out of reach for DMA, we need to use the bounce buffer,
-	 * then move the data to the buffer system */
+#endif
+    } else if (command == FD_READ 
+#ifndef CONFIG_FS_XMS_BUFFER
+	   && _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer) >= LAST_DMA_ADDR
+#endif
+	) {
+	/* if the dest buffer is out of reach for DMA (always the case if using
+	 * XMS buffers) we need to read/write via the bounce buffer */
+#ifdef CONFIG_FS_XMS_BUFFER
+	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, tmp_floppy_area, kernel_ds, BLOCK_SIZE/2);
+#else
 	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, tmp_floppy_area, kernel_ds, BLOCK_SIZE/2);
+#endif
 	printk("directfd: illegal buffer usage, rq_buffer %04x:%04x\n", 
 		CURRENT->rq_seg, CURRENT->rq_buffer);
     }
@@ -1180,7 +1199,7 @@ static void redo_fd_request(void)
 	if (MAJOR(req->rq_dev) != MAJOR_NR)
 	    panic("%s: request list destroyed", DEVICE_NAME);
 	if (req->rq_bh) {
-	    if (!(req->rq_bh)->b_locked)
+	    if (!EBH(req->rq_bh)->b_locked)
 		panic("%s: block not locked", DEVICE_NAME);
 	}
     }
@@ -1267,11 +1286,19 @@ static void redo_fd_request(void)
 	DEBUG("bufrd tr/s %d/%d\n", seek_track, sector);
 	char *buf_ptr = (char *) (sector << 9);
 	if (command == FD_READ) {	/* requested data is in buffer */
+#ifdef CONFIG_FS_XMS_BUFFER
+	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
+#else
 	    fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
+#endif
 	    request_done(1);
 	    goto repeat;
     	} else if (command == FD_WRITE)	/* update track buffer */
+#ifdef CONFIG_FS_XMS_BUFFER
+	    xms_fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+#else
 	    fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+#endif
     } 
 
     if (seek_track != current_track)
