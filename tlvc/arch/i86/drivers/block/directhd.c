@@ -22,13 +22,14 @@
 /*
  * A note about IDE/ATA:
  * The IDE read/write sector commands do multisector I/O but each sector needs its own read
- * or write operation: One command, many response-iterations. IOW we have to handle eachs
- * sector individually, like waiting for a new DRQ (or interrupt) per sector.
- * Read/write multiple is different, but make sure to read/write the number of sectors 
+ * or write operation: One command, many response-iterations. IOW we have to handle the data
+ * transfer to/from each sector individually, like waiting for a new DRQ (or interrupt) per sector.
+ *
+ * The Read/write multiple cmd is different, but make sure to always read/write the number of sectors 
  * specified in the Set Multiple command. If device ID word 47 bits 7:0 are zero, multisector 
  * read/writes are not supported. This field contains the max # of sectors this device supports
- * r/w multiple commands. We use 2 only. We use the SET_MULTIPLE command to determine if the 
- * drive is multisector capable. If the command fails, we're not.
+ * for r/w multiple commands. This driver uses 2 only. The SET_MULTIPLE command is used to 
+ * determine if the drive is multisector capable. If the command fails, it's not.
  * DMA transfers are possible with most devices but not supported by this driver and not really
  * meaningful because it may be slower than PIO.
  */
@@ -66,7 +67,11 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 
 
 //#define FORCE_SECTOR_IO	/* DEBUG: disable mutlisector R/W */
+//#define DEBUG 1
 
+//#define USE_LOCALBUF		/* DEBUG: use local bounce buffer instead of */
+				/* accessing the buffer directly via far pointers
+				 * (XMS buffering is using the same 1k buffer) */
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
@@ -92,7 +97,7 @@ static int access_count[MAX_ATA_DRIVES] = { 0, };
 
 static int io_ports[2] = { HD1_PORT, HD2_PORT };
 static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
-#ifdef USE_LOCALBUF
+#if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
 static char localbuf[BLOCK_SIZE];	/* FIXME temporary - debugging */
 #endif
 #define PORT_IO	port_io
@@ -102,7 +107,7 @@ static int directhd_initialized = 0;
 static struct drive_infot drive_info[MAX_ATA_DRIVES] = { 0, };
 
 /* NOTE: This is wasting a lot of memory, allocating 32 entries times MAX_ATA_DRIVES,
- * -> 128 entries while we may need upto 16, say 32 at the most. Each entry = 8 bytes,
+ * -> 128 entries while we may need 16, 32 at the most. Each entry = 8 bytes,
  * save potential > 768 bytes */
 static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer {start_sect, num_sects} */
 static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
@@ -137,7 +142,7 @@ void directhd_geninit(void)
 	    hdp->start_sect = 0;
 	    hdp->nr_sects = (sector_t)drivep->sectors *
 		drivep->heads * drivep->cylinders;
-	    //printk("%d: %ld$", i, hdp->nr_sects);
+	    printk("at%d: %ld$", i, hdp->nr_sects);
 	    drivep++;
 	} else {
 	    hdp->start_sect = -1;
@@ -148,6 +153,7 @@ void directhd_geninit(void)
     return;
 }
 
+#if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
 void insw(unsigned int port, word_t *buffer, int count)
 {
     //printk("%x,%x,%d;", port, buffer, count);
@@ -156,11 +162,21 @@ void insw(unsigned int port, word_t *buffer, int count)
 	*buffer++ = inw(port);
     } while (--count);
 }
+#endif
 
 // FIXME: redo this in asm
-void insw_far(unsigned int port, seg_t seg, word_t *buffer, int count)
+void insw_far(unsigned int port, ramdesc_t seg, word_t *buffer, int count)
 {
-#ifndef USE_LOCALBUF
+#if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
+
+    insw(port, (word_t *)localbuf, count);
+#ifdef CONFIG_FS_XMS_BUFFER
+    xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
+#else
+    fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
+#endif
+
+#else
     int __far *locbuf = _MK_FP(seg, (word_t)buffer);
 
     count >>= 1;	/* bytes -> words */
@@ -168,9 +184,6 @@ void insw_far(unsigned int port, seg_t seg, word_t *buffer, int count)
     do {
 	*locbuf++ = inw(port);
     } while (--count);
-#else
-    insw(port, (word_t *)localbuf, count);
-    fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
 #endif
 }
 
@@ -210,15 +223,15 @@ dhd_insw_loop:
 
 #endif
 
-#ifdef USE_LOCALBUF
+#if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
 void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
 
     count >>= 1;
-    printk("%04x:", buffer);
+    //printk("%04x:", buffer);
     for (i = 0; i < count; i++) {
-	if (i <16) printk("%04x|", buffer[i]); else printk("%d!",i);
+	//if (i < 16) printk("%04x|", buffer[i]); else printk("%d!",i);
 	outw(buffer[i], port);
     }
     return;
@@ -226,9 +239,16 @@ void outsw(unsigned int port, word_t *buffer, int count)
 #endif
 
 // FIXME: redo this in asm
-void outsw_far(unsigned int port, seg_t seg, word_t *buffer, int count)
+void outsw_far(unsigned int port, ramdesc_t seg, word_t *buffer, int count)
 {
-#ifndef USE_LOCALBUF
+#if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
+#ifdef CONFIG_FS_XMS_BUFFER
+    xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+#else
+    fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+#endif
+    outsw(port, (word_t *)localbuf, count);
+#else
     unsigned int __far *locbuf = _MK_FP(seg, (word_t)buffer);
 
     count >>= 1;
@@ -236,9 +256,6 @@ void outsw_far(unsigned int port, seg_t seg, word_t *buffer, int count)
     do {
 	outw(*locbuf++, port);
     } while (--count);
-#else
-    fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
-    outsw(port, (word_t *)localbuf, count);
 #endif
 }
 
@@ -354,7 +371,7 @@ int INITPROC directhd_init(void)
     /* "If Drive 1 is not detected as being present, Drive 0 clears the Drive
      * 1 Status Register to 00h." From the spec. Making ST=0 a safe indication of
      * non presence.
-     * Also, we shjould do a CMOS check for the number of drive which would make 
+     * Also, we should do a CMOS check for the number of drives, which would make 
      * this logic faster and more reliable FIXME */ 
 
     /* FIXME: AMI board hangs when trying to access 2nd controller, disable for now */
@@ -437,8 +454,7 @@ int INITPROC directhd_init(void)
 	    //out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
 	    //while(WAITING(port));
 
-	    /* Set multiple IO mode, 2 sectors per op */
-	    /* FIXME: Must check that multi is available */
+	    /* Set multiple IO mode, 2 sectors per op - if available */
 	    out_hd(drive, 2, 0, 0, 0, ATA_SET_MULT);
 	    while (WAITING(port));
 	    if (STATUS(port) & ERR_STAT) {
@@ -574,7 +590,7 @@ void do_directhd_request(void)
     sector_t count;		/* # of sectors to read/write */
     int this_pass;		/* # of sectors read/written */
     sector_t start;		/* first sector */
-    unsigned char *buff;	/* Always 1K because all TLVC disk i/o os in 1 K blocks */
+    unsigned char *buff;	/* Always 1K because all TLVC disk i/o is in 1 K blocks */
     short sector;		/* 1 .. 63 ? */
     short cylinder;		/* 0 .. 1024 and maybe more */
     short head;			/* 0 .. 16 */
@@ -612,7 +628,13 @@ void do_directhd_request(void)
 	/* safety check should be here */
 	debug_blkdrv("dhd[%04x]: start: %d cnt: %d\n", req->rq_dev,
 			hd[minor].start_sect, hd[minor].nr_sects);
-	//printk("BF: %x:%04x(%04x);", req->rq_seg, buff, kernel_ds);
+#ifdef DEBUG
+#ifdef CONFIG_FS_XMS_BUFFER
+	printk("BF: %lx:%04x(%04x);", req->rq_seg, buff, kernel_ds);
+#else
+	printk("BF: %x:%04x(%04x);", req->rq_seg, buff, kernel_ds);
+#endif
+#endif
 
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {
 	    printk("Bad partition start\n");
