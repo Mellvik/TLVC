@@ -94,12 +94,9 @@ static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
      * a device number, then we do not really need boot_partition.
      * [But it doesn't hurt to set it ... HS ]
      */
-    //if (ROOT_DEV == hd_drive_map[minor >> hd->minor_shift]) {
-    //if (ROOT_DEV & 0x80) {
-	sector_t boot_start = SETUP_PART_OFFSETLO | (sector_t) SETUP_PART_OFFSETHI << 16;
-	if (start == boot_start)
+    sector_t boot_start = SETUP_PART_OFFSETLO | (sector_t) SETUP_PART_OFFSETHI << 16;
+    if (start == boot_start)
 	    boot_partition = minor & 0x7;
-    //}
 }
 
 static int INITPROC is_extended_partition(register struct partition *p)

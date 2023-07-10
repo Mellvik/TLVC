@@ -41,6 +41,10 @@ ifeq ($(CONFIG_ETH), y)
     OBJS += eth.o
 endif
 
+ifeq ($(CONFIG_BLK_DEV_CHAR), y)
+    OBJS += rhd.o
+endif
+
 ifeq ($(CONFIG_ARCH_8018X), y)
 	CONIO = 8018x
 	SERIAL = template

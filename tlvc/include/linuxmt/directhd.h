@@ -44,6 +44,14 @@
 #define READY_STAT	0x40
 #define BUSY_STAT	0x80
 
+/* Bits of ATA_ERROR register */
+#define ATA_ERR_AMNF	0x01	/* Address mark not found */
+#define ATA_ERR_TK0NF	0x02	/* Track zero not found */
+#define ATA_ERR_ABRT	0x04	/* Requested command aborted (drive err or invalid command) */
+#define ATA_ERR_IDNF	0x10	/* ID field not found */
+#define ATA_ERR_UNC	0x40	/* Uncorrectable data error */
+#define ATA_ERR_BBK	0x80	/* Bad Block mark detected */
+
 /* Per drive config settings */
 #define ATA_CFG_INT	0x02	/* Interrupts in use for drive */
 #define ATA_CFG_LBA	0x40	/* Drive has LBA support */

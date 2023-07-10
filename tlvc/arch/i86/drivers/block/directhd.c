@@ -2,7 +2,8 @@
  * directhd driver for ELKS kernel
  * Copyright (C) 1998 Blaz Antonic
  * 14.04.1998 Bugfixes by Alastair Bridgewater nyef@sudval.org
- * 17.04.2023 Rewritten for TLVC by helge@skrivervik.com
+ * 17.04.2023 Rewritten for TLVC by helge@skrivervik.com (hs)
+ * 01.07.2023 modified to handle any request size, support raw io & and multisector transfers (hs)
  */
 /*
  * NOTE:
@@ -12,25 +13,31 @@
 /*
  * TODO (HS 04/23):
  * - create kernel library routines for insw & outsw, make sure they're used
- *   where local variants are used now.
+ *   where local variants are used now (check all drivers).
  * - Create a library routine for delays/waits, many drivers have their own variant, wastes space.
  * - use interrupts - it will simplify the logic and improve reliability (and speed)
  * - test with 2 controllers, 4 drives
- * - add LBA support
+ * - add LBA support (will LBA work on a CHS initialized drive - or vise versa?)
  * - recognize the presence of solid state devices (to remove request sorting)
  */
 /*
  * A note about IDE/ATA:
  * The IDE read/write sector commands do multisector I/O but each sector needs its own read
- * or write operation: One command, many response-iterations. IOW we have to handle the data
+ * or write operation: One command, many response-iterations - handle the data
  * transfer to/from each sector individually, like waiting for a new DRQ (or interrupt) per sector.
  *
- * The Read/write multiple cmd is different, but make sure to always read/write the number of sectors 
- * specified in the Set Multiple command. If device ID word 47 bits 7:0 are zero, multisector 
- * read/writes are not supported. This field contains the max # of sectors this device supports
- * for r/w multiple commands. This driver uses 2 only. The SET_MULTIPLE command is used to 
- * determine if the drive is multisector capable. If the command fails, it's not.
- * DMA transfers are possible with most devices but not supported by this driver and not really
+ * The Read/Write Multiple cmds are different, one command, one response, but requires the # of
+ * sectors in the ReadM or WriteM command to match that specified in the preceding
+ * Set Multiple command. If device ID word 47 bits 7:0 are zero, multisector 
+ * read/writes are not supported. Otherwise, the field holds the max # of sectors per
+ * transaction.
+ * This driver uses 2 for block access, whatefer is allowed for raw IO. 
+ * NOTE: In addition to ID word 47, the SET_MULTIPLE command is used to check the availability
+ * multisector transfers. If the command fails (as issued in the _init routine), it's not.
+ * More about multisector transfers in the code comments below.
+ * The read/write multiple support code is encapsulated by ifdefs and may be left out w/o any
+ * loss of functionality.
+ * DMA transfers are possible with most IDE devices but not supported by this driver and not really
  * meaningful because it may be slower than PIO.
  */
 
@@ -66,20 +73,21 @@
 __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 
 
-//#define FORCE_SECTOR_IO	/* DEBUG: disable mutlisector R/W */
+#define USE_MULTISECT_IO	/* Enable multisector R/W */
 //#define DEBUG 1
 
-//#define USE_LOCALBUF		/* DEBUG: use local bounce buffer instead of */
-				/* accessing the buffer directly via far pointers
-				 * (XMS buffering is using the same 1k buffer) */
+//#define USE_LOCALBUF		/* For debugging: use local bounce buffer instead of */
+				/* accessing the buffer directly (via far pointers).
+				 * When XMS buffers are acticve, the same 1k buffer
+				 * is used for bouncing. Price: 1k bytes */
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
 #include "blk.h"
 
-static int directhd_ioctl();
-static int directhd_open();
-static void directhd_release();
+int directhd_ioctl();
+int directhd_open();
+void directhd_release();
 
 static struct file_operations directhd_fops = {
     NULL,			/* lseek */
@@ -97,9 +105,12 @@ static int access_count[MAX_ATA_DRIVES] = { 0, };
 
 static int io_ports[2] = { HD1_PORT, HD2_PORT };
 static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
+
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
-static char localbuf[BLOCK_SIZE];	/* FIXME temporary - debugging */
+static char localbuf[BLOCK_SIZE];	/* bounce buffer for debugging and
+					 * XMS buffer bouncing */
 #endif
+
 #define PORT_IO	port_io
 void (*PORT_IO)() = NULL;
 
@@ -153,38 +164,53 @@ void directhd_geninit(void)
     return;
 }
 
-#if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
+/*
+ * FIXME Maybe we can merge all this stuff into one piece of code thet handles 
+ * all conditions? With the possible exception of moving data into XMS buffers...
+ */
+
+/* assumes current data segment - which is kernel_ds */
 void insw(unsigned int port, word_t *buffer, int count)
 {
-    //printk("%x,%x,%d;", port, buffer, count);
     count >>= 1;
+    //printk("insw %x,%x,%d;", port, buffer, count);
     do {
 	*buffer++ = inw(port);
     } while (--count);
 }
-#endif
 
-// FIXME: redo this in asm
-void insw_far(unsigned int port, ramdesc_t seg, word_t *buffer, int count)
+
+void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int raw)
 {
-#if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
 
-    insw(port, (word_t *)localbuf, count);
+#if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF) /* use bounce buffer */
+    if (!raw) {
+    while (count) {
+	int chars = (count > BLOCK_SIZE)? BLOCK_SIZE : count;
+
+	insw(port, (word_t *)localbuf, chars);
+	printk("insw %d %04x %04x %04x;", chars, localbuf, buffer, *(word_t *)localbuf);
 #ifdef CONFIG_FS_XMS_BUFFER
-    xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
+	xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, chars/2);
 #else
-    fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
+	fmemcpyw(buffer, seg, localbuf, kernel_ds, chars/2);
 #endif
+	count -= chars;
+	buffer += chars/2; 
+    }
+    } else
+#endif
+    {
 
-#else
-    int __far *locbuf = _MK_FP(seg, (word_t)buffer);
+    unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 
     count >>= 1;	/* bytes -> words */
-    //printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
+    printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
     do {
 	*locbuf++ = inw(port);
     } while (--count);
-#endif
+    }
+    
 }
 
 #if 0
@@ -224,6 +250,7 @@ dhd_insw_loop:
 #endif
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
+
 void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
@@ -238,25 +265,35 @@ void outsw(unsigned int port, word_t *buffer, int count)
 }
 #endif
 
-// FIXME: redo this in asm
-void outsw_far(unsigned int port, ramdesc_t seg, word_t *buffer, int count)
+void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int raw)
 {
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
+
+    int chars;
+
+    if (!raw) {
+    while (count) {
+	chars = (count > BLOCK_SIZE) ? BLOCK_SIZE : count;
 #ifdef CONFIG_FS_XMS_BUFFER
-    xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+	xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, chars/2);
 #else
-    fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+	fmemcpyw(localbuf, kernel_ds, buffer, seg, chars/2);
 #endif
-    outsw(port, (word_t *)localbuf, count);
-#else
-    unsigned int __far *locbuf = _MK_FP(seg, (word_t)buffer);
+	outsw(port, (word_t *)localbuf, chars);
+	count -= chars;
+	buffer += chars;
+    }
+    } else 
+#endif
+    {
+    unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 
     count >>= 1;
     //printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
     do {
 	outw(*locbuf++, port);
     } while (--count);
-#endif
+    }
 }
 
 
@@ -445,32 +482,39 @@ int INITPROC directhd_init(void)
 	    dp->cylinders = ide_buffer[54];
 	    dp->heads = ide_buffer[55];
 	    dp->sectors = ide_buffer[56];
+	    dp->MAX_ATA_SPIO = ide_buffer[47] & 0xff; /* max sectors per multi io op */
 
 	    hdcount++;
 	    printk("IDE CHS: %d/%d/%d serial %s\n", ide_buffer[1], ide_buffer[3], ide_buffer[6],
 		&ide_buffer[10]);
 
+#if 0
 	    /* initialize settings, some drives need this */
-	    //out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
-	    //while(WAITING(port));
-
-	    /* Set multiple IO mode, 2 sectors per op - if available */
-	    out_hd(drive, 2, 0, 0, 0, ATA_SET_MULT);
-	    while (WAITING(port));
-	    if (STATUS(port) & ERR_STAT) {
-	    	printk("athd%d: Multisector I/O not supported\n", drive);
-		dp->ctl |= ATA_CFG_NMULT;
-	    }
-#ifdef FORCE_SECTOR_IO
-	    dp->ctl |= ATA_CFG_NMULT; /*DEBUG force single sector transfers */
+	    out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
+	    while(WAITING(port));
 #endif
+
+#ifndef USE_MULTISECT_IO
+	    dp->ctl |= ATA_CFG_NMULT; /*DEBUG force single sector transfers */
+#else
+	    if (dp->MAX_ATA_SPIO > 1) {
+		/* Set multiple IO mode, default to 2 sectors per op - if available */
+		out_hd(drive, 2, 0, 0, 0, ATA_SET_MULT);
+		while (WAITING(port));
+		if (!(STATUS(port) & ERR_STAT)) 
+		    printk("athd%d: Multisector I/O - %d spt\n", drive, dp->MAX_ATA_SPIO);
+		else
+		    dp->ctl |= ATA_CFG_NMULT;
+	    } else
+		dp->ctl |= ATA_CFG_NMULT;
+#endif	/* USE_MULTISECT_IO */
 
 #ifdef DEBUG
 	    dump_ide(ide_buffer, 64);
 	    ide_buffer[20] = 0; /* String termination */
 #endif
 	    debug_blkdrv("athd%d: IDE data 47-49: %04x, %04x, %04x\n", drive, 
-		ide_buffer[94], ide_buffer[96], ide_buffer[98]);
+		ide_buffer[47], ide_buffer[48], ide_buffer[49]);
 	}
     }
 
@@ -517,7 +561,7 @@ int INITPROC directhd_init(void)
 /* why is arg unsigned int here if it's used as hd_geometry later ?
  * one of joys of K&R ? Someone please answer ...
  */
-static int directhd_ioctl(struct inode *inode, struct file *filp,
+int directhd_ioctl(struct inode *inode, struct file *filp,
 		unsigned int cmd, unsigned int arg)
 {
     struct hd_geometry *loc = (struct hd_geometry *) arg;
@@ -546,11 +590,16 @@ static int directhd_ioctl(struct inode *inode, struct file *filp,
     return -EINVAL;
 }
 
-static int directhd_open(struct inode *inode, struct file *filp)
+/*
+ * NOTE: open is used by the char driver too!
+ */
+
+int directhd_open(struct inode *inode, struct file *filp)
 {
     unsigned int minor = MINOR(inode->i_rdev);
     int target = DEVICE_NR(inode->i_rdev);
 
+    printk("ATH open: target %d, minor %d, start_sect %ld\n", target, minor, hd[minor].start_sect);
     if (target >= 4 || !directhd_initialized)
 	return -ENXIO;
 
@@ -574,7 +623,7 @@ static int directhd_open(struct inode *inode, struct file *filp)
     return 0;
 }
 
-static void directhd_release(struct inode *inode, struct file *filp)
+void directhd_release(struct inode *inode, struct file *filp)
 {
     int target = DEVICE_NR(inode->i_rdev);
 
@@ -585,12 +634,15 @@ static void directhd_release(struct inode *inode, struct file *filp)
     return;
 }
 
+/*
+ * 06/23 HS: Added trickery to handle raw IO
+ */
 void do_directhd_request(void)
 {
-    sector_t count;		/* # of sectors to read/write */
-    int this_pass;		/* # of sectors read/written */
+    unsigned int count;		/* # of sectors to read/write */
+    unsigned int this_pass;		/* # of sectors read/written */
     sector_t start;		/* first sector */
-    unsigned char *buff;	/* Always 1K because all TLVC disk i/o is in 1 K blocks */
+    unsigned char *buff;	
     short sector;		/* 1 .. 63 ? */
     short cylinder;		/* 0 .. 1024 and maybe more */
     short head;			/* 0 .. 16 */
@@ -600,9 +652,11 @@ void do_directhd_request(void)
     int port;
     int cmd;
     struct drive_infot *dp;
+    struct request *req;
 
     while (1) {			/* process HD requests */
-	struct request *req = CURRENT;
+	req = CURRENT;
+
 	INIT_REQUEST(req);
 
 	if (directhd_initialized != 1) {
@@ -621,13 +675,22 @@ void do_directhd_request(void)
 	    continue;
 	}
 
+	/* count is now the # of sectors
+	 * to read, not the FS (or system) 
+	 * block size.
+	 */
+#ifdef CONFIG_BLK_DEV_CHAR
+	count = req->rq_nr_sectors;
+#else
 	count = BLOCK_SIZE / 512;
-	start = req->rq_blocknr * count;
+#endif
+
+	start = req->rq_blocknr;
 	buff = req->rq_buffer;
 
 	/* safety check should be here */
-	debug_blkdrv("dhd[%04x]: start: %d cnt: %d\n", req->rq_dev,
-			hd[minor].start_sect, hd[minor].nr_sects);
+	//debug_blkdrv("dhd[%04x]: start: %lu nscts: %lu\n", req->rq_dev,
+			//hd[minor].start_sect, hd[minor].nr_sects);
 #ifdef DEBUG
 #ifdef CONFIG_FS_XMS_BUFFER
 	printk("BF: %lx:%04x(%04x);", req->rq_seg, buff, kernel_ds);
@@ -639,14 +702,22 @@ void do_directhd_request(void)
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {
 	    printk("Bad partition start\n");
 	    end_request(0);
-	    continue;
+	    break;
 	}
 	if (req->rq_cmd == READ) {
+#ifdef USE_MULTISECT_IO
 	    cmd = (dp->ctl&ATA_CFG_NMULT)? ATA_READ : ATA_READM; 
-	    port_io = insw_far;
+#else
+	    cmd = ATA_READ;
+#endif
+	    port_io = read_data;
 	} else {
+#ifdef USE_MULTISECT_IO
 	    cmd = (dp->ctl&ATA_CFG_NMULT)? ATA_WRITE : ATA_WRITEM;
-	    port_io = outsw_far;
+#else
+	    cmd = ATA_WRITE;
+#endif
+	    port_io = write_data;
 	}
 
 	start += hd[minor].start_sect;
@@ -656,8 +727,9 @@ void do_directhd_request(void)
 	    tmp = start / dp->sectors;
 	    head = tmp % dp->heads;
 	    cylinder = tmp / dp->heads;
+	    port = io_ports[drive / 2];
 
-	    /* Handle odd # of sectors per track - such as 63, which is common. 
+	    /* Handle requests spanning tracks, ie. in need of head change.
 	     * Surprisingly, IDE READ and WRITE commands don't automatically 
 	     * change head or cylinder when multiple sectors are requested.
 	     */
@@ -667,13 +739,33 @@ void do_directhd_request(void)
 	    else
 		this_pass = dp->sectors - sector + 1;
 
-	    debug_blkdrv("athd%d: cyl: %d hd: %d sec: %d st: %u\n",
-		 drive, cylinder, head, sector, start);
+#ifdef USE_MULTISECT_IO
+	    if (!(dp->ctl & ATA_CFG_NMULT)) {	/* We're running multisector IO */
+		this_pass = (this_pass > dp->MAX_ATA_SPIO) ? dp->MAX_ATA_SPIO : this_pass;
 
-	    port = io_ports[drive / 2];
+		while (WAITING(port));
+		out_hd(drive, this_pass, 0, 0, 0, ATA_SET_MULT);
+		while (WAITING(port));
+		if (ERROR(port) & ATA_ERR_ABRT) {
+			/* The drive doesn't support the nmbr requested,
+			 * in this_pass, get a single sector and try again. Acceptable
+			 * numbers are drive dependent, so we'll 
+			 * just try and fail which is faster and smaller than some
+			 * smart logic. Enable the printk below
+			 * and do a dd bs=9b (or 12b) to see how this
+			 * works. It's interesting. */
+		    printk("athd%d: multi-IO err %d\n", drive, this_pass);
+		    this_pass = 1;
+	    	    out_hd(drive, this_pass, 0, 0, 0, ATA_SET_MULT);
+		}
+	    }
+#endif
+		
+	    debug_blkdrv("athd%d: cyl: %d hd: %d sec: %u st: %lu, cnt: %d buf: %04x seg: %04x\n",
+		 drive, cylinder, head, sector, start, this_pass, buff, (unsigned) req->rq_seg);
 
-	    while (WAITING(port));
 	    /* send drive parameters */
+	    while (WAITING(port));
 	    out_hd(drive, this_pass, sector, head, cylinder, cmd);
 
 	    while (WAITING(port));
@@ -694,17 +786,24 @@ void do_directhd_request(void)
 		    //debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
 		}
 	    }
-	    /* Do the I/O, either individual sectors or the whole shebang,
-	     * which means 1k (TLVC block size).
+#define raw_flag tmp
+#ifdef CONFIG_BLK_DEV_CHAR
+	    if (req->rq_nr_sectors) raw_flag = 1; /* flag raw IO */
+	    else
+#endif
+	    raw_flag = 0;
+	    /* Do the I/O, either individual sectors or the whole shebang.
+	     * FIXME: Add error checking below. How do we report errors back to the caller?
 	     */
 	    if (dp->ctl & ATA_CFG_NMULT) {
-		port_io(port, req->rq_seg, (word_t *)buff, 512);
-		if (this_pass > 1) {
-		    while (!DRQ_WAIT(port));
-		    port_io(port, req->rq_seg, (word_t *)(buff + 512), 512);
+		int k = 0;
+		while (1) {
+			port_io(port, req->rq_seg, (word_t *)(buff+(k<<9)), 512, raw_flag);
+			if (++k == this_pass) break;
+			while (!DRQ_WAIT(port));
 		}
 	    } else
-		port_io(port, req->rq_seg, (word_t *)buff, this_pass*512);
+		port_io(port, req->rq_seg, (word_t *)buff, this_pass*512, raw_flag);
 
 	    count -= this_pass;
 	    start += this_pass;

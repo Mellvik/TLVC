@@ -17,6 +17,7 @@
 
 #include <arch/bitops.h>
 #include <arch/statfs.h>
+#include <arch/types.h>
 
 #ifdef CONFIG_PIPE
 #include <linuxmt/pipe_fs_i.h>
@@ -490,13 +491,8 @@ extern unsigned char *buffer_data(struct buffer_head *);
 #define buffer_data(bh)  ((bh)->b_data)	/* for accessing unmapped buffer data*/
 #endif
 
-#ifdef CONFIG_BLK_DEV_CHAR
 extern size_t block_read(struct inode *,struct file *,char *,size_t);
 extern size_t block_write(struct inode *,struct file *,char *,size_t);
-#else
-#define block_read NULL
-#define block_write NULL
-#endif
 
 #ifdef CONFIG_EXEC_COMPRESS
 extern size_t decompress(char *buf, seg_t seg, size_t orig_size, size_t compr_size, int safety);
