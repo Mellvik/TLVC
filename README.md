@@ -8,3 +8,7 @@ Curious? Interested? Please check out the Wiki for more info:
 [About TLVC](https://github.com/Mellvik/TLVC/wiki/About-TLVC#tlvc---tiny-linux-for-vintage-computers) - Getting Started with TLVC - Configure and Build TLVC - TLVC Networking Guide - TLVC and Emulators
 
 TLVC is ready to run. It's also in continuous development. Check it out, let us know what you think. We're just getting started on GitHub, expect some quirks while we hone things out.
+
+_The screen dump below (with a lot of debug info) shows the boot sequence for an early version of TLVC:_
+
+<img width="836" alt="Skjermbilde 2023-07-11 kl  13 35 27" src="https://github.com/Mellvik/TLVC/assets/3629880/b3e6c735-4311-483d-a626-14ee214b820b">
