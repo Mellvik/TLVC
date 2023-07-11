@@ -30,13 +30,13 @@
 <br/>
 
 </p>
-<h1 class="western">ELKS Executable Formats</h1>
+<h1 class="western">TLVC Executable Formats</h1>
 <p><br/>
 <br/>
 
 </p>
 <h2 class="western">Compiling the kernel</h2>
-<p>ELKS C source code is compiled by GCC for the IA16 platform
+<p>TLVC C source code is compiled by GCC for the IA16 platform
 ('<font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt">ia16-elf-gcc
 </font></font>') and object &amp; static library files are worked
 <br/>
@@ -48,13 +48,13 @@ format to legacy 'a.out' format, and drop out all that is not 'code',
 data', 'bss' and 'rodata'. So the final executable contains
 neither symbol nor comment.</p>
 <h2 class="western">Compiling and linking application programs</h2>
-<p>Application programs in C for the ELKS operating system can also
+<p>Application programs in C for the TLVC operating system can also
 be compiled with GCC for the IA16 <font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt">platform
 ('ia16-elf-gcc ') <br/>
 and linked with the 'ld' scripts. A typical
 command line would be:</font></font></p>
 <p><font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt">ia16-elf-gcc
-hello.c -o hello -melks-libc -mcmodel=small</font></font></p>
+hello.c -o hello -mTLVC-libc -mcmodel=small</font></font></p>
 <p><font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt">The
 '-mcmodel=small' parameter specifies an executable with the splitted
 I/D option, this means code and data are in separate segments.</font></font></p>
@@ -159,12 +159,12 @@ parameter. The maximum size is 65520 bytes or 64Kbytes. If you deduct
 		</td>
 	</tr>
 </table>
-<p><font face="Liberation Serif, serif">ELKS does not use the
+<p><font face="Liberation Serif, serif">TLVC does not use the
 optional relocation fields as the IA16 code is natively relocatable
 inside a segment with relative offsets.</font></p>
 <p><font face="Liberation Serif, serif">The third byte in the type
 field is a bitfield giving the properties of the </font><code class="western"><font face="Liberation Serif, serif">a.out</font></code>
-<font face="Liberation Serif, serif">file. ELKS uses</font> <font face="Liberation Serif, serif">the
+<font face="Liberation Serif, serif">file. TLVC uses</font> <font face="Liberation Serif, serif">the
 following flags:</font></p>
 <table width="269" cellpadding="4" cellspacing="0">
 	<col width="74"/>
@@ -191,14 +191,14 @@ following flags:</font></p>
 	</tr>
 </table>
 <p><code class="western"><font face="Liberation Serif, serif">The
-only valid values for ELKS are 0x20 and 0x30 which is 0x10 and 0x20
+only valid values for TLVC are 0x20 and 0x30 which is 0x10 and 0x20
 combined. A program compiled with ia16-elf-gcc will have a 0x30
 <br/>
 value in this field while a program compiled with bcc will have
 0x20 in there to indicate an executable program. The value 0x10 would
 <br/>
 indicate a program with combined I/D which uses the same
-segment for text and data. This model is not supported by ELKS.</font></code></p>
+segment for text and data. This model is not supported by TLVC.</font></code></p>
 <p><code class="western"><font face="Liberation Serif, serif">A
 program with splitted I/D loaded into memory will e.g. have the
 following layout:</font></code></p>
@@ -236,11 +236,11 @@ support <br/>
 a larger kernel size. The max data section size remains
 64k. This model is compiled with the following command line:</font></font></code></p>
 <p><code class="western"><font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt">ia16-elf-gcc
--melks -mcmodel=medium</font></font></code></p>
+-mTLVC -mcmodel=medium</font></font></code></p>
 <p><code class="western"><font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt">For
 this model the a.out header has been extended, there are
 supplementary and relocation structures defined in the
-'/elks/include/linuxmt/minix.h' header file.</font></font></code></p>
+'/TLVC/include/linuxmt/minix.h' header file.</font></font></code></p>
 <p><code class="western"><font face="Liberation Serif, serif"><font size="3" style="font-size: 12pt"><br/>
 18th
 of June 2020 Georg Potthast</font></font></code></p>
