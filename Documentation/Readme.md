@@ -1,19 +1,19 @@
 
 # Index of TLVC (inherited) Documentation
 
-Most of this stuff is outdated and will be eityher purged or merged into the wiki documents.
+Most of this stuff is outdated and may be purged or merged into the wiki documents.
 
 ## User guide
 
-This section contains some HOWTOs to help using ELKS.
+This section contains some HOWTOs to help using TLVC.
 
-* [Getting started with ELKS](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/getting_started_with_elks.html)
+* [Getting started with TLVC](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/getting_started_with_elks.html)
 
-* [Running ELKS in QEMU](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/qemu.html)
+* [Running TLVC in QEMU](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/qemu.html)
 
-* [ELKS commands and utilities](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/technical/ELKS_commands_and_utilities.html)
+* [TLVC commands and utilities](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/technical/ELKS_commands_and_utilities.html)
 
-* [ELKS One Page Manual](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/ELKS_OPM.html)
+* [TLVC One Page Manual](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/ELKS_OPM.html)
 
 * [Shell command line editing and Tab completion](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/master/Documentation/html/user/shell.html)
 
@@ -23,11 +23,11 @@ This section contains some HOWTOs to help using ELKS.
 
 * [The Kilo editor](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/master/Documentation/html/user/kilo.html)
 
-* [Writing applications for ELKS in C](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/writing_apps_in_C.html)
+* [Writing applications for TLVC in C](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/writing_apps_in_C.html)
 
-* [Writing applications for ELKS in assembler](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/writing_apps_in_assembler.html)
+* [Writing applications for TLVC in assembler](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/writing_apps_in_assembler.html)
 
-* [Internet links refering to ELKS](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/internet_links_for_elks.html)
+* [Internet links refering to TLVC](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/user/internet_links_for_elks.html)
 
 
 ## Technical reference
@@ -36,7 +36,7 @@ This section contains some HOWTOs to help using ELKS.
 
 * [Executable format](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/technical/exe_format.html)
 
-* [ELKS processes](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/technical/process.html)
+* [TLVC processes](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/technical/process.html)
 
 * [Process management](https://htmlpreview.github.io/?https://github.com/jbruchon/elks/blob/master/Documentation/html/technical/process_man.html)
 
