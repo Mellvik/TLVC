@@ -17,3 +17,16 @@ _The screen dump below (with a lot of debug info) shows the boot sequence for an
 - … plug and play: You're expected to have some technical proficiency and experience with basic command line tools and development tools, like running menuconfig and familiarity with the make command.
 - … covering all PC variants. TLVC is continuously being tested on several hardware platforms and QEMU but there will always be holes. In particular, pre-AT PCs are hard to come by, i.e. no testing thus far. Contributions welcome.
 - … a gaming platform. Graphics support is not a priority in TLVC, consider it a text/terminal/command line system.
+
+### Summary of enhancements since ELKS 0.6.0 (as of July 2023)
+- Numerous bug fixes in the kernel and boot code
+- Many fixes and enhancements to utilities
+- A number of new and enhanced man pages
+- Ethernet drivers have optional IO buffering which enables then to be completely interrupt driven: Increased stability and performance
+- Many enhancements and bug fixes in ktcp, the user-space TCP/IP implementation.
+- New 'direct' drivers replace the BIOS hd/floppy driver, making block IO completely interrupt driven. Incidentally, this improvement has significantly improved the performance and stability of the networking subsystem: No more long delays (while waiting for disk or floppy) which used to cause lots of retransmissions and lost packets.
+- The cross development system has been fixed to run on Apple M1/M2 platforms.
+- Command history has been added to the main shell (ash).
+- Raw/char drivers have been added for disk/floppy IO, an important enhancement for both diagnostics and system utilities.
+
+If you're coming from ELKS, you' be delighted by the responsiveness of the system. If not, you'll just like the feeling - maybe be impressed by what an old klunker can deliver.
