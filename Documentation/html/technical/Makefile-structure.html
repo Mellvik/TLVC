@@ -2,7 +2,7 @@
 <HTML>
 <Head>
 
-<Title>Makefile structure for the ELKS project</Title>
+<Title>Makefile structure for the TLVC project</Title>
 
 <!-- Author:  Riley Williams <rhw@MemAlpha.cx> -->
 <!-- Licence: GNU General Public Licence, version 2 only -->
@@ -10,25 +10,25 @@
 </Head>
 <Body BGColor=White Text=Black Link=Blue VLink=Magenta ALink=Red>
 
-<H1 Align=Center>Makefile structure for the ELKS project</H1>
+<H1 Align=Center>Makefile structure for the TLVC project</H1>
 
 <P Align=Justify>This document describes the intended structure of the 
-Makefiles in the ELKS project, and the standards that should apply to have
+Makefiles in the TLVC project, and the standards that should apply to have
 a completely rational system. It makes a number of assumptions about how
-the process of compiling ELKS works, and these assumptions are hopefully
+the process of compiling TLVC works, and these assumptions are hopefully
 documented here:</P>
 
 <OL>
 
-<LI><P Align=Justify>ELKS is not yet able to compile itself, so it has to
+<LI><P Align=Justify>TLVC is not yet able to compile itself, so it has to
 be compiled under another operating system and ported across. It is not in
-general possible to use the same compiler to compile ELKS as to compile
+general possible to use the same compiler to compile TLVC as to compile
 software designed to run under the other operating system, so there is a
-need for TWO sets of compilation rules, one for compiling ELKS and another
+need for TWO sets of compilation rules, one for compiling TLVC and another
 for compiling the tools used in the process of configuring and compiling
-ELKS.</P>
+TLVC.</P>
 
-<LI><P Align=Justify>ELKS is complex enough to require multiple levels of
+<LI><P Align=Justify>TLVC is complex enough to require multiple levels of
 source directories. It is assumed that all actions relating to the files
 in a given source directory will be documented in the Makefile in that
 directory.</P>
@@ -41,7 +41,7 @@ offered for a coherent and rational Makefile system:</P>
 <OL>
 
 <LI><P Align=Justify>There will be a file <B>Makefile-rules</B> in the
-base directory of the ELKS source tree that collects together the standard
+base directory of the TLVC source tree that collects together the standard
 rules for all subordinate Makefiles.</P>
 
 <LI><P Align=Justify>Each <B>Makefile</B> in the source tree will begin by
@@ -58,18 +58,18 @@ defining the following variables...</P>
 </TR>
 
 <TR>
-<TD Align=Center VAlign=Center>ELKSCODE</TD>
+<TD Align=Center VAlign=Center>TLVCCODE</TD>
 <TD><P Align=Justify>States whether the current directory contains code
-that compiles to become part of the ELKS kernel, or code that compiles to
-produce tools to be used when configuring or compiling the ELKS
+that compiles to become part of the TLVC kernel, or code that compiles to
+produce tools to be used when configuring or compiling the TLVC
 kernel.</P></TD>
 <TD Align=Center>YES<BR>NO</TD>
 </TR>
 
 <TR>
-<TD Align=Center VAlign=Center>ELKSDIR</TD>
+<TD Align=Center VAlign=Center>TLVCDIR</TD>
 <TD><P Align=Justify>The relative path from the current directory to the
-base directory of the ELKS source tree.</P></TD>
+base directory of the TLVC source tree.</P></TD>
 </TR>
 
 </Table>
@@ -78,7 +78,7 @@ base directory of the ELKS source tree.</P></TD>
 
 <P Align=Justify>...and then includes the line...</P>
 
-<P Align=Center><Font Size=+1>include $(ELKSDIR)/Makefile-rules</Font></P>
+<P Align=Center><Font Size=+1>include $(TLVCDIR)/Makefile-rules</Font></P>
 
 <P Align=Justify>...to generate the standard values and rules. Only AFTER
 it has done this may any other definitions be made.</P>
@@ -103,7 +103,7 @@ when making a distribution copy of this directory.</P></TD>
 
 <TR>
 <TD Align=Center>TOPDIR</TD>
-<TD><P Align=Justify>The absolute path to the ELKS base
+<TD><P Align=Justify>The absolute path to the TLVC base
 directory.</P></TD>
 </TR>
 
