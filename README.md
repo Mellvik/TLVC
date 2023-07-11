@@ -12,3 +12,8 @@ TLVC is ready to run. It's also in continuous development. Check it out, let us 
 _The screen dump below (with a lot of debug info) shows the boot sequence for an early version of TLVC:_
 
 <img width="836" alt="Skjermbilde 2023-07-11 kl  13 35 27" src="https://github.com/Mellvik/TLVC/assets/3629880/b3e6c735-4311-483d-a626-14ee214b820b">
+
+### What TLVC is not
+- … plug and play: You're expected to have some technical proficiency and experience with basic command line tools and development tools, like running menuconfig and familiarity with the make command.
+- … covering all PC variants. TLVC is continuously being tested on several hardware platforms and QEMU but there will always be holes. In particular, pre-AT PCs are hard to come by, i.e. no testing thus far. Contributions welcome.
+- … a gaming platform. Graphics support is not a priority in TLVC, consider it a text/terminal/command line system.
