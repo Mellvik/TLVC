@@ -1,5 +1,7 @@
 
-# Index of ELKS Documentation
+# Index of TLVC (inherited) Documentation
+
+Most of this stuff is outdated and will be eityher purged or merged into the wiki documents.
 
 ## User guide
 
