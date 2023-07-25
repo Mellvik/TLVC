@@ -59,14 +59,16 @@
 
 /*
  * TODO (HS 2023):
- * - Change read buffer logic to allow small floppies (720k and less) to use 
- *   the track buffer to a full cylinder
+ * - Change read buffer logic to allow small floppies (720k and less) to fill 
+ *   the track buffer (full cylinder)
  * - When XMS buffers are active, the BIOS hd driver will use DMASEG as a bounce buffer
  *   thus colliding with the usage here. This is a problem only in the odd case 
- *   that we're using BIOS HD and BLOCK FD and XMS buffers and TRACK cache, 
+ *   that we're using BIOS HD + DIRECT FD + XMS buffers + TRACK cache, 
  *   which really should not happen. IOW - use either BIOS block IO or DIRECT block IO,
  *   don't mix!!
  * - Update DMA code
+ * - Test density detection logic & floppy change detection
+ * - Clean up debug output
  */
 
 #include <linuxmt/config.h>
@@ -81,6 +83,7 @@
 #include <linuxmt/errno.h>
 #include <linuxmt/string.h>
 #include <linuxmt/debug.h>
+#include <linuxmt/memory.h>	/* for peek/poke */
 
 #include <arch/dma.h>
 #include <arch/system.h>
@@ -118,15 +121,25 @@ void (*DEVICE_INTR) () = NULL;
 #define DEBUG(...)
 #endif
 
+/* Formatting code is currently untested, don't waste the space */
+//#define INCLUDE_FD_FORMATTING
+
 static int initial_reset_flag = 0;
 static int need_configure = 1;	/* for 82077 */
 static int recalibrate = 0;
 static int reset = 0;
 static int recover = 0;		/* recalibrate immediately after resetting */
 static int seek = 0;
-static long __far *fl_timeout = (void __far *)0x440L;	/* BIOS floppy motor timeout counter,
-					 * on some machines always active, must be
-					 * reset to avoid random motor shutoff */
+
+#ifdef CONFIG_BLK_DEV_CHAR
+static int nr_sectors;		/* only when raw access */
+#endif
+
+/* Should use poke() for this!! No, turns out the far pointer is better. HS */
+static unsigned char __far *fl_timeout = (void __far *)0x440L; /* BIOS floppy motor timeout counter*/
+					/* On some machines always active, must be
+					 * reset to avoid random motor shutoff.
+					 * Ihis variant takes 10 bytes */
 
 static unsigned char current_DOR = 0x0C;
 static unsigned char running = 0; /* keep track of motors already running */
@@ -441,6 +454,8 @@ static void floppy_on(int nr)
     DEBUG("flpON");
     *fl_timeout = 0;	/* Reset BIOS motor timeout counter, neccessary on some machines */
     			/* Don't ask how I found out. HS */
+    //pokeb(0x40, 0x40, 0);	/* this variant is 10 bytes of code too, but slower than */
+				/* using the far pointer above */
     del_timer(&motor_off_timer[nr]);
 
     if (mask & running) {
@@ -481,14 +496,17 @@ void request_done(int uptodate)
 {
     /* FIXME: Is this the right place to delete this timer? */
     del_timer(&fd_timeout);
-    //timer_active &= ~(1 << FLOPPY_TIMER);
 
+#ifdef INCLUDE_FD_FORMATTING
     if (format_status != FORMAT_BUSY)
 	end_request(uptodate);
     else {
 	format_status = uptodate ? FORMAT_OKAY : FORMAT_ERROR;
 	wake_up(&format_done);
     }
+#else
+    end_request(uptodate);
+#endif
 }
 
 #ifdef CHECK_DISK_CHANGE
@@ -552,13 +570,18 @@ static void setup_DMA(void)
     unsigned long dma_addr;
     unsigned int count;
 
-    DEBUG("setupDMA ");
 #ifdef CONFIG_FS_XMS_BUFFER
     dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
 #else
     dma_addr = _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer);
 #endif
+
+#ifdef CONFIG_BLK_DEV_CHAR
+    count = nr_sectors ? nr_sectors<<9 : BLOCK_SIZE;
+#else
     count = BLOCK_SIZE;
+#endif
+    DEBUG("setupDMA ");
     if (command == FD_FORMAT) {
 	dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area);
 	count = floppy->sect * 4;
@@ -568,7 +591,7 @@ static void setup_DMA(void)
 	count = floppy->sect << 9;	/* sects/trk (one side) times 512 */
 	if (floppy->sect & 1 && !head) count += 512; /* add one if head=0 && sector count is odd */
 	dma_addr = _MK_LINADDR(DMASEG, 0);
-    } else if (dma_addr >= LAST_DMA_ADDR) {		/* Not likely */
+    } else if (dma_addr >= LAST_DMA_ADDR) {
 	dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area); /* use bounce buffer */
 	if (command == FD_WRITE) {
 #ifdef CONFIG_FS_XMS_BUFFER
@@ -640,9 +663,12 @@ static void bad_flp_intr(void)
 
     DEBUG("bad_flpI-");
     current_track = NO_TRACK;
+#ifdef INCLUDE_FD_FORMATTING
     if (format_status == FORMAT_BUSY)
 	errors = ++format_errors;
-    else if (!CURRENT) {
+    else 
+#endif
+    if (!CURRENT) {
 	printk("%s: no current request\n", DEVICE_NAME);
 	reset = recalibrate = 1;
 	return;
@@ -741,7 +767,10 @@ static void rw_interrupt(void)
     char bad;
 
     nr = result();
+    /* NOTE: If read_track is active and sector count is uneven, ST0 will
+     * always show HD1 as selected at this point. */
     DEBUG("rwI%x|%x|%x-", ST0,ST1,ST2);
+
     /* check IC to find cause of interrupt */
     switch ((ST0 & ST0_INTR) >> 6) {
     case 1:			/* error occured during command execution */
@@ -820,10 +849,11 @@ static void rw_interrupt(void)
 							 * save block-start, block-end instead */
 	buffer_drive = current_drive;
 	buffer_area = (unsigned char *)(sector << 9);
-	DEBUG("rd:%04x:%04x->%04x:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
 #ifdef CONFIG_FS_XMS_BUFFER
+	DEBUG("rd:%lx:%04x->%lx:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
 	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
 #else
+	DEBUG("rd:%04x:%04x->%04x:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
 	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
 #endif
     } else if (command == FD_READ 
@@ -852,7 +882,7 @@ static void rw_interrupt(void)
  * read a sector even if there are other bad sectors on this track.
  *
  * The FDC will start read/write at the specified sector, then continues
- * until the DMA controller tells it to stop ...
+ * until the DMA controller tells it to stop ... as long as we're on the same cyl.
  * Notably: If the # of sectors per track is odd, we read sectors + 1 if head = 0
  * to ensure we have full blocks in the buffer.
  *
@@ -972,11 +1002,11 @@ static void recal_interrupt(void)
     current_track = NO_TRACK;
     if (result() != 2 || (ST0 & 0xE0) == 0x60) /* look for SEEK END and ABN TERMINATION*/
 	reset = 1;
-    DEBUG("recalI-%x", ST0);
+    DEBUG("recalI-%x", ST0);	/* Should be 0x20, Seek End */
     /* Recalibrate until track 0 is reached. Might help on some errors. */
-    if (ST0 & 0x10)		/* Look for Equipment Check, which will happen regularly
+    if (ST0 & 0x10)		/* Look for UnitCheck, which will happen regularly
     				 * on 80 track drives because RECAL only steps 77 times */
-	recalibrate_floppy();	/* FIXME: should limit nr of recalibrates */
+	recalibrate_floppy();	/* FIXME: may loop, should limit nr of recalibrates */
     else
 	redo_fd_request();
 }
@@ -1004,9 +1034,11 @@ static void reset_interrupt(void)
 	output_byte(FD_SENSEI);
 	(void) result();
     }
+    //DEBUG("1-");
     output_byte(FD_SPECIFY);
     output_byte(cur_spec1);	/* hut etc */
     output_byte(6);		/* Head load time =6ms, DMA */
+    //DEBUG("2-");
     configure_fdc_mode();	/* reprogram fdc */
     if (initial_reset_flag) {
 	initial_reset_flag = 0;
@@ -1231,13 +1263,16 @@ static void redo_fd_request(void)
 	    current_track = NO_TRACK;
 	    current_drive = drive;
 	}
-	/* rq_blocknr is blocks (BLOCKSIZE), 2x sectors */
-	start = (unsigned int) req->rq_blocknr * 2;	/* turn into sector # */
+	/* rq_blocknr is ALWAYS sectors */
+	start = (unsigned int) req->rq_blocknr;
 	if (start + 2 > floppy->size) {
 	    request_done(0);
 	    goto repeat;	/* FIXME: Should probably exit here */
 				/* or at least increment an error counter */
 	}
+#ifdef CONFIG_BLK_DEV_CHAR
+	nr_sectors = req->rq_nr_sectors;	/* non-zero if raw io */
+#endif
 	sector = start % floppy->sect;
 	tmp = start / floppy->sect;
 	head = tmp % floppy->head;
@@ -1249,11 +1284,13 @@ static void redo_fd_request(void)
 	else if (req->rq_cmd == WRITE)
 	    command = FD_WRITE;
 	else {
-	    printk("do_fd_request: unknown command\n");
+	    printk("redo_fd_request: unknown command\n");
 	    request_done(0);
 	    goto repeat;
 	}
-    } else {	/* Format drive */
+    }
+#ifdef INCLUDE_FD_FORMATTING
+    else {	/* Format drive */
 	if (current_drive != (format_req.device & 3))
 	    current_track = NO_TRACK;
 	current_drive = format_req.device & 3;
@@ -1270,6 +1307,7 @@ static void redo_fd_request(void)
 	command = FD_FORMAT;
 	setup_format_params();
     }
+#endif
 
     /* timer for hung operations, 6 secs probably too long ... */
     del_timer(&fd_timeout);
@@ -1279,11 +1317,12 @@ static void redo_fd_request(void)
     DEBUG("prep %d|%d,%d|%d-", buffer_track, seek_track, buffer_drive, current_drive);
 
     if ((((seek_track << 1) + head) == buffer_track) && (current_drive == buffer_drive)) {
-	/* if the sector count is odd, we read sectors+1 when head=0 to get an even
+	/* Requested block is in the buffer. If reading, go get it.
+	 * If the sector count is odd, we buffer sectors+1 when head=0 to get an even
 	 * number of sectors (full blocks). When head=1 we read the entire track
 	 * and ignore the first sector.
 	 */
-	DEBUG("bufrd tr/s %d/%d\n", seek_track, sector);
+	DEBUG("bufrd tr/h/s %d/%d/%d\n", seek_track, head, sector);
 	char *buf_ptr = (char *) (sector << 9);
 	if (command == FD_READ) {	/* requested data is in buffer */
 #ifdef CONFIG_FS_XMS_BUFFER
@@ -1354,7 +1393,7 @@ static int fd_ioctl(struct inode *inode,
 	//return verified_memcpy_tofs((char *)param,
 	//	    (char *)this_floppy, sizeof(struct floppy_struct));
 	return err;
-#ifdef HAS_IOCTL
+#ifdef INCLUDE_FD_FORMATTING
     case FDFMTBEG:
 	if (!suser())
 	    return -EPERM;

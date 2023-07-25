@@ -184,7 +184,7 @@ size_t block_write(struct inode *inode, register struct file *filp,
     return written;
 }
 #endif /* defined(CONFIG_MINIX_FS) || defined(CONFIG_BLK_DEV_CHAR) */
-//#else  /* USE_GETBLK */
+
 #endif /* USE_GETBLK */
 #ifdef CONFIG_BLK_DEV_CHAR
 /*
@@ -212,19 +212,14 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
     bh = get_free_buffer();
     ebh = EBH(bh);
-    ebh->b_dev = inode->i_rdev /* | 0x8000 */;	/* set the RAW flag to avoid confusion 
-						 * (syncing ...) with the block device
+    ebh->b_dev = inode->i_rdev;
 					
-    //mark_buffer_clean(bh);	/* avoid syncing */
-
     while (count > 0) {
     /*
      *      Partial block processing: At the beginning of the transfer if the starting
      *	    position is not on a block boundary, and at the end unless the transfer 
      *	    size matches a block boundary.
-     *	    FIXME: We should use sector size, but using BLOCK_SIZE is easier
-     *	    (for now) since that's what the underlying buffer code is geared for.
-     *	    And as much as I'd like to not use the buffer system at all, this is the easy 
+     *	    As much as I'd like to not use the buffer system at all, this is the easy 
      *	    way to temporarily acquire a bounce buffer for the odd cases.
      */
 	offset = ((size_t)filp->f_pos) & (SECT_SIZE - 1);
@@ -243,10 +238,6 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	 *	Cannot use getblk() since that would send us right into the
 	 * 	buffer cache looking for a match.
 	 */
-		//bh = getblk(inode->i_rdev, (block_t)(filp->f_pos >> BLOCK_SIZE_BITS));
-		//bh = get_free_buffer();
-		//ebh = EBH(bh);
-		//ebh->b_dev = inode->i_rdev;
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 #if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
 		ebh->b_seg = bh->b_data? kernel_ds : ebh->b_ds;
@@ -254,7 +245,6 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		ll_rw_blk(READ, bh);
 		wait_on_buffer(bh);
 		if (!ebh->b_uptodate) {
-			//brelse(bh);
 			written = -EIO;
 			break;
 		}
@@ -262,37 +252,28 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		 * Got the data, now process partial block
 		 */
 		if (wr == BLOCK_WRITE) {
-		/*
-		 *      Alter buffer, mark dirty
-		 */
+			/*
+			 * Alter buffer, mark dirty
+		 	 */
 	    		xms_fmemcpyb(buffer_data(bh) + offset, buffer_seg(bh), buf,
 				current->t_regs.ds, chars);
-	    		//mark_buffer_dirty(bh);
-	    		//mark_buffer_uptodate(bh, 1);
-	    	/*
-	     	 *      Writing: queue physical I/O
-	     	 */
+	    		/*
+	     		 * Writing: queue physical I/O
+	     		 */
 	    		ll_rw_blk(WRITE, bh);
 	    		wait_on_buffer(bh);
 	    		if (!ebh->b_uptodate) { /* Write error. */
-				//brelse(bh);
 				if (!written) written = -EIO;
 				break;
 	    		}
 		} else {
-		/*
-		 *      Move the data into the requesting process' dataspace 
-	 	 */
+			/*
+			 * Move the data into the requesting process' dataspace 
+	 		 */
 	    		xms_fmemcpyb(buf, current->t_regs.ds, buffer_data(bh) + offset,
 				buffer_seg(bh), chars);
 		}
-		/*
-	 	 *      Move on and release buffer
-		 */
-
-		//brelse(bh);
-	} else {
-		/* we're moving full sectors */
+	} else {	/* we're moving full sectors */
 		unsigned char *o_data;
 		ramdesc_t o_seg;
 
@@ -303,23 +284,17 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 				 * partial IO back from the lower levels? */
 
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
-// FIXME don't need this in raw, we're not using the buffers anyway
-#if 0
-#if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
-		ebh->b_seg = bh->b_data? kernel_ds : ebh->b_ds;
-#endif
-#endif
 		o_data = bh->b_data;		/* save the 'real' values */
 		o_seg = ebh->b_seg;
 		ebh->b_seg = current->t_regs.ds;
 		bh->b_data = (unsigned char *)buf;
 		ebh->b_count = (chars >> SECT_SIZE_BITS) | 0x80; /* This is a kludge. In order
-					* to avoid yet another element in the
+					* to avoid yet another element in the already sizeable
 					* buffer_head struct, we plug the # of sectors
 					* to transfer into the b_count byte, knowing
 					* that its real value is always 1 in this context.
-					* The upper bit is used as a flag, 128 is the max
-					* # of sectors we need anyway.
+					* The upper bit is used as a flag, 128 is more
+					* than we need anyway.
 					* b_count gets reset immediately in
 					* ll_rw_blk().
 					*/
@@ -329,31 +304,16 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		ebh->b_seg = o_seg;		/* restore */
 		bh->b_data = o_data;
     		if (!ebh->b_uptodate) { /* Write error. */
-			//brelse(bh);
 			if (!written) written = -EIO;
 			break;
 	    	}
-#if 0
-		req = ll_raw_blkio(inode, filp, buf, chars, wr);
-		if (req) sleep_on((struct wait_queue *)req); 
-		if (!req) {
-			printk("rawIO: couldn't get request\n");
-			break;
-		}
-		if (req->rq_errors) {
-			printk("raw io error on [%x]: %d, %l bytes transferred\n", 
-				inode->i_rdev, req->rq_errors, written);
-			break;
-		}
-		/* may need a way to signal partial transfers here */
-#endif
 	}
 	
 	buf += chars;
 	filp->f_pos += chars;
 	written += chars;
 	count -= chars;
-	printk("raw: chars %d, pos %ld\n", chars, filp->f_pos >> SECT_SIZE_BITS);
+	//printk("raw: chars %d, pos %ld\n", chars, filp->f_pos >> SECT_SIZE_BITS);
     }
     ebh->b_dev = NODEV;	/* Invalidate buffer */
     brelse(bh);
@@ -363,14 +323,14 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 size_t block_rd(struct inode *inode, struct file *filp,
 	       char *buf, size_t count)
 {
-    printk("block_rd %d\n", count);
+    //printk("block_rd %d\n", count);
     return raw_blk_rw(inode, filp, buf, count, BLOCK_READ);
 }
 
 size_t block_wr(struct inode *inode, struct file *filp,
 		char *buf, size_t count)
 {
-    printk("block_wr %d\n", count);
+    //printk("block_wr %d\n", count);
     return raw_blk_rw(inode, filp, buf, count, BLOCK_WRITE);
 }
 

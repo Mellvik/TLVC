@@ -18,7 +18,7 @@ struct request {
     kdev_t rq_dev;		/* -1 if no request */
     unsigned char rq_cmd;	/* READ or WRITE */
     unsigned char rq_status;
-    block32_t rq_blocknr;
+    block32_t rq_blocknr;	/* Always sector nr! (unlike b_blocknr) */
     unsigned char *rq_buffer;
     ramdesc_t rq_seg;		/* L2 main/xms buffer segment */
     struct buffer_head *rq_bh;
@@ -64,8 +64,9 @@ struct drive_infot {            /* CHS per drive*/
     int sectors;
     int heads;
     int sector_size;		/* The BIOS HD/flpy driver supports multiple
-				 * sector sizes, the direct drivers do not, and
-				 * use this field to hold the max # sectors per
+				 * sector sizes, the direct drivers do not.
+				 * The direct hd driver use this field to
+				 * hold the max # sectors per
 				 * multipe IO operation */
 #define MAX_ATA_SPIO sector_size
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)

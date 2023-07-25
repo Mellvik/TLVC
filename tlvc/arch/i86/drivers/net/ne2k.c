@@ -78,7 +78,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 #endif
 		/* The local buffers are empty. If the ne2k_has_data flag is set, there is
 		 * more data buffered in the NIC, and we might as well go get them 
-		 * instead of waiting for another round tripå through the interrupt
+		 * instead of waiting for another round through the interrupt
 		 * handler.
 		 * NOTE: Possible race condition. A RCV INTR may happen
 		 * while we're reading a packet - thus the semaphore in getpkg 

@@ -190,7 +190,8 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 #endif
 
 #ifdef CONFIG_BLK_DEV_CHAR
-    printk("Mreq: bh %04x blk %ld count %d\n", (unsigned int) bh, ebh->b_blocknr, ebh->b_count);
+    /* remember: b_count is the # of references! */
+    //printk("Mreq: bh %04x blk %ld b_count %d\n", (unsigned int) bh, ebh->b_blocknr, ebh->b_count);
     if (ebh->b_count & 0x80) {
 	blks = (sector_t)(ebh->b_count & 0x7f); /* # of sectors */
 	ebh->b_count = 1;
@@ -263,7 +264,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
     req->rq_cmd = (__u8) rw;
     req->rq_bh = bh;
 #ifdef CONFIG_BLK_DEV_CHAR
-    if (blks) {		/* only for raw device access */
+    if (blks) {		/* raw device access, blocks = sectors */
 	req->rq_buffer = bh->b_data; /* pointing to process space */
 	req->rq_seg = ebh->b_seg;
 	req->rq_nr_sectors = blks;
@@ -274,7 +275,6 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	req->rq_blocknr = buffer_blocknr(bh) * BLOCK_SIZE / 512;
 	req->rq_seg = buffer_seg(bh);
 	req->rq_buffer = buffer_data(bh);
-	req->rq_nr_sectors = BLOCK_SIZE / 512;
     }
 
 #ifdef BLOAT_FS
@@ -432,40 +432,6 @@ void ll_rw_blk(int rw, register struct buffer_head *bh)
     } else
 	make_request(major, rw, bh);
 }
-
-#ifdef XXXCONFIG_BLK_DEV_CHAR
-/* read/write arbitratily sized data blocks from/to
- * a block device. Unlike ll_rw_blk above, we're not using buffers, moving data
- * directly to/from user process space.
- */
-struct request * ll_raw_blkio(struct inode *inode, struct file *filp, char *buf, size_t chars, int wr)
-{
-    struct request *req;
-
-    clr_irq();
-    /* May need ot use __get_request_wait() instead */
-    req = get_request(NR_REQUEST -1, inode->i_rdev);
-    set_irq();
-
-    if (req) {
-	debug_raw("raw_blkio[%04x], len %l, pos %l req %x\n", inode->i_rdev, chars, 
-		filp->f_pos, req);
-	//req->rq_dev = inode->i_rdev;
-	req->rq_cmd = wr;
-	req->rq_buffer = buf;
-	req->rq_seg = current->t_regs.ds;
-	req->rq_bh = NULL;
-	req->rq_next = NULL;
-	req->rq_blocknr = filp->f_pos/BLOCK_SIZE; /* must use 1K blocksize even here
-                                              * to get the phys sector calculation
-                                              * at the lower level right */
-
-	req->rq_nr_sectors = chars/512;
-	add_request(&blk_dev[MAJOR(req->rq_dev)], req);
-    }
-    return req;
-}
-#endif
 
 void INITPROC blk_dev_init(void)
 {
