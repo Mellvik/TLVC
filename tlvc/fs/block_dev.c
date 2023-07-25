@@ -18,8 +18,20 @@
 #include <arch/segment.h>
 #include <arch/system.h>
 
+#if 0
+/* FIXME don't need this one now right? */
+#ifdef CONFIG_BLK_DEV_CHAR
+#include "../arch/i86/drivers/block/blk.h"	/* ugh, this is bad FIXME */
+#endif
+#endif
+
+#define SECT_SIZE 512
+#define SECT_SIZE_BITS 9
+
 #ifdef USE_GETBLK
-#if defined(CONFIG_MINIX_FS) || defined(CONFIG_BLK_DEV_CHAR)
+#if defined(CONFIG_MINIX_FS) /* || defined(CONFIG_BLK_DEV_CHAR) */
+
+struct request * do_raw_blkio(struct inode *, struct file *, char *, size_t, int);
 
 #ifdef DEBUG
 static char inode_equal_NULL[] = "inode = NULL\n";
@@ -171,87 +183,156 @@ size_t block_write(struct inode *inode, register struct file *filp,
     }
     return written;
 }
-#endif
-#else
-#ifdef CONFIG_BLK_DEV_CHAR
+#endif /* defined(CONFIG_MINIX_FS) || defined(CONFIG_BLK_DEV_CHAR) */
 
-static int blk_rw(struct inode *inode, register struct file *filp,
+#endif /* USE_GETBLK */
+#ifdef CONFIG_BLK_DEV_CHAR
+/*
+ * For raw block device access only. 
+ * NOTE: This code assumes that the major device #s are the same for char and block devices.
+ * DO NOT CHANGE THAT.
+ *
+ * We allocate a regular buffer to a) act as a bounce buffer for small and odd sized 
+ * (< SECTSIZE) transfers.
+ * For all secor sized transfers we use the buffer header to pass metadata back and forth,
+ * data transfers go directly to/from the process' memory space.
+ */
+struct buffer_head * get_free_buffer(void);
+
+static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		  char *buf, size_t count, int wr)
 {
-    register struct buffer_head *bh;
+    struct buffer_head *bh;
+    ext_buffer_head *ebh;
     size_t chars, offset;
+#if 0
+    struct request *req;
+#endif
     int written = 0;
 
+    bh = get_free_buffer();
+    ebh = EBH(bh);
+    ebh->b_dev = inode->i_rdev;
+					
     while (count > 0) {
     /*
-     *      Offset to block/offset
+     *      Partial block processing: At the beginning of the transfer if the starting
+     *	    position is not on a block boundary, and at the end unless the transfer 
+     *	    size matches a block boundary.
+     *	    As much as I'd like to not use the buffer system at all, this is the easy 
+     *	    way to temporarily acquire a bounce buffer for the odd cases.
      */
-	offset = ((size_t)filp->f_pos) & (BLOCK_SIZE - 1);
-	chars = BLOCK_SIZE - offset;
-	if (chars > count)
-	    chars = count;
+	offset = ((size_t)filp->f_pos) & (SECT_SIZE - 1);
+	chars = 0;
+	if (offset) {	/* process partial first sector */
+		chars = SECT_SIZE - offset;
+		if (chars > count)
+	    		chars = count;
+	} else if (count < SECT_SIZE) /* partial trailing sector */
+		chars = count;
+	printk("RAW %u/%u bl %lu:", (unsigned int) chars, (unsigned int) count,
+					filp->f_pos >> SECT_SIZE_BITS);
+	if (chars) {
 	/*
-	 *      Read the block in - use getblk on a write
-	 *      of a whole block to avoid a read of the data.
+	 *      Get a (bounce) buffer for the partial block.
+	 *	Cannot use getblk() since that would send us right into the
+	 * 	buffer cache looking for a match.
 	 */
-	bh = getblk(inode->i_rdev, (block_t)(filp->f_pos >> BLOCK_SIZE_BITS));
-	if ((wr == BLOCK_READ) || (chars != BLOCK_SIZE)) {
-	    if (!readbuf(bh)) {
-		if (!written) written = -EIO;
-		break;
-	    }
+		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
+#if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
+		ebh->b_seg = bh->b_data? kernel_ds : ebh->b_ds;
+#endif
+		ll_rw_blk(READ, bh);
+		wait_on_buffer(bh);
+		if (!ebh->b_uptodate) {
+			written = -EIO;
+			break;
+		}
+		/* 
+		 * Got the data, now process partial block
+		 */
+		if (wr == BLOCK_WRITE) {
+			/*
+			 * Alter buffer, mark dirty
+		 	 */
+	    		xms_fmemcpyb(buffer_data(bh) + offset, buffer_seg(bh), buf,
+				current->t_regs.ds, chars);
+	    		/*
+	     		 * Writing: queue physical I/O
+	     		 */
+	    		ll_rw_blk(WRITE, bh);
+	    		wait_on_buffer(bh);
+	    		if (!ebh->b_uptodate) { /* Write error. */
+				if (!written) written = -EIO;
+				break;
+	    		}
+		} else {
+			/*
+			 * Move the data into the requesting process' dataspace 
+	 		 */
+	    		xms_fmemcpyb(buf, current->t_regs.ds, buffer_data(bh) + offset,
+				buffer_seg(bh), chars);
+		}
+	} else {	/* we're moving full sectors */
+		unsigned char *o_data;
+		ramdesc_t o_seg;
+
+		chars = (count & 0xffff); /* try to transfer the whole thing -
+					 * up to 64k, which is more than the 
+					 * system can handle anyway. */
+				/* FIXME: How do we get info about 
+				 * partial IO back from the lower levels? */
+
+		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
+		o_data = bh->b_data;		/* save the 'real' values */
+		o_seg = ebh->b_seg;
+		ebh->b_seg = current->t_regs.ds;
+		bh->b_data = (unsigned char *)buf;
+		ebh->b_count = (chars >> SECT_SIZE_BITS) | 0x80; /* This is a kludge. In order
+					* to avoid yet another element in the already sizeable
+					* buffer_head struct, we plug the # of sectors
+					* to transfer into the b_count byte, knowing
+					* that its real value is always 1 in this context.
+					* The upper bit is used as a flag, 128 is more
+					* than we need anyway.
+					* b_count gets reset immediately in
+					* ll_rw_blk().
+					*/
+
+	    	ll_rw_blk(wr, bh);
+	    	wait_on_buffer(bh);
+		ebh->b_seg = o_seg;		/* restore */
+		bh->b_data = o_data;
+    		if (!ebh->b_uptodate) { /* Write error. */
+			if (!written) written = -EIO;
+			break;
+	    	}
 	}
-
-	if (wr == BLOCK_WRITE) {
-	    /*
-	     *      Alter buffer, mark dirty
-	     */
-	    xms_fmemcpyb(buffer_data(bh) + offset, buffer_seg(bh), buf,
-		current->t_regs.ds, chars);
-	    mark_buffer_dirty(bh);
-	    mark_buffer_uptodate(bh, 1);
-	    /*
-	     *      Writing: queue physical I/O
-	     */
-	    ll_rw_blk(WRITE, bh);
-	    wait_on_buffer(bh);
-	    if (!buffer_uptodate(bh)) { /* Write error. */
-		brelse(bh);
-		if (!written) written = -EIO;
-		break;
-	    }
-	} else {
-	    /*
-	     *      Empty buffer data. Buffer unchanged
-	     */
-	    xms_fmemcpyb(buf, current->t_regs.ds, buffer_data(bh) + offset,
-		buffer_seg(bh), chars);
-	}
-	/*
-	 *      Move on and release buffer
-	 */
-
-	brelse(bh);
-
+	
 	buf += chars;
 	filp->f_pos += chars;
 	written += chars;
 	count -= chars;
+	//printk("raw: chars %d, pos %ld\n", chars, filp->f_pos >> SECT_SIZE_BITS);
     }
+    ebh->b_dev = NODEV;	/* Invalidate buffer */
+    brelse(bh);
     return written;
 }
 
-size_t block_read(struct inode *inode, struct file *filp,
+size_t block_rd(struct inode *inode, struct file *filp,
 	       char *buf, size_t count)
 {
-    return blk_rw(inode, filp, buf, count, BLOCK_READ);
+    //printk("block_rd %d\n", count);
+    return raw_blk_rw(inode, filp, buf, count, BLOCK_READ);
 }
 
-size_t block_write(struct inode *inode, struct file *filp,
+size_t block_wr(struct inode *inode, struct file *filp,
 		char *buf, size_t count)
 {
-    return blk_rw(inode, filp, buf, count, BLOCK_WRITE);
+    //printk("block_wr %d\n", count);
+    return raw_blk_rw(inode, filp, buf, count, BLOCK_WRITE);
 }
 
-#endif
-#endif
+//#endif
+#endif /* CONFIG_BLK_DEV_CHAR */

@@ -18,13 +18,16 @@ struct request {
     kdev_t rq_dev;		/* -1 if no request */
     unsigned char rq_cmd;	/* READ or WRITE */
     unsigned char rq_status;
-    block32_t rq_blocknr;
+    block32_t rq_blocknr;	/* Always sector nr! (unlike b_blocknr) */
     unsigned char *rq_buffer;
     ramdesc_t rq_seg;		/* L2 main/xms buffer segment */
     struct buffer_head *rq_bh;
     struct request *rq_next;
     int rq_errors;		/* FIXME: direct floppy only, needs #ifdef */
-
+				/* actually, used in raw blk io too */
+#ifdef CONFIG_BLK_DEV_CHAR
+    unsigned int rq_nr_sectors; /* needed for raw IO */
+#endif
 #ifdef BLOAT_FS
 /* This may get used for dealing with waiting for requests later*/
     struct task_struct *rq_waiting;
@@ -60,7 +63,12 @@ struct drive_infot {            /* CHS per drive*/
     int cylinders;
     int sectors;
     int heads;
-    int sector_size;
+    int sector_size;		/* The BIOS HD/flpy driver supports multiple
+				 * sector sizes, the direct drivers do not.
+				 * The direct hd driver use this field to
+				 * hold the max # sectors per
+				 * multipe IO operation */
+#define MAX_ATA_SPIO sector_size
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
     int fdtype;                 /* floppy fd_types[] index or -1 if hd */
 #else		/* direct HD */
@@ -71,6 +79,9 @@ extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/writ
 
 #ifdef CONFIG_BLK_DEV_BHD
 extern unsigned char hd_drive_map[];
+#endif
+#if 0
+extern struct request *raw_req;
 #endif
 
 extern struct blk_dev_struct blk_dev[MAX_BLKDEV];
@@ -165,8 +176,8 @@ static void end_request(int uptodate)
     //debug_blkdrv("blk.h: ER:%04x;", req);
 
     if (!uptodate) {
-	printk("%s: I/O error: ", DEVICE_NAME);
-	printk("dev %x, block %lu\n", req->rq_dev, req->rq_blocknr);
+	printk("%s[%04x]: I/O error in block %lu\n", DEVICE_NAME, 
+		req->rq_dev, req->rq_blocknr);
 
 #ifdef MULTI_BH
 #ifdef BLOAT_FS
@@ -178,6 +189,9 @@ static void end_request(int uptodate)
 #endif
     }
 
+#ifdef XXXCONFIG_BLK_DEV_CHAR
+    if (req->rq_nr_sectors) {	/* don't do this if raw IO */
+#endif
     bh = req->rq_bh;
 
 #ifdef BLOAT_FS
@@ -199,6 +213,9 @@ static void end_request(int uptodate)
 	return;
     }
 #endif
+#ifdef XXXCONFIG_BLK_DEV_CHAR
+    }
+#endif
 
     DEVICE_OFF(req->rq_dev);
     CURRENT = req->rq_next;
@@ -214,6 +231,13 @@ static void end_request(int uptodate)
 
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
+#ifdef XXXCONFIG_BLK_DEV_CHAR
+    if (req->rq_nr_sectors) {
+	req->rq_nr_sectors = 0;
+	wake_up(req);
+	return;
+    }
+#endif
 #if defined(MULTI_BH) || defined(FLOPPYDISK)
     //if (MAJOR_NR == 2) printk("WK%04x/%d;", &wait_for_request, current->pid);
     wake_up(&wait_for_request);
@@ -222,12 +246,18 @@ static void end_request(int uptodate)
 
 #endif /* MAJOR_NR */
 
+#ifdef CONFIG_BLK_DEV_CHAR
+#define RAW_DEV_MASK(d) ((d)&0x7fff)
+#else
+#define RAW_DEV_MASK(d) (d)
+#endif
+
 #define INIT_REQUEST(req) \
 	if (!req || req->rq_dev == -1U) \
 		return; \
-	if (MAJOR(req->rq_dev) != MAJOR_NR) \
+	if (MAJOR(RAW_DEV_MASK(req->rq_dev)) != MAJOR_NR) \
 		panic("%s: request list destroyed (%d, %d)", \
-			DEVICE_NAME, MAJOR(req->rq_dev), MAJOR_NR); \
+			DEVICE_NAME, MAJOR(RAW_DEV_MASK(req->rq_dev)), MAJOR_NR); \
 	if (req->rq_bh && !EBH(req->rq_bh)->b_locked) \
 		panic("%s:block not locked", DEVICE_NAME); \
 

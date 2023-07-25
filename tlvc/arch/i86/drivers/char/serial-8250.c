@@ -110,12 +110,27 @@ static int rs_probe(register struct serial_info *sp)
 {
     int status, type;
     unsigned char scratch;
+#ifdef BIG_LINUX_PROBE
+    unsigned char scratch2, scratch3;
 
+    /* initial probe from 'big' Linux */
+    /* an attempt to get rid of the mysterious COM2 port on
+     * COMPAQ Portable III, didn't work */
+    scratch = INB(sp->io + UART_IER);
+    OUTB(0, sp->io + UART_IER);
+    scratch2 = INB(sp->io + UART_IER) & UART_IER_ALL_INTR;
+    OUTB(UART_IER_ALL_INTR, sp->io + UART_IER);
+    scratch3 = INB(sp->io + UART_IER) & UART_IER_ALL_INTR;
+    printk("tty probe %x %x %x;", scratch, scratch2, scratch3);
+    OUTB(scratch, sp->io + UART_IER);
+    if (scratch2 != 0 || scratch3 != UART_IER_ALL_INTR)
+#else
     INB(sp->io + UART_IER);
     OUTB(0, sp->io + UART_IER);
     scratch = INB(sp->io + UART_IER);
     OUTB(scratch, sp->io + UART_IER);
     if (scratch)
+#endif
 	return -1;
 
     /* try to enable 64 byte FIFO and max trigger*/

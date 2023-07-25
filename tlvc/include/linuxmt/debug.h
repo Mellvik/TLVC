@@ -29,8 +29,9 @@
  */
 #define DEBUG_EVENT	1		/* generate debug events on CTRLP*/
 #define DEBUG_STARTDEF	0		/* default startup debug display*/
-#define DEBUG_BLKDRV	0		/* BIOS driver, direct drivers */
-#define DEBUG_BLK	0		/* block level i/o*/
+#define DEBUG_BLKDRV	1		/* Disk/floppy drivers */
+#define DEBUG_RAW	1		/* Raw disk/floppy I/O */
+#define DEBUG_BLK	1		/* block level i/o*/
 #define DEBUG_ETH	0		/* ethernet*/
 #define DEBUG_FAT	0		/* FAT filesystem*/
 #define DEBUG_FILE	0		/* sys open and file i/o*/
@@ -89,6 +90,12 @@ void debug_setcallback(void (*cbfunc)()); /* callback on debug event*/
 #define debugmem	PRINTK
 #else
 #define debugmem(...)
+#endif
+
+#if DEBUG_RAW
+#define debug_raw	PRINTK
+#else
+#define debug_raw(...)
 #endif
 
 #if DEBUG_NET

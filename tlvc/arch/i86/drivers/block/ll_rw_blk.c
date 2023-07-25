@@ -45,6 +45,8 @@ static struct request *__get_request_wait(int, kdev_t);
  */
 
 #define NR_REQUEST	24	/* was 20, increased for debugging FIXME */
+				/* Used in the raw block driver too, modify there
+				 * if you modify here. Yeah, it's bad. FIXME */
 
 static struct request request_list[NR_REQUEST];
 
@@ -99,7 +101,7 @@ int *blk_size[MAX_BLKDEV] = { NULL, NULL, };
  * NOTE: interrupts must be disabled on the way in, and will still
  *       be disabled on the way out.
  */
-static struct request *get_request(int n, kdev_t dev)
+struct request *get_request(int n, kdev_t dev)
 {
     static struct request *prev_found = NULL;
     static struct request *prev_limit = NULL;
@@ -118,6 +120,9 @@ static struct request *get_request(int n, kdev_t dev)
 	    prev_found = req;
 	    req->rq_status = RQ_ACTIVE;
 	    req->rq_dev = dev;
+#ifdef CONFIG_BLK_DEV_CHAR
+	    req->rq_nr_sectors = 0;
+#endif
 	    //debug_blkdrv("ll: RQ:%04x|%x", req, dev);
 	    return req;
 	}
@@ -171,6 +176,10 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 {
     struct request *req;
     int max_req;
+#ifdef CONFIG_BLK_DEV_CHAR
+    sector_t blks = 0;
+#endif
+    ext_buffer_head *ebh = EBH(bh);
 
 #ifdef CONFIG_FAR_BUFHEADS
     debug_blk("BLK (%d) %lu %s %lx:%x\n", major, buffer_blocknr(bh), rw==READ? "read": "write",
@@ -180,18 +189,26 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	buffer_seg(bh), buffer_data(bh));
 #endif
 
-#ifdef BDEV_SIZE_CHK
+#ifdef CONFIG_BLK_DEV_CHAR
+    /* remember: b_count is the # of references! */
+    //printk("Mreq: bh %04x blk %ld b_count %d\n", (unsigned int) bh, ebh->b_blocknr, ebh->b_count);
+    if (ebh->b_count & 0x80) {
+	blks = (sector_t)(ebh->b_count & 0x7f); /* # of sectors */
+	ebh->b_count = 1;
+    }
+#endif
+#ifdef BDEV_SIZE_CHK	/* NOTE: not updated for raw IO */
     sector_t count = BLOCK_SIZE / FIXED_SECTOR_SIZE;	/* FIXME must move to lower level*/
     sector_t sector = buffer_blocknr(bh) * count;
     if (blk_size[major])
-	if (blk_size[major][MINOR(buffer_dev(bh))] < (sector + count) >> 1) {
+	if (blk_size[major][MINOR(buffer_dev(bh)&0x7fff)] < (sector + count) >> 1) {
 	    printk("Attempt to access beyond end of device %d %d %d\n", blk_size[major][MINOR(buffer_dev(bh))], sector, count);
 	    return;
 	}
 #endif
 
     /* Uhhuh.. Nasty dead-lock possible here.. */
-    if (EBH(bh)->b_locked)
+    if (ebh->b_locked)
 	return;
     /* Maybe the above fixes it, and maybe it doesn't boot. Life is interesting */
     lock_buffer(bh);
@@ -219,7 +236,9 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 
     /* find an unused request. */
     clr_irq();
-    req = get_request(max_req, buffer_dev(bh));
+    req = get_request(max_req, buffer_dev(bh)/*&0x7fff*/); /* EXPERIMENTAL: OK not to
+							* mask out the RAW bit? */
+							/* now used in the ll driver */
     set_irq();
 
 	// Try again blocking if no request available
@@ -229,6 +248,8 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	/* I suspect we may need to call get_request_wait() but not at the moment
 	 * For now I will wait until we start getting panics, and then work out
 	 * what we have to do - Al <ajr@ecs.soton.ac.uk>
+	 * Indeed, when using direct floppy IO, we immediately run out of requests
+	 * on write, and need the wait.
 	 */
 
 #if defined(MULTI_BH) || defined(FLOPPYDISK)
@@ -241,10 +262,20 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 
     /* fill up the request-info, and add it to the queue */
     req->rq_cmd = (__u8) rw;
-    req->rq_blocknr = buffer_blocknr(bh);
-    req->rq_seg = buffer_seg(bh);
-    req->rq_buffer = buffer_data(bh);
     req->rq_bh = bh;
+#ifdef CONFIG_BLK_DEV_CHAR
+    if (blks) {		/* raw device access, blocks = sectors */
+	req->rq_buffer = bh->b_data; /* pointing to process space */
+	req->rq_seg = ebh->b_seg;
+	req->rq_nr_sectors = blks;
+	req->rq_blocknr = ebh->b_blocknr;
+    } else
+#endif
+    {
+	req->rq_blocknr = buffer_blocknr(bh) * BLOCK_SIZE / 512;
+	req->rq_seg = buffer_seg(bh);
+	req->rq_buffer = buffer_data(bh);
+    }
 
 #ifdef BLOAT_FS
     req->rq_nr_sectors = count;
@@ -264,7 +295,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 static struct request *__get_request_wait(int n, kdev_t dev)
 {
     register struct request *req;
-    printk("[%u] Waiting for request ...", (int)jiffies);
+    //printk("[%u] Waiting for request ...", (int)jiffies);
 
     //prepare_to_wait(&wait_for_request);	// maybe set interruptible ...
     wait_set(&wait_for_request);
@@ -376,20 +407,26 @@ void ll_rw_block(int rw, int nr, register struct buffer_head **bh)
 }
 #endif /* MULTI_BH */
 
-/* This function can be used to request a single buffer from a block device.
+/* This function can be used to request one or more physical sectors from a device.
+ * (aka raw device access)
+ * The buffer header points to process data space, not to a 1k buffer in the kernel
+ * buffer space.
  */
 
 void ll_rw_blk(int rw, register struct buffer_head *bh)
 {
     register struct blk_dev_struct *dev;
-    unsigned short int major;
+    unsigned int major;
 
     dev = NULL;
-    if ((major = MAJOR(buffer_dev(bh))) < MAX_BLKDEV)
+    if ((major = MAJOR(buffer_dev(bh)&0x7fff)) < MAX_BLKDEV)
 	dev = blk_dev + major;
     if (!dev || !dev->request_fn) {
 	printk("ll_rw_blk: Trying to read nonexistent block-device %s (%lu)\n",
 	       kdevname(buffer_dev(bh)), buffer_blocknr(bh));
+#ifdef CONFIG_BLK_DEV_CHAR
+	if (EBH(bh)->b_count & 0x80) EBH(bh)->b_count = 1;	/* just in case */
+#endif
 	mark_buffer_clean(bh);
 	mark_buffer_uptodate(bh, 0);
     } else

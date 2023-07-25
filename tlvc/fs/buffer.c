@@ -287,7 +287,7 @@ static void sync_buffers(kdev_t dev, int wait)
     } while ((bh = ebh->b_prev_lru) != NULL);
 }
 
-static struct buffer_head *get_free_buffer(void)
+struct buffer_head *get_free_buffer(void)
 {
     struct buffer_head *bh = bh_lru;
     ext_buffer_head *ebh = EBH(bh);

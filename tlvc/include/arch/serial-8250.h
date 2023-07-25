@@ -101,6 +101,7 @@
 #define UART_IER_RLSI	0x04	/* Enable receiver line status interrupt */
 #define UART_IER_THRI	0x02	/* Enable Transmitter holding register int. */
 #define UART_IER_RDI	0x01	/* Enable receiver data interrupt */
+#define UART_IER_ALL_INTR (UART_IER_MSI|UART_IER_RLSI|UART_IER_THRI|UART_IER_RDI)
 
 /*
  * These are the definitions for the Modem Control Register

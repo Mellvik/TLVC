@@ -7,29 +7,35 @@
 
 /* limits */
 
-#define MAX_CHRDEV 11
-#define MAX_BLKDEV  7
+#define MAX_CHRDEV 13	/* highest numbered device + 1 */
+#define MAX_BLKDEV  8
 
 /*
  * assignments
  *
  * devices are as follows (same as minix, so we can use the minix fs):
+ * Modified 06/23 HS, no longer matches Minix,
+ * 		  direct hd/floppy now have matching char/blk major numbers.
+ *		  This simplifies driver sharing between raw and blk
+ *		  There is no raw access to BIOS devices:
  *
  *      character              block                  comments
  *      --------------------   --------------------   --------------------
  *  0 - unnamed                unnamed                minor 0 = true nodev
  *  1 - /dev/mem               /dev/rd[01]            block ramdisk
- *  2 - /dev/ptyp*             /dev/df[0,...]         char pty master (c)
- *						      Direct floppy (bl)
- *  3 - /dev/ttyp*             /dev/{fd*,hd*}         block BIOS fd/hd
+ *  2 - [/dev/ptyp* now 11]    /dev/df*		      char pty master (c)
+ *  2 - /dev/rdf*				      Direct floppy (bl)
+ *  3 - /dev/ttyp*             /dev/{fd*,bd*}         block BIOS fd/hd
  *  4 - /dev/tty*,ttyp*,ttyS*                         char tty, pty slave, serial
- *  5 -			       /dev/dhd*	      direct HD
+ *  5 -	/dev/rhd*	       /dev/hd*		      direct HD
  *  6 - /dev/lp                /dev/rom               block romflash
  *  7 -                        /dev/udd               block meta user device driver
  *			       /dev/sdd
  *  8 - /dev/tcpdev                                   kernel <-> ktcp comm
  *  9 - /dev/eth                                      NIC drivers
  * 10 - /dev/cgatext
+ * 11 - /dev/ptyp				      char pty master
+ * 12 - /dev/ttyaux				      What is this?
  */
 
 
@@ -37,15 +43,17 @@
 
 #define UNNAMED_MAJOR     0
 #define MEM_MAJOR         1
-#define PTY_MASTER_MAJOR  2
+#define PTY_MASTER_MAJOR  11
 #define PTY_SLAVE_MAJOR   3
 #define TTY_MAJOR         4
-#define TTYAUX_MAJOR      5
+#define TTYAUX_MAJOR      12
 #define LP_MAJOR          6
 #define UDD_MAJOR         7
 #define TCPDEV_MAJOR      8
 #define ETH_MAJOR         9  /* should be rather a network-class driver */
 #define CGATEXT_MAJOR     10
+#define RAW_FLOPPY_MAJOR  2
+#define RAW_HD_MAJOR	  5
 
 /* These are the block devices */
 
