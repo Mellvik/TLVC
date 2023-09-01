@@ -8,6 +8,9 @@
  *
  * This is a small version of ps for use in the ELKS project.
  * Enhanced by Greg Haerr 17 Apr 2020
+ * 
+ * Optimized for TLVC by Helge Skirivervik, Aug 2023 - now has decent performance 
+ * with floppy disks and minimal buffers.
  */
 #define __KERNEL__
 #include <linuxmt/ntty.h>
@@ -30,6 +33,7 @@
 #include <pwd.h>
 #include <getopt.h>
 #include <paths.h>
+#include <errno.h>
 
 #define LINEARADDRESS(off, seg)		((off_t) (((off_t)seg << 4) + off))
 
@@ -73,67 +77,83 @@ void process_name(int fd, unsigned int off, unsigned int seg)
  * getpwuid copied from libc, modified so we don't have to open/close /etc/passwd
  * for every line of output.
  */
-struct passwd * __getpwent(int);
+struct passwd *__getpwent(int);
 
 struct passwd *getpwuid(uid_t uid)
 {
-	static int passwd_fd;
-	static int firsttime = 1;
-	struct passwd *passwd;
+	static int pwfile = -1;
+	static struct passwd *pwentry = NULL;
 
-	if (firsttime) {
-		if ((passwd_fd=open(_PATH_PASSWD, O_RDONLY)) < 0)
+	/* If this is the same uid as last time, just return the same pointer */
+	if (pwentry && (pwentry->pw_uid == uid))
+		return pwentry;
+
+	if (pwfile < 0)	/* first time */
+		if ((pwfile = open(_PATH_PASSWD, O_RDONLY)) < 0)
 			return NULL;
-		firsttime = 0;
-	}
-	lseek(passwd_fd, 0L, SEEK_SET);	/* rewind */
+	lseek(pwfile, 0L, SEEK_SET);	/* rewind */
 
-	while ((passwd=__getpwent(passwd_fd))!=NULL)
-		if (passwd->pw_uid == uid) 
-        		return passwd;
+	while ((pwentry = __getpwent(pwfile)) != NULL) {
+		if (pwentry->pw_uid == uid) 
+        		return pwentry;
+	}
 
 	return NULL;
 }
 
+/*
+ * Caveat: A device may have many names, we're using the first occurence in the directory
+ *	   - with the 'tty' prefix.
+ */
 char *devname(unsigned int minor)
 {
 	struct dirent *d;
 	dev_t ttydev = MKDEV(TTY_MAJOR, minor);
 	struct stat st;
-	static char dev[] = "/dev";
+	static char dev[] = "/dev/";
 	static char name[MAXNAMLEN+1];
+	static DIR *fp = NULL;
+	static long loc = 0;
+	static int prevdev = 0;
 
-	DIR *fp = opendir(dev);
-	if (fp == 0)
-		return "??";
+	if (prevdev == ttydev) return name+8; 	
+	if (!fp) {
+		if (!(fp = opendir(dev)))	/* open only first time */
+			return "??";
+	} else
+		rewinddir(fp);
+
 	strcpy(name, dev);
-	strcat(name, "/");
 
+	if (loc) seekdir(fp, loc);	/* crude optimization */
 	while ((d = readdir(fp)) != 0) {
-		if (strlen(d->d_name) > sizeof(name) - sizeof(dev) - 1)
+		if (strlen(d->d_name) > sizeof(name) - sizeof(dev) - 2)
 			continue;
 		if (d->d_name[0] == '.')
 			continue;
-		strcpy(name + sizeof(dev), d->d_name);
+		if (strncmp(d->d_name, "tty", 3))
+			continue;
+		else if (!loc)
+			loc = telldir(fp) - 16; /* so getdir will get this one */
+		strcpy(name + sizeof(dev) - 1, d->d_name);
 		if (!stat(name, &st) && st.st_rdev == ttydev) {
-			closedir(fp);
+			prevdev = st.st_rdev;
 			return name+8;
 		}
 	}
-	closedir(fp);
+	printf("\n");
 	return "?";
 }
 
 char *tty_name(int fd, unsigned int off, unsigned int seg)
 {
-	off_t addr = ((off_t)seg << 4) + off;
 	struct tty tty;
 
 	if (off == 0)
 		return "";
-	if (lseek(fd, addr, SEEK_SET) == -1) return "?";
 
-	if (read(fd, &tty, sizeof(tty)) != sizeof(tty)) return "?";
+	if (!memread(fd, off, seg, &tty, sizeof(tty)))
+		return "?";
 
 	return devname(tty.minor);
 }
@@ -214,8 +234,12 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if (task_table.t_kstackm != KSTACK_MAGIC)
-			break;
+		if (task_table.kstack_magic != KSTACK_MAGIC) {
+			if (task_table.kstack_magic == 0) continue;
+			errno = EILSEQ;
+			perror("Recompile ps, mismatched task structure");
+			return 1;
+		}
 		if (task_table.t_regs.ss == 0)
 			continue;
 
@@ -229,7 +253,7 @@ int main(int argc, char **argv)
 		case TASK_EXITING:			c = 'E'; break;
 		default:				c = '?'; break;
 		}
-		pwent = (getpwuid(task_table.uid));
+		pwent = getpwuid(task_table.uid);
 
 		/* pid grp tty user stat*/
 		printf("%5d %5d %4s %-8s%c ",
@@ -268,7 +292,7 @@ int main(int argc, char **argv)
 
 			/* size*/
 			segext_t size = getword(fd, (word_t)cseg+offsetof(struct segment, size), ds)
-							+ getword(fd, (word_t)dseg+offsetof(struct segment, size), ds);
+					+ getword(fd, (word_t)dseg+offsetof(struct segment, size), ds);
 			printf("%6ld ", (long)size << 4);
 
 			process_name(fd, task_table.t_begstack, task_table.t_regs.ss);
