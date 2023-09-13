@@ -135,12 +135,6 @@ static int seek = 0;
 static int nr_sectors;		/* only when raw access */
 #endif
 
-/* Should use poke() for this!! No, turns out the far pointer is better. HS */
-static unsigned char __far *fl_timeout = (void __far *)0x440L; /* BIOS floppy motor timeout counter*/
-					/* On some machines always active, must be
-					 * reset to avoid random motor shutoff.
-					 * Ihis variant takes 10 bytes */
-
 static unsigned char current_DOR = 0x0C;
 static unsigned char running = 0; /* keep track of motors already running */
 /* NOTE: current_DOR tells which motor(s) have been commanded to run,
@@ -167,14 +161,12 @@ static unsigned char running = 0; /* keep track of motors already running */
 #define MAX_BUFFER_SECTORS 18
 
 /*
- * The DMA channel used by the floppy controller cannot access data at
- * addresses >= 16MB
- *
- * Went back to the 1MB limit, as some people had problems with the floppy
- * driver otherwise. It doesn't matter much for performance anyway, as most
- * floppy accesses go through the track buffer.
+ * The 8237 DMA controller cannot access data above 1MB on the origianl PC 
+ * (4 bit page register). The AT is different, the page reg is 8 bits while the
+ * 2nd DMA controller transfers words only, not bytes and thus up to 128k bytes
+ * in one 'swoop'.
  */
-#define LAST_DMA_ADDR	(0x100000L - BLOCK_SIZE)
+#define LAST_DMA_ADDR	(0x100000L - BLOCK_SIZE) /* stick to the 1M limit */
 
 /*
  * globals used by 'result()'
@@ -319,7 +311,8 @@ static unsigned short min_report_error_cnt[4] = { 2, 2, 2, 2 };
  * The block buffer is used for all writes, for formatting and for reads
  * in case track buffering doesn't work or has been turned off.
  */
-static char tmp_floppy_area[BLOCK_SIZE]; /* for now FIXME to be removed */
+#define WORD_ALIGNED    __attribute__((aligned(2)))
+static char tmp_floppy_area[BLOCK_SIZE] WORD_ALIGNED; /* for now FIXME to be removed */
 
 #ifdef CHECK_DISK_CHANGE
 #define buffer_dirty(b)	((b)->b_dirty)
@@ -442,7 +435,7 @@ static void motor_off_callback(int nr)
 
 /*
  * floppy_on: turn on motor. If already running, call floppy_select
- * otherwise start motor and set timer to continue (motor_on_callback).
+ * otherwise start motor and set timer and return.
  * In the latter case, motor_on_callback will call floppy_select();
  *
  * DOR (Data Output Register) is |MOTD|MOTC|MOTB|MOTA|DMA|/RST|DR1|DR0|
@@ -452,10 +445,6 @@ static void floppy_on(int nr)
     unsigned char mask = 0x10 << nr;	/* motor on select */
 
     DEBUG("flpON");
-    *fl_timeout = 0;	/* Reset BIOS motor timeout counter, neccessary on some machines */
-    			/* Don't ask how I found out. HS */
-    //pokeb(0x40, 0x40, 0);	/* this variant is 10 bytes of code too, but slower than */
-				/* using the far pointer above */
     del_timer(&motor_off_timer[nr]);
 
     if (mask & running) {
@@ -568,38 +557,41 @@ int floppy_change(struct buffer_head *bh)
 static void setup_DMA(void)
 {
     unsigned long dma_addr;
-    unsigned int count;
+    unsigned int count, physaddr;
+    int use_xms;
+    struct request *req = CURRENT;
 
-#ifdef CONFIG_FS_XMS_BUFFER
-    dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
-#else
-    dma_addr = _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer);
-#endif
+    use_xms = req->rq_seg >> 16;
+    physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
 
 #ifdef CONFIG_BLK_DEV_CHAR
     count = nr_sectors ? nr_sectors<<9 : BLOCK_SIZE;
 #else
     count = BLOCK_SIZE;
 #endif
+    if (use_xms || (physaddr + (unsigned int)count) < physaddr)
+	dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
+    else
+	dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+
     DEBUG("setupDMA ");
+
+#ifdef INCLUDE_FD_FORMATTING
     if (command == FD_FORMAT) {
 	dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area);
 	count = floppy->sect * 4;
     }
+#endif
     if (read_track) {	/* mark buffer-track bad, in case all this fails.. */
 	buffer_drive = buffer_track = -1;
 	count = floppy->sect << 9;	/* sects/trk (one side) times 512 */
-	if (floppy->sect & 1 && !head) count += 512; /* add one if head=0 && sector count is odd */
+	if (floppy->sect & 1 && !head)
+	    count += 512; /* add one if head=0 && sector count is odd */
 	dma_addr = _MK_LINADDR(DMASEG, 0);
     } else if (dma_addr >= LAST_DMA_ADDR) {
 	dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area); /* use bounce buffer */
-	if (command == FD_WRITE) {
-#ifdef CONFIG_FS_XMS_BUFFER
-	    xms_fmemcpyw(tmp_floppy_area, kernel_ds, CURRENT->rq_buffer, CURRENT->rq_seg, BLOCK_SIZE/2);
-#else
-	    fmemcpyw(tmp_floppy_area, kernel_ds, CURRENT->rq_buffer, CURRENT->rq_seg, BLOCK_SIZE/2);
-#endif
-	}
+	if (command == FD_WRITE)
+	    xms_fmemcpyw(tmp_floppy_area, kernel_ds, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
     }
     DEBUG("%d/%lx;", count, dma_addr);
     clr_irq();
@@ -845,17 +837,13 @@ static void rw_interrupt(void)
 	probing = 0;
     }
     if (read_track) {
-	buffer_track = (seek_track << 1) + head;	/* This encoding is ugly, should
-							 * save block-start, block-end instead */
+	buffer_track = (seek_track << 1) + head; /* This encoding is ugly, should
+						  * use block-start, block-end instead */
 	buffer_drive = current_drive;
 	buffer_area = (unsigned char *)(sector << 9);
-#ifdef CONFIG_FS_XMS_BUFFER
-	DEBUG("rd:%lx:%04x->%lx:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
+	DEBUG("rd:%04x:%08lx->%04x:%04x;", DMASEG, buffer_area,
+		(unsigned long)CURRENT->rq_seg, CURRENT->rq_buffer);
 	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
-#else
-	DEBUG("rd:%04x:%04x->%04x:%04x;", DMASEG, buffer_area, CURRENT->rq_seg, CURRENT->rq_buffer);
-	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
-#endif
     } else if (command == FD_READ 
 #ifndef CONFIG_FS_XMS_BUFFER
 	   && _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer) >= LAST_DMA_ADDR
@@ -863,17 +851,13 @@ static void rw_interrupt(void)
 	) {
 	/* if the dest buffer is out of reach for DMA (always the case if using
 	 * XMS buffers) we need to read/write via the bounce buffer */
-#ifdef CONFIG_FS_XMS_BUFFER
 	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, tmp_floppy_area, kernel_ds, BLOCK_SIZE/2);
-#else
-	fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, tmp_floppy_area, kernel_ds, BLOCK_SIZE/2);
-#endif
 	printk("directfd: illegal buffer usage, rq_buffer %04x:%04x\n", 
 		CURRENT->rq_seg, CURRENT->rq_buffer);
     }
     request_done(1);
     //printk("RQOK;");
-    redo_fd_request();
+    redo_fd_request();	/* Continue with the next request - if any */
 }
 
 /*
@@ -972,8 +956,8 @@ static void transfer(void)
     output_byte(FD_SEEK);
     output_byte((head << 2) | current_drive);
     output_byte(seek_track);
-    //if (reset)	/* We already did this */
-	//redo_fd_request();
+    if (reset)	/* If something happened in output_byte() */
+	redo_fd_request();
 }
 
 static void recalibrate_floppy(void)
@@ -986,7 +970,7 @@ static void recalibrate_floppy(void)
     output_byte(current_drive);
 
     /* this may not make sense: We're waiting for recal_interrupt
-     * why redo_request here when recal_interrupt is doing it ??? */
+     * why redo_fd_request here when recal_interrupt is doing it ??? */
     /* 'reset' gets set in recal_interrupt, maybe that's it ??? */
     if (reset)
 	redo_fd_request();
@@ -1183,6 +1167,7 @@ static void floppy_ready(void)
     transfer();
 }
 
+#ifdef INCLUDE_FD_FORMATTING
 static void setup_format_params(void)
 {
     unsigned char *here = (unsigned char *) tmp_floppy_area;
@@ -1204,6 +1189,7 @@ static void setup_format_params(void)
 	*here++ = 2;		/* 512 bytes */
     }
 }
+#endif
 
 static void redo_fd_request(void)
 {
@@ -1230,10 +1216,8 @@ static void redo_fd_request(void)
 	}
 	if (MAJOR(req->rq_dev) != MAJOR_NR)
 	    panic("%s: request list destroyed", DEVICE_NAME);
-	if (req->rq_bh) {
-	    if (!EBH(req->rq_bh)->b_locked)
+	if (req->rq_bh && !EBH(req->rq_bh)->b_locked)
 		panic("%s: block not locked", DEVICE_NAME);
-	}
     }
     seek = 0;
     probing = 0;
@@ -1254,9 +1238,25 @@ static void redo_fd_request(void)
 		floppy++;
 	}
     }
+
+#if 0
+    __far unsigned int *content, *content2;	/*DEBUG*/
+    content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer + 0x370));
+    content2 = _MK_FP(buffer_seg(req->rq_bh), (unsigned int) buffer_data(req->rq_bh));
+    if (*content != *content2) {
+	printk("Data error blk %d(%lx/%04x:%lx/%04x)\n", (int)req->rq_blocknr,
+	(unsigned long)req->rq_seg, (unsigned) req->rq_buffer, 
+        (unsigned long) buffer_seg(req->rq_bh), (unsigned) buffer_data(req->rq_bh));
+	req->rq_buffer = buffer_data(req->rq_bh);
+	req->rq_seg = buffer_seg(req->rq_bh);
+    }
+#endif
+    //printk("flpio-%c (%04x) b/c %u/%04x\n", req->rq_cmd == WRITE? 'W':'R', req, 
+		//(int)req->rq_blocknr/2, *content);
     DEBUG("[%u]redo-%c %d(%s) bl %u;", (unsigned int)jiffies, 
 		req->rq_cmd == WRITE? 'W':'R', device, floppy->name, req->rq_blocknr);
-    debug_blkdrv("df[%04x]: %c blk %ld\n", CURRENT_DEVICE, req->rq_cmd==WRITE? 'W' : 'R', req->rq_blocknr);
+    debug_blkdrv("df[%04x]: %c blk %ld\n", CURRENT_DEVICE, req->rq_cmd==WRITE? 'W' : 'R',
+		req->rq_blocknr);
     if (format_status != FORMAT_BUSY) {
     	unsigned int tmp;
 	if (current_drive != drive) {
@@ -1322,22 +1322,14 @@ static void redo_fd_request(void)
 	 * number of sectors (full blocks). When head=1 we read the entire track
 	 * and ignore the first sector.
 	 */
-	DEBUG("bufrd tr/h/s %d/%d/%d\n", seek_track, head, sector);
+	DEBUG("bufrd chs %d/%d/%d\n", seek_track, head, sector);
 	char *buf_ptr = (char *) (sector << 9);
 	if (command == FD_READ) {	/* requested data is in buffer */
-#ifdef CONFIG_FS_XMS_BUFFER
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
-#else
-	    fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
-#endif
 	    request_done(1);
 	    goto repeat;
     	} else if (command == FD_WRITE)	/* update track buffer */
-#ifdef CONFIG_FS_XMS_BUFFER
 	    xms_fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
-#else
-	    fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
-#endif
     } 
 
     if (seek_track != current_track)
@@ -1350,11 +1342,9 @@ void do_fd_request(void)
 {
     DEBUG("fdrq:");
     if (CURRENT) CURRENT->rq_errors = 0;	// EXPERIMENTAL
-    //clr_irq();
     while (fdc_busy)
 	sleep_on(&fdc_wait);
     fdc_busy = 1;
-    //set_irq();
     redo_fd_request();
 }
 
@@ -1592,15 +1582,19 @@ static int floppy_open(struct inode *inode, struct file *filp)
 static void floppy_release(struct inode *inode, struct file *filp)
 {
     int drive = MINOR(inode->i_rdev) >> MINOR_SHIFT;
+    kdev_t dev = inode->i_rdev;
 
     DEBUG("df%d release", drive);
-    sync_dev(inode->i_rdev);
+    //fsync_dev(dev);	/* umount takes care og this */
     DEBUG("\n");
-    invalidate_buffers(inode->i_rdev);
     if (!fd_ref[drive & 3]--) {
 	printk("floppy_release with fd_ref == 0");
 	fd_ref[drive & 3] = 0;
     }
+    if (fd_ref[drive & 3] == 0) {
+	invalidate_buffers(dev);
+	invalidate_inodes(dev);
+   }
 }
 
 static struct file_operations floppy_fops = {
