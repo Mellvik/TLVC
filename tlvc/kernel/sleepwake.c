@@ -6,9 +6,11 @@
 #include <linuxmt/sched.h>
 #include <linuxmt/types.h>
 #include <linuxmt/wait.h>
+#include <linuxmt/trace.h>
 #include <linuxmt/debug.h>
 
-//#define CHECK	/* check matched sleep/wakeup when writing/testing drivers */
+#include <arch/irq.h>
+#include <arch/segment.h>
 
 /*
  *	Wait queue functionality for Linux TLVC. Taken from sched.c/h of
