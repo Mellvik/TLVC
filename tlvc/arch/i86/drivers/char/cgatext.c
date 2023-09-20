@@ -1,12 +1,9 @@
-#include <linuxmt/cgatext.h>
 #include <linuxmt/errno.h>
-#include <linuxmt/cgatext.h>
 #include <linuxmt/kernel.h>
 #include <linuxmt/sched.h>
 #include <arch/cgatext.h>
 
-static size_t
-free_len(struct file * f, size_t len)
+static size_t free_len(struct file * f, size_t len)
 {
   if(f->f_pos >= cgatext_mem_SIZE)
     return 0;
@@ -17,8 +14,7 @@ free_len(struct file * f, size_t len)
   return len;
 }
 
-int
-cgatext_lseek(struct inode *inode, struct file *f, loff_t offset,
+int cgatext_lseek(struct inode *inode, struct file *f, loff_t offset,
   unsigned int origin)
 {
   switch (origin)
@@ -48,38 +44,30 @@ cgatext_lseek(struct inode *inode, struct file *f, loff_t offset,
   return 0;
 }
 
-size_t
-cgatext_read(struct inode *inode, struct file *f, char *data, size_t len)
+size_t cgatext_read(struct inode *inode, struct file *f, char *data, size_t len)
 {
   len = free_len(f, len);
 
-  if(len)
-  {
+  if(len) {
     fmemcpyb(data, current->t_regs.ds, (char *)f->f_pos, cgatext_mem_SEG, len);
-
     f->f_pos += len;
   }
 
   return len;
 }
 
-size_t
-cgatext_write(struct inode *inode, register struct file *f, char *data, size_t len)
+size_t cgatext_write(struct inode *inode, register struct file *f, char *data, size_t len)
 {
   len = free_len(f, len);
 
-  if(len)
-  {
+  if(len) {
     fmemcpyb((char *)f->f_pos, cgatext_mem_SEG, data, current->t_regs.ds, len);
-
     f->f_pos += len;
   }
-
   return len;
 }
 
-static struct file_operations cgatext_fops =
-{
+static struct file_operations cgatext_fops = {
   cgatext_lseek,	/* lseek */
   cgatext_read,		/* read */
   cgatext_write,	/* write */
@@ -90,12 +78,7 @@ static struct file_operations cgatext_fops =
   NULL	/* release */
 };
 
-void
-cgatext_init(void)
+void INITPROC cgatext_init(void)
 {
-  int i;
-
-  i = register_chrdev(CGATEXT_MAJOR, CGATEXT_DEVICE_NAME, &cgatext_fops);
-  if(i)
-	  printk("cgatext: unable to register: %d\n", i);
+	register_chrdev(CGATEXT_MAJOR, CGATEXT_DEVICE_NAME, &cgatext_fops);
 }

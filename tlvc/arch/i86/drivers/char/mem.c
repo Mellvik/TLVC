@@ -42,13 +42,15 @@
 #define DEV_RANDOM_MINOR	8
 #define DEV_URANDOM_MINOR	9
 
+//#define debugmem printk
+//#define DEBUG
 /*
  * generally useful code...
  */
 int memory_lseek(struct inode *inode, register struct file *filp,
 		    loff_t offset, unsigned int origin)
 {
-    debugmem("mem_lseek()\n");
+    debugmem("mem_lseek(%ld)\n", offset+filp->f_pos);
     switch (origin) {
     case 1:
 	offset += filp->f_pos;
@@ -214,9 +216,9 @@ size_t kmem_read(struct inode *inode, register struct file *filp,
 {
     unsigned short int sseg, soff;
 
-    debugmem("[k]mem_read()\n");
+    debugmem("[k]mem_read(): ");
     sseg = split_seg_off(&soff, filp->f_pos);
-    debugmem("Reading %u %p %p.\n", len, sseg, soff);
+    debugmem("len %u seg %p off %p.\n", len, sseg, soff);
     fmemcpyb((byte_t *)data, current->t_regs.ds, (byte_t *)soff, sseg, (word_t) len);
     filp->f_pos += len;
     return (size_t) len;
@@ -414,10 +416,9 @@ static struct file_operations memory_fops = {
 
 /*@+type@*/
 
-void mem_dev_init(void)
+void INITPROC mem_dev_init(void)
 {
-    if (register_chrdev(MEM_MAJOR, "mem", &memory_fops))
-	printk("MEM: Unable to get major %d for memory devices\n", MEM_MAJOR);
+    register_chrdev(MEM_MAJOR, "mem", &memory_fops);
 }
 
 #endif

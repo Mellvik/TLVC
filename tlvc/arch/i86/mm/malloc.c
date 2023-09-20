@@ -322,16 +322,10 @@ again:
 	}
 }
 
-
-// Initialize the memory manager.
-
-void INITPROC mm_init(seg_t start, seg_t end)
+void INITPROC seg_add(seg_t start, seg_t end)
 {
-	list_init (&_seg_all);
-	list_init (&_seg_free);
-
 	segment_s * seg = (segment_s *) heap_alloc (sizeof (segment_s), HEAP_TAG_SEG);
-	if (seg) {
+	if(seg) {
 		seg->base = start;
 		seg->size = end - start;
 		seg->flags = SEG_FLAG_FREE;
@@ -341,4 +335,14 @@ void INITPROC mm_init(seg_t start, seg_t end)
 		list_insert_before (&_seg_all, &(seg->all));  // add tail
 		list_insert_before (&_seg_free, &(seg->free));  // add tail
 	}
+}
+
+// Initialize the memory manager.
+
+void INITPROC mm_init(seg_t start, seg_t end)
+{
+	list_init (&_seg_all);
+	list_init (&_seg_free);
+
+	seg_add(start, end);
 }

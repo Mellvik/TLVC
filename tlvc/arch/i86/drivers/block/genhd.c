@@ -300,7 +300,7 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
     first_time = 0;
     first_sector = hd->part[MINOR(dev)].start_sect;
 
-#if 0
+#if UNUSED
     /*
      * This is a kludge to allow the partition check to be
      * skipped for specific drives (e.g. IDE cd-rom drives)
@@ -312,7 +312,7 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
 #endif
 
     print_minor_name(hd, MINOR(dev));
-
+	//printk("check_partition: hd %04x dv %04x sec %d\n", hd, dev, (sector_t)first_sector);
 #ifdef CONFIG_MSDOS_PARTITION
     if (msdos_partition(hd, dev, first_sector))
 	return;
@@ -349,7 +349,7 @@ void INITPROC setup_dev(register struct gendisk *dev)
 #ifdef BDEV_SIZE_CHK
 	blk_size[dev->major] = NULL;
 #endif
-
+	//printk("setup_dev %04x/%d\n", dev, dev->major);
 	memset((void *)dev->part, 0, sizeof(struct hd_struct)*dev->max_nr*dev->max_p);
 	dev->init(dev);
 

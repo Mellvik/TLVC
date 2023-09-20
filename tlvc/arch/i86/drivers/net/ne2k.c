@@ -486,7 +486,7 @@ void ne2k_display_status(void)
  * FIXME: Needs return value to signal that initalization failed.
  */
 
-void ne2k_drv_init(void)
+void INITPROC ne2k_drv_init(void)
 {
 	int err, i;
 	word_t prom[16];/* PROM containing HW MAC address and more 
@@ -585,7 +585,7 @@ void ne2k_drv_init(void)
 		printk(", flags 0x%02x\n", net_flags);
 
 #if DEBUG_ETH
-		debug_setcallback(ne2k_display_status);
+		debug_setcallback(2, ne2k_display_status);	/* ^P lists status */
 #endif
 		break;
 	}
