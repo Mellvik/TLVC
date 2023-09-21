@@ -10,6 +10,7 @@
 #include <linuxmt/init.h>
 #include <linuxmt/timer.h>
 #include <linuxmt/string.h>
+#include <linuxmt/trace.h>
 #include <linuxmt/debug.h>
 
 #include <arch/irq.h>
@@ -73,16 +74,14 @@ void schedule(void)
 
     prev = current;
 
-    if (prev->t_kstackm != KSTACK_MAGIC)
-        panic("Process %d exceeded kernel stack limit! magic %x\n",
-            prev->pid, prev->t_kstackm);
-
+#ifdef CHECK_SCHED
     if (intr_count > 0) {
     /* Taking a timer IRQ during another IRQ or while in kernel space is
      * quite legal. We just dont switch then */
 	printk("Aiee: scheduling in interrupt %d - %d\n", intr_count, prev->pid);
 	return;
     }
+#endif
 
     /* We have to let a task exit! */
     if (prev->state == TASK_EXITING)
@@ -130,7 +129,7 @@ void schedule(void)
 	debug_sched("resched: %d prevstate %d\n", current->pid, prev->state);
 }
 
-static struct timer_list *next_timer = NULL;
+static struct timer_list *next_timer;
 
 void add_timer(struct timer_list * timer)
 {

@@ -11,6 +11,8 @@
 #include <linuxmt/fs.h>
 #include <linuxmt/utsname.h>
 #include <linuxmt/netstat.h>
+#include <linuxmt/trace.h>
+#include <linuxmt/debug.h>
 #include <arch/system.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
@@ -37,6 +39,8 @@ struct netif_parms netif_parms[MAX_ETHS] = {
     { EL3_IRQ, EL3_PORT, 0, EL3_FLAGS },
 };
 __u16 kernel_cs, kernel_ds;
+int tracing;
+int nr_mapbufs;
 static int boot_console = 0;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -61,19 +65,17 @@ static char *envp_init[MAX_INIT_ENVS+1];
 static unsigned char options[OPTSEGSZ];
 
 extern int boot_rootdev;
-extern int boot_bufs;
+extern int L2_bufs;
 extern int dprintk_on;
 static char * INITPROC root_dev_name(int dev);
-static int parse_options(void);
+static int INITPROC parse_options(void);
 static void INITPROC finalize_options(void);
 static char * INITPROC option(char *s);
 
 #endif
 
 static void init_task(void);
-static void INITPROC kernel_banner(seg_t start, seg_t end);
-extern int run_init_process(const char *cmd);
-extern int run_init_process_sptr(const char *cmd, char *sptr, int slen);
+static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra);
 
 
 void start_kernel(void)
@@ -144,10 +146,21 @@ void INITPROC kernel_init(void)
     if (!opts) printk("/bootopts not found or wrong format\n");
 #endif
 
-    kernel_banner(base, end);
+#ifdef CONFIG_FARTEXT_KERNEL
+    /* add .farinit.init section to main memory free list */
+    seg_t     init_seg = ((unsigned long)(void __far *)__start_fartext_init) >> 16;
+    seg_t s = init_seg + (((word_t)(void *)__start_fartext_init + 15) >> 4);
+    seg_t e = init_seg + (((word_t)(void *)  __end_fartext_init + 15) >> 4);
+    debug("init: seg %04x to %04x size %04x (%d)\n", s, e, (e - s) << 4, (e - s) << 4);
+    seg_add(s, e);
+#else
+    seg_t s = 0, e = 0;
+#endif
+
+    kernel_banner(base, end, s, e - s);
 }
 
-static void INITPROC kernel_banner(seg_t start, seg_t end)
+static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra)
 {
 #ifdef CONFIG_ARCH_IBMPC
     printk("PC/%cT class machine, ", (sys_caps & CAP_PC_AT) ? 'A' : 'X');
@@ -166,15 +179,15 @@ static void INITPROC kernel_banner(seg_t start, seg_t end)
            system_utsname.release,
            (unsigned)_endtext, (unsigned)_endftext, (unsigned)_enddata,
            (unsigned)_endbss - (unsigned)_enddata, heapsize);
-    printk("Kernel text at %x:0000, ", kernel_cs);
+    printk("Kernel text %x:0, ", kernel_cs);
 #ifdef CONFIG_FARTEXT_KERNEL
-    printk("ftext %x:0000, ", (unsigned)((long)kernel_init >> 16));
+    printk("ftext %x:0, init %x:0, ", (unsigned)((long)kernel_init >> 16), init);
 #endif
-    printk("data %x:0000, top %x:0, %uK free\n",
-           kernel_ds, end, (int) ((end - start) >> 6));
+    printk("data %x:0, top %x:0, %uK free\n",
+           kernel_ds, end, (int) ((end - start + extra) >> 6));
 }
 
-static void try_exec_process(const char *path)
+static void INITPROC try_exec_process(const char *path)
 {
     int num;
 
@@ -182,8 +195,7 @@ static void try_exec_process(const char *path)
     if (num) printk("Can't run %s, errno %d\n", path, num);
 }
 
-/* this procedure runs in user mode as task 1*/
-static void init_task(void)
+static void INITPROC do_init_task(void)
 {
     int num;
     const char *s;
@@ -224,6 +236,13 @@ static void init_task(void)
     try_exec_process("/bin/sash");
     panic("No init or sh found");
 }
+
+/* this procedure runs in user mode as task 1*/
+static void init_task(void)
+{
+    do_init_task();
+}
+
 
 #ifdef CONFIG_BOOTOPTS
 static struct dev_name_struct {
@@ -304,7 +323,7 @@ static int INITPROC parse_dev(char * line)
 	return (base + atoi(line));
 }
 
-static void comirq(char *line)
+static void INITPROC comirq(char *line)
 {
 #if defined(CONFIG_ARCH_IBMPC) && defined(CONFIG_CHAR_DEV_RS)
 	int i;
@@ -325,7 +344,7 @@ static void comirq(char *line)
 #endif
 }
 
-static void parse_nic(char *line, struct netif_parms *parms)
+static void INITPROC parse_nic(char *line, struct netif_parms *parms)
 {
     char *p;
 
@@ -349,7 +368,7 @@ static void parse_nic(char *line, struct netif_parms *parms)
  * This routine also checks for options meant for the kernel.
  * These options are not given to init - they are for internal kernel use only.
  */
-static int parse_options(void)
+static int INITPROC parse_options(void)
 {
 	char *line = (char *)options;
 	char *next;
@@ -442,11 +461,23 @@ static int parse_options(void)
 			continue;
 		}
 		if (!strncmp(line,"bufs=",5)) {
-			boot_bufs = (int)simple_strtol(line+5, 10);
+			L2_bufs = (int)simple_strtol(line+5, 10);
+			continue;
+		}
+		if (!strncmp(line,"cache=",6)) {
+			nr_mapbufs = (int)simple_strtol(line+6, 10);
 			continue;
 		}
 		if (!strncmp(line,"comirq=",7)) {
 			comirq(line+7);
+			continue;
+		}
+		if (!strcmp(line,"strace")) {
+			tracing |= TRACE_STRACE;
+			continue;
+		}
+		if (!strcmp(line,"kstack")) {
+			tracing |= TRACE_KSTACK;
 			continue;
 		}
 		if (!strncmp(line,"TZ=",3)) {

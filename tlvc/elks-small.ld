@@ -6,6 +6,7 @@ SECTIONS {
 		KEEP (*(".inithead!"))
 		KEEP (*(SORT (".preinit!*") SORT (".preinit.*!")))
 		KEEP (*(SORT (".init!*") SORT (".init.*!")))
+		KEEP (*(SORT (".postinit!*") SORT (".postinit.*!")))
 		KEEP (*(".inittail!"))
 		*(".text!*" ".text.*!")
 		KEEP (*(".finihead!"))
@@ -16,6 +17,7 @@ SECTIONS {
 		KEEP (*(.inithead .inithead$))
 		KEEP (*(.preinit SORT (.preinit$*) SORT (".preinit.*[^&]")))
 		KEEP (*(.init SORT (.init$*) SORT (".init.*[^&]")))
+		KEEP (*(.postinit SORT (.postinit$*) SORT (".postinit.*[^&]")))
 		KEEP (*(.inittail .inittail$))
 		*(.text .text$* ".text.*[^&]")
 		KEEP (*(.finihead .finihead$))
@@ -26,6 +28,7 @@ SECTIONS {
 		KEEP (*(".inithead&"))
 		KEEP (*(SORT (".preinit&*") SORT (".preinit.*&")))
 		KEEP (*(SORT (".init&*") SORT (".init.*&")))
+		KEEP (*(SORT (".postinit&*") SORT (".postinit.*&")))
 		KEEP (*(".inittail&"))
 		*(".text&*" ".text.*&")
 		KEEP (*(".finihead&"))
@@ -44,9 +47,17 @@ SECTIONS {
 		 * IA-16 segment start markers.
 		 */
 		*(".fartext!*" ".fartext.*!")
+		"__start_fartext_init!" = .;
+		"__end_fartext_init!" = .;
 
 		/* Actual segment contents. */
-		*(.fartext .fartext$* ".fartext.*[^&]")
+		/* *(.fartext .fartext$* ".fartext.*[^&]") */
+
+		*(.fartext .fartext.
+		".fartext.[^i]*" ".fartext.i[^n]*" ".fartext.in[^i]*" ".fartext.ini[^t]*")
+		 __start_fartext_init = .;
+		*(.fartext .fartext.init)
+		__end_fartext_init = .;
 
 		/* IA-16 segment end markers. */
 		*(".fartext&*" ".fartext.*&")

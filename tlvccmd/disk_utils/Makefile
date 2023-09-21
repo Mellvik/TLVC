@@ -10,7 +10,7 @@ include $(BASEDIR)/Make.rules
 
 ###############################################################################
 
-PRGS = ramdisk mkfs mkfat fsck partype fdisk
+PRGS = ramdisk mkfs mkfat fsck partype fdisk df
 
 SPRGS=mkfs
 
@@ -27,6 +27,9 @@ fsck: fsck.o
 
 fdisk: fdisk.o
 	$(LD) $(LDFLAGS) -o fdisk fdisk.o $(LDLIBS)
+
+df: df.o $(TINYPRINTF)
+	$(LD) $(LDFLAGS) -o df df.o $(TINYPRINTF) $(LDLIBS)
 
 mkfs: mkfs.o $(TINYPRINTF)
 	$(LD) $(LDFLAGS) -o mkfs mkfs.o $(TINYPRINTF) $(LDLIBS)

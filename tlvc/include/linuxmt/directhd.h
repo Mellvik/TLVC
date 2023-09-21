@@ -53,7 +53,6 @@
 #define ATA_ERR_BBK	0x80	/* Bad Block mark detected */
 
 /* Per drive config settings */
-#define ATA_CFG_NMULT	0x01	/* multi r/w NOT supported */
 #define ATA_CFG_INT	0x02	/* Interrupts in use for drive */
 #define ATA_CFG_SSD	0x04	/* drive is solid state */
 #define ATA_CFG_OLDIDE	0x10	/* Old IDE drive w/ limited cmd set */

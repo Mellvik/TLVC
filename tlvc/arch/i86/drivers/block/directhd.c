@@ -64,6 +64,7 @@
 
 #define STATUS(port) inb_p((port) + ATA_STATUS)
 #define ERROR(port) inb_p((port) + ATA_ERROR)
+#define SECTOR(port) inb_p((port) + ATA_SECTOR)
 #define WAITING(port) ((STATUS(port) & BUSY_STAT) == BUSY_STAT)
 #define DRQ_WAIT(port) (STATUS(port) & DRQ_STAT) /* set when ready to transfer */
 
@@ -77,7 +78,8 @@
 __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 
 
-#define USE_MULTISECT_IO	/* Enable multisector R/W */
+#define USE_MULTISECT_IO	/* Enable/disable multisector R/W - for debugging */
+//#define USE_INTERRUPTS		/* EXPERIMENTAL - test interupts */
 #define OLD_IDE_DELAY 1000	/* delay required for old drives, system dependent */
 #define DEBUG
 
@@ -132,6 +134,7 @@ static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 static void directhd_geninit();
 static void reset_controller(int);
 static int drive_busy(int);
+static void directhd_int(int, struct pt_regs *);
 
 static struct gendisk directhd_gendisk = {
     MAJOR_NR,			/* major: major number */
@@ -170,11 +173,6 @@ void directhd_geninit(void)
     return;
 }
 
-/*
- * FIXME Maybe we can merge all this stuff into one piece of code thet handles 
- * all conditions? With the possible exception of moving data into XMS buffers...
- */
-
 /* assumes current data segment - which is kernel_ds */
 void insw(unsigned int port, word_t *buffer, int count)
 {
@@ -190,70 +188,23 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 {
 
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF) /* use bounce buffer */
-    if (!raw) {				// FIXME: Fix indentation
-    while (count) {
-	int chars = (count > BLOCK_SIZE)? BLOCK_SIZE : count;
-
-	insw(port, (word_t *)localbuf, chars);
-	printk("insw %d %04x %04x %04x;", chars, localbuf, buffer, *(word_t *)localbuf);
-#ifdef CONFIG_FS_XMS_BUFFER
-	xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, chars/2);
-#else
-	fmemcpyw(buffer, seg, localbuf, kernel_ds, chars/2);
-#endif
-	count -= chars;
-	buffer += chars/2; 
-    }
+    if (!raw) {	
+	insw(port, (word_t *)localbuf, count);
+	//printk("insw %d %04x %04x %04x;", count, localbuf, buffer, *(word_t *)localbuf);
+	xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
     } else
 #endif
     {
 
-    unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
+	unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 
-    count >>= 1;	/* bytes -> words */
-    //printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
-    do {
-	*locbuf++ = inw(port);
-    } while (--count);
+	count >>= 1;	/* bytes -> words */
+	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
+	do {
+	    *locbuf++ = inw(port);
+	} while (--count);
     }
-    
 }
-
-#if 0
-
-/* this _should_ work on an 8088/86 now, but I haven't tested it yet */
-
-void insw(unsigned int port,unsigned int *buffer,int count)
-{
-#asm
-	push	bp
-	mov	bp, sp
-	push	cx
-	push	di
-	push	dx
-	mov	dx, [bp + 04]
-	mov	di, [bp + 06]
-	mov	cx, [bp + 08]
-	shr	cx, 1
-	cld
-#ifndef CONFIG_PC_XT
-	repz
-	insw
-#else
-			/* this should work on an 8088 */
-dhd_insw_loop:
-	in	ax, dx
-	stosw
-	loop	dhd_insw_loop
-#endif
-	pop	dx
-	pop	di
-	pop	cx
-	pop	bp
-#endasm
-}
-
-#endif
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
 
@@ -264,7 +215,6 @@ void outsw(unsigned int port, word_t *buffer, int count)
     count >>= 1;
     //printk("%04x:", buffer);
     for (i = 0; i < count; i++) {
-	//if (i < 16) printk("%04x|", buffer[i]); else printk("%d!",i);
 	outw(buffer[i], port);
     }
     return;
@@ -275,70 +225,21 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
 {
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
 
-    int chars;
-
     if (!raw) {
-    while (count) {
-	chars = (count > BLOCK_SIZE) ? BLOCK_SIZE : count;
-#ifdef CONFIG_FS_XMS_BUFFER
-	xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, chars/2);
-#else
-	fmemcpyw(localbuf, kernel_ds, buffer, seg, chars/2);
-#endif
-	outsw(port, (word_t *)localbuf, chars);
-	count -= chars;
-	buffer += chars/2;
-    }
+	xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+	outsw(port, (word_t *)localbuf, count);
     } else 
 #endif
     {
-    unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
+	unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 
-    count >>= 1;
-    //printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
-    do {
-	outw(*locbuf++, port);
-    } while (--count);
+	count >>= 1;
+	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
+	do {
+	    outw(*locbuf++, port);
+	} while (--count);
     }
 }
-
-
-#if 0
-
-/* the assembler version. Again, this should work,
- * but I haven't had a chance to test it yet.
- */
-
-void outsw(unsigned int port,unsigned int *buffer,int count)
-{
-#asm
-	push	bp
-	mov	bp, sp
-	push	cx
-	push	si
-	push	dx
-	mov	dx, [bp + 04]
-	mov	si, [bp + 06]
-	mov	cx, [bp + 08]
-	shr	cx, 1
-	cld
-#ifndef CONFIG_PC_XT
-	repz
-	outsw
-#else
-dhd_outsw_loop:		/* this should work on an 8088 */
-	lodsw
-	out	dx, ax
-	loop	dhd_outsw_loop
-#endif
-	pop	dx
-	pop	si
-	pop	cx
-	pop	bp
-#endasm
-}
-
-#endif
 
 #if 0				/* not used */
 
@@ -410,8 +311,7 @@ int INITPROC directhd_init(void)
     /* note, however, that this breaks (hangs) if you don't have two IDE interfaces
      * in your computer. If you only have one, change the 4 to a 2.
      * (this explains why your computer was locking up after mentioning the
-     * serial port, doesn't it? :-) -- Alastair Bridgewater */
-    /* this should work now, IMO - Blaz Antonic */
+     */
     /* "If Drive 1 is not detected as being present, Drive 0 clears the Drive
      * 1 Status Register to 00h." From the spec. Making ST=0 a safe indication of
      * non presence.
@@ -431,7 +331,6 @@ int INITPROC directhd_init(void)
 	/* wait -- if status is 0xff, there is no drive with this number */
 	mdelay(OLD_IDE_DELAY);
 	i = STATUS(port);
-	//printk("st%x;", i);
 	if (!i || (i & 1) == 1) { /* this one may not be safe FIXME */
 	    /* error - drive not found or non-ide */
 
@@ -448,7 +347,7 @@ int INITPROC directhd_init(void)
 #if 0
 	swap_order(buffer, 512);
 #endif
-	/* Gather useful info - note that text bytes are swapped.
+	/* Gather useful drive info - note that text bytes are swapped.
 	 *
 	 * Safety check - check for heads returned and assume CD
 	 * if we get typical CD response .. this is a good place for
@@ -468,13 +367,13 @@ int INITPROC directhd_init(void)
 	 *
 	 * This is some sort of bugfix, we will use same method as real Linux -
 	 * work with disk geometry set in current translation mode (54-56) if valid (53)
-	 * rather than physical drive info. Old drives have only physical, which may
-	 * be misleading: The copnmfigured BIOS drive type's CHS mapping may be different.
+	 * rather than physical drive info. Also, old drives have only physical, which may
+	 * even be misleading: The configured BIOS drive type's CHS mapping may be different.
 	 * E.g the Compaq drive type 17 (conner 42MB) reports 806/4/26 while the BIOS
 	 * values are 980/5/17. Both work, but aren't interchangeable, so the BIOS value 
 	 * wins for compatibility with other OSes. How do we get those values (not using
-	 * a BIOS call)? The most flexible way seems to be a bootopts setting: Like
-	 * CHS0=960,5,17,128 - the latter being the WPCOM, which is significant for 
+	 * a BIOS call)? Probably a bootopts setting: Like CHS0=960,5,17,128 - the latter 
+	 * being the WPCOM - write precompensation, which may be significant for 
 	 * drives that old. (HS)
 	 */
 
@@ -482,51 +381,54 @@ int INITPROC directhd_init(void)
 	dp->ctl = 0;
 #ifdef DEBUG
 	dump_ide(ide_buffer, 64);
-	ide_buffer[20] = 0; /* String termination */
 	//ide_buffer[53] = 0; /* force old ide behaviour for debug */
 #endif
+	ide_buffer[20] = 0; /* String termination */
 	if ((ide_buffer[54] < 34096) && (*ide_buffer != 0)) {
-	    /* Physical CHS data @ (word) offsets: cyl=1, heads=3, sectors=6 */
-	    /* Actual CHS data @ (word) offsets: cyl=54, heads=55, sectors=56 */
+	    /* Physical CHS data @ (word) offsets: cyl@1, heads@3, sectors@6 */
+	    /* Actual CHS data @ (word) offsets: cyl@54, heads@55, sectors@56 */
 
+	    dp->multio_max = ide_buffer[47] & 0xff; /* max sectors per multi io op */
+	    					    /* zero if unsupported */
 	    if (ide_buffer[53]&1) {	/* check the 'validity bit'. If set, use 
 	    				 * 'current' values, otherwise defaults.
 					 * Usually indicates old vs new tech. */
 		dp->cylinders = ide_buffer[54];
 		dp->heads = ide_buffer[55];
 		dp->sectors = ide_buffer[56];
-		dp->MAX_ATA_SPIO = ide_buffer[47] & 0xff; /* max sectors per multi io op */
 	    } else {		/* old drive, limited ID, limited cmd set */
+/* !!!!!!!!!!!!!!!!!!!  FIXME: hardcoded values for debugging, remove later */
 		dp->cylinders = 980/*ide_buffer[1]*/;
 		dp->heads = 5/*ide_buffer[3]*/;
 		dp->sectors = 17/*ide_buffer[6]*/;
-		dp->MAX_ATA_SPIO = 1;
-		dp->ctl |= ATA_CFG_OLDIDE|ATA_CFG_NMULT; /* old implies no-multi */
+		dp->ctl |= ATA_CFG_OLDIDE;
 	    }
 
 	    hdcount++;
 	    printk("IDE CHS: %d/%d/%d serial# %s\n", dp->cylinders, dp->heads, dp->sectors,
 		&ide_buffer[10]);
 
-	    /* Initialize settings, some (old in particular) drives need this
+	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
 	    /* NOTE: In older docs this cmd is known as 'Initialize Drive Parameters' */
 	    out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
 	    while(WAITING(port)) mdelay(1000);
 	    if (STATUS(port) & ERR_STAT) printk("err %x;", ERROR(port)); /* DEBUG */
 
-#ifdef USE_MULTISECT_IO
-	    if (dp->MAX_ATA_SPIO > 1) {
+#ifdef USE_MULTISECT_IO	
+	    if (dp->multio_max) {
 		/* Set multiple IO mode, default to 2 sectors per op - if available */
-		out_hd(drive, 2, 0, 0, 0, ATA_SET_MULT);
+		/* EDIT: set to max always, experimental */
+		out_hd(drive, dp->multio_max, 0, 0, 0, ATA_SET_MULT);
 		while (WAITING(port));
-		if (!(STATUS(port) & ERR_STAT)) 
-		    printk("athd%d: Multisector I/O, max %d sects\n", drive, dp->MAX_ATA_SPIO);
-		else
-		    dp->ctl |= ATA_CFG_NMULT;
-	    } else
+		if (!(STATUS(port) & ERR_STAT)) {
+		    printk("athd%d: Multisector I/O, max %d sects\n", drive, dp->multio_max);
+		} else {
+		    printk("athd%d: Multisector I/O failed (%x), turned off\n", ERROR(port));
+		    dp->multio_max = 0;
+		}
+	    }
 #endif	/* USE_MULTISECT_IO */
-	    dp->ctl |= ATA_CFG_NMULT;
 
 	    //printk("athd%d: IDE data 47-49: %04x, %04x, %04x\n", drive, 
 		//ide_buffer[47], ide_buffer[48], ide_buffer[49]);
@@ -547,6 +449,22 @@ int INITPROC directhd_init(void)
 	return -1;
     }
 
+#ifdef USE_INTERRUPTS	/* Experimental */
+    /* TEST this on 8 bit bus machines! (irq 5) */
+    /* On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
+    int got_irq = HD1_AT_IRQ;
+    printk("athd: Interrupt registration: ");
+    if (request_irq(got_irq, directhd_int, INT_GENERIC)) {
+	got_irq = HD_IRQ;
+	if (request_irq(got_irq, directhd_int, INT_GENERIC))
+	    got_irq = 0;
+    }
+    if (got_irq)
+    	printk("%d\n", got_irq);
+    else
+    	printk("failed\n");
+#endif
+
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
     if (gendisk_head == NULL) {
 	directhd_gendisk.next = gendisk_head;
@@ -563,20 +481,18 @@ int INITPROC directhd_init(void)
     for (i = 0; i < 4; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
-	    printk("athd: /dev/dhd%c: %d heads, %d cylinders, %d sectors\n",
+	    printk("athd: /dev/dhd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
 		   (i + 'a'),
 		   drive_info[i].heads,
-		   drive_info[i].cylinders, drive_info[i].sectors);
+		   drive_info[i].cylinders, drive_info[i].sectors,
+		   (((__u32)drive_info[i].heads*(__u32)drive_info[i].cylinders*
+		     (__u32)drive_info[i].sectors)>>1)/1000);
 	}
 
     directhd_initialized = 1;
-
     return 0;
 }
 
-/* why is arg unsigned int here if it's used as hd_geometry later ?
- * one of joys of K&R ? Someone please answer ...
- */
 int directhd_ioctl(struct inode *inode, struct file *filp,
 		unsigned int cmd, unsigned int arg)
 {
@@ -593,7 +509,7 @@ int directhd_ioctl(struct inode *inode, struct file *filp,
     switch (cmd) {
     case HDIO_GETGEO:
 	/* safety check .. i presume :) */
-	err = verify_area(VERIFY_WRITE, arg, sizeof(struct hd_geometry));
+	err = verify_area(VERIFY_WRITE, (void *)arg, sizeof(struct hd_geometry));
 	if (err)
 	    return err;
 	put_user_char(drive_info[dev].heads, &loc->heads);
@@ -642,10 +558,14 @@ int directhd_open(struct inode *inode, struct file *filp)
 void directhd_release(struct inode *inode, struct file *filp)
 {
     int target = DEVICE_NR(inode->i_rdev);
+    kdev_t dev = inode->i_rdev;
 
     access_count[target]--;
-
-    /* nothing really to do */
+    fsync_dev(dev);			/* cannot trust umount to do this */
+    if (!access_count[target]) {	/* don't do this if raw device */
+	invalidate_buffers(dev);
+	invalidate_inodes(dev);
+    }
 
     return;
 }
@@ -657,7 +577,6 @@ void directhd_release(struct inode *inode, struct file *filp)
 void do_directhd_request(void)
 {
     unsigned int count;		/* # of sectors to read/write */
-    unsigned int this_pass;		/* # of sectors read/written */
     sector_t start;		/* first sector */
     unsigned char *buff;	
     short sector;		/* 1 .. 63 ? */
@@ -678,7 +597,8 @@ void do_directhd_request(void)
 
 	if (directhd_initialized != 1) {
 	    end_request(0);
-	    continue;
+	    //continue;		/* no reason to continue */
+	    return;
 	}
 
 	minor = MINOR(req->rq_dev);
@@ -705,158 +625,120 @@ void do_directhd_request(void)
 
 	start = req->rq_blocknr;
 	buff = req->rq_buffer;
-
 	/* safety check should be here */
 	//debug_blkdrv("dhd[%04x]: start: %lu nscts: %lu\n", req->rq_dev,
 			//hd[minor].start_sect, hd[minor].nr_sects);
 #ifdef DEBUG
-#ifdef CONFIG_FS_XMS_BUFFER
-	//printk("BF: %lx:%04x;", req->rq_seg, buff);
-#else
-	//printk("BF: %x:%04x;", req->rq_seg, buff);
-#endif
+	//printk("BF: %lx:%04x;", (unsigned long)req->rq_seg, buff);
 #endif
 
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {
-	    printk("Bad partition start\n");
+	    printk("Bad partition start or block out of bounds: %lu\n", start);
 	    end_request(0);
 	    break;
 	}
+	/* may want to check for count = 1 - some drives don't like 1 sector in multi_mode */
 	if (req->rq_cmd == READ) {
-#ifdef USE_MULTISECT_IO
-	    cmd = (dp->ctl&ATA_CFG_NMULT)? ATA_READ : ATA_READM; 
-#else
-	    cmd = ATA_READ;
-#endif
-	    port_io = read_data;
+	    cmd = (!dp->multio_max)? ATA_READ : ATA_READM; 
+	    PORT_IO = read_data;
 	} else {
-#ifdef USE_MULTISECT_IO
-	    cmd = (dp->ctl&ATA_CFG_NMULT)? ATA_WRITE : ATA_WRITEM;
-#else
-	    cmd = ATA_WRITE;
-#endif
-	    port_io = write_data;
+	    cmd = (!dp->multio_max)? ATA_WRITE : ATA_WRITEM;
+	    PORT_IO = write_data;
 	}
 
 	start += hd[minor].start_sect;
 
-	while (count > 0) {
-	    sector = (start % dp->sectors) + 1;
-	    tmp = start / dp->sectors;
-	    head = tmp % dp->heads;
-	    cylinder = tmp / dp->heads;
-	    port = io_ports[drive / 2];
-
-	    /* Handle requests spanning tracks, ie. in need of head change.
-	     * Surprisingly, IDE READ and WRITE commands don't automatically 
-	     * change head or cylinder when multiple sectors are requested.
-	     */
-
-	    if (count <= (dp->sectors - sector + 1))
-		this_pass = count;
-	    else
-		this_pass = dp->sectors - sector + 1;
-
-	    //printk("IOPa %x;", STATUS(port));
-#ifdef USE_MULTISECT_IO
-	    if (!(dp->ctl & ATA_CFG_NMULT)) {	/* We're running multisector IO */
-		this_pass = (this_pass > dp->MAX_ATA_SPIO) ? dp->MAX_ATA_SPIO : this_pass;
-
-	    	//printk("IOPb %x;", STATUS(port));
-		while (WAITING(port));
-		out_hd(drive, this_pass, 0, 0, 0, ATA_SET_MULT);
-		while (WAITING(port));
-		if (ERROR(port) & ATA_ERR_ABRT) {
-			/* The drive doesn't support the nmbr requested
-			 * in this_pass, do a single sector and try again. Acceptable
-			 * numbers are drive dependent (usually powers of 2), so we'll 
-			 * just try and fail which is faster and smaller than some
-			 * smart logic. Enable the printk below
-			 * and do a 'dd bs=9b ... ' (or 12b) to see how this
-			 * works. It's interesting. */
-		    //printk("athd%d: multi-IO err %d\n", drive, this_pass);
-		    this_pass = 1;
-	    	    out_hd(drive, this_pass, 0, 0, 0, ATA_SET_MULT);
-		}
-	    }
-#endif
+	sector = (start % dp->sectors) + 1;
+	tmp = start / dp->sectors;
+	head = tmp % dp->heads;
+	cylinder = tmp / dp->heads;
+	port = io_ports[drive / 2];
 
 #ifdef DEBUG
-#ifdef CONFIG_FS_XMS_BUFFER
-	    debug_blkdrv("athd%d: cyl: %d hd: %d sec: %u st: %lu cnt: %d buf: %04x seg: %08lx\n",
-		 drive, cylinder, head, sector, start, this_pass, buff, req->rq_seg);
-#else
-	    debug_blkdrv("athd%d: cyl: %d hd: %d sec: %u st: %lu cnt: %d buf: %04x seg: %04x\n",
-		 drive, cylinder, head, sector, start, this_pass, buff, req->rq_seg);
-#endif
+	//printk("IOPa %x;", STATUS(port));
+	debug_blkdrv("athd%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %04x/%c\n",
+		 drive, cylinder, head, sector, start, count, buff, 
+		(unsigned long)req->rq_seg, *(int *)buff, req->rq_cmd == READ? 'R' :'W');
 #endif
 
-	    /* Send drive parameters */
-	    /* NOTE: Ideally we should check that the drive is ready to take commands
-	     * before issuing one. However, if the previous transaction (command) was
-	     * with the other drive, that's the source we're getting status from.
-	     * So we issue the command and do the extra error checking instead. */
-	    /* BTW - on old drives, where this is an issue, there is no NOOP cmd
-	     * and thus no reasonable way to switch drive selection to the other unit
-	     * except issuing a regular command. A non existing command would do, 
-	     * but that's time consuming. */
-	    out_hd(drive, this_pass, sector, head, cylinder, cmd);
+	/* Send drive parameters */
 
-	    //printk("IOP1 %x;", STATUS(port));
-	    while (WAITING(port)) mdelay(delay);
-	    if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
-		printk("athd: RD status: 0x%x error: 0x%x\n", STATUS(port), ERROR(port));
- 		end_request(0);
-		break;
-	    }
-	    //printk("IOP2;");
-	    tmp = 0x00;
-	    while ((tmp & DRQ_STAT) != DRQ_STAT) {
+	/* NOTE: Ideally we should check that the drive is ready to take commands
+	 * before issuing one. However, if the previous transaction (command) was
+	 * with a different drive, that's the source we're getting status from.
+	 * So we issue the command and do the extra error checking instead. */
+
+	/* BTW - on old drives, where this is an issue, there is no NOOP cmd
+	 * and thus no reasonable way to switch drive selection to the other unit
+	 * except issuing a regular command. A non existing command would do, 
+	 * but that's time consuming - and not neccessarily predictable. */
+
+	out_hd(drive, count, sector, head, cylinder, cmd);
+
+	//printk("IOP1 %x;", STATUS(port));
+	while (WAITING(port)) mdelay(delay);
+
+	if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
+		printk("athd: IO status: 0x%x error: 0x%x CHS[%u/%u/%u]\n",
+			STATUS(port), ERROR(port), cylinder, head, SECTOR(port));
+		end_request(0);
+		return;
+	}
+	/* Wait for DRQ to trigger the actual IO */
+	tmp = 0x00;
+	while ((tmp & DRQ_STAT) != DRQ_STAT) {
 		if ((tmp & ERR_STAT) == ERR_STAT) {
 		    printk("athd: RD DRQ status: 0x%x error: 0x%x\n",
 			       STATUS(port), ERROR(port));
 		    end_request(0);
-		    break;
+		    return;
 		} else {
 		    tmp = STATUS(port);
 		    //debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
 		}
-	    }
-#define raw_flag tmp
-#ifdef CONFIG_BLK_DEV_CHAR
-	    if (req->rq_nr_sectors) raw_flag = 1; /* flag raw IO */
-	    else
-#endif
-	    raw_flag = 0;
-	    /* Do the I/O, either individual sectors or the whole shebang.
-	     * FIXME: Add error checking below. How do we report errors back to the caller?
-	     */
-	    if (dp->ctl & ATA_CFG_NMULT) {
-		int k = 0, l;
-		while (1) {
-	    		//printk("IOP3;");
-			port_io(port, req->rq_seg, (word_t *)(buff+(k<<9)), 512, raw_flag);
-			while(WAITING(port)) l++;	/* dummy increment */
-			if (STATUS(port) & ERR_STAT) {
-				/* Older drives may develop bad sectors,
-				 * and other problems - that's a hard error */
-				printk("athd%d: hard IO error %x\n", drive, ERROR(port));
-				end_request(0);
-				return;
-			}
-			if (++k == this_pass) break;
-			while (!DRQ_WAIT(port));
-		}
-	    } else {
-		port_io(port, req->rq_seg, (word_t *)buff, this_pass*512, raw_flag);
-		if (STATUS(port)&ERR_STAT) 
-			printk("athd%d multisector R/W error %x\n", drive, ERROR(port));
-	    }
-
-	    count -= this_pass;
-	    start += this_pass;
-	    buff += this_pass * 512;
 	}
+#define raw_mode tmp
+#ifdef CONFIG_BLK_DEV_CHAR
+	if (req->rq_nr_sectors)
+		raw_mode = 1; /* flag raw IO */
+	else
+#endif
+		raw_mode = 0;
+
+	/*
+	 * Do the I/O. IDE will accept sector count up to 256, and will interrupt
+	 * per sector in 'normal' mode, per block in multi_io mode. The block size is 
+	 * set via the SET_MULTIPLE command, we use the max number allowed by the drive.
+	 * Requesting fewer the the block size is OK.
+	 */
+
+	int blksize = dp->multio_max ? dp->multio_max : 1;	/* 1 or max */
+	int requested = count, l;
+
+	do {
+	    	int step = requested < blksize ? requested : blksize;
+
+	    	//printk("doIO %d;", step*512);
+		while (!DRQ_WAIT(port));
+		PORT_IO(port, req->rq_seg, (word_t *)buff, step*512, raw_mode);
+		while(WAITING(port)) l++;	/* dummy increment */
+	    	//printk("gotIO %x/%04x;", STATUS(port), *(int *)buff);
+		if (STATUS(port) & ERR_STAT) {
+		    /* May want the full CHS here */
+		    printk("athd%d multisector R/W error %x sector %d\n", drive,
+		    	ERROR(port), SECTOR(port));
+		    /* Older drives may develop bad sectors,
+		     * and other problems - that's a hard error:
+		     * The drive has already retried a number of times. */
+		    end_request(0);
+		    return;
+		}
+		buff += step<<9;
+		requested -= step;
+	} while (requested);
+
+	//printk("ATHD: bl %lu/%04x/%d/%04x/%c\n", start/2, *(int *)buff, count, 
+		//req->rq_bh, req->rq_cmd == READ? 'R' :'W');
 	end_request(1);
     }
     return;
@@ -873,11 +755,20 @@ static void reset_controller(int controller)
 	outb_p(4, cport);		/* reset controller */
 	mdelay(3000);
 	//outb(hd_info[0].ctl & 0x0f, HD1_CMD);
-	outb_p(2, cport);		/* Change this to enable interrupts */
+#ifdef USE_INTERRUPTS
+	outb_p(0, cport);		/* enable interrupts */
+#else
+	outb_p(2, cport);		/* Remove reset signal, disable interrupts */
+#endif
 	if ((i = drive_busy(io_ports[controller])))
 		printk("athd%i: still busy (%x)\n", controller, i);
 	if ((i = ERROR(io_ports[controller])) != 1)
 		printk("athd%i: Reset failed: %02x\n", controller, i);
+}
+
+static void directhd_int(int unused, struct pt_regs *unused1)
+{
+	printk("X");
 }
 
 /*

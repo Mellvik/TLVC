@@ -29,9 +29,9 @@
  */
 #define DEBUG_EVENT	1		/* generate debug events on CTRLP*/
 #define DEBUG_STARTDEF	0		/* default startup debug display*/
-#define DEBUG_BLKDRV	1		/* Disk/floppy drivers */
+#define DEBUG_BLKDRV	0		/* Disk/floppy drivers */
 #define DEBUG_RAW	1		/* Raw disk/floppy I/O */
-#define DEBUG_BLK	1		/* block level i/o*/
+#define DEBUG_BLK	0		/* block level i/o*/
 #define DEBUG_ETH	0		/* ethernet*/
 #define DEBUG_FAT	0		/* FAT filesystem*/
 #define DEBUG_FILE	0		/* sys open and file i/o*/
@@ -39,15 +39,15 @@
 #define DEBUG_MM	0		/* mem char device*/
 #define DEBUG_SCHED	0		/* scheduler/wait*/
 #define DEBUG_SIG	0		/* signals*/
-#define DEBUG_SUP	0		/* superblock, mount, umount*/
+#define DEBUG_SUP	1		/* superblock, mount, umount*/
 #define DEBUG_TTY	0		/* tty driver*/
 #define DEBUG_TUNE	0		/* tunable debug statements*/
 #define DEBUG_WAIT	0		/* wait, exit*/
 
 #if DEBUG_EVENT
-void dprintk(char *, ...);		/* printk when debugging on*/
-void debug_event(void);			/* generate debug event*/
-void debug_setcallback(void (*cbfunc)()); /* callback on debug event*/
+void dprintk(const char *, ...);		/* printk when debugging on*/
+void debug_event(int evnum);            /* generate debug event*/
+void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*/
 #define PRINTK		dprintk
 #else
 #define PRINTK		printk

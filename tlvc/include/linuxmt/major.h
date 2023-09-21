@@ -7,7 +7,7 @@
 
 /* limits */
 
-#define MAX_CHRDEV 13	/* highest numbered device + 1 */
+#define MAX_CHRDEV 12	/* highest numbered device + 1 */
 #define MAX_BLKDEV  8
 
 /*
@@ -35,7 +35,6 @@
  *  9 - /dev/eth                                      NIC drivers
  * 10 - /dev/cgatext
  * 11 - /dev/ptyp				      char pty master
- * 12 - /dev/ttyaux				      What is this?
  */
 
 
@@ -43,17 +42,16 @@
 
 #define UNNAMED_MAJOR     0
 #define MEM_MAJOR         1
-#define PTY_MASTER_MAJOR  11
+#define RAW_FLOPPY_MAJOR  2
 #define PTY_SLAVE_MAJOR   3
 #define TTY_MAJOR         4
-#define TTYAUX_MAJOR      12
+#define RAW_HD_MAJOR	  5
 #define LP_MAJOR          6
 #define UDD_MAJOR         7
 #define TCPDEV_MAJOR      8
 #define ETH_MAJOR         9  /* should be rather a network-class driver */
 #define CGATEXT_MAJOR     10
-#define RAW_FLOPPY_MAJOR  2
-#define RAW_HD_MAJOR	  5
+#define PTY_MASTER_MAJOR  11
 
 /* These are the block devices */
 
