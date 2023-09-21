@@ -6,6 +6,7 @@
 #include <linuxmt/kdev_t.h>
 #include <linuxmt/genhd.h>
 #include <linuxmt/config.h>
+#include <linuxmt/trace.h>
 
 /*
  * Ok, this is an expanded form so that we can use the same
@@ -63,25 +64,22 @@ struct drive_infot {            /* CHS per drive*/
     int cylinders;
     int sectors;
     int heads;
+#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
     int sector_size;		/* The BIOS HD/flpy driver supports multiple
 				 * sector sizes, the direct drivers do not.
-				 * The direct hd driver use this field to
-				 * hold the max # sectors per
-				 * multipe IO operation */
-#define MAX_ATA_SPIO sector_size
-#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
+				 */
     int fdtype;                 /* floppy fd_types[] index or -1 if hd */
-#else		/* direct HD */
-    int ctl;	/* settings for IDE drives, such as interrupt, LBA mode etc. */
+#endif
+#ifdef CONFIG_BLK_DEV_HD	/* Direct HD driver  */
+    int ctl;	/* settings for IDE drives, such as interrupt enable, LBA mode etc. */
+    unsigned char multio_max;	/* Max # of sectors for multi-io ops for this drive */
+				/* 1 means disabled */
 #endif
 };
 extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
 
 #ifdef CONFIG_BLK_DEV_BHD
 extern unsigned char hd_drive_map[];
-#endif
-#if 0
-extern struct request *raw_req;
 #endif
 
 extern struct blk_dev_struct blk_dev[MAX_BLKDEV];
@@ -117,11 +115,11 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 #endif
 
+extern struct wait_queue wait_for_request; /* testing, used ot be inside FLOPPYDISK */
 #ifdef FLOPPYDISK	/* direct floppy */
 
 static void floppy_on();	/*(unsigned int nr); */
 static void floppy_off();	/*(unsigned int nr); */
-extern struct wait_queue wait_for_request;
 
 #define DEVICE_NAME "df"
 #define DEVICE_INTR do_floppy
@@ -173,7 +171,6 @@ static void end_request(int uptodate)
     register struct buffer_head *bh;
 
     req = CURRENT;
-    //debug_blkdrv("blk.h: ER:%04x;", req);
 
     if (!uptodate) {
 	printk("%s[%04x]: I/O error in block %lu\n", DEVICE_NAME, 
@@ -189,9 +186,6 @@ static void end_request(int uptodate)
 #endif
     }
 
-#ifdef XXXCONFIG_BLK_DEV_CHAR
-    if (req->rq_nr_sectors) {	/* don't do this if raw IO */
-#endif
     bh = req->rq_bh;
 
 #ifdef BLOAT_FS
@@ -199,7 +193,14 @@ static void end_request(int uptodate)
     bh->b_reqnext = NULL;
 #endif
 
-    mark_buffer_uptodate(bh, uptodate);
+    mark_buffer_uptodate(bh, uptodate);	/* DELETE: Must be superfluous */
+    //debug_blkdrv("ER:%04x;", req);
+#if BUFFER_DEBUG
+    __far unsigned int *content;
+    content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer + 0x3fe));
+    printk("ER%04x|%04x|%04x;", req, req->rq_dev, *content);
+#endif
+
     unlock_buffer(bh);
 
 #ifdef BLOAT_FS
@@ -213,12 +214,8 @@ static void end_request(int uptodate)
 	return;
     }
 #endif
-#ifdef XXXCONFIG_BLK_DEV_CHAR
-    }
-#endif
 
     DEVICE_OFF(req->rq_dev);
-    CURRENT = req->rq_next;
 #ifdef BLOAT_FS
     struct task_struct *p;
     if ((p = req->rq_waiting) != NULL) {
@@ -231,33 +228,20 @@ static void end_request(int uptodate)
 
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
-#ifdef XXXCONFIG_BLK_DEV_CHAR
-    if (req->rq_nr_sectors) {
-	req->rq_nr_sectors = 0;
-	wake_up(req);
-	return;
-    }
-#endif
+    CURRENT = req->rq_next;
 #if defined(MULTI_BH) || defined(FLOPPYDISK)
-    //if (MAJOR_NR == 2) printk("WK%04x/%d;", &wait_for_request, current->pid);
     wake_up(&wait_for_request);
 #endif
 }
 
 #endif /* MAJOR_NR */
 
-#ifdef CONFIG_BLK_DEV_CHAR
-#define RAW_DEV_MASK(d) ((d)&0x7fff)
-#else
-#define RAW_DEV_MASK(d) (d)
-#endif
-
 #define INIT_REQUEST(req) \
 	if (!req || req->rq_dev == -1U) \
 		return; \
-	if (MAJOR(RAW_DEV_MASK(req->rq_dev)) != MAJOR_NR) \
+	if (MAJOR(req->rq_dev) != MAJOR_NR) \
 		panic("%s: request list destroyed (%d, %d)", \
-			DEVICE_NAME, MAJOR(RAW_DEV_MASK(req->rq_dev)), MAJOR_NR); \
+			DEVICE_NAME, MAJOR(req->rq_dev), MAJOR_NR); \
 	if (req->rq_bh && !EBH(req->rq_bh)->b_locked) \
 		panic("%s:block not locked", DEVICE_NAME); \
 

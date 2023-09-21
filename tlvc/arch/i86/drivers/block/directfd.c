@@ -1585,10 +1585,10 @@ static void floppy_release(struct inode *inode, struct file *filp)
     kdev_t dev = inode->i_rdev;
 
     DEBUG("df%d release", drive);
-    //fsync_dev(dev);	/* umount takes care og this */
+    fsync_dev(dev);
     DEBUG("\n");
     if (!fd_ref[drive & 3]--) {
-	printk("floppy_release with fd_ref == 0");
+	DEBUG("floppy_release with fd_ref == 0");
 	fd_ref[drive & 3] = 0;
     }
     if (fd_ref[drive & 3] == 0) {

@@ -58,7 +58,8 @@ int rhd_open(register struct inode *inode, struct file *filp)
 void rhd_close(struct inode *inode, struct file *filp)
 {
     //printk("rdh close\n");
-    return(directhd_release(inode, filp));
+    //return(directhd_release(inode, filp));
+    return; 	/* Nothing to do */
 }
 
 /* FIXME change ops struct to point directly to the block driver entries when appropriate */
