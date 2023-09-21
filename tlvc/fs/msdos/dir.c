@@ -55,9 +55,7 @@ struct inode_operations msdos_dir_inode_operations = {
 	NULL,			/* mknod */
 	NULL,			/* readlink */
 	NULL,			/* follow_link */
-#ifdef USE_GETBLK
 	NULL,			/* getblk */
-#endif
 	NULL			/* truncate */
 };
 
@@ -94,8 +92,8 @@ int FATPROC msdos_get_entry_long(
 	off_t oldpos = *pos;	/* location of next directory entry start*/
 	int is_long;
 	unsigned char alias_checksum = 0;
-	/* static not reentrant: conserve stack usage*/
-	static unsigned short unicodename[26+1];	/* Limited to two long entries */
+	/* static not reentrant: conserve stack usage if possible */
+	ASYNCIO_REENTRANT unsigned short unicodename[26+1];	/* Limited to two long entries */
 
 	if ((int)*pos & (sizeof(struct msdos_dir_entry) - 1)) return -ENOENT;
 	is_long = 0;
@@ -153,7 +151,7 @@ int FATPROC msdos_get_entry_long(
 			int i,i2,last;
 			int long_len = 0;
 			unsigned char c;
-			static char longname[14]; /* static not reentrant: conserve stack usage*/
+			ASYNCIO_REENTRANT char longname[14]; /* static if possible, conserve stack usage*/
 
 			if (is_long) {
 				unsigned char sum;
@@ -231,7 +229,7 @@ static int msdos_readdir(struct inode *dir, struct file *filp, char *dirbuf,
 	off_t dirpos;
 	int res, namelen;
 	/* static not reentrant: conserve stack usage*/
-	static char name[14];
+	ASYNCIO_REENTRANT char name[14];
 
 	if (!dir || !S_ISDIR(dir->i_mode)) return -EBADF;
 	if (dir->i_ino == MSDOS_ROOT_INO) {

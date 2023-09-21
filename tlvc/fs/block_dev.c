@@ -18,54 +18,20 @@
 #include <arch/segment.h>
 #include <arch/system.h>
 
-#if 0
-/* FIXME don't need this one now right? */
-#ifdef CONFIG_BLK_DEV_CHAR
-#include "../arch/i86/drivers/block/blk.h"	/* ugh, this is bad FIXME */
-#endif
-#endif
-
 #define SECT_SIZE 512
 #define SECT_SIZE_BITS 9
 
-#ifdef USE_GETBLK
-#if defined(CONFIG_MINIX_FS) /* || defined(CONFIG_BLK_DEV_CHAR) */
-
-struct request * do_raw_blkio(struct inode *, struct file *, char *, size_t, int);
-
-#ifdef DEBUG
-static char inode_equal_NULL[] = "inode = NULL\n";
-static char mode_equal_val[] = "mode = %07o\n";
-#endif
-
-size_t block_read(struct inode *inode, register struct file *filp,
-	       char *buf, size_t count)
+size_t block_read(struct inode *inode, struct file *filp, char *buf, size_t count)
 {
     loff_t pos;
     size_t chars;
-    int read = 0;
-
-#ifdef DEBUG
-    {
-	register char *s;
-	if (!inode) {
-	    s = inode_equal_NULL;
-	    goto OUTPUT;
-	} else if (!S_ISREG(inode->i_mode)) {
-	    s = mode_equal_val; /* i_mode */
-	OUTPUT:
-	    printk("generic_block_read: ");
-	    printk(s, inode->i_mode);
-	    return -EINVAL;
-	}
-    }
-#endif
+    size_t read = 0;
 
     /* Amount we can do I/O over */
     pos = ((loff_t)inode->i_size) - filp->f_pos;
     if (pos <= 0) {
-	debug("GENREAD: EOF reached size %ld pos %ld.\n", inode->i_size, filp->f_pos);
-	goto mfread;		/* EOF */
+	debug("blockread: EOF reached size %ld pos %ld.\n", inode->i_size, filp->f_pos);
+	return 0;		/* EOF */
     }
     if ((loff_t)count > pos) count = (size_t)pos;
 
@@ -85,7 +51,6 @@ size_t block_read(struct inode *inode, register struct file *filp,
 	if (chars > count) chars = count;
 	if (bh) {
 	    if (!readbuf(bh)) {
-		debug("GENREAD: readbuf failed\n");
 		if (!read) read = -EIO;
 		break;
 	    }
@@ -106,32 +71,13 @@ size_t block_read(struct inode *inode, register struct file *filp,
 #ifdef FIXME
     if (!IS_RDONLY(inode)) inode->i_atime = CURRENT_TIME;
 #endif
-  mfread:
     return read;
 }
 
-size_t block_write(struct inode *inode, register struct file *filp,
-		char *buf, size_t count)
+size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t count)
 {
     size_t chars, offset;
-    int written = 0;
-
-#ifdef DEBUG
-    {
-	register char *s;
-	if (!inode) {
-	    s = inode_equal_NULL;
-	    goto OUTPUT;
-	}
-	if (!S_ISREG(inode->i_mode)) {
-	    s = mode_equal_val; /* inode->i_mode */
-	OUTPUT:
-	    printk("generic_block_write: ");
-	    printk(s, inode->i_mode);
-	    return -EINVAL;
-	}
-    }
-#endif
+    size_t written = 0;
 
     if (filp->f_flags & O_APPEND) filp->f_pos = (loff_t)inode->i_size;
 
@@ -183,18 +129,15 @@ size_t block_write(struct inode *inode, register struct file *filp,
     }
     return written;
 }
-#endif /* defined(CONFIG_MINIX_FS) || defined(CONFIG_BLK_DEV_CHAR) */
 
-#endif /* USE_GETBLK */
 #ifdef CONFIG_BLK_DEV_CHAR
 /*
  * For raw block device access only. 
  * NOTE: This code assumes that the major device #s are the same for char and block devices.
  * DO NOT CHANGE THAT.
  *
- * We allocate a regular buffer to a) act as a bounce buffer for small and odd sized 
- * (< SECTSIZE) transfers.
- * For all secor sized transfers we use the buffer header to pass metadata back and forth,
+ * A regular buffer acts as a bounce buffer for small and odd sized * (< SECTSIZE) transfers.
+ * For all other transfers we use the buffer header to pass metadata back and forth,
  * data transfers go directly to/from the process' memory space.
  */
 struct buffer_head * get_free_buffer(void);
@@ -205,9 +148,6 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
     struct buffer_head *bh;
     ext_buffer_head *ebh;
     size_t chars, offset;
-#if 0
-    struct request *req;
-#endif
     int written = 0;
 
     bh = get_free_buffer();
@@ -239,9 +179,6 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	 * 	buffer cache looking for a match.
 	 */
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
-#if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
-		ebh->b_seg = bh->b_data? kernel_ds : ebh->b_ds;
-#endif
 		ll_rw_blk(READ, bh);
 		wait_on_buffer(bh);
 		if (!ebh->b_uptodate) {
@@ -285,8 +222,10 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 		o_data = bh->b_data;		/* save the 'real' values */
-		o_seg = ebh->b_seg;
-		ebh->b_seg = current->t_regs.ds;
+		//o_seg = ebh->b_seg;		/* b_seg gone, this becomes kuldgy */
+		o_seg = ebh->b_L2seg;		/* May need some if'def'ing for this to
+						 * work with L1 only */
+		ebh->b_L2seg = current->t_regs.ds;
 		bh->b_data = (unsigned char *)buf;
 		ebh->b_count = (chars >> SECT_SIZE_BITS) | 0x80; /* This is a kludge. In order
 					* to avoid yet another element in the already sizeable
@@ -301,7 +240,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
-		ebh->b_seg = o_seg;		/* restore */
+		ebh->b_L2seg = o_seg;		/* restore */
 		bh->b_data = o_data;
     		if (!ebh->b_uptodate) { /* Write error. */
 			if (!written) written = -EIO;
@@ -323,16 +262,13 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 size_t block_rd(struct inode *inode, struct file *filp,
 	       char *buf, size_t count)
 {
-    //printk("block_rd %d\n", count);
     return raw_blk_rw(inode, filp, buf, count, BLOCK_READ);
 }
 
 size_t block_wr(struct inode *inode, struct file *filp,
 		char *buf, size_t count)
 {
-    //printk("block_wr %d\n", count);
     return raw_blk_rw(inode, filp, buf, count, BLOCK_WRITE);
 }
 
-//#endif
 #endif /* CONFIG_BLK_DEV_CHAR */

@@ -39,18 +39,12 @@
 
 #endif /* __KERNEL__ */
 
-#define USE_GETBLK
-
 /*
  *  Now the file code is no longer dependent on bitmaps in unsigned
  *  longs, but uses the new fd_set structure..
  */
 
 #define NR_OPEN 	20
-
-#define NR_INODE	96	/* this should be bigger than NR_FILE */
-#define NR_FILE 	64	/* this can well be larger on a larger system */
-#define NR_SUPER	6
 
 #define BLOCK_SIZE	1024
 #define BLOCK_SIZE_BITS 10
@@ -124,6 +118,13 @@
 #define CONFIG_FAR_BUFHEADS	/* split buffer_head and move to far memory */
 #endif
 
+/* allow for reduced stack usage when not using async IO */
+#if defined(CONFIG_BLK_DEV_HD) && defined(CONFIG_BLK_DEV_FD)
+#define ASYNCIO_REENTRANT
+#else
+#define ASYNCIO_REENTRANT	static
+#endif
+
 struct buffer_head {
     unsigned char		*b_data;	/* Address if in L1 buffer area, else 0 */
 #ifdef CONFIG_FAR_BUFHEADS
@@ -131,7 +132,6 @@ struct buffer_head {
 /* a little tricky here - buffer_head is split into near and far components */
 struct ext_buffer_head_s {
 #endif
-    ramdesc_t			b_seg;		/* Current L1 or L2 (main/xms) buffer segment */
     block32_t			b_blocknr;	/* 32-bit block numbers required for FAT */
     kdev_t			b_dev;
     struct buffer_head		*b_next_lru;
@@ -141,9 +141,8 @@ struct ext_buffer_head_s {
     unsigned char		b_dirty;
     unsigned char		b_uptodate;
 #ifdef CONFIG_FS_EXTERNAL_BUFFER
-    ramdesc_t			b_ds;		/* L2 buffer data segment */
-    unsigned char		*b_L2data;	/* Offset into L2 allocation block */
-    char			b_mapcount;	/* count of L2 buffer mapped into L1 */
+    ramdesc_t			b_L2seg;	/* L2 buffer address @ seg:0 */
+    char			b_mapcount;	/* Count of L2 buffer mapped into L1 */
 #endif
 };
 
@@ -153,12 +152,11 @@ struct ext_buffer_head_s {
 ext_buffer_head *EBH(struct buffer_head *);	/* convert bh to ebh */
 
 /* functions for buffer_head pointers called outside of buffer.c */
-void mark_buffer_dirty(struct buffer_head *bh);
-void mark_buffer_clean(struct buffer_head *bh);
-ramdesc_t buffer_seg(struct buffer_head *bh);
-unsigned char buffer_count(struct buffer_head *bh);
-block32_t buffer_blocknr(struct buffer_head *bh);
-kdev_t buffer_dev(struct buffer_head *bh);
+void mark_buffer_dirty(struct buffer_head *);
+void mark_buffer_clean(struct buffer_head *);
+unsigned char buffer_count(struct buffer_head *);
+block32_t buffer_blocknr(struct buffer_head *);
+kdev_t buffer_dev(struct buffer_head *);
 
 #else
 /* buffer heads in kernel data segment */
@@ -168,7 +166,6 @@ typedef struct buffer_head	ext_buffer_head;
 /* macros for buffer_head pointers called outside of buffer.c */
 #define mark_buffer_dirty(bh)	((bh)->b_dirty = 1)
 #define mark_buffer_clean(bh)	((bh)->b_dirty = 0)
-#define buffer_seg(bh)		((bh)->b_seg)
 #define buffer_count(bh)	((bh)->b_count)
 #define buffer_blocknr(bh)	((bh)->b_blocknr)
 #define buffer_dev(bh)		((bh)->b_dev)
@@ -326,9 +323,7 @@ struct inode_operations {
     int 			(*mknod) ();
     int 			(*readlink) (struct inode * i, char * buf, size_t len);
     int 			(*follow_link) ();
-#ifdef USE_GETBLK
     struct buffer_head *	(*getblk) (struct inode *, block_t, int);
-#endif
     void			(*truncate) ();
 #ifdef BLOAT_FS
     int 			(*permission) ();
@@ -475,24 +470,31 @@ extern kdev_t ROOT_DEV;
 extern void show_buffers(void);
 extern void mount_root(void);
 
-extern int char_read(struct inode *,struct file *,char *,int);
+extern int char_read(struct inode *, struct file *, char *, int);
+extern void zero_buffer(struct buffer_head *bh, size_t offset, int count);
 
-extern int fd_check(unsigned int,char *,size_t,int,struct file **);
+extern int fd_check(unsigned int, char *, size_t, int, struct file **);
 
 #ifdef CONFIG_FS_EXTERNAL_BUFFER
 extern void map_buffer(struct buffer_head *);
 extern void unmap_buffer(struct buffer_head *);
 extern void unmap_brelse(struct buffer_head *);
+extern void brelseL1(struct buffer_head *, int);
+extern void brelseL1_index(int, int);
+ramdesc_t buffer_seg(struct buffer_head *);
 extern unsigned char *buffer_data(struct buffer_head *);
 #else
 #define map_buffer(bh)
 #define unmap_buffer(bh)
+#define brelseL1(bh,copyout)
+#define brelseL1_index(i,copyout)
 #define unmap_brelse(bh) brelse(bh)
-#define buffer_data(bh)  ((bh)->b_data)	/* for accessing unmapped buffer data*/
+#define buffer_data(bh)  ((bh)->b_data)
+#define buffer_seg(bh)   (kernel_ds)
 #endif
 
-extern size_t block_read(struct inode *,struct file *,char *,size_t);
-extern size_t block_write(struct inode *,struct file *,char *,size_t);
+extern size_t block_read(struct inode *, struct file *, char *, size_t);
+extern size_t block_write(struct inode *, struct file *, char *, size_t);
 
 #ifdef CONFIG_EXEC_COMPRESS
 extern size_t decompress(char *buf, seg_t seg, size_t orig_size, size_t compr_size, int safety);
@@ -506,11 +508,7 @@ extern void put_write_access(struct inode *);
 #define put_write_access(_a)
 #endif
 
-/*@-namechecks@*/
-
 extern int _namei(const char *,struct inode *,int,struct inode **);
-
-/*@+namechecks@*/
 
 extern int sys_dup(unsigned int);
 

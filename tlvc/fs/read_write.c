@@ -132,8 +132,10 @@ int sys_write(unsigned int fd, char *buf, size_t count)
 #endif
 
 	    }
+	    //printk("WR: f%d i%x b%x c%d\n", fd, inode, buf, count); 
 	    written = (int) fop->write(inode, file, buf, count);
-	    schedule();
+
+	    schedule();	// FIX: Check if this can be removed
 	}
     }
     return written;

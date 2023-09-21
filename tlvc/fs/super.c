@@ -172,6 +172,7 @@ static struct super_block *read_super(kdev_t dev, int t, int flags,
     check_disk_change(dev);
 #endif
     s = get_super(dev);
+    list_buffer_status();
     if (s) return s;
 
 #if CONFIG_FULL_VFS
@@ -479,6 +480,7 @@ void mount_root(void)
     do {
 	fp = *fs_type;
 
+	printk("mount_root: check type %d\n", fp->type);
 #ifdef BLOAT_FS
 	if (!fp->requires_dev) continue;
 #endif
@@ -499,7 +501,7 @@ void mount_root(void)
 	}
     } while (*(++fs_type) && !retval);
 
-#ifdef CONFIG_BLK_DEV_BIOS
+#ifdef CONFIG_BLK_DEV_BIOS	/* FIXME: support this when using the direct driver too */
     if (ROOT_DEV == 0x0380) {
 	if (!filp->f_op->release)
 	    printk("Release not defined\n");

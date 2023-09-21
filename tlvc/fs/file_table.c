@@ -8,6 +8,7 @@
 #include <linuxmt/config.h>
 #include <linuxmt/fs.h>
 #include <linuxmt/fcntl.h>
+#include <linuxmt/limits.h>
 #include <linuxmt/stat.h>
 #include <linuxmt/string.h>
 #include <linuxmt/mm.h>

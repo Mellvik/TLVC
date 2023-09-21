@@ -118,6 +118,7 @@ struct fat_cache {
 /* misc.c */
 
 struct buffer_head * FATPROC msdos_sread(struct super_block *s, sector_t sector, void **start);
+struct buffer_head * FATPROC msdos_sread_nomap(struct super_block *s, sector_t sector, size_t *offset);
 void FATPROC lock_creation(void);
 void FATPROC unlock_creation(void);
 int  FATPROC msdos_add_cluster(struct inode *inode);
