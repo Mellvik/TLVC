@@ -95,13 +95,8 @@
 #ifdef CONFIG_ROMCODE
 #ifdef CONFIG_BLK_DEV_BIOS    /* BIOS disk driver*/
 #define DMASEG		0x80  /* 0x400 bytes floppy sector buffer */
-#ifdef CONFIG_TRACK_CACHE     /* floppy track buffer in low mem */
 #define DMASEGSZ	0x2400       /* SECTOR_SIZE * 18 (9216) */
 #define KERNEL_DATA	0x2C0 /* kernel data segment */
-#else
-#define DMASEGSZ	0x0400	      /* BLOCK_SIZE (1024) */
-#define KERNEL_DATA	0x0C0 /* kernel data segment */
-#endif /* CONFIG_TRACK_CACHE */
 #else
 #define KERNEL_DATA     0x80  /* kernel data segment */
 #endif	/* CONFIG_BLK_DEV_BIOS */
@@ -117,17 +112,14 @@
 #define DMASEG		0x90  /* 0x400 bytes floppy sector buffer */
 
 /* Note: DMASEG is used by the BIOS HD driver if XMS buffers are in use.
- * If we have CONFIG_FS_XMS_BUFFER and CONFIG_TRACK_CACHE and 
- * CONFIG_BLK_DEV_FD (block floppy driver)
- * and use the bioshd driver, they may crash on concurrent DMASEG usage. */
+ * It's also used by the DIRECT FD driver for track buffering. So -
+ * if we have CONFIG_FS_XMS_BUFFER *AND* CONFIG_BLK_DEV_FD (direct floppy driver)
+ * *AND* use the bioshd driver, they WILL crash on concurrent DMASEG usage.
+ * In order to avoid this, ifdef CONFIG_TRACK_BUFFER has been left in the
+ * TLVC BIOS_HD driver. */
 
-#ifdef CONFIG_TRACK_CACHE     /* floppy track buffer in low mem */
 #define DMASEGSZ	0x2400	      /* SECTOR_SIZE * 18 (9216) */
 #define REL_SYSSEG	0x2D0 /* kernel code segment */
-#else
-#define DMASEGSZ	0x0400	      /* BLOCK_SIZE (1024) */
-#define REL_SYSSEG	0x0D0 /* kernel code segment */
-#endif /* CONFIG_TRACK_CACHE */
 
 #define SETUP_DATA	REL_INITSEG
 #endif /* (CONFIG_ARCH_IBMPC || CONFIG_ARCH_8018X) && !CONFIG_ROMCODE */
@@ -139,13 +131,8 @@
 #define REL_INITSEG	0x80  /* 0x200 bytes setup data */
 #define DMASEG		0xA0  /* 0x400 bytes floppy sector buffer */
 
-#ifdef CONFIG_TRACK_CACHE     /* floppy track buffer in low mem */
 #define DMASEGSZ 0x2400	      /* SECTOR_SIZE * 18 (9216) > SECTOR_SIZE * 8 (8192) */
 #define REL_SYSSEG	0x2E0 /* kernel code segment */
-#else
-#define DMASEGSZ 0x0400	      /* BLOCK_SIZE (1024) */
-#define REL_SYSSEG	0x0E0 /* kernel code segment */
-#endif
 #define SETUP_DATA	REL_INITSEG
 #endif /* CONFIG_ARCH_PC98 && !CONFIG_ROMCODE */
 

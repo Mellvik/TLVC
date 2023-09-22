@@ -972,7 +972,8 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 	return this_pass;
 }
 
-#ifdef CONFIG_TRACK_CACHE		/* use track-sized sector cache*/
+#ifdef CONFIG_TRACK_CACHE_NOTUSED		/* use track-sized sector cache */
+
 static sector_t cache_startsector;
 static sector_t cache_endsector;
 
@@ -1097,7 +1098,7 @@ static void do_bioshd_request(void)
 	buf = req->rq_buffer;
 	while (count > 0) {
 	    int num_sectors;
-#ifdef CONFIG_TRACK_CACHE
+#ifdef CONFIG_TRACK_CACHE_NOTUSED
 	    /* first try reading track cache*/
 	    num_sectors = do_cache_read(drivep, start, buf, req->rq_seg, req->rq_cmd);
 	    if (!num_sectors)

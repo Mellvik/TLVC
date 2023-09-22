@@ -485,7 +485,7 @@ void brelse(struct buffer_head *bh)
     DCR_COUNT(ebh);
 //#ifdef BLOAT_FS
     if (!ebh->b_count)
-	wake_up(&bufwait);	/* EXPERIMENTAL, probably superfluous */
+	wake_up(&bufwait);	/* EXPERIMENTAL, probably superfluous and expensive */
 //#endif
 }
 

@@ -34,7 +34,6 @@ mainmenu_option next_comment
 	    bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
 	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	y
 	fi
-	bool '  Floppy track caching'	CONFIG_TRACK_CACHE	y
 
 	if [ "$CONFIG_BLK_DEV_FD" = "y" ]; then
 	    define_bool CONFIG_DMA y

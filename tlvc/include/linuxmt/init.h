@@ -53,7 +53,7 @@ extern void romflash_init(void);
 extern void INITPROC chr_dev_init(void);
 extern void INITPROC cgatext_init(void);
 extern void INITPROC eth_init(void);
-extern void ne2k_drv_init(void);
+extern void INITPROC ne2k_drv_init(void);
 extern void INITPROC el3_drv_init(void);
 extern void INITPROC wd_drv_init(void);
 extern void INITPROC lp_init(void);
