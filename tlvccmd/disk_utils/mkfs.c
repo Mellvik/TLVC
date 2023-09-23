@@ -275,20 +275,25 @@ void setup_tables(void)
 
 int main(int argc, char ** argv)
 {
-	char * tmp;
+	char *tmp, *buf;
 	struct stat statbuf;
+	off_t end;
+	int dryrun = 0;
 
 	if (INODE_SIZE * MINIX_INODES_PER_BLOCK != BLOCK_SIZE)
 		die("bad inode size");
 
 	if ((argc == 3) && (argv[1][0] != '-') && (argv[2][0] != '-')) {
-		BLOCKS = strtol(argv[2],&tmp,0);
+		if (*argv[2] == '+') 	/* do a dry run for verification */
+			dryrun++;
+		BLOCKS = strtol(argv[2]+dryrun,&tmp,0);
 		if (*tmp) {
 			usage();
 		}
 		device_name = argv[1];
 	} else
 		usage();
+
 	if (!device_name || BLOCKS<10L || BLOCKS > 65535L) {
 		usage();
 	}
@@ -309,10 +314,22 @@ int main(int argc, char ** argv)
 		die("unable to open device");
 	if (fstat(DEV,&statbuf)<0)
 		die("unable to stat %s");
-	//else if (statbuf.st_rdev == 0x0300 || statbuf.st_rdev == 0x0340)
-		//die("Will not try to make filesystem on '%s'");
+	if (!(buf = malloc(512))) 
+		die("Cannot malloc buffer memory"); 
+	end = lseek(DEV, 0, SEEK_END);
+	if (((BLOCKS -1)<<10) > end)
+		die("Requested blockcount exceeds device size");
 
+	/* The above should be enough, but some times the device is 
+	 * unsure about its own limits ...*/
+	if ((end = lseek(DEV, (BLOCKS-1)<<10, SEEK_SET)) < 0)
+		die("mkfs: Device seek failed, block count may exceed device capacity\n");
+
+	if (read(DEV, buf, 512) <= 0) 
+		die("Requested size larger than device\n");
 	setup_tables();
+	if (dryrun)
+		die("No data written to device\n");
 	make_root_inode();
 	write_tables();
 	sync();
