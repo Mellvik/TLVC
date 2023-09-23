@@ -139,27 +139,26 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
 {
     register struct request *tmp;
 
-    //clr_irq();
-    mark_buffer_clean(req->rq_bh);
-
     //if (req->rq_dev & 0x0f00 == 0x0200) printk("%04x;", req->rq_bh);
     //else printk("(%04x)", req->rq_bh);
+
+    clr_irq();
+    mark_buffer_clean(req->rq_bh);
     if (!(tmp = dev->current_request)) {	/* if queue empty, process ... */
 	dev->current_request = req;
-	//set_irq();
+	set_irq();
 	//printk("AD%04x|", req);
 	(dev->request_fn) ();
     } else {				/* otherwise just add to queue */
-#if 1
+	/* FIXME: remove this for solid state devices */
 	for (; tmp->rq_next; tmp = tmp->rq_next) {
 	    if ((IN_ORDER(tmp, req) ||
 		!IN_ORDER(tmp, tmp->rq_next)) && IN_ORDER(req, tmp->rq_next))
 		break;
 	}
-#endif
 	req->rq_next = tmp->rq_next;
 	tmp->rq_next = req;
-	//set_irq();
+	set_irq();
 	//printk("AQ%04x|", req);
     }
 }
@@ -247,13 +246,12 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
     }
 
     /* fill up the request-info, and add it to the queue */
-    clr_irq();
     req->rq_cmd = (__u8) rw;
     req->rq_bh = bh;
 #ifdef CONFIG_BLK_DEV_CHAR
     if (blks) {		/* raw device access, blocks = sectors */
 	req->rq_buffer = bh->b_data; /* pointing to process space */
-	req->rq_seg = ebh->L2seg;
+	req->rq_seg = (ramdesc_t)ebh->b_prev_lru;	/* kludge !! */
 	req->rq_nr_sectors = blks;
 	req->rq_blocknr = ebh->b_blocknr;
     } else
@@ -275,7 +273,6 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 #endif
 
     req->rq_next = NULL;
-    set_irq();
     add_request(&blk_dev[major], req);
 }
 

@@ -99,6 +99,8 @@ static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
 	    boot_partition = minor & 0x7;
 }
 
+#ifdef USE_EXTENDED_PARTITION
+
 static int INITPROC is_extended_partition(register struct partition *p)
 {
     return (p->sys_ind == DOS_EXTENDED_PARTITION ||
@@ -203,6 +205,7 @@ static void INITPROC extended_partition(register struct gendisk *hd, kdev_t dev)
   done:
     unmap_brelse(bh);
 }
+#endif
 
 static int INITPROC msdos_partition(struct gendisk *hd,
 			   kdev_t dev, sector_t first_sector)
@@ -251,6 +254,7 @@ out:
 	if (!NR_SECTS(p))
 	    continue;
 	add_partition(hd, minor, first_sector + START_SECT(p), NR_SECTS(p));
+#ifdef USE_EXTENDED_PARTITION
 	if (is_extended_partition(p)) {
 	    printk(" <");
 	    /*
@@ -267,6 +271,7 @@ out:
 	    if (hdp->nr_sects > 2)
 		hdp->nr_sects = 2;
 	}
+#endif
     }
 
 #ifdef CONFIG_ARCH_PC98

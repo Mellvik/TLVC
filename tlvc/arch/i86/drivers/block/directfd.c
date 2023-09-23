@@ -932,10 +932,8 @@ static void seek_interrupt(void)
  */
 static void transfer(void)
 {
-#ifdef CONFIG_TRACK_CACHE
     read_track = (command == FD_READ) && (CURRENT_ERRORS < 4) &&
 	(floppy->sect <= MAX_BUFFER_SECTORS);
-#endif
     DEBUG("trns%d-", read_track);
 
     configure_fdc_mode();	/* FIXME: Why are we doing this here??? 

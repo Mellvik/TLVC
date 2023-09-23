@@ -69,7 +69,7 @@ static struct file_operations rhd_fops = {
     block_wr,			/* write */
     NULL,			/* readdir */
     NULL,			/* select */
-    directhd_ioctl,		/* ioctl */
+    directhd_ioctl,		/* ioctl - FIXME: Useful or dangerous? */	
     rhd_open,			/* open */
     rhd_close			/* release */
 };
