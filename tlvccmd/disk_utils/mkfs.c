@@ -157,13 +157,13 @@ unsigned char test_bit(unsigned int nr, void * add)
  * to compile this under minix, volatile gives a warning, as
  * exit() isn't defined as volatile under minix.
  */
-volatile void fatal_error(const char * fmt_string,int status)
+volatile void fatal_error(const char * fmt_string, int status)
 {
 	printf(fmt_string);
 	exit(status);
 }
 
-#define usage() fatal_error("Usage: mkfs /dev/name blocks (Max blocks=65535)\n",16)
+#define usage() fatal_error("Usage: mkfs /dev/name [+]blocks (Max blocks=65535)\n",16)
 #define die(str) fatal_error("mkfs: " str "\n",8)
 
 void write_tables(void)
@@ -176,14 +176,14 @@ void write_tables(void)
 	}
 	if (BLOCK_SIZE != write(DEV, super_block_buffer, BLOCK_SIZE))
 		die("unable to write super-block");
-	if (IMAPS*BLOCK_SIZE != write(DEV,inode_map,IMAPS*BLOCK_SIZE))
+	if (IMAPS*BLOCK_SIZE != write(DEV, inode_map, IMAPS*BLOCK_SIZE))
 		die("Unable to write inode map");
-	if (ZMAPS*BLOCK_SIZE != write(DEV,zone_map,ZMAPS*BLOCK_SIZE))
+	if (ZMAPS*BLOCK_SIZE != write(DEV, zone_map, ZMAPS*BLOCK_SIZE))
 		die("Unable to write zone map");
-	if (BLOCK_SIZE != write(DEV,inode_buffer,BLOCK_SIZE))
+	if (BLOCK_SIZE != write(DEV, inode_buffer, BLOCK_SIZE))
 		die("Unable to write inodes");
-	for (ikl=1;ikl<INODE_BLOCKS;ikl++) {
-		if (BLOCK_SIZE != write(DEV,inode_buffer + BLOCK_SIZE,BLOCK_SIZE))
+	for (ikl=1; ikl<INODE_BLOCKS; ikl++) {
+		if (BLOCK_SIZE != write(DEV, inode_buffer + BLOCK_SIZE, BLOCK_SIZE))
 			die("Unable to write inodes");
 	}
 }
@@ -275,20 +275,25 @@ void setup_tables(void)
 
 int main(int argc, char ** argv)
 {
-	char * tmp;
+	char *tmp, *buf;
 	struct stat statbuf;
+	off_t end;
+	int dryrun = 0;
 
 	if (INODE_SIZE * MINIX_INODES_PER_BLOCK != BLOCK_SIZE)
 		die("bad inode size");
 
 	if ((argc == 3) && (argv[1][0] != '-') && (argv[2][0] != '-')) {
-		BLOCKS = strtol(argv[2],&tmp,0);
+		if (*argv[2] == '+') 	/* do a dry run for verification */
+			dryrun++;
+		BLOCKS = strtol(argv[2]+dryrun,&tmp,0);
 		if (*tmp) {
 			usage();
 		}
 		device_name = argv[1];
 	} else
 		usage();
+
 	if (!device_name || BLOCKS<10L || BLOCKS > 65535L) {
 		usage();
 	}
@@ -309,10 +314,22 @@ int main(int argc, char ** argv)
 		die("unable to open device");
 	if (fstat(DEV,&statbuf)<0)
 		die("unable to stat %s");
-	//else if (statbuf.st_rdev == 0x0300 || statbuf.st_rdev == 0x0340)
-		//die("Will not try to make filesystem on '%s'");
+	if (!(buf = malloc(512))) 
+		die("Cannot malloc buffer memory"); 
+	if (((BLOCKS -1)<<10) > statbuf.st_size)
+		die("Requested blockcount exceeds device size");
 
+	/* The above should be enough, but some times the device is 
+	 * unsure about its own limits ...*/
+	if ((end = lseek(DEV, (BLOCKS-1)<<10, SEEK_SET)) < 0)
+		die("mkfs: Device seek failed, block count may exceed device capacity\n");
+
+	printf("end is @ %lu\n", end);
+	if (read(DEV, buf, 512) <= 0) 
+		die("Requested size larger than device\n");
 	setup_tables();
+	if (dryrun)
+		die("Dryrun requested, no data written to device\n");
 	make_root_inode();
 	write_tables();
 	sync();
