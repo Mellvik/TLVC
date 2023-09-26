@@ -157,13 +157,13 @@ unsigned char test_bit(unsigned int nr, void * add)
  * to compile this under minix, volatile gives a warning, as
  * exit() isn't defined as volatile under minix.
  */
-volatile void fatal_error(const char * fmt_string,int status)
+volatile void fatal_error(const char * fmt_string, int status)
 {
 	printf(fmt_string);
 	exit(status);
 }
 
-#define usage() fatal_error("Usage: mkfs /dev/name blocks (Max blocks=65535)\n",16)
+#define usage() fatal_error("Usage: mkfs /dev/name [+]blocks (Max blocks=65535)\n",16)
 #define die(str) fatal_error("mkfs: " str "\n",8)
 
 void write_tables(void)
@@ -176,14 +176,14 @@ void write_tables(void)
 	}
 	if (BLOCK_SIZE != write(DEV, super_block_buffer, BLOCK_SIZE))
 		die("unable to write super-block");
-	if (IMAPS*BLOCK_SIZE != write(DEV,inode_map,IMAPS*BLOCK_SIZE))
+	if (IMAPS*BLOCK_SIZE != write(DEV, inode_map, IMAPS*BLOCK_SIZE))
 		die("Unable to write inode map");
-	if (ZMAPS*BLOCK_SIZE != write(DEV,zone_map,ZMAPS*BLOCK_SIZE))
+	if (ZMAPS*BLOCK_SIZE != write(DEV, zone_map, ZMAPS*BLOCK_SIZE))
 		die("Unable to write zone map");
-	if (BLOCK_SIZE != write(DEV,inode_buffer,BLOCK_SIZE))
+	if (BLOCK_SIZE != write(DEV, inode_buffer, BLOCK_SIZE))
 		die("Unable to write inodes");
-	for (ikl=1;ikl<INODE_BLOCKS;ikl++) {
-		if (BLOCK_SIZE != write(DEV,inode_buffer + BLOCK_SIZE,BLOCK_SIZE))
+	for (ikl=1; ikl<INODE_BLOCKS; ikl++) {
+		if (BLOCK_SIZE != write(DEV, inode_buffer + BLOCK_SIZE, BLOCK_SIZE))
 			die("Unable to write inodes");
 	}
 }
@@ -316,8 +316,7 @@ int main(int argc, char ** argv)
 		die("unable to stat %s");
 	if (!(buf = malloc(512))) 
 		die("Cannot malloc buffer memory"); 
-	end = lseek(DEV, 0, SEEK_END);
-	if (((BLOCKS -1)<<10) > end)
+	if (((BLOCKS -1)<<10) > statbuf.st_size)
 		die("Requested blockcount exceeds device size");
 
 	/* The above should be enough, but some times the device is 
@@ -325,11 +324,12 @@ int main(int argc, char ** argv)
 	if ((end = lseek(DEV, (BLOCKS-1)<<10, SEEK_SET)) < 0)
 		die("mkfs: Device seek failed, block count may exceed device capacity\n");
 
+	printf("end is @ %lu\n", end);
 	if (read(DEV, buf, 512) <= 0) 
 		die("Requested size larger than device\n");
 	setup_tables();
 	if (dryrun)
-		die("No data written to device\n");
+		die("Dryrun requested, no data written to device\n");
 	make_root_inode();
 	write_tables();
 	sync();
