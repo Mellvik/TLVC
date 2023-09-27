@@ -90,6 +90,7 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
+int running_qemu;
 #include "blk.h"
 
 int directhd_ioctl();
@@ -134,7 +135,7 @@ static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 static void directhd_geninit();
 static void reset_controller(int);
 static int drive_busy(int);
-static void directhd_int(int, struct pt_regs *);
+static void do_directhd(int, struct pt_regs *);
 
 static struct gendisk directhd_gendisk = {
     MAJOR_NR,			/* major: major number */
@@ -384,6 +385,8 @@ int INITPROC directhd_init(void)
 	//ide_buffer[53] = 0; /* force old ide behaviour for debug */
 #endif
 	ide_buffer[20] = 0; /* String termination */
+	if (ide_buffer[10] == 0x4551)	/* Crude QEMU detection */
+		running_qemu = 1;
 	if ((ide_buffer[54] < 34096) && (*ide_buffer != 0)) {
 	    /* Physical CHS data @ (word) offsets: cyl@1, heads@3, sectors@6 */
 	    /* Actual CHS data @ (word) offsets: cyl@54, heads@55, sectors@56 */
@@ -454,9 +457,9 @@ int INITPROC directhd_init(void)
     /* On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
     int got_irq = HD1_AT_IRQ;
     printk("athd: Interrupt registration: ");
-    if (request_irq(got_irq, directhd_int, INT_GENERIC)) {
+    if (request_irq(got_irq, do_directhd, INT_GENERIC)) {
 	got_irq = HD_IRQ;
-	if (request_irq(got_irq, directhd_int, INT_GENERIC))
+	if (request_irq(got_irq, do_directhd, INT_GENERIC))
 	    got_irq = 0;
     }
     if (got_irq)
@@ -697,7 +700,7 @@ void do_directhd_request(void)
 		    //debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
 		}
 	}
-#define raw_mode tmp
+	unsigned int raw_mode;
 #ifdef CONFIG_BLK_DEV_CHAR
 	if (req->rq_nr_sectors)
 		raw_mode = 1; /* flag raw IO */
@@ -766,7 +769,8 @@ static void reset_controller(int controller)
 		printk("athd%i: Reset failed: %02x\n", controller, i);
 }
 
-static void directhd_int(int unused, struct pt_regs *unused1)
+/* test interrupt enable/disable for now */
+static void do_directhd(int unused, struct pt_regs *unused1)
 {
 	printk("X");
 }

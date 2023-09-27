@@ -97,7 +97,7 @@
 #define MINOR_SHIFT	5	/* shift to get drive num */
 #define FLOPPY_DMA 2		/* hardwired on old PCs */
 
-#include "blk.h"		/* ugly - blk.h contains code */
+#include "blk.h"
 
 /* This is confusing. DEVICE_INTR is the do_floppy variable.
  * The code is sometimes using the macro, some times the variable.
@@ -105,6 +105,7 @@
  */
 #ifdef DEVICE_INTR	/* from blk.h */
 void (*DEVICE_INTR) () = NULL;
+
 
 #define SET_INTR(x) (DEVICE_INTR = (x))
 #define CLEAR_INTR SET_INTR(NULL)
@@ -121,21 +122,29 @@ void (*DEVICE_INTR) () = NULL;
 #define DEBUG(...)
 #endif
 
+#define QEMU_HACK	/* Required for QEMU to handle 360k images on 1.2M drives */
+#define FDC_USE_FIFO	/* Enable 82077 extras if present */
+
 /* Formatting code is currently untested, don't waste the space */
 //#define INCLUDE_FD_FORMATTING
 
 static int initial_reset_flag = 0;
 static int need_configure = 1;	/* for 82077 */
-static int recalibrate = 0;
-static int reset = 0;
-static int recover = 0;		/* recalibrate immediately after resetting */
-static int seek = 0;
+static int reset = 0;		/* something went wrong, reset FDC, start over */
+static int recalibrate = 0;	/* less dramatic than reset, like changed drive
+				 * parameters or seek errors. Will (eventually)
+				 * trigger a call to recalibrate_floppy() */
+static int recover = 0;		/* signal that we're recovering from a hang,
+				 * awakened by the watchdog timer */
+static int seek = 0;		/* set if the current operation needs a track
+				 * change (seek) */
 
 #ifdef CONFIG_BLK_DEV_CHAR
 static int nr_sectors;		/* only when raw access */
 #endif
 
-static unsigned char current_DOR = 0x0C;
+static unsigned char current_DOR = 0x0C; /* default: DMA on, RESET off */
+
 static unsigned char running = 0; /* keep track of motors already running */
 /* NOTE: current_DOR tells which motor(s) have been commanded to run,
  * 'running' tells which ones are actually running. The difference is subtle - 
@@ -152,7 +161,7 @@ static unsigned char running = 0; /* keep track of motors already running */
  * Maximum disk size (in kilobytes). This default is used whenever the
  * current disk size is unknown.
  */
-#define MAX_DISK_SIZE 1440
+#define MAX_DISK_SIZE 1440	/* change to add support for 2880K */
 
 /*
  * Maximum number of sectors in a track buffer. Track buffering is disabled
@@ -166,7 +175,7 @@ static unsigned char running = 0; /* keep track of motors already running */
  * 2nd DMA controller transfers words only, not bytes and thus up to 128k bytes
  * in one 'swoop'.
  */
-#define LAST_DMA_ADDR	(0x100000L - BLOCK_SIZE) /* stick to the 1M limit */
+#define LAST_DMA_ADDR	(0x100000L - BLOCK_SIZE) /* Enforce the 1M limit */
 
 /*
  * globals used by 'result()'
@@ -483,7 +492,6 @@ static void floppy_off(unsigned int nr)
 
 void request_done(int uptodate)
 {
-    /* FIXME: Is this the right place to delete this timer? */
     del_timer(&fd_timeout);
 
 #ifdef INCLUDE_FD_FORMATTING
@@ -675,6 +683,8 @@ static void bad_flp_intr(void)
 	recalibrate = 1;
 }
 
+#ifdef SUPPORT_2880K
+
 /* Set perpendicular mode as required, based on data rate, if supported.
  * 82077 Untested! 1Mbps data rate only possible with 82077-1.
  * TODO: increase MAX_BUFFER_SECTORS, add floppy_type entries.
@@ -704,24 +714,32 @@ static void perpendicular_mode(unsigned char rate)
 	}
     }
 }				/* perpendicular_mode */
+#endif
 
 /*
- * This has only been tested for the case fdc_version == FDC_TYPE_STD.
  * In case you have a 82077 and want to test it, you'll have to compile
- * with `FDC_FIFO_UNTESTED' defined. You may also want to add support for
- * recognizing drives with vertical recording support.
+ * with `FDC_USE_FIFO' defined. You may also want to add support for
+ * recognizing drives with vertical recording support. Use #define SUPPORT_2880K
+ * for that and add the data for the 2880k format in the type tables.
+ *
+ * It may be a good idea to use the (82077) LOCK command to lock the 
+ * 	 FIFO setting and other settings from being reset via the DOR.
+ * Notice: Implied seek is enabled but not useful unless we're doing raw IO, which
+ * may span cylinders.
  */
 static void configure_fdc_mode(void)
 {
-#ifdef FDC_FIFO_UNTESTED
+	//printk("confFDC;");
+#ifdef FDC_USE_FIFO
     if (need_configure && (fdc_version == FDC_TYPE_82077)) {
-	/* Enhanced version with FIFO & vertical recording. */
+	/* Enhanced version with FIFO, vertical recording & more. */
 	output_byte(FD_CONFIGURE);
 	output_byte(0);
-	output_byte(0x1A);	/* FIFO on, polling off, 10 byte threshold */
+	output_byte(0x5A);	/* FIFO on, polling off, 10 byte threshold,
+				 * EIS - Enable Implied Seek on */
 	output_byte(0);		/* precompensation from track 0 upwards */
 	need_configure = 0;
-	printk("%s: FIFO enabled\n", DEVICE_NAME);
+	if (!initial_reset_flag) printk(", FIFO+EIS enabled");
     }
 #endif
     if (cur_spec1 != floppy->spec1) {
@@ -732,7 +750,9 @@ static void configure_fdc_mode(void)
     }
     if (cur_rate != floppy->rate) {
 	/* use bit 6 of floppy->rate to indicate perpendicular mode */
+#ifdef SUPPORT_2880K
 	perpendicular_mode(floppy->rate);
+#endif
 	outb_p((cur_rate = (floppy->rate)) & ~0x40, FD_DCR);
     }
 }				/* configure_fdc_mode */
@@ -900,28 +920,34 @@ void setup_rw_floppy(void)
 	output_byte(floppy->fmt_gap);
 	output_byte(FD_FILL_BYTE);
     }
-    if (reset)
+    if (reset)		/* If output_byte timed out */
 	redo_fd_request();
 }
 
-/*
- * This is the routine called after every seek (or recalibrate) interrupt
- * from the floppy controller. Note that the "unexpected interrupt" routine
- * also does a recalibrate, but doesn't come here.
- */
 static void seek_interrupt(void)
 {
-    /* sense drive status */
-    DEBUG("seekI-");
+    int res, newtrack;
+
+    /* get interrupt status */
     output_byte(FD_SENSEI);
-    if (result() != 2 || (ST0 & 0xF8) != 0x20 || ST1 != seek_track) {
-	printk("%s%d: seek failed\n", DEVICE_NAME, current_drive);
+    res = result();
+#ifdef QEMU_HACK
+    if (floppy->stretch && running_qemu)
+	newtrack = ST1;		/* Fake result to get around QEMU bug
+				 * affecting 360k floppies in 1.2M drives */
+    else
+#endif
+	newtrack = seek_track;
+
+    DEBUG("seekI-");
+    if (res != 2 || (ST0 & 0xF8) != 0x20 || ST1 != newtrack) {
+	printk("%s%d: seek failed - %d/%d\n", DEVICE_NAME, current_drive, seek_track, ST1);
 	recalibrate = 1;
 	bad_flp_intr();
 	redo_fd_request();
 	return;
     }
-    current_track = ST1;
+    current_track = seek_track;
     setup_rw_floppy();
 }
 
@@ -936,11 +962,11 @@ static void transfer(void)
 	(floppy->sect <= MAX_BUFFER_SECTORS);
     DEBUG("trns%d-", read_track);
 
-    configure_fdc_mode();	/* FIXME: Why are we doing this here??? 
-    				 * should be done once per media change ... */
+    configure_fdc_mode();	/* FIXME: Why are we doing this here???  */
+    				/* should happen once per media change ... */
 
-    if (reset) {
-	redo_fd_request();
+    if (reset) {		/* if there was an output_byte timeout in */
+	redo_fd_request();	/* configure_fdc_mode */
 	return;
     }
     if (!seek) {
@@ -966,12 +992,13 @@ static void recalibrate_floppy(void)
     do_floppy = recal_interrupt;
     output_byte(FD_RECALIBRATE);
     output_byte(current_drive);
-
+#if 0
     /* this may not make sense: We're waiting for recal_interrupt
      * why redo_fd_request here when recal_interrupt is doing it ??? */
     /* 'reset' gets set in recal_interrupt, maybe that's it ??? */
     if (reset)
 	redo_fd_request();
+#endif
 }
 
 /*
@@ -982,9 +1009,9 @@ static void recal_interrupt(void)
 {
     output_byte(FD_SENSEI);
     current_track = NO_TRACK;
-    if (result() != 2 || (ST0 & 0xE0) == 0x60) /* look for SEEK END and ABN TERMINATION*/
+    if (result() != 2 || (ST0 & 0xD8)) /* look for any error bit */
 	reset = 1;
-    DEBUG("recalI-%x", ST0);	/* Should be 0x20, Seek End */
+    DEBUG("recalI-%x", ST0);	/* Should be 0x2X, Seek End */
     /* Recalibrate until track 0 is reached. Might help on some errors. */
     if (ST0 & 0x10)		/* Look for UnitCheck, which will happen regularly
     				 * on 80 track drives because RECAL only steps 77 times */
@@ -1005,7 +1032,7 @@ static void unexpected_floppy_interrupt(void)
 }
 
 /*
- * Must do 4 FD_SENSEI's after reset because of ``drive polling''.
+ * Must do 4 FD_SENSEI's after reset - one per drive - because of ``drive polling''.
  */
 static void reset_interrupt(void)
 {
@@ -1038,6 +1065,8 @@ static void reset_interrupt(void)
 
 /*
  * reset is done by pulling bit 2 of DOR low for a while.
+ * As the FDC recovers conciousness, it pulls the IRQ, and
+ * reset_interrupt (above) gets called.
  */
 static void reset_floppy(void)
 {
@@ -1049,9 +1078,9 @@ static void reset_floppy(void)
     cur_spec1 = -1;
     cur_rate = -1;
     recalibrate = 1;
-    need_configure = 1;
-    if (!initial_reset_flag)
-	printk("Reset-floppy called\n");
+    need_configure = 1;	/* FIXME - not required if LOCK is set on 82077 */
+    //if (!initial_reset_flag)
+	//printk("Reset-floppy called\n");
     clr_irq();
     outb_p(current_DOR & ~0x04, FD_DOR);
     delay_loop(1000);
@@ -1059,6 +1088,10 @@ static void reset_floppy(void)
     set_irq();
 }
 
+/* shutdown:
+ * called by the 'main' watchdog timer (typically 6 secs of idle time),
+ * sets the 'recover' flag to enable a 'softer' recovery than a full reset.
+ */
 static void floppy_shutdown(void)
 {
     printk("[%u]shtdwn0x%x|%x-", (unsigned int)jiffies, current_DOR, running);
@@ -1071,8 +1104,8 @@ static void floppy_shutdown(void)
 
 static void shake_done(void)
 {
-    /* Need SENSEI to clear the interrupt per spec, required by QEMU, not by
-     * real hardware	*/
+    /* Need SENSEI to clear the interrupt */
+
     output_byte(FD_SENSEI);	/* TESTING FIXME */
     result();
     DEBUG("shD0x%x-", ST0);
@@ -1083,15 +1116,17 @@ static void shake_done(void)
 	redo_fd_request();
 }
 
-/*
- * The result byte after the SENSEI cmd is ST3, not ST0
- */
 static int retry_recal(void (*proc)())
 {
-    DEBUG("rrecal-");
     output_byte(FD_SENSEI);
-    if (result() == 2 && (ST0 & 0x10) != 0x10) /* track 0 test */
-	return 0;		/* No 'unit check': We're OK */
+    DEBUG("rrecal-");
+    //if (result() == 2 && (ST0 & 0x10) != 0x10) /* track 0 test */
+    /* If we got here after a seek, Unit Check in ST0 may not be reliable ??*/
+    if (result() == 2 && (ST0 & 0x50) != 0x20) { /* seek end, normal term */
+	DEBUG("|%02x|", ST0);
+	return 0;
+    }
+    DEBUG("|%02x|", ST0);
     do_floppy = proc;		/* otherwise recalibrate */
     output_byte(FD_RECALIBRATE);
     output_byte(current_drive);
@@ -1128,7 +1163,7 @@ static void floppy_ready(void)
 	    if (keep_data[current_drive] > 0)
 		keep_data[current_drive]--;
 	} else {
-		/* FIXME: this is non sensical: Need to assume that a medium change
+		/* FIXME: this is non sensical: Should assume that a medium change
 		 * means a new medium of the same format as the prev until it fails.
 		 */
 	    if (ftd_msg[current_drive] && current_type[current_drive] != NULL)
@@ -1139,17 +1174,23 @@ static void floppy_ready(void)
 	    floppy_sizes[current_drive] = MAX_DISK_SIZE;
 #endif
 	}
-	/* Forcing the drive to seek makes the "media changed" condition go
-	 * away. There should be a cleaner solution for that ...
-	 * FIXME: This is way too slow and recal is not seek ...
+	/* Forcing the drive to seek clears the "media changed" condition.
+	 * RECAL does not. If that's what we're after,  change this.
 	 */
 	if (!reset && !recalibrate) {
 	    if (current_track && current_track != NO_TRACK)
 		do_floppy = shake_zero;
 	    else
 		do_floppy = shake_one;
+#if 0
 	    output_byte(FD_RECALIBRATE);
 	    output_byte(current_drive);
+#else
+	    /* EXPERIMENTAL - test seek instead of recal */
+	    output_byte(FD_SEEK);
+	    output_byte((head << 2) | current_drive);
+	    output_byte(1);	/* track 1 */
+#endif
 	    return;
 	}
     }
@@ -1201,9 +1242,12 @@ static void redo_fd_request(void)
 	return;
   repeat:
     req = CURRENT;
+#ifdef INCLUDE_FD_FORMATTING
     if (format_status == FORMAT_WAIT)
 	format_status = FORMAT_BUSY;
-    if (format_status != FORMAT_BUSY) {
+    if (format_status != FORMAT_BUSY)
+#endif
+    {
 	if (!req) {
 	    if (!fdc_busy)
 		printk("FDC access conflict!");
@@ -1307,7 +1351,7 @@ static void redo_fd_request(void)
     }
 #endif
 
-    /* timer for hung operations, 6 secs probably too long ... */
+    /* restart timer for hung operations, 6 secs probably too long ... */
     del_timer(&fd_timeout);
     fd_timeout.tl_expires = jiffies + 6 * HZ;
     add_timer(&fd_timeout);
@@ -1667,10 +1711,13 @@ void INITPROC floppy_init(void)
 	fdc_version = FDC_TYPE_STD;
     } else
 	fdc_version = reply_buffer[0];
-    if (fdc_version != FDC_TYPE_STD)
-	printk("%s: Direct floppy driver, FDC (%s) @ irq %d, DMA %d\n", DEVICE_NAME, 
+    //if (fdc_version != FDC_TYPE_STD) {
+	printk("%s: Direct floppy driver, FDC (%s) @ irq %d, DMA %d", DEVICE_NAME, 
 		fdc_version == 0x80 ? "8272A" : "82077", FLOPPY_IRQ, FLOPPY_DMA);
-#ifndef FDC_FIFO_UNTESTED
+	configure_fdc_mode();
+	printk("\n");
+    //}
+#ifndef FDC_USE_FIFO
     fdc_version = FDC_TYPE_STD;	/* force std fdc type; can't test other. */
 #endif
 
@@ -1678,12 +1725,10 @@ void INITPROC floppy_init(void)
      * properly, so force a reset for the standard FDC clones,
      * to avoid interrupt garbage.
      */
-#if 1	/* testing FIXME --  the FDC has just been reset by the BIOS, do we need this? */
-    if (fdc_version == FDC_TYPE_STD) {
+    //if (fdc_version == FDC_TYPE_STD) {
 	initial_reset_flag = 1;
 	reset_floppy();
-    }
-#endif
+    //}
 }
 
 #if 0

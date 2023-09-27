@@ -254,12 +254,12 @@ int sys_brk(__pptr newbrk)
     if (newbrk < currentp->t_enddata)
         return -ENOMEM;
 
-    if (currentp->t_begstack > currentp->t_endbrk) {				/* stack above heap?*/
+    if (currentp->t_begstack > currentp->t_endbrk) {		/* stack above heap?*/
         if (newbrk > currentp->t_begstack - currentp->t_minstack) {
-			printk("sys_brk(%d) fail: brk %x over by %u bytes\n",
-				currentp->pid, newbrk, newbrk - (currentp->t_begstack - currentp->t_minstack));
+	    printk("sys_brk(%d) fail: request %d, over by %u bytes\n",
+		currentp->pid, newbrk, newbrk - (currentp->t_begstack - currentp->t_minstack));
             return -ENOMEM;
-		}
+	}
     }
 #ifdef CONFIG_EXEC_LOW_STACK
     if (newbrk > currentp->t_endseg)
