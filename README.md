@@ -29,4 +29,4 @@ _The screen dump below (with a lot of debug info) shows the boot sequence for an
 - Command history has been added to the main shell (ash).
 - Raw/char drivers have been added for disk/floppy IO, an important enhancement for both diagnostics and system utilities.
 
-If you're coming from ELKS, you' be delighted by the responsiveness of the system. If not, you'll just like the feeling - maybe be impressed by what an old klunker can deliver.
+If you're coming from ELKS, you'll be delighted by the responsiveness of the system. If not, you'll just like the feeling - maybe be impressed by what an old klunker can deliver.
