@@ -77,6 +77,8 @@ struct drive_infot {            /* CHS per drive*/
 #endif
 };
 extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
+extern int running_qemu;		/* set in directhd if a qemu disk image is detected */
+					/* used to handle QEMU bugs and quirks */
 
 #ifdef CONFIG_BLK_DEV_BHD
 extern unsigned char hd_drive_map[];
@@ -133,6 +135,7 @@ static void floppy_off();	/*(unsigned int nr); */
 #ifdef ATDISK		/* direct hd */
 
 #define DEVICE_NAME "dhd"
+#define DEVICE_INTR do_directhd
 #define DEVICE_REQUEST do_directhd_request
 #define DEVICE_NR(device) (MINOR(device)>>MINOR_SHIFT)
 #define DEVICE_ON(device)
@@ -173,7 +176,7 @@ static void end_request(int uptodate)
     req = CURRENT;
 
     if (!uptodate) {
-	printk("%s[%04x]: I/O error in block %lu\n", DEVICE_NAME, 
+	printk("%s[%04x]: I/O error in sector %lu\n", DEVICE_NAME, 
 		req->rq_dev, req->rq_blocknr);
 
 #ifdef MULTI_BH
@@ -243,6 +246,6 @@ static void end_request(int uptodate)
 		panic("%s: request list destroyed (%d, %d)", \
 			DEVICE_NAME, MAJOR(req->rq_dev), MAJOR_NR); \
 	if (req->rq_bh && !EBH(req->rq_bh)->b_locked) \
-		panic("%s:block not locked", DEVICE_NAME); \
+		panic("%s:buffer not locked", DEVICE_NAME); \
 
 #endif
