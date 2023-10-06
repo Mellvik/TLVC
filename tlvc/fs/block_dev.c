@@ -212,7 +212,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		}
 	} else {	/* we're moving full sectors */
 		unsigned char *o_data;
-		__u16 o_seg;	/* cannot use seg_t */
+		seg_t o_seg;
 
 		chars = (count & 0xffff); /* try to transfer the whole thing -
 					 * up to 64k, which is more than the 
@@ -222,23 +222,14 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 		o_data = bh->b_data;		/* save the 'real' values */
-		o_seg = (__u16)ebh->b_prev_lru; /* abusing prev_lru to hold the segment value */
-		ebh->b_prev_lru = (struct buffer_head *)current->t_regs.ds;
+		o_seg = ebh->b_L2seg;
+		ebh->b_L2seg = current->t_regs.ds;
 		bh->b_data = (unsigned char *)buf;
-		ebh->b_count = (chars >> SECT_SIZE_BITS) | 0x80; /* This is a kludge. In order
-					* to avoid yet another element in the already sizeable
-					* buffer_head struct, we plug the # of sectors
-					* to transfer into the b_count byte, knowing
-					* that its real value is always 1 in this context.
-					* The upper bit is used as a flag, 128 is more
-					* than we need anyway.
-					* b_count gets reset immediately in
-					* ll_rw_blk().
-					*/
+		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
-		ebh->b_prev_lru = (struct buffer_head *)o_seg;		/* restore */
+		ebh->b_L2seg = o_seg;		/* restore */
 		bh->b_data = o_data;
     		if (!ebh->b_uptodate) {		/* Write error. */
 			if (!written) written = -EIO;
