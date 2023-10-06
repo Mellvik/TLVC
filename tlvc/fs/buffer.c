@@ -250,8 +250,8 @@ int INITPROC buffer_init(void)
     if (nr_mapbufs > bufs_to_alloc)
 	printk("WARNING: # of L2 buffers is lower than the L1 cache!\n");
 
-    nr_bh = nr_free_bh = bufs_to_alloc;
 #ifdef CHECK_FREECNTS
+    nr_bh = nr_free_bh = bufs_to_alloc;
     debug_setcallback(1, list_buffer_status);   /* ^O will generate buffer list */
 #endif
 
@@ -410,7 +410,7 @@ struct buffer_head *get_free_buffer(void)
 {
     struct buffer_head *bh = bh_lru;
     ext_buffer_head *ebh = EBH(bh);
-    int i, sync_loop = 0;
+    int sync_loop = 0;
 
 	//printk("lru:%04x/%d|", bh, ebh->b_dirty);
     while (ebh->b_count || ebh->b_dirty || ebh->b_locked
@@ -420,6 +420,8 @@ struct buffer_head *get_free_buffer(void)
 								) {
 	if ((bh = ebh->b_next_lru) == NULL) {
 	    unsigned long jif = jiffies;
+	    int i;
+
 	    switch (sync_loop) {
 	    case 0:
 		printk("DEBUG: no free bufs, syncing\n"); /* FIXME delete */
@@ -462,6 +464,7 @@ struct buffer_head *get_free_buffer(void)
     put_last_lru(bh);
     ebh->b_uptodate = 0;
     ebh->b_count = 1;
+    ebh->b_nr_sectors = 0;	/* non-zero indicate raw IO */
     SET_COUNT(ebh);
     //if (sync_loop)
 	//printk("GFB:%04x/%04x\n", bh, *(unsigned int *)bh->b_data);

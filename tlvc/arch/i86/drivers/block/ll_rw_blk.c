@@ -44,9 +44,7 @@ static struct request *__get_request_wait(int, kdev_t);
  * take precedence.
  */
 
-#define NR_REQUEST	20	/* was 20, increased for debugging FIXME */
-				/* Used in the raw block driver too, modify there
-				 * if you modify here. Yeah, it's bad. FIXME */
+#define NR_REQUEST	20
 
 static struct request request_list[NR_REQUEST];
 
@@ -108,7 +106,6 @@ struct request *get_request(int n, kdev_t dev)
 #ifdef CONFIG_BLK_DEV_CHAR
 	    req->rq_nr_sectors = 0;
 #endif
-	    //debug_blkdrv("ll: RQ:%04x|%x", req, dev);
 	    return req;
 	}
     } while (req != prev_found);
@@ -143,7 +140,7 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
     //else printk("(%04x)", req->rq_bh);
 
     clr_irq();
-    mark_buffer_clean(req->rq_bh);
+    //mark_buffer_clean(req->rq_bh);	/* EXPERIMENTAL: removed, too early to mark clean */
     if (!(tmp = dev->current_request)) {	/* if queue empty, process ... */
 	dev->current_request = req;
 	set_irq();
@@ -167,9 +164,6 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 {
     struct request *req;
     int max_req;
-#ifdef CONFIG_BLK_DEV_CHAR
-    sector_t blks = 0;
-#endif
     ext_buffer_head *ebh = EBH(bh);
 
     debug_blk("BLK (%d) %lu %s %lx:%x\n", major, buffer_blocknr(bh), rw==READ? "read": "write",
@@ -190,15 +184,6 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	return;
     /* Maybe the above fixes it, and maybe it doesn't boot. Life is interesting */
     lock_buffer(bh);
-
-#ifdef CONFIG_BLK_DEV_CHAR
-    /* remember: b_count is the # of references! */
-    //printk("Mreq: bh %04x blk %ld b_count %d\n", (unsigned int) bh, ebh->b_blocknr, ebh->b_count);
-    if (ebh->b_count & 0x80) {
-	blks = (sector_t)(ebh->b_count & 0x7f); /* # of sectors */
-	ebh->b_count = 1;
-    }
-#endif
 
     switch (rw) {
 
@@ -249,10 +234,9 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
     req->rq_cmd = (__u8) rw;
     req->rq_bh = bh;
 #ifdef CONFIG_BLK_DEV_CHAR
-    if (blks) {		/* raw device access, blocks = sectors */
-	req->rq_buffer = bh->b_data; /* pointing to process space */
-	req->rq_seg = (ramdesc_t)ebh->b_prev_lru;	/* kludge !! */
-	req->rq_nr_sectors = blks;
+    if (req->rq_nr_sectors = ebh->b_nr_sectors) { /* raw device access, blocks = sectors */
+	req->rq_buffer = bh->b_data;	/* pointing to process space */
+	req->rq_seg = ebh->b_L2seg;
 	req->rq_blocknr = ebh->b_blocknr;
     } else
 #endif
@@ -412,9 +396,6 @@ void ll_rw_blk(int rw, register struct buffer_head *bh)
     if (!dev || !dev->request_fn) {
 	printk("ll_rw_blk: Trying to read nonexistent block-device %s (%lu)\n",
 	       kdevname(buffer_dev(bh)), buffer_blocknr(bh));
-#ifdef CONFIG_BLK_DEV_CHAR
-	if (EBH(bh)->b_count & 0x80) EBH(bh)->b_count = 1;	/* just in case */
-#endif
 	mark_buffer_clean(bh);
 	mark_buffer_uptodate(bh, 0);
     } else
