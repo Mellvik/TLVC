@@ -41,7 +41,11 @@ ifeq ($(CONFIG_ETH), y)
     OBJS += eth.o
 endif
 
-ifeq ($(CONFIG_BLK_DEV_CHAR), y)
+ifeq ($(CONFIG_BLK_DEV_FD), y)
+    OBJS += rfd.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_HD), y)
     OBJS += rhd.o
 endif
 

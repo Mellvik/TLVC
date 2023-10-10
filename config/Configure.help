@@ -526,12 +526,6 @@ CONFIG_BLK_DEV_RAM
   64K ramdrives to be implemented. Not very useful, but can be
   adapted to make use of EMS cards etc.
 
-Character access to block devices
-CONFIG_BLK_DEV_CHAR
-  Used to create and check filesystems, and by fdisk.
-
-  Recommended.
-
 # Network devices
 # ~~~~~~~~~~~~~~~
 

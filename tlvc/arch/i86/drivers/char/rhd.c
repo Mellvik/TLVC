@@ -6,14 +6,13 @@
 
 /* 
  * /dev/rhd[a..c][0..4]
- * IO in blocks only (sector size, currently fixed at 512 b/s).
  * Physical IO is shared with the block driver.
  * Data are copied directly to/from user process space.
  */
 
 #include <linuxmt/config.h>
 
-#ifdef CONFIG_BLK_DEV_CHAR
+#ifdef CONFIG_BLK_DEV_HD
 
 #include <linuxmt/kernel.h>
 #include <linuxmt/major.h>
@@ -76,13 +75,13 @@ static struct file_operations rhd_fops = {
 
 /*@+type@*/
 
-void rhd_init(void)
+void INITPROC rhd_init(void)
 {
     /* Device initialization done by the block driver, nothing required */
 
     if (register_chrdev(RAW_HD_MAJOR, "rhd", &rhd_fops))
 	printk("RHD: Unable to get major %d for raw disk devices\n", RAW_HD_MAJOR);
-    printk("rhd: Raw access to block devices configured\n");
+    //printk("rhd: Raw access to block devices configured\n");
 }
 
 #endif

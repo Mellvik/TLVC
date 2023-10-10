@@ -140,10 +140,12 @@ struct ext_buffer_head_s {
     unsigned char		b_locked;
     unsigned char		b_dirty;
     unsigned char		b_uptodate;
-#ifdef CONFIG_FS_EXTERNAL_BUFFER
+//#ifdef CONFIG_FS_EXTERNAL_BUFFER
     ramdesc_t			b_L2seg;	/* L2 buffer address @ seg:0 */
+				/* Also used in raw drivers to hold the user process data seg */
     char			b_mapcount;	/* Count of L2 buffer mapped into L1 */
-#endif
+    char			b_nr_sectors;	/* Used in raw drivers only */
+//#endif
 };
 
 #ifdef CONFIG_FAR_BUFHEADS

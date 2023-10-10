@@ -113,7 +113,6 @@ CONFIG_BLK_DEV_SSD_NONE=y
 #
 # Block device options
 #
-CONFIG_BLK_DEV_CHAR=y
 
 #
 # Character device drivers

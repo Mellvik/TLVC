@@ -47,6 +47,8 @@ extern int INITPROC directhd_init(void);
 extern void INITPROC floppy_init(void);
 extern void INITPROC rd_init(void);
 extern void INITPROC ssd_init(void);
+extern void INITPROC rhd_init(void);
+extern void INITPROC rfd_init(void);
 extern void romflash_init(void);
 
 /* char device init routines*/

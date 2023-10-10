@@ -149,7 +149,7 @@ ifeq ($(CONFIG_BLK_DEV_HD), y)
 	$(MKDEV) /dev/dhdb3 b 5 35
 	$(MKDEV) /dev/dhdb4 b 5 36
 #	$MKSET  32 8 $(MKDEV) /dev/dhdb b 5	# Currently.
-ifeq ($(CONFIG_BLK_DEV_CHAR), y)
+# Raw direct block devices
 	$(MKDEV) /dev/rdhda c 5 0
 	$(MKDEV) /dev/rdhda1 c 5 1
 	$(MKDEV) /dev/rdhda2 c 5 2
@@ -160,10 +160,9 @@ ifeq ($(CONFIG_BLK_DEV_CHAR), y)
 	$(MKDEV) /dev/rdhdb2 c 5 34
 	$(MKDEV) /dev/rdhdb3 c 5 35
 	$(MKDEV) /dev/rdhdb4 c 5 36
-	$(MKDEV) /dev/rdf0 c 2 0
 # Raw direct floppy
+	$(MKDEV) /dev/rdf0 c 2 0
 	$(MKDEV) /dev/rdf1 c 2 32
-endif
 endif
 
 #	$MKSET   0 63 $(MKDEV) /dev/dhda b 3	# Ought to be.
