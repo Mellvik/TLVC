@@ -56,6 +56,7 @@
 #include <linuxmt/directhd.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/errno.h>
+#include <linuxmt/stat.h>	/* for S_ISCHR() */
 
 #include <arch/hdreg.h>
 #include <arch/ports.h>
@@ -526,7 +527,7 @@ int directhd_ioctl(struct inode *inode, struct file *filp,
 }
 
 /*
- * NOTE: open is used by the char driver too!
+ * NOTE: open is used by the raw driver too!
  */
 
 int directhd_open(struct inode *inode, struct file *filp)
@@ -541,20 +542,14 @@ int directhd_open(struct inode *inode, struct file *filp)
     if (((int) hd[minor].start_sect) == -1)	/* FIXME is this initialized */
 	return -ENXIO;
 
-    access_count[target]++;
-
-    /* something should be here, but can't remember what :)
-     * it really isn't important until probe code works
-     *
-     * probe code works now but i still can't remember what is missing.
-     * any clues ?
-     */
+    if (!S_ISCHR(inode->i_mode)) 	/* Don't count raw opens */
+	access_count[target]++;
 
     inode->i_size = (hd[minor].nr_sects) << 9;
     /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
-    debug_blkdrv("dhd[%04x] open, size %ld\n", inode->i_rdev, inode->i_size);
+    debug_blkdrv("%cdhd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ', inode->i_rdev, inode->i_size);
     return 0;
 }
 
@@ -565,7 +560,7 @@ void directhd_release(struct inode *inode, struct file *filp)
 
     access_count[target]--;
     fsync_dev(dev);			/* cannot trust umount to do this */
-    if (!access_count[target]) {	/* don't do this if raw device */
+    if (!access_count[target]) {
 	invalidate_buffers(dev);
 	invalidate_inodes(dev);
     }
@@ -575,7 +570,7 @@ void directhd_release(struct inode *inode, struct file *filp)
 
 /*
  * 06/23 HS: Added buffer header manipulation to handle raw IO
- * 07/23 HS: Added delays to accommodate old (early) drives 
+ * 07/23 HS: Added delays to accommodate early IDE drives 
  */
 void do_directhd_request(void)
 {
@@ -592,6 +587,7 @@ void do_directhd_request(void)
     int cmd, delay;
     struct drive_infot *dp;
     struct request *req;
+    unsigned int raw_mode;
 
     while (1) {			/* process HD requests */
 	req = CURRENT;
@@ -620,11 +616,13 @@ void do_directhd_request(void)
 	 * to read, not the FS (or system) 
 	 * block size.
 	 */
-#ifdef CONFIG_BLK_DEV_CHAR
-	count = req->rq_nr_sectors ? req->rq_nr_sectors : BLOCK_SIZE / 512;
-#else
-	count = BLOCK_SIZE / 512;
-#endif
+	if (req->rq_nr_sectors) {
+		count = req->rq_nr_sectors;
+		raw_mode = 1; /* flag raw IO */
+	} else {
+		raw_mode = 0;
+		count = BLOCK_SIZE / 512;
+	}
 
 	start = req->rq_blocknr;
 	buff = req->rq_buffer;
@@ -650,7 +648,6 @@ void do_directhd_request(void)
 	}
 
 	start += hd[minor].start_sect;
-
 	sector = (start % dp->sectors) + 1;
 	tmp = start / dp->sectors;
 	head = tmp % dp->heads;
@@ -700,13 +697,6 @@ void do_directhd_request(void)
 		    //debug_blkdrv("athd%d: statusb 0x%x\n", drive, tmp);
 		}
 	}
-	unsigned int raw_mode;
-#ifdef CONFIG_BLK_DEV_CHAR
-	if (req->rq_nr_sectors)
-		raw_mode = 1; /* flag raw IO */
-	else
-#endif
-		raw_mode = 0;
 
 	/*
 	 * Do the I/O. IDE will accept sector count up to 256, and will interrupt

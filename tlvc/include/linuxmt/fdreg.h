@@ -53,7 +53,8 @@
 /* Values for FD_COMMAND */
 #define FD_RECALIBRATE		0x07	/* move to track 0 */
 #define FD_SEEK			0x0F	/* seek track */
-#define FD_READ			0xE6	/* read with MT, MFM, SKip deleted */
+#define FD_READ			0xE6	/* read with MT, MFM, Skip deleted */
+#define FD_READID		0x4A	/* Read ID off first sector on track */
 #define FD_WRITE		0xC5	/* write with MT, MFM */
 #define FD_SENSEI		0x08	/* Sense Interrupt Status */
 #define FD_SPECIFY		0x03	/* specify HUT etc */

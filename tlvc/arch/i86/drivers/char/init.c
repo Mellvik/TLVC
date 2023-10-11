@@ -32,7 +32,11 @@ void INITPROC chr_dev_init(void)
     pty_init();    
 #endif
 
-#ifdef CONFIG_BLK_DEV_CHAR
+#ifdef CONFIG_BLK_DEV_HD
     rhd_init();
+#endif
+
+#ifdef CONFIG_BLK_DEV_FD
+    rfd_init();
 #endif
 }

@@ -16,15 +16,15 @@
  * devices are as follows (same as minix, so we can use the minix fs):
  * Modified 06/23 HS, no longer matches Minix,
  * 		  direct hd/floppy now have matching char/blk major numbers.
- *		  This simplifies driver sharing between raw and blk
- *		  There is no raw access to BIOS devices:
+ *		  This simplifies the sharing of low level driver functions 
+ *		  between raw and blk.
+ *		  There is no raw access to BIOS devices.
  *
  *      character              block                  comments
  *      --------------------   --------------------   --------------------
  *  0 - unnamed                unnamed                minor 0 = true nodev
  *  1 - /dev/mem               /dev/rd[01]            block ramdisk
- *  2 - [/dev/ptyp* now 11]    /dev/df*		      char pty master (c)
- *  2 - /dev/rdf*				      Direct floppy (bl)
+ *  2 - /dev/rdf*	       /dev/df*		      direct floppy
  *  3 - /dev/ttyp*             /dev/{fd*,bd*}         block BIOS fd/hd
  *  4 - /dev/tty*,ttyp*,ttyS*                         char tty, pty slave, serial
  *  5 -	/dev/rhd*	       /dev/hd*		      direct HD
@@ -42,7 +42,7 @@
 
 #define UNNAMED_MAJOR     0
 #define MEM_MAJOR         1
-#define RAW_FLOPPY_MAJOR  2
+#define RAW_FD_MAJOR	  2
 #define PTY_SLAVE_MAJOR   3
 #define TTY_MAJOR         4
 #define RAW_HD_MAJOR	  5

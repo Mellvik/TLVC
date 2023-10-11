@@ -130,7 +130,6 @@ size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t cou
     return written;
 }
 
-#ifdef CONFIG_BLK_DEV_CHAR
 /*
  * For raw block device access only. 
  * NOTE: This code assumes that the major device #s are the same for char and block devices.
@@ -260,4 +259,3 @@ size_t block_wr(struct inode *inode, struct file *filp,
     return raw_blk_rw(inode, filp, buf, count, BLOCK_WRITE);
 }
 
-#endif /* CONFIG_BLK_DEV_CHAR */

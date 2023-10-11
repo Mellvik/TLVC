@@ -26,9 +26,7 @@ struct request {
     struct request *rq_next;
     int rq_errors;		/* FIXME: direct floppy only, needs #ifdef */
 				/* actually, used in raw blk io too */
-#ifdef CONFIG_BLK_DEV_CHAR
     unsigned int rq_nr_sectors; /* needed for raw IO */
-#endif
 #ifdef BLOAT_FS
 /* This may get used for dealing with waiting for requests later*/
     struct task_struct *rq_waiting;
@@ -196,7 +194,7 @@ static void end_request(int uptodate)
     bh->b_reqnext = NULL;
 #endif
 
-    mark_buffer_uptodate(bh, uptodate);	/* DELETE: Must be superfluous */
+    mark_buffer_uptodate(bh, uptodate);
     //debug_blkdrv("ER:%04x;", req);
 #if BUFFER_DEBUG
     __far unsigned int *content;
