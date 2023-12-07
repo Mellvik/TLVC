@@ -43,10 +43,26 @@ struct int_handler {
 
 typedef struct int_handler int_handler_s;
 
+/*
+ * Experimental:
+ * move interrupt vectors away from the heap to avoid the fragmentation they represent
+ * now that IRQs are assigned on demand instead of at boot time.
+ * (also remove the overhead of 12 bytes per 6 byte vector on the heap - admittedly 
+ * mostly eaten by the extra code needed here).
+*/
+#define USE_LOCAL_IRQVEC
+
+#ifdef USE_LOCAL_IRQVEC
+
+#define INT_VECTOR_MAX	8	/* Don't need 16, may in odd cases need 10 */
+
+static int_handler_s int_vector[INT_VECTOR_MAX];
+#endif
+
 /* called by _irqit assembler hook after saving registers */
 void do_IRQ(int i,void *regs)
 {
-    irq_handler ih = irq_action [i];
+    irq_handler ih = irq_action[i];
     if (!ih)
         printk("Unexpected interrupt: %u\n", i);
     else (*ih)(i, regs);
@@ -57,6 +73,17 @@ void do_IRQ(int i,void *regs)
 
 static int_handler_s *handler_alloc(void)
 {
+#ifdef USE_LOCAL_IRQVEC
+	int i;
+
+	for (i = 0; i < INT_VECTOR_MAX; i++) {
+		if (int_vector[i].call == 0) {
+			int_vector[i].call++; /* insurance */
+			return &int_vector[i];
+		}
+	}
+	/* overflow */
+#endif
 	return (int_handler_s *) heap_alloc (sizeof (int_handler_s), HEAP_TAG_INTHAND);
 }
 
@@ -101,7 +128,7 @@ int request_irq(int irq, irq_handler handler, int hflag)
 
     // TODO: IRQ number has no meaning for an INT handler
     // see above simplification TODO
-    int_handler_add (irq, irq_vector (irq), proc, h);
+    int_handler_add (irq, irq_vector(irq), proc, h);
 
     enable_irq(irq);
     restore_flags(flags);
@@ -128,6 +155,16 @@ int free_irq(int irq)
     irq_action[irq] = NULL;
     restore_flags(flags);
 
+#ifdef USE_LOCAL_IRQVEC
+    int i;
+    for (i = 0; i < INT_VECTOR_MAX; i++) {
+   	if (&int_vector[i] == irq_trampoline[irq]) {
+	    int_vector[i].call = 0;
+	    return 0;
+	}
+    }
+    /* overflow */
+#endif
     heap_free(irq_trampoline[irq]);
     return 0;
 }
