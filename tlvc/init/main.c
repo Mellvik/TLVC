@@ -13,6 +13,7 @@
 #include <linuxmt/netstat.h>
 #include <linuxmt/trace.h>
 #include <linuxmt/debug.h>
+#include <linuxmt/devnum.h>
 #include <arch/system.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
@@ -41,6 +42,7 @@ struct netif_parms netif_parms[MAX_ETHS] = {
 __u16 kernel_cs, kernel_ds;
 int tracing;
 int nr_mapbufs;
+int ide_chs[3] = {0,0,0};
 static int boot_console = 0;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -143,7 +145,7 @@ void INITPROC kernel_init(void)
 
 #ifdef CONFIG_BOOTOPTS
     finalize_options();
-    if (!opts) printk("/bootopts not found or wrong format\n");
+    if (!opts) printk("/bootopts not found or bad format/size\n");
 #endif
 
 #ifdef CONFIG_FARTEXT_KERNEL
@@ -249,29 +251,27 @@ static struct dev_name_struct {
 	const char *name;
 	int num;
 } devices[] = {
-	/* root_dev_name needs first 5 in order*/
+	/* the 4 partitionable drives must be first */
 #ifdef CONFIG_BLK_DEV_HD
-	{ "dhda",    0x0500 },
-	{ "dhdb",    0x0520 },
-	{ "dhdc",    0x0540 },
-	{ "dhdd",    0x0560 },
+	{ "dhda",    DEV_DHDA},
+	{ "dhdb",    DEV_DHDB },
+	{ "dhdc",    DEV_DHDC },
+	{ "dhdd",    DEV_DHDD },
 #else
-	{ "hda",     0x0300 },
-	{ "hdb",     0x0320 },
-	{ "hdc",     0x0340 },
-	{ "hdd",     0x0360 },
+	{ "hda",     DEV_HDA },
+	{ "hdb",     DEV_HDB },
+	{ "hdc",     DEV_HDC },
+	{ "hdd",     DEV_HDD },
 #endif
-#ifdef CONFIG_BLK_DEV_FD
-	{ "df0",     0x0200 },
-	{ "df1",     0x0220 },
-#else
-	{ "fd0",     0x0380 },
-	{ "fd1",     0x03a0 },
-#endif
-	{ "ttyS",    0x0440 },
-	{ "tty1",    0x0400 },
-	{ "tty2",    0x0401 },
-	{ "tty3",    0x0402 },
+	{ "df0",     DEV_DF0 },
+	{ "df1",     DEV_DF1 },
+	{ "fd0",     DEV_FD0 },
+	{ "fd1",     DEV_FD1 },
+	{ "ttyS0",   DEV_TTYS0 },
+	{ "ttyS1",   DEV_TTYS1 },
+	{ "tty1",    DEV_TTY1 },
+	{ "tty2",    DEV_TTY2 },
+	{ "tty3",    DEV_TTY3 },
 	{ NULL,           0 }
 };
 
@@ -323,25 +323,47 @@ static int INITPROC parse_dev(char * line)
 	return (base + atoi(line));
 }
 
-static void INITPROC comirq(char *line)
+static void INITPROC parse_parms(int cnt, char *line, int *nums, int base)
 {
-#if defined(CONFIG_ARCH_IBMPC) && defined(CONFIG_CHAR_DEV_RS)
 	int i;
 	char *l, *m, c;
 
 	l = line;
-	for (i = 0; i < MAX_SERIAL; i++) {	/* assume decimal digits only */
+	for (i = 0; i < cnt; i++) {
 		m = l;
 		while ((*l) && (*l != ',')) l++;
 		c = *l;		/* ensure robust eol handling */
 		if (l > m) {
 			*l = '\0';
-			set_serial_irq(i, (int)simple_strtol(m, 0));
-		}
+			nums[i] = (int)simple_strtol(m, base);
+		} else nums[i] = 0;	/* item missing */
 		if (!c) break;
 		l++;
 	}
-#endif
+}
+
+static void INITPROC comirq(char *line)
+{
+	int irq[MAX_SERIAL], i;
+
+	parse_parms(MAX_SERIAL, line, irq, 0);
+	for (i = 0; i < MAX_SERIAL; i++) 
+		if (irq[i]) set_serial_irq(i, irq[i]);
+}
+
+static void INITPROC init_chs(int dev, char *line)
+{
+	int i, val[3];
+
+	parse_parms(3, line, val, 10);
+	for (i = 0; i < 3; i++) {
+		if (!val[i]) {	/* sanity check, no zero values accepted */ 
+			val[0] = 0;
+			return;
+		}
+		ide_chs[i] = val[i];
+	}
+	//printk("init_chs: %d/%d/%d\n", ide_chs[0], ide_chs[1], ide_chs[2]);
 }
 
 static void INITPROC parse_nic(char *line, struct netif_parms *parms)
@@ -480,11 +502,17 @@ static int INITPROC parse_options(void)
 			tracing |= TRACE_KSTACK;
 			continue;
 		}
+
+		/* TODO: expand to cover all drives later */
+		if (!strncmp(line,"chs0=", 5)) {
+			init_chs(0, line+5);
+			continue;
+		}
 		if (!strncmp(line,"TZ=",3)) {
 			tz_init(line+3);
 			/* fall through and add line to environment */
 		}
-		
+
 		/*
 		 * Then check if it's an environment variable or an init argument.
 		 */
