@@ -15,18 +15,11 @@ create_dev_dir()
 {
 	echo "Creating /dev entries..."
 	mkdir $MNT/dev
-	mknod $MNT/dev/hda	b 3 0
-	mknod $MNT/dev/hda1	b 3 1
-	mknod $MNT/dev/hda2	b 3 2
-	mknod $MNT/dev/hda3	b 3 3
-	mknod $MNT/dev/hda4	b 3 4
 	mknod $MNT/dev/dhda	b 5 0
 	mknod $MNT/dev/dhda1	b 5 1
 	mknod $MNT/dev/dhda2	b 5 2
 	mknod $MNT/dev/dhda3	b 5 3
 	mknod $MNT/dev/dhda4	b 5 4
-	mknod $MNT/dev/fd0	b 3 128
-	mknod $MNT/dev/fd1	b 3 160
 	mknod $MNT/dev/df0	b 2 0
 	mknod $MNT/dev/df1	b 2 32
 	mknod $MNT/dev/kmem	c 1 2
@@ -36,7 +29,7 @@ create_dev_dir()
 	mknod $MNT/dev/ne0	c 9 0
 	mknod $MNT/dev/wd0	c 9 1
 	mknod $MNT/dev/3c0	c 9 2
-	mknod $MNT/dev/ptyp0	c 2 8
+	mknod $MNT/dev/ptyp0	c 11 8
 	mknod $MNT/dev/ttyp0	c 4 8
 	mknod $MNT/dev/tty1	c 4 0
 	mknod $MNT/dev/ttyS0	c 4 64
@@ -47,15 +40,6 @@ create_dev_dir()
 	chmod 0666 $MNT/dev/tty
 	if test "$small" = "1"; then return; fi
 
-	mknod $MNT/dev/hdb	b 3 32
-	mknod $MNT/dev/hdb1	b 3 33
-	mknod $MNT/dev/hdb2	b 3 34
-	mknod $MNT/dev/hdb3	b 3 35
-	mknod $MNT/dev/hdb4	b 3 36
-	mknod $MNT/dev/hdc	b 3 64
-	mknod $MNT/dev/hdc1	b 3 65
-	mknod $MNT/dev/hdd	b 3 96
-	mknod $MNT/dev/hdd1	b 3 97
 	mknod $MNT/dev/dhdb	b 5 32
 	mknod $MNT/dev/dhdb1	b 5 33
 	mknod $MNT/dev/dhdb2	b 5 34
@@ -74,9 +58,9 @@ create_dev_dir()
 	mknod $MNT/dev/ttyp1	c 4 9
 	mknod $MNT/dev/ttyp2	c 4 10
 	mknod $MNT/dev/ttyp3	c 4 11
-	mknod $MNT/dev/ptyp1	c 2 9
-	mknod $MNT/dev/ptyp2	c 2 10
-	mknod $MNT/dev/ptyp3	c 2 11
+	mknod $MNT/dev/ptyp1	c 11 9
+	mknod $MNT/dev/ptyp2	c 11 10
+	mknod $MNT/dev/ptyp3	c 11 11
 }
 
 create_directories()

@@ -22,7 +22,7 @@
  */
 /*
  * A note about IDE/ATA:
- * The IDE read/write sector commands initiate multisector I/O but each sector needs its own read
+ * The IDE read/write Sector commands initiate multisector I/O but each sector needs its own read
  * or write operation: One command, many response-iterations - 
  * like waiting for a new DRQ (or interrupt) per sector.
  *
@@ -92,6 +92,8 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #define MINOR_SHIFT	5
 #define ATDISK
 int running_qemu;
+extern int ide_chs[];		/* CHS data from /bootopts */
+
 #include "blk.h"
 
 int directhd_ioctl();
@@ -383,7 +385,7 @@ int INITPROC directhd_init(void)
 	dp->ctl = 0;
 #ifdef DEBUG
 	dump_ide(ide_buffer, 64);
-	//ide_buffer[53] = 0; /* force old ide behaviour for debug */
+	//ide_buffer[53] = 0; /* force old ide behaviour for debuging */
 #endif
 	ide_buffer[20] = 0; /* String termination */
 	if (ide_buffer[10] == 0x4551)	/* Crude QEMU detection */
@@ -401,16 +403,21 @@ int INITPROC directhd_init(void)
 		dp->heads = ide_buffer[55];
 		dp->sectors = ide_buffer[56];
 	    } else {		/* old drive, limited ID, limited cmd set */
-/* !!!!!!!!!!!!!!!!!!!  FIXME: hardcoded values for debugging, remove later */
-		dp->cylinders = 980/*ide_buffer[1]*/;
-		dp->heads = 5/*ide_buffer[3]*/;
-		dp->sectors = 17/*ide_buffer[6]*/;
+		if (drive == 0 && *ide_chs > 0) {
+			dp->cylinders = ide_chs[0];
+			dp->heads = ide_chs[1];
+			dp->sectors = ide_chs[2];
+		} else {
+			dp->cylinders = ide_buffer[1];
+			dp->heads = ide_buffer[3];
+			dp->sectors = ide_buffer[6];
+		}
 		dp->ctl |= ATA_CFG_OLDIDE;
 	    }
 
 	    hdcount++;
-	    printk("IDE CHS: %d/%d/%d serial# %s\n", dp->cylinders, dp->heads, dp->sectors,
-		&ide_buffer[10]);
+	    printk("IDE CHS: %d/%d/%d %sserial# %s\n", dp->cylinders, dp->heads, dp->sectors,
+		ide_chs[0] ? "(from /bootopts) " : "", &ide_buffer[10]);
 
 	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
