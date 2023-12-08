@@ -436,6 +436,13 @@ static int ne2k_open(struct inode *inode, struct file *file)
 		}
 		ne2k_reset();
 		ne2k_init();
+#if (NET_OBUFCNT > 0)
+		tnext = netbuf_init(net_obuf, NET_OBUFCNT);
+#endif
+#if (NET_IBUFCNT > 0)
+		rnext = netbuf_init(net_ibuf, NET_IBUFCNT);
+#endif
+
 		ne2k_start();
 	}
 	return 0;
@@ -449,6 +456,10 @@ static void ne2k_release(struct inode *inode, struct file *file)
 {
 	if (--usecount == 0) {
 		ne2k_stop();
+#ifdef USE_HEAP_BUFFER
+		netbuf_release(tnext);
+		netbuf_release(rnext);
+#endif
 		free_irq(net_irq);
 	}
 }
@@ -506,13 +517,6 @@ void INITPROC ne2k_drv_init(void)
 	mac_addr = (byte_t *)&netif_stat.mac_addr;
 
 	net_port = NET_PORT;    // ne2k-asm.S needs this.
-
-#if (NET_OBUFCNT > 0)	/* redo this if we add more than 2 buffers */
-	tnext = netbuf_init(net_obuf, NET_OBUFCNT);
-#endif
-#if (NET_IBUFCNT > 0)	/* redo this if we add more than 2 buffers */
-	rnext = netbuf_init(net_ibuf, NET_IBUFCNT);
-#endif
 
 	while (1) {
 		int j, k;
