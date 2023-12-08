@@ -223,12 +223,12 @@ int main(int argc, char **argv)
 
 	printf("  PID   GRP  TTY USER STAT ");
 #ifdef CONFIG_CPU_USAGE
-    printf("CPU");
+	printf("CPU");
 #endif
-    printf(" ");
+	printf(" ");
 	if (f_listall) printf("CSEG DSEG ");
 	printf(" HEAP  FREE   SIZE COMMAND\n");
-	for (j = 1; j <= MAX_TASKS; j++) {
+	for (j = 1; j < MAX_TASKS; j++) {	/* Skipping the null task */
 		if (!memread(fd, off + j*sizeof(struct task_struct), ds, &task_table, sizeof(task_table))) {
 			perror("ps");
 			return 1;
