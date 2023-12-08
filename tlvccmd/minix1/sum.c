@@ -46,7 +46,7 @@ void sum(int fd, char *fname)
 		crc += tmp;
 		crc &= 0xffff;
 	}
-	size++;
+	size += n;
   }
 
   if (n < 0) {
@@ -57,7 +57,7 @@ void sum(int fd, char *fname)
 	rc = 1;
 	return;
   }
-  printf("%05u %6ld", crc, size);
+  printf("%05u %6ld", crc, (size >> 10) + !!(size&0x3ff));
   if (fname) printf(" %s", fname);
   printf("\n");
 }
