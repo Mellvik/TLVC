@@ -23,6 +23,7 @@
 #define HEAP_TAG_INTHAND 0x04
 #define HEAP_TAG_BUFHEAD 0x05
 #define HEAP_TAG_PIPE    0x06
+#define HEAP_TAG_NETWORK 0x07	/* packet buffer allocations */
 
 
 // TODO: move free list node from header to body

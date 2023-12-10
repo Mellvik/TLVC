@@ -10,7 +10,7 @@ struct netbuf *netbuf_init(struct netbuf *buf, int cnt) {
 	int i;
 	for (i = 0; i < cnt; i++) {
 #ifdef USE_HEAP_BUFFER
-		if (!(buf[i].data = heap_alloc(MAX_PACKET_ETH, HEAP_TAG_BUFHEAD))) {
+		if (!(buf[i].data = heap_alloc(MAX_PACKET_ETH, HEAP_TAG_NETWORK))) {
 			printk("eth: Buffer alloc failed\n");
 			netbuf_release(&buf[0]);
 			return(NULL);
