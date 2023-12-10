@@ -8,6 +8,7 @@
 
 #define NET_OBUFCNT 2
 #define NET_IBUFCNT 2
+#define USE_HEAP_BUFFER
 
 #ifndef __ASSEMBLER__
 
@@ -16,8 +17,14 @@
 struct netbuf {
 	int len;			/* ZERO if available */
 	struct netbuf *next;
-	char data[MAX_PACKET_ETH];	/* full size for now */
+#ifdef USE_HEAP_BUFFER
+	char *data;	/* allocate from heap */
+#else
+	char data[MAX_PACKET_ETH];
+#endif
 };
+
+void netbuf_release(struct netbuf *);
 
 #if (NET_IBUFCNT > 0)
 struct netbuf net_ibuf[NET_IBUFCNT];
