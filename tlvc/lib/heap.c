@@ -39,7 +39,7 @@ static heap_s *heap_rsplit(word_t size0)
 	h1->size -= size0 + sizeof(heap_s);
 	list_insert_after(&(h1->all), &(h2->all));
 	
-	printk("rsplit 1:%x/%d - 2:%x/%d\n", h1, h1->size, h2, h2->size);
+	//printk("rsplit 1:%x/%d - 2:%x/%d\n", h1, h1->size, h2, h2->size);
 	return h2;
 }
 #endif
@@ -61,7 +61,7 @@ static void heap_split(heap_s *h1, word_t size0)
 		list_insert_after(&(h1->free), &(h2->free));
 #ifdef HEAP_SEG_OPT
 		if (h1 == high_free) high_free = h2;
-		printk("heap_split 1:%x/%d - 2:%x/%d hf %x\n", h1, h1->size, h2, h2->size, high_free);
+		//printk("heap_split 1:%x/%d - 2:%x/%d hf %x\n", h1, h1->size, h2, h2->size, high_free);
 #endif
 	}
 }
@@ -106,7 +106,7 @@ static heap_s *free_get(word_t size0, byte_t tag)
 		best_h->tag = HEAP_TAG_USED | tag;
 	}
 #ifdef HEAP_SEG_OPT
-	printk("highfree: %x/%d\n", high_free, high_free->size);
+	//printk("highfree: %x/%d\n", high_free, high_free->size);
 #endif
 
 	return best_h;
