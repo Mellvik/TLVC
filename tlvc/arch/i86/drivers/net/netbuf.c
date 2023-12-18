@@ -8,11 +8,12 @@
 
 struct netbuf *netbuf_init(struct netbuf *buf, int cnt) {
 	int i;
+
+	if (!cnt) return(NULL);
 	for (i = 0; i < cnt; i++) {
-#ifdef USE_HEAP_BUFFER
+#if NET_BUF_STRAT == HEAP_BUFS 
 		if (!(buf[i].data = heap_alloc(MAX_PACKET_ETH, HEAP_TAG_NETWORK))) {
 			printk("eth: Buffer alloc failed\n");
-			netbuf_release(&buf[0]);
 			return(NULL);
 		}
 		//printk("netbuf got %x\n", buf[i].data);
@@ -24,9 +25,11 @@ struct netbuf *netbuf_init(struct netbuf *buf, int cnt) {
 	return(&buf[0]);
 }
 
-#ifdef USE_HEAP_BUFFER
+#if NET_BUF_STRAT == HEAP_BUFS 
 void netbuf_release(struct netbuf *buf) {
 	struct netbuf *n = buf;
+
+	//if (buf == NULL) return;
 	do {
 		heap_free(n->data);
 		//printk("netbuf rel %x\n", n->data);
