@@ -43,6 +43,7 @@ __u16 kernel_cs, kernel_ds;
 int tracing;
 int nr_mapbufs;
 int ide_chs[3] = {0,0,0};
+int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 static int boot_console = 0;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -506,6 +507,10 @@ static int INITPROC parse_options(void)
 		/* TODO: expand to cover all drives later */
 		if (!strncmp(line,"chs0=", 5)) {
 			init_chs(0, line+5);
+			continue;
+		}
+		if (!strncmp(line, "netbufs=", 8)) {
+			parse_parms(2, line+8, netbufs, 10);
 			continue;
 		}
 		if (!strncmp(line,"TZ=",3)) {

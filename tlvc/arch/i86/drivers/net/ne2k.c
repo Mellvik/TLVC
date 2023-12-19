@@ -9,6 +9,7 @@
  *
  * TLVC FEB 2023 - Added experimental io buffering (Helge Skrivervik)
  *
+ * For buffer configuration, see netbuf.h
  */
 
 #include <arch/io.h>
@@ -23,6 +24,7 @@
 #include <linuxmt/string.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/netstat.h>
+#include <linuxmt/heap.h>
 #include "eth-msgs.h"
 
 // Shared declarations between low and high parts
@@ -67,8 +69,8 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 	//printk("R");
 	while(1) {
 		prepare_to_wait_interruptible(&rxwait);
-#if (NET_IBUFCNT > 0)
-		if (rnext->len) {	/* data in buffer */
+#if NET_BUF_STRAT != NO_BUFS
+		if (rnext && rnext->len) {	/* data in buffer */
 			res = rnext->len;
 			verified_memcpy_tofs(data, rnext->data, res);
 			rnext->len = 0;
@@ -83,8 +85,10 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 		 * NOTE: Possible race condition. A RCV INTR may happen
 		 * while we're reading a packet - thus the semaphore in getpkg 
 		 */
+		//printk("r");
 		if (ne2k_has_data) { 
-#if (NET_IBUFCNT > 0)
+#if NET_BUF_STRAT != NO_BUFS
+		   if (rnext) {
 			rnext->len++;	/* mark as busy */
 			res = ne2k_getpkg(rnext->data, len);
 			if (res > 0) {
@@ -94,10 +98,12 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 				break;
 			}
 			rnext->len = 0;	/* getpkg is busy, fall thru */
-#else
+		    } else
+#endif
+		    {
 			res = ne2k_getpkg(data, len);
 			break;
-#endif
+		    }
 		}
 		if (filp->f_flags & O_NONBLOCK) {
 			res = -EAGAIN;
@@ -184,7 +190,8 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 		prepare_to_wait_interruptible(&txwait);
 		// tx_stat() checks the command reg, not the tx_status_reg!
 		if (ne2k_tx_stat() != NE2K_STAT_TX) {
-#if (NET_OBUFCNT > 0)
+#if NET_BUF_STRAT != NO_BUFS
+		    if (tnext) {
 			/* transmiter is busy, put the data in a buffer if available */
 			struct netbuf *nxt = tnext;
 			while (nxt->len) {	/* search for available buffer */
@@ -192,24 +199,26 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 				nxt = nxt->next;
 			}
 			if (nxt->len == 0) {
-				printk("t");
+				//printk("t");
 				nxt->len = len;
 				verified_memcpy_fromfs(nxt->data, data, len);
 				res = len;
 				break;
 			}
+		    }
 #endif
-			if (file->f_flags & O_NONBLOCK) {
-				res = -EAGAIN;
-				break;
-			}
-			do_wait();
-			if(current->signal) {
-				res = -EINTR;
-				break;
-			}
+		    if (file->f_flags & O_NONBLOCK) {
+			res = -EAGAIN;
+			break;
+		    }
+		    do_wait();
+		    if(current->signal) {
+			res = -EINTR;
+			break;
+		    }
 		}
 
+		/* NIC is ready, send the data */
 		if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
 
 		if (len < 64) len = 64;  /* issue #133 */
@@ -234,28 +243,27 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 	//printk("S");
 	switch (sel_type) {
 		case SEL_OUT:
-#if (NET_OBUFCNT > 0)
-			if ((ne2k_tx_stat() != NE2K_STAT_TX) && tnext->len) {
-#else
-			if ((ne2k_tx_stat() != NE2K_STAT_TX)) {
+			if ((ne2k_tx_stat() == NE2K_STAT_TX) 
+#if NET_BUF_STRAT != NO_BUFS
+				|| (tnext && !tnext->len)
 #endif
-				select_wait(&txwait);
+			) {
+				res = 1;
 				break;
 			}
-			res = 1;
+			select_wait(&txwait);
 			break;
 
 		case SEL_IN:
-			//if (ne2k_rx_stat() != NE2K_STAT_RX) {
-#if (NET_IBUFCNT > 0)
-			if (!rnext->len && !ne2k_has_data) {
-#else
-			if (!ne2k_has_data) {
+			if (ne2k_has_data
+#if NET_BUF_STRAT != NO_BUFS
+			|| (rnext && rnext->len)
 #endif
-				select_wait(&rxwait);
+			) {
+				res = 1;
 				break;
 			}
-			res = 1;
+			select_wait(&rxwait);
 			break;
 
 		default:
@@ -295,10 +303,11 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 		}
 
 		if (stat & NE2K_STAT_RX) {
-			ne2k_has_data = 1; 	// data available
-#if (NET_IBUFCNT > 0)
-			int i; struct netbuf *nxt = rnext;
-			for (i = 0; i < NET_IBUFCNT; i++) {
+		    ne2k_has_data = 1; 	// data available
+#if NET_BUF_STRAT != NO_BUFS
+		    int i; struct netbuf *nxt = rnext;
+		    if (rnext) {
+			for (i = 0; i < netbufs[NET_RXBUFS]; i++) {
 				if (nxt->len == 0) break;
 				nxt = nxt->next;
 			}
@@ -308,23 +317,25 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 				//wake_up(&rxwait);
 				nxt = nxt->next;
 			} 
+		    }
 #endif
-			wake_up(&rxwait);
+		    wake_up(&rxwait);
 
-#if (NET_IBUFCNT > 0)
-			/* if there is more data and we have more buffer space, 
-			 * take another round, else reset the ISR bit and we're done.
-			 * This also catches the case when the ne2k_getpkg routine 
-			 * is busy, returning zero.
-			 */
-			if (!(ne2k_has_data && !nxt->next))
+#if NET_BUF_STRAT != NO_BUFS
+		    /* if there is no more data in the NIC or the buffers are full,
+		     * reset the ISR bit and continue. Otherwise take another round.
+		     * This also catches the case when the ne2k_getpkg routine 
+		     * is busy, returning zero.
+		     */
+		    if (!ne2k_has_data || !rnext || (rnext && nxt->next))
 #endif
-				outb(NE2K_STAT_RX, net_port + EN0_ISR); // Clear intr bit
+			outb(NE2K_STAT_RX, net_port + EN0_ISR); // Clear intr bit
+								// only if done
 		}
 
 		if (stat & NE2K_STAT_TX) {
-#if (NET_OBUFCNT > 0)
-			if (tnext->len) {
+#if NET_BUF_STRAT != NO_BUFS
+			if (tnext && tnext->len) {
 				ne2k_pack_put(tnext->data, tnext->len, TX_IS_LOCAL);
 				tnext->len = 0;
 				tnext = tnext->next;
@@ -436,11 +447,15 @@ static int ne2k_open(struct inode *inode, struct file *file)
 		}
 		ne2k_reset();
 		ne2k_init();
-#if (NET_OBUFCNT > 0)
-		tnext = netbuf_init(net_obuf, NET_OBUFCNT);
+#if NET_BUF_STRAT == HEAP_BUFS
+		net_ibuf = (struct netbuf *)heap_alloc(sizeof(struct netbuf) * (netbufs[NET_RXBUFS] + 
+				netbufs[NET_TXBUFS]), HEAP_TAG_NETWORK);
+		net_obuf = net_ibuf + netbufs[NET_RXBUFS];
 #endif
-#if (NET_IBUFCNT > 0)
-		rnext = netbuf_init(net_ibuf, NET_IBUFCNT);
+#if NET_BUF_STRAT != NO_BUFS
+		//printk("eth: using %d/%d buffers\n", netbufs[NET_RXBUFS], netbufs[NET_TXBUFS]);
+		tnext = netbuf_init(net_obuf, netbufs[NET_TXBUFS]);
+		rnext = netbuf_init(net_ibuf, netbufs[NET_RXBUFS]);
 #endif
 
 		ne2k_start();
@@ -456,9 +471,10 @@ static void ne2k_release(struct inode *inode, struct file *file)
 {
 	if (--usecount == 0) {
 		ne2k_stop();
-#ifdef USE_HEAP_BUFFER
-		netbuf_release(tnext);
-		netbuf_release(rnext);
+#if NET_BUF_STRAT == HEAP_BUFS
+		if (rnext) netbuf_release(net_ibuf);
+		if (tnext) netbuf_release(net_obuf);
+		heap_free(net_ibuf);
 #endif
 		free_irq(net_irq);
 	}
@@ -499,7 +515,7 @@ void ne2k_display_status(void)
 
 void INITPROC ne2k_drv_init(void)
 {
-	int err, i;
+	int err, i, j, k;
 	word_t prom[16];/* PROM containing HW MAC address and more 
 			 * (aka SAPROM, Station Address PROM).
 			 * PROM size is 16 bytes. If read in word (16 bit) mode,
@@ -518,81 +534,80 @@ void INITPROC ne2k_drv_init(void)
 
 	net_port = NET_PORT;    // ne2k-asm.S needs this.
 
-	while (1) {
-		int j, k;
+	err = ne2k_probe();
+	verbose = (net_flags&ETHF_VERBOSE);
+	printk("eth: %s at 0x%x, irq %d", dev_name, net_port, net_irq);
+	if (err) {
+		printk(" not found\n");
+		return;
+	}
 
-		err = ne2k_probe();
-		verbose = (net_flags&ETHF_VERBOSE);
-		printk("eth: %s at 0x%x, irq %d", dev_name, net_port, net_irq);
-		if (err) {
-			printk(" not found\n");
-			break;
-		}
+	found = 1;
+	cprom = (byte_t *)prom;
+	ne2k_get_hw_addr(prom);
 
-#if DELETEME
-		/* Should not happen since we already have probed the NIC successfully */
-		/* May be superflous - candidate for removal */
-		if (((prom[0]&0xff) == 0xff) && ((prom[1]&0xff) == 0xff)) {
-			printk("%s: No MAC address\n", dev_name);
-			err = -1;
-			break;
-		} 
+	err = j = k = 0;
+	//for (i = 0; i < 32; i++) printk("%02x", cprom[i]);
+	//printk("\n");
+
+	/* if the high byte of every word is 0, this is a 16 bit card
+	 * if the high byte = low byte in every word, this is probably QEMU */
+	for (i = 1; i < 12; i += 2) j += cprom[i];
+	for (i = 0; i < 12; i += 2) k += cprom[i];	/* QEMU check */
+
+	/* ne2k_flags may be used as a simple variable until
+	 * we add in the buffer flags below */
+	if (j && (j!=k)) {	
+		ne2k_flags = ETHF_8BIT_BUS;
+		model_name[2] = '1';
+		netif_stat.if_status |= NETIF_AUTO_8BIT; 
+	} else {
+		for (i = 0; i < 16; i++) cprom[i] = (char)prom[i]&0xff;
+		ne2k_flags = 0;
+	}
+	if (j == k && !memcmp(cprom, mac_addr, 5)) netif_stat.if_status |= NETIF_IS_QEMU;
+	//for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
+	//printk("\n");
+
+	memcpy(mac_addr, cprom, 6);
+	printk(", (%s) MAC %02x", model_name, mac_addr[0]);
+	ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works */
+
+	i = 1;
+	while (i < 6) printk(":%02x", mac_addr[i++]);
+	if (net_flags&ETHF_8BIT_BUS) {
+		/* flag that we're forcing 8 bit bus on 16 NIC */
+		if (!ne2k_flags) printk(" (8bit)");
+		ne2k_flags = ETHF_8BIT_BUS; 	/* Forced 8bit */
+	}
+	if (!(ne2k_flags&ETHF_8BIT_BUS))
+		netif_stat.oflow_keep = 3;	// Experimental: use 3 if 16k buffer
+	if (netif_stat.if_status & NETIF_IS_QEMU) 
+		printk(" (QEMU)");
+
+	/* The _BUF flags indicate forced NIC buffer size, ZERO means use defaults */
+	if (net_flags&(ETHF_4K_BUF|ETHF_8K_BUF|ETHF_16K_BUF)) {
+		ne2k_flags |= net_flags&0xf;		/* asm code uses this */
+		printk(" (%dk buffer)", 4<<(net_flags&0x3));
+	}
+#if (NET_BUF_STRAT == NO_BUFS)
+	printk(", flags 0x%02x\n", net_flags);
+#else
+#if NET_BUF_STRAT == HEAP_BUFS
+	/* If no netbufs= in bootopts, initialize from netbuf.h */
+	if (netbufs[NET_RXBUFS] == -1) netbufs[NET_RXBUFS] = NET_IBUFCNT;
+	if (netbufs[NET_TXBUFS] == -1) netbufs[NET_TXBUFS] = NET_OBUFCNT;
+#else	/* Static buffers */
+	netbufs[NET_RXBUFS] = NET_IBUFCNT;
+	netbufs[NET_TXBUFS] = NET_OBUFCNT;
 #endif
-		found = 1;
-		cprom = (byte_t *)prom;
-		ne2k_get_hw_addr(prom);
-
-		err = j = k = 0;
-		//for (i = 0; i < 32; i++) printk("%02x", cprom[i]);
-		//printk("\n");
-
-		/* if the high byte of every word is 0, this is a 16 bit card
-		 * if the high byte = low byte in every word, this is probably QEMU */
-		for (i = 1; i < 12; i += 2) j += cprom[i];
-		for (i = 0; i < 12; i += 2) k += cprom[i];	/* QEMU check */
-
-		/* ne2k_flags may be used as a simple variable until
-		 * we add in the buffer flags below */
-		if (j && (j!=k)) {	
-			ne2k_flags = ETHF_8BIT_BUS;
-			model_name[2] = '1';
-			netif_stat.if_status |= NETIF_AUTO_8BIT; 
-		} else {
-			for (i = 0; i < 16; i++) cprom[i] = (char)prom[i]&0xff;
-			ne2k_flags = 0;
-		}
-		if (j == k && !memcmp(cprom, mac_addr, 5)) netif_stat.if_status |= NETIF_IS_QEMU;
-		//for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
-		//printk("\n");
-
-		memcpy(mac_addr, cprom, 6);
-		printk(", (%s) MAC %02x", model_name, mac_addr[0]);
-		ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works */
-
-		i = 1;
-		while (i < 6) printk(":%02x", mac_addr[i++]);
-		if (net_flags&ETHF_8BIT_BUS) {
-			/* flag that we're forcing 8 bit bus on 16 NIC */
-			if (!ne2k_flags) printk(" (8bit)");
-			ne2k_flags = ETHF_8BIT_BUS; 	/* Forced 8bit */
-		}
-		if (!(ne2k_flags&ETHF_8BIT_BUS))
-			netif_stat.oflow_keep = 3;	// Experimental: use 3 if 16k buffer
-		if (netif_stat.if_status & NETIF_IS_QEMU) 
-			printk(" (QEMU)");
-
-		/* The _BUF flags indicate forced buffer size, ZERO means use defaults */
-		if (net_flags&(ETHF_4K_BUF|ETHF_8K_BUF|ETHF_16K_BUF)) {
-			ne2k_flags |= net_flags&0xf;		/* asm code uses this */
-			printk(" (%dk buffer)", 4<<(net_flags&0x3));
-		}
-		printk(", flags 0x%02x\n", net_flags);
+	printk(", flags 0x%02x, bufs %dr/%dt\n", net_flags, netbufs[NET_RXBUFS],
+							    netbufs[NET_TXBUFS]);
+#endif
 
 #if DEBUG_ETH
-		debug_setcallback(2, ne2k_display_status);	/* ^P lists status */
+	debug_setcallback(2, ne2k_display_status);	/* ^P lists status */
 #endif
-		break;
-	}
 	ne2k_has_data = 0;
 	eths[ETH_NE2K].stats = &netif_stat;
 }
