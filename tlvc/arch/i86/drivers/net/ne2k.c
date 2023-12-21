@@ -533,6 +533,10 @@ void INITPROC ne2k_drv_init(void)
 	mac_addr = (byte_t *)&netif_stat.mac_addr;
 
 	net_port = NET_PORT;    // ne2k-asm.S needs this.
+	if (!net_port) {
+		printk("eth: %s ignored\n", dev_name);
+		return;
+	}
 
 	err = ne2k_probe();
 	verbose = (net_flags&ETHF_VERBOSE);

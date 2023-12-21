@@ -144,6 +144,10 @@ struct file_operations el3_fops =
 void INITPROC el3_drv_init(void) {
 	ioaddr = net_port;		// temporary
 
+	if (!ioaddr) {
+		printk("el3: ignored\n");
+		return;
+	}
 	verbose = (net_flags&ETHF_VERBOSE);
 	if (el3_isa_probe() == 0) {
 		found++;
