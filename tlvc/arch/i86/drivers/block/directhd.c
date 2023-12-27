@@ -92,6 +92,15 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
+#ifdef CONFIG_HW_PCXT
+#define INBW inb
+#define OUTBW outb
+#else
+#define INBW inw
+#define OUTBW outw
+#endif
+
+
 int running_qemu;
 extern int ide_chs[];		/* CHS data from /bootopts */
 
@@ -180,25 +189,19 @@ void directhd_geninit(void)
 
 /* assumes current data segment - which is kernel_ds */
 
-#ifdef CONFIG_HW_PCXT
-void insb(unsigned int port, byte_t *buffer, int count)
-{
-    do {
-	*buffer++ = inb(port);
-    } while (--count);
-}
-
-#else
-
 void insw(unsigned int port, word_t *buffer, int count)
 {
+#ifdef CONFIG_HW_PCXT
+    byte_t *buf = (byte_t *)buffer;
+#else
+    word_t *buf = buffer;
     count >>= 1;
-    //printk("insw %x,%x,%d;", port, buffer, count);
+#endif
+    //printk("insw %x,%x,%d;", port, buf, count);
     do {
-	*buffer++ = inw(port);
+	*buf++ = INBW(port);
     } while (--count);
 }
-#endif
 
 
 void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int raw)
@@ -206,11 +209,7 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF) /* use bounce buffer */
     if (!raw) {	
-#ifdef CONFIG_HW_PCXT
-	insb(port, (byte_t *)localbuf, count);
-#else
 	insw(port, (word_t *)localbuf, count);
-#endif
 	//printk("insw %d %04x %04x %04x;", count, localbuf, buffer, *(word_t *)localbuf);
 	xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
     } else
@@ -219,48 +218,34 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 
 #ifdef CONFIG_HW_PCXT
 	byte_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
-
-	do {
-	    *locbuf++ = inb(port);
-	} while (--count);
 #else
-	unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
-
+	word_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 	count >>= 1;	/* bytes -> words */
+#endif
 	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
 	do {
-	    *locbuf++ = inw(port);
+	    *locbuf++ = INBW(port);
 	} while (--count);
-#endif
     }
 }
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
 
-#ifdef CONFIG_HW_PCXT
-void outsb(unsigned int port, byte_t *buffer, int count)
-{
-    int i;
-
-    for (i = 0; i < count; i++) {
-	outb(buffer[i], port);
-    }
-    return;
-}
-
-#else
-
 void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
+#ifdef CONFIG_HW_XT
+    byte_t *buf = (byte_t *)buffer;
+#else
+    word_t *buf = buffer;
     count >>= 1;
+#endif
     //printk("%04x:", buffer);
     for (i = 0; i < count; i++) {
-	outw(buffer[i], port);
+	OUTBW(buffer[i], port);
     }
     return;
 }
-#endif
 #endif
 
 void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int raw)
@@ -269,11 +254,7 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
 
     if (!raw) {
 	xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
-#ifdef CONFIG_HW_PCXT
-	outsb(port, localbuf, count);
-#else
 	outsw(port, (word_t *)localbuf, count);
-#endif
     } else 
 #endif
     {
@@ -281,18 +262,13 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
 	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
 #ifdef CONFIG_HW_PCXT
 	byte_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
-
-	do {
-	    outb(*locbuf++, port);
-	} while (--count);
 #else
-	unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
-
+	word_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 	count >>= 1;
-	do {
-	    outw(*locbuf++, port);
-	} while (--count);
 #endif
+	do {
+	    OUTBW(*locbuf++, port);
+	} while (--count);
     }
 }
 
@@ -429,11 +405,7 @@ int INITPROC directhd_init(void)
 	/* get drive info */
 	while (WAITING(port)) mdelay(OLD_IDE_DELAY);
 
-#ifdef CONFIG_HW_PCXT
-	insb(port, (byte_t *)ide_buffer, 512);
-#else
 	insw(port, ide_buffer, 512);
-#endif
 #if 0
 	swap_order(buffer, 512);
 #endif
@@ -455,16 +427,14 @@ int INITPROC directhd_init(void)
 	 * FIXME: This will cause problems on many new drives .. some
 	 * of them even have more than 16.384 cylinders
 	 *
-	 * This is some sort of bugfix, we will use same method as real Linux -
+	 * This is some sort of bugfix, we will use same method as 'big' Linux -
 	 * work with disk geometry set in current translation mode (54-56) if valid (53)
 	 * rather than physical drive info. Also, old drives have only physical, which may
 	 * even be misleading: The configured BIOS drive type's CHS mapping may be different.
 	 * E.g the Compaq drive type 17 (conner 42MB) reports 806/4/26 while the BIOS
 	 * values are 980/5/17. Both work, but aren't interchangeable, so the BIOS value 
 	 * wins for compatibility with other OSes. How do we get those values (not using
-	 * a BIOS call)? Probably a bootopts setting: Like CHS0=960,5,17,128 - the latter 
-	 * being the WPCOM - write precompensation, which may be significant for 
-	 * drives that old. (HS)
+	 * a BIOS call)? Via bootopts: chs0=960,5,17 (HS/2023)
 	 */
 
 	struct drive_infot *dp = &drive_info[drive];
