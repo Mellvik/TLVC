@@ -56,6 +56,7 @@
 #include <linuxmt/directhd.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/errno.h>
+#include <linuxmt/config.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
 
 #include <arch/hdreg.h>
@@ -71,7 +72,7 @@
 
 /* #define USE_ASM */
 /* use asm insw/outsw instead of C version */
-/* asm versions should work on 8088/86, but only with CONFIG_PC_XT */
+/* asm versions should work on 8088/86, but only with CONFIG_HW_PCXT */
 
 /* We've instructed GCC to generate 8086 code, this does not fit */
 /* FIXME: Use #pragmas */
@@ -91,6 +92,15 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
+#ifdef CONFIG_HW_PCXT
+#define INBW inb
+#define OUTBW outb
+#else
+#define INBW inw
+#define OUTBW outw
+#endif
+
+
 int running_qemu;
 extern int ide_chs[];		/* CHS data from /bootopts */
 
@@ -119,7 +129,7 @@ static int io_ports[2] = { HD1_PORT, HD2_PORT };
 static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
-static char localbuf[BLOCK_SIZE];	/* bounce buffer for debugging and
+static byte_t localbuf[BLOCK_SIZE];	/* bounce buffer for debugging and
 					 * XMS buffer bouncing */
 #endif
 
@@ -178,12 +188,18 @@ void directhd_geninit(void)
 }
 
 /* assumes current data segment - which is kernel_ds */
+
 void insw(unsigned int port, word_t *buffer, int count)
 {
+#ifdef CONFIG_HW_PCXT
+    byte_t *buf = (byte_t *)buffer;
+#else
+    word_t *buf = buffer;
     count >>= 1;
-    //printk("insw %x,%x,%d;", port, buffer, count);
+#endif
+    //printk("insw %x,%x,%d;", port, buf, count);
     do {
-	*buffer++ = inw(port);
+	*buf++ = INBW(port);
     } while (--count);
 }
 
@@ -200,12 +216,15 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 #endif
     {
 
-	unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
-
+#ifdef CONFIG_HW_PCXT
+	byte_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
+#else
+	word_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 	count >>= 1;	/* bytes -> words */
+#endif
 	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
 	do {
-	    *locbuf++ = inw(port);
+	    *locbuf++ = INBW(port);
 	} while (--count);
     }
 }
@@ -215,11 +234,15 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
-
+#ifdef CONFIG_HW_XT
+    byte_t *buf = (byte_t *)buffer;
+#else
+    word_t *buf = buffer;
     count >>= 1;
+#endif
     //printk("%04x:", buffer);
     for (i = 0; i < count; i++) {
-	outw(buffer[i], port);
+	OUTBW(buffer[i], port);
     }
     return;
 }
@@ -235,12 +258,16 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
     } else 
 #endif
     {
-	unsigned int __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 
-	count >>= 1;
 	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
+#ifdef CONFIG_HW_PCXT
+	byte_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
+#else
+	word_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
+	count >>= 1;
+#endif
 	do {
-	    outw(*locbuf++, port);
+	    OUTBW(*locbuf++, port);
 	} while (--count);
     }
 }
@@ -266,9 +293,7 @@ void swap_order(unsigned char *buffer,int count)
 void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
 	    unsigned int head, unsigned int cyl, unsigned int cmd)
 {
-    word_t port;
-
-    port = io_ports[drive >> 1];
+    word_t port = io_ports[drive >> 1];
 
     /* setting WPCOM to 0 is not good. this change uses the last value input to
      * the drive. (my BIOS sets this correctly, so it works for now but we should
@@ -280,6 +305,7 @@ void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
 
     //outb_p(0x20, ++port);		/* means 128 (x4), test value for conner 40M */
     outb_p(0xff, ++port);		/* the supposedly correct value for WPCOM on IDE */
+					/* CF cards ignore this */
     outb_p(nsect, ++port);
     outb_p(sect, ++port);
     outb_p(cyl, ++port);
@@ -301,6 +327,27 @@ static void dump_ide(word_t *buffer, int size) {
                 }
         } while (--size);
         if (counter) printk("\n");
+}
+#endif
+
+#ifdef CONFIG_HW_PCXT
+static int ata_set_feature(unsigned int drive, unsigned int cmd)
+{
+	word_t port = io_ports[drive >> 1];
+	int err = 0;
+
+	outb_p(drive<<4, port + ATA_DH);
+	outb_p(cmd, port + ATA_FEATURES);
+	outb_p(ATA_SET_FEAT, port + ATA_COMMAND);
+
+	while(WAITING(port)) mdelay(1000);
+	if (STATUS(port) & ERR_STAT) {
+		printk("athd%d: feature not available: %x, %x\n", 
+			drive, cmd, ERROR(port));
+		err++;	/* 'Abort' is the only possible error condition here, */
+			/* which means 'command not implemented'. */
+	}
+	return err;
 }
 #endif
 
@@ -327,10 +374,21 @@ int INITPROC directhd_init(void)
 
     for (drive = 0; drive < 2/*MAX_ATA_DRIVES*/; drive++) {
 	if (!drive&1) reset_controller(drive/2);
-	/* send drive_ID command to drive */
-	out_hd(drive, 0, 0, 0, 0, ATA_DRIVE_ID);
-
 	port = io_ports[drive / 2];
+
+#ifdef CONFIG_HW_PCXT
+	i = 0;
+	i += ata_set_feature(drive, ATA_FEAT_8BIT);
+	i += ata_set_feature(drive, ATA_FEAT_NO_WCACHE);	/* disable write cache */
+	i += ata_set_feature(drive, ATA_FEAT_SAVE);	/* features will now survive soft reset */
+	if (i) {
+	    printk("athd%d: Failed to set 8bit mode, drive disabled\n", drive);
+	    continue;
+	}
+#endif
+
+	/* Get drive specs */
+	out_hd(drive, 0, 0, 0, 0, ATA_DRIVE_ID);
 
 	/* wait -- if status is 0xff, there is no drive with this number */
 	mdelay(OLD_IDE_DELAY);
@@ -369,23 +427,21 @@ int INITPROC directhd_init(void)
 	 * FIXME: This will cause problems on many new drives .. some
 	 * of them even have more than 16.384 cylinders
 	 *
-	 * This is some sort of bugfix, we will use same method as real Linux -
+	 * This is some sort of bugfix, we will use same method as 'big' Linux -
 	 * work with disk geometry set in current translation mode (54-56) if valid (53)
 	 * rather than physical drive info. Also, old drives have only physical, which may
 	 * even be misleading: The configured BIOS drive type's CHS mapping may be different.
 	 * E.g the Compaq drive type 17 (conner 42MB) reports 806/4/26 while the BIOS
 	 * values are 980/5/17. Both work, but aren't interchangeable, so the BIOS value 
 	 * wins for compatibility with other OSes. How do we get those values (not using
-	 * a BIOS call)? Probably a bootopts setting: Like CHS0=960,5,17,128 - the latter 
-	 * being the WPCOM - write precompensation, which may be significant for 
-	 * drives that old. (HS)
+	 * a BIOS call)? Via bootopts: chs0=960,5,17 (HS/2023)
 	 */
 
 	struct drive_infot *dp = &drive_info[drive];
 	dp->ctl = 0;
 #ifdef DEBUG
 	dump_ide(ide_buffer, 64);
-	//ide_buffer[53] = 0; /* force old ide behaviour for debuging */
+	//ide_buffer[53] = 0; /* force old ide behaviour for debugging */
 #endif
 	ide_buffer[20] = 0; /* String termination */
 	if (ide_buffer[10] == 0x4551)	/* Crude QEMU detection */
@@ -394,14 +450,15 @@ int INITPROC directhd_init(void)
 	    /* Physical CHS data @ (word) offsets: cyl@1, heads@3, sectors@6 */
 	    /* Actual CHS data @ (word) offsets: cyl@54, heads@55, sectors@56 */
 
-	    dp->multio_max = ide_buffer[47] & 0xff; /* max sectors per multi io op */
-	    					    /* zero if unsupported */
+	    if ((dp->multio_max = ide_buffer[47] & 0xff) == 1)  /* max sectors per multi io op */
+		dp->multio_max = 0;	/* zero if unsupported, 1 is useless */
 	    if (ide_buffer[53]&1) {	/* check the 'validity bit'. If set, use 
 	    				 * 'current' values, otherwise defaults.
 					 * Usually indicates old vs new tech. */
 		dp->cylinders = ide_buffer[54];
 		dp->heads = ide_buffer[55];
 		dp->sectors = ide_buffer[56];
+		*ide_chs = 0; 	/* ignore bootopts value */
 	    } else {		/* old drive, limited ID, limited cmd set */
 		if (drive == 0 && *ide_chs > 0) {
 			dp->cylinders = ide_chs[0];
@@ -416,20 +473,22 @@ int INITPROC directhd_init(void)
 	    }
 
 	    hdcount++;
-	    printk("IDE CHS: %d/%d/%d %sserial# %s\n", dp->cylinders, dp->heads, dp->sectors,
-		ide_chs[0] ? "(from /bootopts) " : "", &ide_buffer[10]);
+	    printk("athd%d: IDE CHS: %d/%d/%d %sserial# %s\n", drive, dp->cylinders,
+		dp->heads, dp->sectors, ide_chs[0] ? "(from /bootopts) " : "", &ide_buffer[10]);
+#ifdef CONFIG_HW_PCXT
+	    printk("athd%d: XT-mode, 8bit bus transfers\n", drive);
+#endif
 
 	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
 	    /* NOTE: In older docs this cmd is known as 'Initialize Drive Parameters' */
 	    out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
 	    while(WAITING(port)) mdelay(1000);
-	    if (STATUS(port) & ERR_STAT) printk("err %x;", ERROR(port)); /* DEBUG */
+	    if (STATUS(port) & ERR_STAT) printk("athd%d err in specify: %x;", ERROR(port)); /* DEBUG */
 
 #ifdef USE_MULTISECT_IO	
 	    if (dp->multio_max) {
-		/* Set multiple IO mode, default to 2 sectors per op - if available */
-		/* EDIT: set to max always, experimental */
+		/* Set multiple IO mode, set to max always, experimental */
 		out_hd(drive, dp->multio_max, 0, 0, 0, ATA_SET_MULT);
 		while (WAITING(port));
 		if (!(STATUS(port) & ERR_STAT)) {

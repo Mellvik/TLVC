@@ -215,7 +215,9 @@ static int INITPROC msdos_partition(struct gendisk *hd,
 #ifdef CONFIG_ARCH_PC98
     struct partition_pc98 *p98;
 #endif
+#ifdef USE_EXTENDED_PARTITION
     register struct hd_struct *hdp;
+#endif
     unsigned short int i, minor = current_minor;
 
     if (!(bh = bread(dev, (block_t) 0))) {
@@ -250,11 +252,11 @@ out:
     p = (struct partition *) (bh->b_data + 0x1be);
     current_minor += 4;
     for (i = 1; i <= 4; minor++, i++, p++) {
-	hdp = &hd->part[minor];
 	if (!NR_SECTS(p))
 	    continue;
 	add_partition(hd, minor, first_sector + START_SECT(p), NR_SECTS(p));
 #ifdef USE_EXTENDED_PARTITION
+	hdp = &hd->part[minor];
 	if (is_extended_partition(p)) {
 	    printk(" <");
 	    /*

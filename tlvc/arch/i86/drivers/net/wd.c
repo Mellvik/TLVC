@@ -712,6 +712,10 @@ void INITPROC wd_drv_init(void)
 	word_t hw_addr[6U];
 	byte_t *mac_addr = (byte_t *)&netif_stat.mac_addr;
 
+	if (!net_port) {
+		printk("eth: %s ignored\n", dev_name);
+		return;
+	}
 	u = wd_probe();
 	printk("eth: %s at 0x%x, irq %d, ram 0x%x",
 		dev_name, net_port, net_irq, net_ram);

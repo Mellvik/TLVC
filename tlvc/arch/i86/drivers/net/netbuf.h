@@ -8,8 +8,9 @@
 
 /* Buffer configuration for TLVC Ethernet NICs
  *
- * There are 3 strastegies:
- * - No buffers: Data is moved to/from the requester (via far mem move).
+ * There are 3 buffer strategies:
+ * - No buffers: The driver is moving data directly to/from the requester
+ *	(via far mem move).
  * - Static buffers: The number of send and receive buffers specified in the
  *	NET_OBUFCNT and NET_IBUFCNT defines are allocated statically at
  *	compile time. The BUFCNT numbers may be 0, in which case the driver
