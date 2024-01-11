@@ -6,14 +6,15 @@
 #define __LINUXMT_DIRECTHD_H
 
 /* define offsets from base port address */
-#define ATA_ERROR		1
+#define ATA_ERROR		1	/* read */
+#define ATA_FEATURES		1	/* write */
 #define ATA_SEC_COUNT		2
 #define ATA_SECTOR		3
 #define ATA_CYLINDER_LO		4
 #define ATA_CYLINDER_HI		5
-#define ATA_DH			6
-#define ATA_STATUS		7
-#define ATA_COMMAND		7
+#define ATA_DH			6	/* drive # + head */
+#define ATA_STATUS		7	/* read */
+#define ATA_COMMAND		7	/* write */
 
 /* define drive masks */
 #define ATA_DRIVE0 0xa0
@@ -57,6 +58,14 @@
 #define ATA_CFG_SSD	0x04	/* drive is solid state */
 #define ATA_CFG_OLDIDE	0x10	/* Old IDE drive w/ limited cmd set */
 #define ATA_CFG_LBA	0x40	/* Drive has LBA support */
+#define ATA_CFG_XTIDE	0x80	/* XTIDE cards have odd addressing */
+				/* there are many variants, may need details */
+
+/* Per drive SET FEATURE commands */
+#define ATA_FEAT_8BIT	0x01	/* set 8 bit mode */
+#define ATA_FEAT_16BIT	0x81	/* disable 8 bit mode */
+#define ATA_FEAT_NO_WCACHE 0x82	/* Disable write cache */
+#define ATA_FEAT_SAVE	0x66	/* make changes semipermanent */
 
 /* other definitions */
 #define MAX_ATA_DRIVES 4		/* 2 per i/o channel and 2 i/o channels */
