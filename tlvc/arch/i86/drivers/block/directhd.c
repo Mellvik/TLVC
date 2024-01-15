@@ -121,18 +121,19 @@ static struct file_operations directhd_fops = {
     directhd_release		/* release */
 };
 
-/**** EXPERIMENTAL ****/
-#define CONFIG_HW_CFIDE1 /* An XT IDE/CF controller is present in
-			  * addition to the regular AT IDE controller */
 
 /* MAX_ATA_DRIVES is set in directhd.h - to save RAM, reduce to 2 */
 static int access_count[MAX_ATA_DRIVES] = { 0, };
 
-#ifdef CONFIG_XTCF_HD2	/* Test XT/CF-Light using diabled BIOS and IO @ 0x380 */
-#define XTCF_PORT 0x340
-static int io_ports[2] = { HD1_PORT, XTCF_PORT };
-static int cmd_ports[2] = { HD1_CMD, XTCF_PORT + 0x1c };
-static int cf_shift = 0;	/* experimental, set when XF/CF-lite controller is used */
+/* NEW: Support for XT/IDE or XT/CF-Lite cards with A0 disconnected (registers at
+ * even addresses only) and control port at base+1c. IO address at XTIDE_PORT,
+ * usually 0x300, watch out for collissions with a NIC. The on-board BIOS may be
+ * disdabled. If so, boot from floppy. */
+
+#ifdef CONFIG_HW_CFIDE0
+static int io_ports[2] = { XTIDE_PORT , HD1_PORT};
+static int cmd_ports[2] = { XTIDE_PORT + 0x1c, HD1_CMD };
+static int cf_shift;	/* XT/CF-lite controller reg addr shift */
 #else
 static int io_ports[2] = { HD1_PORT, HD2_PORT };
 static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
@@ -157,7 +158,7 @@ static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer 
 static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 
 static void directhd_geninit();
-static void reset_controller(int);
+static int reset_controller(int);
 static int drive_busy(int);
 #ifdef USE_INTERRUPTS
 static void do_directhd(int, struct pt_regs *);
@@ -246,7 +247,7 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
-#ifdef CONFIG_HW_XT
+#ifdef CONFIG_HW_PCXT
     byte_t *buf = (byte_t *)buffer;
 #else
     word_t *buf = buffer;
@@ -318,7 +319,7 @@ void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
     /* ATA2 redefined this register to be the features register. We may have to
      * distinguish between 'very old' and 'newer' drives here. Helge Skrivervik/2024 */
 
-#ifdef CONFIG_XTCF_HD2
+#ifdef CONFIG_HW_CFIDE0
 #define OPORT(x)	(x += !!(dp->ctl & ATA_CFG_XTIDE))
 #else
 #define OPORT(x)
@@ -364,10 +365,6 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 	word_t port = io_ports[drive >> 1];
 	int err = 0;
 
-#ifdef CONFIG_XTCF_HD2
-	cf_shift = !!(drive_info[drive].ctl&ATA_CFG_XTIDE);
-#endif
-
 	outb_p(drive<<4, port + (ATA_DH<<cf_shift));
 	outb_p(cmd, port + (ATA_FEATURES<<cf_shift));
 	outb_p(ATA_SET_FEAT, port + (ATA_COMMAND<<cf_shift));
@@ -383,19 +380,22 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 }
 #endif
 
-/* Peek the error register, should be 0x1 after reset */
+#if 0
+/* Peek the error register, should be 0x1 (NO ERROR DETECTED) after reset */
 /* By no means a reliable probe, more like an indication of 
- * correct presence */
+ * presence */
 static int INITPROC ide_probe(int port) 
 {
 	unsigned int i = inb_p(port);
 	if (i == 1) return 0;
 	return i;
 }
+#endif
 
 int INITPROC directhd_init(void)
 {
     word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
+    char athd_msg[] = "ath%d: AT/IDE controller at 0x%x\n";
     struct gendisk *ptr;
     int i, hdcount = 0, drive;
     unsigned int port;
@@ -412,29 +412,49 @@ int INITPROC directhd_init(void)
     /* Note that this logic will hard-fix drive numbers. The 1st drive on the 2nd
      * controller will be athd2 even if athd1 doesn't exist. This is OK. */
 
+#ifdef CONFIG_HW_PCXT
+    printk("ath: PC/XT-mode, 8bit bus transfers\n");
+#endif
+
     for (drive = 0; drive < MAX_ATA_DRIVES; drive++) {
 	struct drive_infot *dp = &drive_info[drive];
-	if (!drive&1) reset_controller(drive/2);
-	port = io_ports[drive / 2];
+
+	port = io_ports[drive/2];
 	dp->ctl = 0;
 
-#ifdef CONFIG_XTCF_HD2
-	if (port == XTCF_PORT) {
+#ifdef CONFIG_HW_CFIDE0
+	cf_shift = 0;
+	if (port == XTIDE_PORT) {
 	    dp->ctl |= ATA_CFG_XTIDE;
+	    athd_msg[7] = 'X';
 	    cf_shift = 1;
-	}
+	} else
+	    athd_msg[7] = 'A';
 #endif
-	//printk("probing %x\n", port+(ATA_ERROR<<cf_shift));
-	if (i = ide_probe(port+(ATA_ERROR<<cf_shift))) {
-		//printk("athd%d: Controller not found (%x)\n", drive, i);
+	if ((drive&1) == 0 ) {
+#if 0
+	    if ((i = ide_probe(port+(ATA_ERROR<<cf_shift)))) {
+		//printk("ath%d: Controller not found (%x)\n", drive/2, i);
+		drive++; /* don't check for slave drive if controller not found */
 		continue;
+	    }
+#endif
+	    if (reset_controller(drive/2)) {
+		//printk("ath%d: Controller not found\n", drive/2);
+		drive++; /* don't check for slave drive if controller not found */
+		continue;
+	    }
+	    printk(athd_msg, drive/2, port);
 	}
 
 #ifdef CONFIG_HW_PCXT
+	/* NOTE: CF cards will retain the 8bit mode setting until power cycled - or being
+	 * reprogrammed explicitly to 16bit. If this is run on a 16bit ISA machine,
+	 * BIOS boot will fail unless power cycled.
+	 */
 	i = 0;
 	i += ata_set_feature(drive, ATA_FEAT_8BIT);
 	i += ata_set_feature(drive, ATA_FEAT_NO_WCACHE);	/* disable write cache */
-	i += ata_set_feature(drive, ATA_FEAT_SAVE);	/* features will now survive soft reset */
 
 	if (i) {
 	    printk("athd%d: Failed to set 8bit mode, drive disabled\n", drive);
@@ -448,10 +468,8 @@ int INITPROC directhd_init(void)
 	/* wait -- if status is 0xff, there is no drive with this number */
 	mdelay(OLD_IDE_DELAY);
 	i = STATUS(port);
-	if (!i || (i & 1) == 1) { /* this one may not be safe FIXME */
-	    /* error - drive not found or non-ide */
-
-	    printk("athd%d (on port 0x%x) not found\n", drive, port);
+	if (!i || (i & 1) == 1) { /* error - drive not found or non-ide */
+	    //printk("athd%d (port 0x%x) not found (%x)\n", drive, port, i);
 	    continue;	/* Proceed with next drive.
 			 * Always do this, even if the master drive
 			 * is missing.  */
@@ -506,6 +524,7 @@ int INITPROC directhd_init(void)
 
 	    if ((dp->multio_max = ide_buffer[47] & 0xff) == 1)  /* max sectors per multi io op */
 		dp->multio_max = 0;	/* zero if unsupported, 1 is useless */
+
 	    if (ide_buffer[53]&1) {	/* check the 'validity bit'. If set, use 
 	    				 * 'current' values, otherwise defaults.
 					 * Usually indicates old vs new tech. */
@@ -529,9 +548,6 @@ int INITPROC directhd_init(void)
 	    hdcount++;
 	    printk("athd%d: IDE CHS: %d/%d/%d %sserial# %s\n", drive, dp->cylinders,
 		dp->heads, dp->sectors, ide_chs[0] ? "(from /bootopts) " : "", &ide_buffer[10]);
-#ifdef CONFIG_HW_PCXT
-	    printk("athd%d: XT-mode, 8bit bus transfers\n", drive);
-#endif
 
 	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
@@ -574,6 +590,8 @@ int INITPROC directhd_init(void)
     }
 
 #ifdef USE_INTERRUPTS	/* Experimental */
+    /* FIXME: Need to move this into the main loop to accomodate the use of different IRQs
+     * for primary and 2ndary controller */
     /* TEST this on 8 bit bus machines! (irq 5) */
     /* On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
     int got_irq = HD1_AT_IRQ;
@@ -602,7 +620,7 @@ int INITPROC directhd_init(void)
     printk("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
 
     /* print drive info */
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < MAX_ATA_DRIVES; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
 	    printk("athd: /dev/dhd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
@@ -724,7 +742,7 @@ void do_directhd_request(void)
 	drive = minor >> MINOR_SHIFT;
 	dp = &drive_info[drive];
 	delay = (dp->ctl&ATA_CFG_OLDIDE) ? OLD_IDE_DELAY : 0;
-#ifdef CONFIG_XTCF_HD2
+#ifdef CONFIG_HW_CFIDE0
 	cf_shift = !!(dp->ctl&ATA_CFG_XTIDE);
 #endif
 
@@ -863,22 +881,27 @@ void do_directhd_request(void)
 /*
  * NOTE: Toggle the soft reset bit for the controller
  */
-static void reset_controller(int controller)
+static int reset_controller(int controller)
 {
 	int	i;
 	int	cport = cmd_ports[controller];
+	int	port = io_ports[controller];
 
-	outb_p(4, cport);		/* reset controller */
+	outb_p(0xC, cport);		/* reset controller */
+	/* if the busy bit doesn't get immediately set, there is nothing there */
+	if (!(STATUS(port) & BUSY_STAT)) return 1;
 	mdelay(3000);
 #ifdef USE_INTERRUPTS
-	outb_p(0, cport);		/* enable interrupts */
+	outb_p(0x8, cport);		/* Clr reset, enable interrupts */
 #else
-	outb_p(2, cport);		/* Remove reset signal, disable interrupts */
+	outb_p(0xA, cport);		/* Clr reset, disable interrupts */
 #endif
-	if ((i = drive_busy(io_ports[controller])))
-		printk("athd%i: still busy (%x)\n", controller, i);
-	if ((i = ERROR(io_ports[controller])) != 1)
-		printk("athd%i: Reset failed: %02x\n", controller, i);
+	//printk("reset: cport %x, port %x\n", cport, port);
+	if ((i = drive_busy(port)))
+		printk("ath%i: still busy (%x)\n", controller, i);
+	if ((i = ERROR(port)) && i != 1) /* i == 0 if controller found, but no drives */
+		printk("ath%i: Reset failed: %02x\n", controller, i);
+	return 0;
 }
 
 #ifdef USE_INTERRUPTS
@@ -900,8 +923,8 @@ static int drive_busy(int port)
 
 	for (i = 0; i < 50000; i++) {
 		// FIXME: More bits to test here? Check other drivers.
-		c = STATUS(port) & (BUSY_STAT | READY_STAT);
-		if (c == READY_STAT)
+		c = STATUS(port); 
+		if ((c&(BUSY_STAT|READY_STAT)) == READY_STAT)
 			return 0;
 	}
 	return(c);

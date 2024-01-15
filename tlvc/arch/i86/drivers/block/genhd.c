@@ -367,7 +367,6 @@ void INITPROC setup_dev(register struct gendisk *dev)
 		int first_minor = i << dev->minor_shift;
 		current_minor = (unsigned short) (first_minor + 1);
 		check_partition(dev, MKDEV(dev->major, first_minor));
-		//if (j == dev->nr_real) break;
 	}
 #endif
 
