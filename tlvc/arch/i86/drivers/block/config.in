@@ -34,6 +34,9 @@ mainmenu_option next_comment
 	    bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
 	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	y
 	fi
+	if [ "$CONFIG_HW_PCXT" = "y" ]; then
+	    bool '  XT/CF-lite is primary HD @0x300' CONFIG_HW_CFIDE0	y
+	fi
 
 	if [ "$CONFIG_BLK_DEV_FD" = "y" ]; then
 	    define_bool CONFIG_DMA y

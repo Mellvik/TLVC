@@ -24,6 +24,7 @@
 #include <linuxmt/major.h>
 #include <linuxmt/string.h>
 #include <linuxmt/memory.h>
+#include <linuxmt/directhd.h>
 
 #include <arch/system.h>
 
@@ -307,7 +308,7 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
     first_time = 0;
     first_sector = hd->part[MINOR(dev)].start_sect;
 
-#if UNUSED
+#if 1
     /*
      * This is a kludge to allow the partition check to be
      * skipped for specific drives (e.g. IDE cd-rom drives)
@@ -353,6 +354,7 @@ void resetup_one_dev(struct gendisk *dev, int drive)
 
 void INITPROC setup_dev(register struct gendisk *dev)
 {
+	//int j = 0;
 #ifdef BDEV_SIZE_CHK
 	blk_size[dev->major] = NULL;
 #endif
@@ -361,7 +363,7 @@ void INITPROC setup_dev(register struct gendisk *dev)
 	dev->init(dev);
 
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD)
-	for (int i = 0; i < dev->nr_real; i++) {
+	for (int i = 0; i < MAX_ATA_DRIVES; i++) {
 		int first_minor = i << dev->minor_shift;
 		current_minor = (unsigned short) (first_minor + 1);
 		check_partition(dev, MKDEV(dev->major, first_minor));

@@ -9,21 +9,18 @@
  *  2*  Cascade -> 9 on AT  CONFIG_ETH_WD           Optional on XT, not available on AT
  *  3   Com2 (/dev/ttyS1)   CONFIG_CHAR_DEV_RS      Optional
  *  4   Com1 (/dev/ttyS0)   CONFIG_CHAR_DEV_RS      Optional
- *  5*  Unused
- *  5*  Com3 (/devb/ttyS2)  CONFIG_CHAR_DEV_RS      Optional
- *  5*  HW IDE hard drive   CONFIG_BLK_DEV_HD       Driver doesn't work
- *  6*  Unused
- *  6*  HW floppy drive     CONFIG_BLK_DEV_FD       Driver doesn't compile
- *  7   Unused (LPT, Com4)
+ *  5*  PC/XT MFM or IDE HD CONFIG_BLK_DEV_HD
+ *  6*  STD floppy ctrlr    CONFIG_BLK_DEV_FD
+ *  7   Unused (LPT, Com3)
  *  8   Unused (RTC)
  *  9   3C509/EL3 (/dev/eth) CONFIG_ETH_EL3         Optional
- * 10   Unused (USB)                                Turned off
- * 11   Unused (Sound)                              Turned off
+ * 10   Available - use for Com4, Ethernet, ...
+ * 11   Available - use for e.g. Ethernet
  * 12   NE2K (/dev/eth)     CONFIG_ETH_NE2K         Optional
  * 12*  Unused (Mouse)                              Turned off
  * 13   Unused (Math coproc.)                       Turned off
- * 14*  AT HD IDE (/dev/hda) CONFIG_BLK_DEV_HD      Driver doesn't work
- * 15*  AT HD IDE (/dev/hdb) CONFIG_BLK_DEV_HD      Driver doesn't work
+ * 14*  AT HD IDE (/dev/hda+b) CONFIG_BLK_DEV_HD
+ * 15*  AT HD IDE (/dev/hdc+d) CONFIG_BLK_DEV_HD
  *
  * Edit settings below to change port address or IRQ:
  *   Change I/O port and driver IRQ number to match your hardware
@@ -114,11 +111,12 @@
 /* bioshd.c*/
 #define FDC_DOR		0x3F2		/* floppy digital output register*/
 
-/* experimental IDE hard drive, directhd.c */
+/* IDE hard drive, directhd.c */
 #define HD1_PORT	0x1f0
 #define HD2_PORT	0x170
-#define HD_IRQ		5		/* missing request_irq call*/
-#define HD1_AT_IRQ	14		/* missing request_irq call*/
-#define HD2_AT_IRQ	15		/* missing request_irq call*/
+#define XTIDE_PORT	0x300		/* 8bit XT/IDE or CF cards, usually w/BIOS */
+#define HD_IRQ		5
+#define HD1_AT_IRQ	14
+#define HD2_AT_IRQ	15
 
 #define FLOPPY_IRQ	6

@@ -4,12 +4,9 @@
  * 14.04.1998 Bugfixes by Alastair Bridgewater nyef@sudval.org
  * 17.04.2023 Rewritten for TLVC by helge@skrivervik.com (hs)
  * 01.07.2023 modified to handle any request size, support raw io & and multisector transfers (hs)
+ * 31.12.2023 Support for 8 bit ISA and (some) XTIDE cards (hs)
  */
-/*
- * NOTE:
- * - This driver may or may not on 8088 and 8 bit bus systems,
- *   I don't think it will work with pre-IDE drives. HS
- */
+
 /*
  * TODO (HS 04/23):
  * - create kernel library routines for insw & outsw, make sure they're used
@@ -26,11 +23,11 @@
  * or write operation: One command, many response-iterations - 
  * like waiting for a new DRQ (or interrupt) per sector.
  *
- * The Read/Write Multiple cmds are different, one command, one response, but requires the # of
- * sectors in the ReadM or WriteM command to match that specified in the preceding
- * Set Multiple command. If device ID word 47 bits 7:0 are zero, multisector 
- * read/writes are not supported. Otherwise, the field holds the max # of sectors per
- * transaction.
+ * The Read/Write Multiple cmds are different, one command, one response. The # of
+ * sectors in the ReadM or WriteM command miust eb lower than or equal to 
+ * that specified in the preceding Set Multiple command. 
+ * If device ID word 47 bits 7:0 are zero, multisector read/writes are not supported. 
+ * Otherwise, the field holds the max # of sectors per transaction.
  * This driver uses 2 for block access, whatever is allowed for raw IO. 
  *
  * NOTE2: In addition to ID word 47, the SET_MULTIPLE command is used to doublecheck the availability
@@ -64,9 +61,9 @@
 #include <arch/io.h>
 #include <arch/segment.h>
 
-#define STATUS(port) inb_p((port) + ATA_STATUS)
-#define ERROR(port) inb_p((port) + ATA_ERROR)
-#define SECTOR(port) inb_p((port) + ATA_SECTOR)
+#define STATUS(port) inb_p((port) + (ATA_STATUS<<cf_shift))
+#define ERROR(port) inb_p((port) + (ATA_ERROR<<cf_shift))
+#define SECTOR(port) inb_p((port) + (ATA_SECTOR<<cf_shift))
 #define WAITING(port) ((STATUS(port) & BUSY_STAT) == BUSY_STAT)
 #define DRQ_WAIT(port) (STATUS(port) & DRQ_STAT) /* set when ready to transfer */
 
@@ -81,7 +78,8 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 
 
 #define USE_MULTISECT_IO	/* Enable/disable multisector R/W - for debugging */
-//#define USE_INTERRUPTS		/* EXPERIMENTAL - test interupts */
+//#define USE_INTERRUPTS		/* EXPERIMENTAL - test interrupts */
+				/* cannot work with XT/IDE, XT/CF */
 #define OLD_IDE_DELAY 1000	/* delay required for old drives, system dependent */
 #define DEBUG
 
@@ -92,6 +90,7 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
+
 #ifdef CONFIG_HW_PCXT
 #define INBW inb
 #define OUTBW outb
@@ -101,7 +100,7 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #endif
 
 
-int running_qemu;
+int running_qemu;		/* Detect QEMU from HD serial #, if set in qemu.sh */
 extern int ide_chs[];		/* CHS data from /bootopts */
 
 #include "blk.h"
@@ -122,15 +121,28 @@ static struct file_operations directhd_fops = {
     directhd_release		/* release */
 };
 
+
 /* MAX_ATA_DRIVES is set in directhd.h - to save RAM, reduce to 2 */
 static int access_count[MAX_ATA_DRIVES] = { 0, };
 
+/* NEW: Support for XT/IDE or XT/CF-Lite cards with A0 disconnected (registers at
+ * even addresses only) and control port at base+1c. IO address at XTIDE_PORT,
+ * usually 0x300, watch out for collissions with a NIC. The on-board BIOS may be
+ * disdabled. If so, boot from floppy. */
+
+#ifdef CONFIG_HW_CFIDE0
+static int io_ports[2] = { XTIDE_PORT , HD1_PORT};
+static int cmd_ports[2] = { XTIDE_PORT + 0x1c, HD1_CMD };
+static int cf_shift;	/* XT/CF-lite controller reg addr shift */
+#else
 static int io_ports[2] = { HD1_PORT, HD2_PORT };
 static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
+#define cf_shift 0
+#endif
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
 static byte_t localbuf[BLOCK_SIZE];	/* bounce buffer for debugging and
-					 * XMS buffer bouncing */
+					 * XMS buffers */
 #endif
 
 #define PORT_IO	port_io
@@ -139,16 +151,18 @@ void (*PORT_IO)() = NULL;
 static int directhd_initialized = 0;
 static struct drive_infot drive_info[MAX_ATA_DRIVES] = { 0, };
 
-/* NOTE: This is wasting a lot of memory, allocating 32 entries times MAX_ATA_DRIVES,
+/* NOTE (FIXME): This is wasting a lot of memory, allocating 32 entries times MAX_ATA_DRIVES,
  * -> 128 entries while we may need 16, 32 at the most. Each entry = 8 bytes,
  * save potential > 768 bytes */
 static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer {start_sect, num_sects} */
 static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 
 static void directhd_geninit();
-static void reset_controller(int);
+static int reset_controller(int);
 static int drive_busy(int);
+#ifdef USE_INTERRUPTS
 static void do_directhd(int, struct pt_regs *);
+#endif
 
 static struct gendisk directhd_gendisk = {
     MAJOR_NR,			/* major: major number */
@@ -164,7 +178,7 @@ static struct gendisk directhd_gendisk = {
     NULL
 };
 
-void directhd_geninit(void)
+static void directhd_geninit(void)
 {
     struct drive_infot *drivep;
     struct hd_struct *hdp = hd;
@@ -172,16 +186,15 @@ void directhd_geninit(void)
 
     drivep = drive_info;
     for (i = 0; i < MAX_ATA_DRIVES << MINOR_SHIFT; i++) {
+	hdp->start_sect = -1;
 	if ((i & ((1 << MINOR_SHIFT) - 1)) == 0) {
-	    hdp->start_sect = 0;
-	    hdp->nr_sects = (sector_t)drivep->sectors *
-		drivep->heads * drivep->cylinders;
+	    if ((hdp->nr_sects = (sector_t)drivep->sectors *
+				drivep->heads * drivep->cylinders))
+	    	hdp->start_sect = 0;	/* enable drive */
 	    //printk("at%d: %ld$", i, hdp->nr_sects);
 	    drivep++;
-	} else {
-	    hdp->start_sect = -1;
+	} else
 	    hdp->nr_sects = 0;
-	}
 	hdp++;
     }
     return;
@@ -234,7 +247,7 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 void outsw(unsigned int port, word_t *buffer, int count)
 {
     int i;
-#ifdef CONFIG_HW_XT
+#ifdef CONFIG_HW_PCXT
     byte_t *buf = (byte_t *)buffer;
 #else
     word_t *buf = buffer;
@@ -294,6 +307,7 @@ void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
 	    unsigned int head, unsigned int cyl, unsigned int cmd)
 {
     word_t port = io_ports[drive >> 1];
+    struct drive_infot *dp = &drive_info[drive];
 
     /* setting WPCOM to 0 is not good. this change uses the last value input to
      * the drive. (my BIOS sets this correctly, so it works for now but we should
@@ -302,17 +316,32 @@ void out_hd(unsigned int drive, unsigned int nsect, unsigned int sect,
      * I'll add support for those later and we'll need it then - Blaz Antonic */
     /* meanwhile, I found some documentation that says that for IDE drives
      * the correct WPCOM value is 0xff. so I changed it. - Alastair Bridewater */
+    /* ATA2 redefined this register to be the features register. We may have to
+     * distinguish between 'very old' and 'newer' drives here. Helge Skrivervik/2024 */
 
+#ifdef CONFIG_HW_CFIDE0
+#define OPORT(x)	(x += !!(dp->ctl & ATA_CFG_XTIDE))
+#else
+#define OPORT(x)
+#endif
+
+    OPORT(port);
     //outb_p(0x20, ++port);		/* means 128 (x4), test value for conner 40M */
-    outb_p(0xff, ++port);		/* the supposedly correct value for WPCOM on IDE */
-					/* CF cards ignore this */
+    ++port;
+    if (dp->ctl & ATA_CFG_OLDIDE)
+	outb_p(0xff, port);		/* the supposedly correct value for WPCOM on IDE */
+    OPORT(port);
     outb_p(nsect, ++port);
+    OPORT(port);
     outb_p(sect, ++port);
+    OPORT(port);
     outb_p(cyl, ++port);
+    OPORT(port);
     outb_p(cyl >> 8, ++port);
-    outb_p(0xA0 | ((drive & 1) << 4) | head, ++port); /* setup for 2 drives, fix for 4 (&2 instead) */
+    OPORT(port);
+    outb_p(0xA0 | ((drive & 1) << 4) | head, ++port); 
+    OPORT(port);
     outb(cmd, ++port);
-
     return;
 }
 #ifdef DEBUG
@@ -336,9 +365,9 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 	word_t port = io_ports[drive >> 1];
 	int err = 0;
 
-	outb_p(drive<<4, port + ATA_DH);
-	outb_p(cmd, port + ATA_FEATURES);
-	outb_p(ATA_SET_FEAT, port + ATA_COMMAND);
+	outb_p(drive<<4, port + (ATA_DH<<cf_shift));
+	outb_p(cmd, port + (ATA_FEATURES<<cf_shift));
+	outb_p(ATA_SET_FEAT, port + (ATA_COMMAND<<cf_shift));
 
 	while(WAITING(port)) mdelay(1000);
 	if (STATUS(port) & ERR_STAT) {
@@ -351,36 +380,82 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 }
 #endif
 
+#if 0
+/* Peek the error register, should be 0x1 (NO ERROR DETECTED) after reset */
+/* By no means a reliable probe, more like an indication of 
+ * presence */
+static int INITPROC ide_probe(int port) 
+{
+	unsigned int i = inb_p(port);
+	if (i == 1) return 0;
+	return i;
+}
+#endif
+
 int INITPROC directhd_init(void)
 {
     word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
+    char athd_msg[] = "ath%d: AT/IDE controller at 0x%x\n";
     struct gendisk *ptr;
     int i, hdcount = 0, drive;
     unsigned int port;
 
     /* .. once for each drive */
-    /* note, however, that this breaks (hangs) if you don't have two IDE interfaces
-     * in your computer. If you only have one, change the 4 to a 2.
-     * (this explains why your computer was locking up after mentioning the
+    /* note, however, that this may break (hang) if you don't have two IDE interfaces.
+     * If you only have one, change the MAX_ATA_DRIVES to 2 (saves memory too).
      */
     /* "If Drive 1 is not detected as being present, Drive 0 clears the Drive
      * 1 Status Register to 00h." From the spec. Making ST=0 a safe indication of
      * non presence.
      * Also, we should do a CMOS check for the number of drives, which would make 
      * this logic faster and more reliable FIXME */ 
-
-    /* FIXME: AMI board hangs when trying to access 2nd controller, disable for now */
-    /* Maybe just try polling the address to see if there is anything */
-
-    for (drive = 0; drive < 2/*MAX_ATA_DRIVES*/; drive++) {
-	if (!drive&1) reset_controller(drive/2);
-	port = io_ports[drive / 2];
+    /* Note that this logic will hard-fix drive numbers. The 1st drive on the 2nd
+     * controller will be athd2 even if athd1 doesn't exist. This is OK. */
 
 #ifdef CONFIG_HW_PCXT
+    printk("ath: PC/XT-mode, 8bit bus transfers\n");
+#endif
+
+    for (drive = 0; drive < MAX_ATA_DRIVES; drive++) {
+	struct drive_infot *dp = &drive_info[drive];
+
+	port = io_ports[drive/2];
+	dp->ctl = 0;
+
+#ifdef CONFIG_HW_CFIDE0
+	cf_shift = 0;
+	if (port == XTIDE_PORT) {
+	    dp->ctl |= ATA_CFG_XTIDE;
+	    athd_msg[7] = 'X';
+	    cf_shift = 1;
+	} else
+	    athd_msg[7] = 'A';
+#endif
+	if ((drive&1) == 0 ) {
+#if 0
+	    if ((i = ide_probe(port+(ATA_ERROR<<cf_shift)))) {
+		//printk("ath%d: Controller not found (%x)\n", drive/2, i);
+		drive++; /* don't check for slave drive if controller not found */
+		continue;
+	    }
+#endif
+	    if (reset_controller(drive/2)) {
+		//printk("ath%d: Controller not found\n", drive/2);
+		drive++; /* don't check for slave drive if controller not found */
+		continue;
+	    }
+	    printk(athd_msg, drive/2, port);
+	}
+
+#ifdef CONFIG_HW_PCXT
+	/* NOTE: CF cards will retain the 8bit mode setting until power cycled - or being
+	 * reprogrammed explicitly to 16bit. If this is run on a 16bit ISA machine,
+	 * BIOS boot will fail unless power cycled.
+	 */
 	i = 0;
 	i += ata_set_feature(drive, ATA_FEAT_8BIT);
 	i += ata_set_feature(drive, ATA_FEAT_NO_WCACHE);	/* disable write cache */
-	i += ata_set_feature(drive, ATA_FEAT_SAVE);	/* features will now survive soft reset */
+
 	if (i) {
 	    printk("athd%d: Failed to set 8bit mode, drive disabled\n", drive);
 	    continue;
@@ -393,10 +468,8 @@ int INITPROC directhd_init(void)
 	/* wait -- if status is 0xff, there is no drive with this number */
 	mdelay(OLD_IDE_DELAY);
 	i = STATUS(port);
-	if (!i || (i & 1) == 1) { /* this one may not be safe FIXME */
-	    /* error - drive not found or non-ide */
-
-	    //printk("athd%d (on port 0x%x) not found\n", drive, port);
+	if (!i || (i & 1) == 1) { /* error - drive not found or non-ide */
+	    //printk("athd%d (port 0x%x) not found (%x)\n", drive, port, i);
 	    continue;	/* Proceed with next drive.
 			 * Always do this, even if the master drive
 			 * is missing.  */
@@ -437,12 +510,11 @@ int INITPROC directhd_init(void)
 	 * a BIOS call)? Via bootopts: chs0=960,5,17 (HS/2023)
 	 */
 
-	struct drive_infot *dp = &drive_info[drive];
-	dp->ctl = 0;
 #ifdef DEBUG
 	dump_ide(ide_buffer, 64);
 	//ide_buffer[53] = 0; /* force old ide behaviour for debugging */
 #endif
+
 	ide_buffer[20] = 0; /* String termination */
 	if (ide_buffer[10] == 0x4551)	/* Crude QEMU detection */
 		running_qemu = 1;
@@ -452,6 +524,7 @@ int INITPROC directhd_init(void)
 
 	    if ((dp->multio_max = ide_buffer[47] & 0xff) == 1)  /* max sectors per multi io op */
 		dp->multio_max = 0;	/* zero if unsupported, 1 is useless */
+
 	    if (ide_buffer[53]&1) {	/* check the 'validity bit'. If set, use 
 	    				 * 'current' values, otherwise defaults.
 					 * Usually indicates old vs new tech. */
@@ -475,9 +548,6 @@ int INITPROC directhd_init(void)
 	    hdcount++;
 	    printk("athd%d: IDE CHS: %d/%d/%d %sserial# %s\n", drive, dp->cylinders,
 		dp->heads, dp->sectors, ide_chs[0] ? "(from /bootopts) " : "", &ide_buffer[10]);
-#ifdef CONFIG_HW_PCXT
-	    printk("athd%d: XT-mode, 8bit bus transfers\n", drive);
-#endif
 
 	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
@@ -520,6 +590,8 @@ int INITPROC directhd_init(void)
     }
 
 #ifdef USE_INTERRUPTS	/* Experimental */
+    /* FIXME: Need to move this into the main loop to accomodate the use of different IRQs
+     * for primary and 2ndary controller */
     /* TEST this on 8 bit bus machines! (irq 5) */
     /* On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
     int got_irq = HD1_AT_IRQ;
@@ -548,7 +620,7 @@ int INITPROC directhd_init(void)
     printk("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
 
     /* print drive info */
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < MAX_ATA_DRIVES; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
 	    printk("athd: /dev/dhd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
@@ -670,6 +742,9 @@ void do_directhd_request(void)
 	drive = minor >> MINOR_SHIFT;
 	dp = &drive_info[drive];
 	delay = (dp->ctl&ATA_CFG_OLDIDE) ? OLD_IDE_DELAY : 0;
+#ifdef CONFIG_HW_CFIDE0
+	cf_shift = !!(dp->ctl&ATA_CFG_XTIDE);
+#endif
 
 	/* check if drive exists */
 	if (drive > 3 || drive < 0 || dp->heads == 0) {
@@ -806,30 +881,36 @@ void do_directhd_request(void)
 /*
  * NOTE: Toggle the soft reset bit for the controller
  */
-static void reset_controller(int controller)
+static int reset_controller(int controller)
 {
 	int	i;
 	int	cport = cmd_ports[controller];
+	int	port = io_ports[controller];
 
-	outb_p(4, cport);		/* reset controller */
+	outb_p(0xC, cport);		/* reset controller */
+	/* if the busy bit doesn't get immediately set, there is nothing there */
+	if (!(STATUS(port) & BUSY_STAT)) return 1;
 	mdelay(3000);
-	//outb(hd_info[0].ctl & 0x0f, HD1_CMD);
 #ifdef USE_INTERRUPTS
-	outb_p(0, cport);		/* enable interrupts */
+	outb_p(0x8, cport);		/* Clr reset, enable interrupts */
 #else
-	outb_p(2, cport);		/* Remove reset signal, disable interrupts */
+	outb_p(0xA, cport);		/* Clr reset, disable interrupts */
 #endif
-	if ((i = drive_busy(io_ports[controller])))
-		printk("athd%i: still busy (%x)\n", controller, i);
-	if ((i = ERROR(io_ports[controller])) != 1)
-		printk("athd%i: Reset failed: %02x\n", controller, i);
+	//printk("reset: cport %x, port %x\n", cport, port);
+	if ((i = drive_busy(port)))
+		printk("ath%i: still busy (%x)\n", controller, i);
+	if ((i = ERROR(port)) && i != 1) /* i == 0 if controller found, but no drives */
+		printk("ath%i: Reset failed: %02x\n", controller, i);
+	return 0;
 }
 
+#ifdef USE_INTERRUPTS
 /* test interrupt enable/disable for now */
 static void do_directhd(int unused, struct pt_regs *unused1)
 {
 	printk("X");
 }
+#endif
 
 /*
  * FIXME:
@@ -842,8 +923,8 @@ static int drive_busy(int port)
 
 	for (i = 0; i < 50000; i++) {
 		// FIXME: More bits to test here? Check other drivers.
-		c = STATUS(port) & (BUSY_STAT | READY_STAT);
-		if (c == READY_STAT)
+		c = STATUS(port); 
+		if ((c&(BUSY_STAT|READY_STAT)) == READY_STAT)
 			return 0;
 	}
 	return(c);
