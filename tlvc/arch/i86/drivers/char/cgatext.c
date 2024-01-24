@@ -2,6 +2,7 @@
 #include <linuxmt/kernel.h>
 #include <linuxmt/sched.h>
 #include <arch/cgatext.h>
+#include <linuxmt/cgatext.h>
 
 static size_t free_len(struct file * f, size_t len)
 {
