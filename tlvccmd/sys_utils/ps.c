@@ -192,8 +192,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-#ifdef CONFIG_CPU_USAGE
     if (f_uptime) {
+#ifdef CONFIG_CPU_USAGE
         jiff_t uptime;
         unsigned int upoff;
 
@@ -212,9 +212,11 @@ int main(int argc, char **argv)
 
         printf("up for %d days, %d hour%s, and %d minute%s\n",
             days, hours, hours == 1? "": "s", minutes, minutes == 1? "": "s");
+#else
+	printf("uptime: CONFIG_CPU_USAGE not enabled in config.\n");
+#endif
         exit(0);
     }
-#endif
 
 	if (ioctl(fd, MEM_GETTASK, &off) < 0) {
 		perror("ps");
