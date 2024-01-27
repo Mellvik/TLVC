@@ -125,10 +125,10 @@ static struct file_operations directhd_fops = {
 /* MAX_ATA_DRIVES is set in directhd.h - to save RAM, reduce to 2 */
 static int access_count[MAX_ATA_DRIVES] = { 0, };
 
-/* NEW: Support for XT/IDE or XT/CF-Lite cards with A0 disconnected (registers at
+/* NEW(01/24): Support for XT/IDE or XT/CF-Lite cards with A0 disconnected (registers at
  * even addresses only) and control port at base+1c. IO address at XTIDE_PORT,
  * usually 0x300, watch out for collissions with a NIC. The on-board BIOS may be
- * disdabled. If so, boot from floppy. */
+ * disabled. If so, boot from floppy. */
 
 #ifdef CONFIG_HW_CFIDE0
 static int io_ports[2] = { XTIDE_PORT , HD1_PORT};
@@ -158,7 +158,7 @@ static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer 
 static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
 
 static void directhd_geninit();
-static int reset_controller(int);
+static unsigned char reset_controller(int);
 static int drive_busy(int);
 #ifdef USE_INTERRUPTS
 static void do_directhd(int, struct pt_regs *);
@@ -380,7 +380,7 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 }
 #endif
 
-#if 0
+#if 0	/* TO BE DELETED */
 /* Peek the error register, should be 0x1 (NO ERROR DETECTED) after reset */
 /* By no means a reliable probe, more like an indication of 
  * presence */
@@ -395,22 +395,21 @@ static int INITPROC ide_probe(int port)
 int INITPROC directhd_init(void)
 {
     word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
-    char athd_msg[] = "ath%d: AT/IDE controller at 0x%x\n";
     struct gendisk *ptr;
     int i, hdcount = 0, drive;
     unsigned int port;
+    char athd_msg[] = "ath%d: AT/IDE controller at 0x%x\n";
 
     /* .. once for each drive */
-    /* note, however, that this may break (hang) if you don't have two IDE interfaces.
-     * If you only have one, change the MAX_ATA_DRIVES to 2 (saves memory too).
+    /* By default, MAX_ATA_DRIVES is 4. On some systems, this may break (hang)
+     * if there is only one IDE interface (the normal).
+     * If so, change the MAX_ATA_DRIVES to 2 (which saves memory too).
      */
     /* "If Drive 1 is not detected as being present, Drive 0 clears the Drive
      * 1 Status Register to 00h." From the spec. Making ST=0 a safe indication of
      * non presence.
      * Also, we should do a CMOS check for the number of drives, which would make 
      * this logic faster and more reliable FIXME */ 
-    /* Note that this logic will hard-fix drive numbers. The 1st drive on the 2nd
-     * controller will be athd2 even if athd1 doesn't exist. This is OK. */
 
 #ifdef CONFIG_HW_PCXT
     printk("ath: PC/XT-mode, 8bit bus transfers\n");
@@ -434,13 +433,13 @@ int INITPROC directhd_init(void)
 	if ((drive&1) == 0 ) {
 #if 0
 	    if ((i = ide_probe(port+(ATA_ERROR<<cf_shift)))) {
-		//printk("ath%d: Controller not found (%x)\n", drive/2, i);
+		printk("ath%d: Controller not found (%x)\n", drive/2, i);
 		drive++; /* don't check for slave drive if controller not found */
 		continue;
 	    }
 #endif
-	    if (reset_controller(drive/2)) {
-		//printk("ath%d: Controller not found\n", drive/2);
+	    if ((i = reset_controller(drive/2))) {
+		//printk("ath%d: Controller not found at 0x%x (%x)\n", drive/2, port, i);
 		drive++; /* don't check for slave drive if controller not found */
 		continue;
 	    }
@@ -533,7 +532,7 @@ int INITPROC directhd_init(void)
 		dp->sectors = ide_buffer[56];
 		*ide_chs = 0; 	/* ignore bootopts value */
 	    } else {		/* old drive, limited ID, limited cmd set */
-		if (drive == 0 && *ide_chs > 0) {
+		if (drive == 0 && *ide_chs > 0) {	/* use bootopts values */
 			dp->cylinders = ide_chs[0];
 			dp->heads = ide_chs[1];
 			dp->sectors = ide_chs[2];
@@ -879,29 +878,38 @@ void do_directhd_request(void)
 }
 
 /*
- * NOTE: Toggle the soft reset bit for the controller
+ * Toggle the soft reset bit for the controller, return >0 if not found or error.
  */
-static int reset_controller(int controller)
+static unsigned char reset_controller(int controller)
 {
 	int	i;
 	int	cport = cmd_ports[controller];
 	int	port = io_ports[controller];
+	unsigned char err;
 
 	outb_p(0xC, cport);		/* reset controller */
+	err = STATUS(port);	/* if 0xFF -> nothing there */
 	/* if the busy bit doesn't get immediately set, there is nothing there */
-	if (!(STATUS(port) & BUSY_STAT)) return 1;
-	mdelay(3000);
+	if (err == 0xff || !(err & BUSY_STAT)) {
+	    err = 1;
+	} else {
+	    err = 0;
+	    mdelay(3000);
 #ifdef USE_INTERRUPTS
-	outb_p(0x8, cport);		/* Clr reset, enable interrupts */
+	    outb_p(0x8, cport);		/* Clr reset, enable interrupts */
 #else
-	outb_p(0xA, cport);		/* Clr reset, disable interrupts */
+	    outb_p(0xA, cport);		/* Clr reset, disable interrupts */
 #endif
-	//printk("reset: cport %x, port %x\n", cport, port);
-	if ((i = drive_busy(port)))
-		printk("ath%i: still busy (%x)\n", controller, i);
-	if ((i = ERROR(port)) && i != 1) /* i == 0 if controller found, but no drives */
-		printk("ath%i: Reset failed: %02x\n", controller, i);
-	return 0;
+	    //printk("reset: cport %x, port %x\n", cport, port);
+	    if ((i = drive_busy(port))) {
+		printk("ath%d: still busy (%x)\n", controller, i);
+		err = 1;
+	    } else if ((i = ERROR(port)) && i != 1) { /* i == 0 if controller found, but no drives */
+		printk("ath%d: Reset failed: %02x\n", controller, i);
+		err = 1;
+	    }
+	}
+	return err;
 }
 
 #ifdef USE_INTERRUPTS
