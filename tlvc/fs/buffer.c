@@ -7,6 +7,7 @@
 #include <linuxmt/mm.h>
 #include <linuxmt/heap.h>
 #include <linuxmt/config.h>
+#include <linuxmt/fs.h>
 #include <linuxmt/limits.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/debug.h>
@@ -104,7 +105,7 @@ void list_buffer_status(void)
 {
     int i = 1;
     int inuse = 0;
-    int isinuse, j;
+    int isinuse, j, dirty = 0;
     struct buffer_head *bh = bh_llru;
     ext_buffer_head *ebh;
 
@@ -127,6 +128,7 @@ void list_buffer_status(void)
                     }
                 }
             }
+	    dirty +=  ebh->b_dirty;
             printk("%3d: %3d/%04x %5ld/%04x %c%c%c   L%02d    %d   %d\n",
                 i, buf_num(bh), bh, ebh->b_blocknr, ebh->b_dev,
                 ebh->b_locked ? 'L':' ', ebh->b_dirty ? 'D':' ', ebh->b_uptodate ? 'U' : ' ',
@@ -144,7 +146,7 @@ void list_buffer_status(void)
     } while ((bh = ebh->b_prev_lru) != NULL);
 #ifdef CONFIG_FS_EXTERNAL_BUFFER
     printk("Total L2 buffers inuse %d/%d (%d free), %dk L1 (map %u unmap %u remap %u)\n",
-	inuse, nr_bh, nr_free_bh, nr_mapbufs, map_count, unmap_count, remap_count);
+	inuse, nr_bh, nr_free_bh-dirty, nr_mapbufs, map_count, unmap_count, remap_count);
 #else
     printk("Total buffers inuse %d/%d\n",
 	inuse, nr_bh);
@@ -335,6 +337,7 @@ void unlock_buffer(struct buffer_head *bh)
 {
     EBH(bh)->b_locked = 0;
     wake_up((struct wait_queue *)bh);	/* use bh as wait address*/
+
 	//FIXME: Check if this one is useful at all or if the one in brelse is enough.
 	// ALSO, if we want to use schedule() instead of sleep/wait on this one.
     wake_up(&bufwait);	/* If we ran out of buffers, get_free_buffers is waiting */
@@ -359,6 +362,7 @@ void invalidate_buffers(kdev_t dev)
 	mark_buffer_clean(bh);
 	brelseL1(bh, 0);        /* release buffer from L1 if present */
 	unlock_buffer(bh);
+	ebh->b_dev = 0;		/* avoid re-invalidating this buffer */
     } while ((bh = ebh->b_prev_lru) != NULL);
 }
 
@@ -368,7 +372,7 @@ static void sync_buffers(kdev_t dev, int wait)
     ext_buffer_head *ebh;
 
 #ifdef CHECK_FREECNTS
-    list_buffer_status();
+    //list_buffer_status();
 #endif
     debug_blk("sync_buffers dev %p wait %d\n", dev, wait);
 
@@ -418,7 +422,7 @@ struct buffer_head *get_free_buffer(void)
 		|| bh->b_data
 #endif
 								) {
-	if ((bh = ebh->b_next_lru) == NULL) {
+	if ((bh = ebh->b_next_lru) == NULL) {	/* end of list, nothing free */
 	    unsigned long jif = jiffies;
 	    int i;
 
@@ -428,8 +432,8 @@ struct buffer_head *get_free_buffer(void)
 		sync_buffers(0,0);
 		break;
 
-#if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
 	    case 1:
+#if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
 	    /*
 	     * Skip if we're running with L1 buffers only.
 	     * (in which case brelseL1_index() is a dummy anyway)
@@ -439,6 +443,8 @@ struct buffer_head *get_free_buffer(void)
 			brelseL1_index(i, 1);
 		printk("\n");
 		break;
+#else
+		continue;
 #endif
 
 	    case 2:	/* EXPERIMENTAL: This may not make much sense */
@@ -516,11 +522,15 @@ struct buffer_head *readbuf(struct buffer_head *bh)
 {
     ext_buffer_head *ebh = EBH(bh);
 
-	//printk("readbuf %04x/%04x;", bh, bh->b_dev);
+    //printk("readbuf %04x/%04x;", bh, bh->b_dev);
     if (!ebh->b_uptodate) {
 	ll_rw_blk(READ, bh);
 	wait_on_buffer(bh);
 	if (!ebh->b_uptodate) {
+	    if (check_disk_change(bh->b_dev))
+		printk("readbuf: media eject detected\n");
+	    else
+		printk("readbuf err %04x/%04x;", bh, bh->b_dev);
 	    brelse(bh);
 	    bh = NULL;
 	}

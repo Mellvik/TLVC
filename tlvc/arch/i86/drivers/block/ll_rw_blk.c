@@ -7,6 +7,7 @@
 
 /*
  * This handles all read/write requests to block devices
+ * and (since 2023) their raw/char relatives.
  */
 
 #include <linuxmt/config.h>
@@ -103,9 +104,7 @@ struct request *get_request(int n, kdev_t dev)
 	    prev_found = req;
 	    req->rq_status = RQ_ACTIVE;
 	    req->rq_dev = dev;
-#ifdef CONFIG_BLK_DEV_CHAR
 	    req->rq_nr_sectors = 0;
-#endif
 	    return req;
 	}
     } while (req != prev_found);
@@ -136,15 +135,14 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
 {
     register struct request *tmp;
 
-    //if (req->rq_dev & 0x0f00 == 0x0200) printk("%04x;", req->rq_bh);
-    //else printk("(%04x)", req->rq_bh);
-
     clr_irq();
     //mark_buffer_clean(req->rq_bh);	/* EXPERIMENTAL: removed, too early to mark clean */
     if (!(tmp = dev->current_request)) {	/* if queue empty, process ... */
 	dev->current_request = req;
 	set_irq();
-	//printk("AD%04x|", req);
+#if DEBUG_BUFFER
+	printk("AD%04x|", req);
+#endif
 	(dev->request_fn) ();
     } else {				/* otherwise just add to queue */
 	/* FIXME: remove this for solid state devices */
@@ -156,8 +154,11 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
 	req->rq_next = tmp->rq_next;
 	tmp->rq_next = req;
 	set_irq();
-	//printk("AQ%04x|", req);
+#if DEBUG_BUFFER
+	printk("AQ%04x|", req);
+#endif
     }
+    //mark_buffer_clean(req->rq_bh);	/* EXPERIMENTAL: moved to blk.h */
 }
 
 static void make_request(unsigned short major, int rw, struct buffer_head *bh)
@@ -227,25 +228,21 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 #else
 	panic("Can't get request.");
 #endif
-
     }
 
     /* fill up the request-info, and add it to the queue */
     req->rq_cmd = (__u8) rw;
     req->rq_bh = bh;
-#ifdef CONFIG_BLK_DEV_CHAR
-    if (req->rq_nr_sectors = ebh->b_nr_sectors) { /* raw device access, blocks = sectors */
+    if ((req->rq_nr_sectors = ebh->b_nr_sectors)) { /* raw device access, blocks = sectors */
 	req->rq_buffer = bh->b_data;	/* pointing to process space */
 	req->rq_seg = ebh->b_L2seg;
 	req->rq_blocknr = ebh->b_blocknr;
-    } else
-#endif
-    {
+    } else {
 	req->rq_blocknr = buffer_blocknr(bh) * BLOCK_SIZE / 512;
 	req->rq_seg = buffer_seg(bh);
 	req->rq_buffer = buffer_data(bh);
     }
-#if BUFFER_DEBUG
+#if DEBUG_BUFFER
     printk("\n|seg%lx:%04x|%cblk%d|BH%04x|dev%04x;", (unsigned long)buffer_seg(bh),
 		buffer_data(bh), rw == READ ? 'R' : 'W',
 		(word_t)ebh->b_blocknr, (word_t)bh, (word_t)buffer_dev(bh));
@@ -381,8 +378,8 @@ void ll_rw_block(int rw, int nr, register struct buffer_head **bh)
 
 /* This function is used to request one or more physical sectors from a device.
  * (aka raw device access).
- * The buffer header some times (when called from the raw device driver)
- * points to process data space, not to a 'regular' 1k buffer.
+ * When called from a char/raw device driver, the buffer header
+ * points to process data space, not to a buffer in the buffer-system.
  */
 
 void ll_rw_blk(int rw, register struct buffer_head *bh)

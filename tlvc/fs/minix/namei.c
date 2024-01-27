@@ -450,6 +450,7 @@ int minix_unlink(register struct inode *dir, char *name, size_t len)
 	retval = -ENOENT;
 	inode = NULL;
 	bh = minix_find_entry(dir, name, len, &de);
+	//printk("unlnk %04x/%t;", bh, name);
 	if (!bh) goto end_unlink2;
 	if (!(inode = iget(dir->i_sb, (ino_t) de->inode))) goto end_unlink1;
 	retval = -EPERM;

@@ -26,7 +26,7 @@
 struct floppy_struct {
     unsigned int size,		/* nr of 512-byte sectors total */
 	sect,			/* sectors per track */
-	head,			/* nr of heads */
+	//head,			/* nr of heads */
 	track,			/* nr of tracks */
 	stretch;		/* !=0 means double track steps */
     unsigned char gap,		/* gap1 size */

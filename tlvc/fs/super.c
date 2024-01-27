@@ -16,6 +16,7 @@
 #include <linuxmt/fs.h>
 #include <linuxmt/kdev_t.h>
 #include <linuxmt/debug.h>
+#include <linuxmt/devnum.h>
 
 #include <arch/system.h>
 #include <arch/segment.h>
@@ -102,7 +103,7 @@ void sync_supers(kdev_t dev)
     } while (++sb < super_blocks + NR_SUPER);
 }
 
-static struct super_block *get_super(kdev_t dev)
+struct super_block *get_super(kdev_t dev)
 {
     register struct super_block *s;
 
@@ -147,6 +148,7 @@ int sys_ustatfs(dev_t dev, struct statfs *ubuf, int flags)
     s = get_super(to_kdev_t(dev));
     if (s == NULL) return -EINVAL;
 
+    //printk("statfs: fs seems mounted on %s\n", s->s_mntonname);
     /* for querying mounted filesystem w/o statfs */
     if (ubuf == NULL) return s->s_type->type;
 
@@ -168,11 +170,10 @@ static struct super_block *read_super(kdev_t dev, int t, int flags,
     register struct file_system_type *type;
 
     if (!dev) return NULL;
-#ifdef BLOAT_FS
-    check_disk_change(dev);
-#endif
+    //(void) check_disk_change(dev);	/* FIXME: return if set ?? */
     s = get_super(dev);
-    list_buffer_status();
+    //printk("read_super, got %x; ", s);
+    //list_buffer_status();
     if (s) return s;
 
 #if CONFIG_FULL_VFS
@@ -209,7 +210,7 @@ static struct super_block *read_super(kdev_t dev, int t, int flags,
     return s;
 }
 
-static int do_umount(kdev_t dev)
+int do_umount(kdev_t dev)
 {
     register struct super_block *sb;
     register struct super_operations *sop;
@@ -241,6 +242,7 @@ static int do_umount(kdev_t dev)
 		sop = sb->s_op;
 		if (sop && sop->write_super && sb->s_dirt) sop->write_super(sb);
 		put_super(dev);
+		//printk("do_umount completed on sb %04x\n", sb);
 	    }
 	}
     }
@@ -341,8 +343,7 @@ int do_mount(kdev_t dev, char *dir, int type, int flags, char *data)
 	error = -EBUSY;
       ERROUT1:
 	iput(dirp);
-    }
-    else {
+    } else {
 	sb->s_covered = dirp;
 	dirp->i_mount = sb->s_mounted;
 	verified_memcpy_fromfs(sb->s_mntonname, dir, MNAMELEN);
@@ -463,9 +464,7 @@ void mount_root(void)
     debug_sup("MOUNT root\n");
     d_inode = new_inode(NULL, S_IFBLK);
     d_inode->i_rdev = ROOT_DEV;
-#ifdef CONFIG_BLK_DEV_BIOS
   retry_floppy:
-#endif
     retval = open_filp(((root_mountflags & MS_RDONLY) ? 0 : 2), d_inode, &filp);
     if (retval == -EROFS) {
 	root_mountflags |= MS_RDONLY;
@@ -480,7 +479,7 @@ void mount_root(void)
     do {
 	fp = *fs_type;
 
-	printk("mount_root: check type %d\n", fp->type);
+	//printk("mount_root: check type %d\n", fp->type);
 #ifdef BLOAT_FS
 	if (!fp->requires_dev) continue;
 #endif
@@ -501,10 +500,8 @@ void mount_root(void)
 	}
     } while (*(++fs_type) && !retval);
 
-#ifdef CONFIG_BLK_DEV_BIOS	/* FIXME: support this when using the direct driver too */
-    if (ROOT_DEV == 0x0380) {
-	if (!filp->f_op->release)
-	    printk("Release not defined\n");
+#if defined(CONFIG_BLK_DEV_BFD) || defined(CONFIG_BLK_DEV_FD)
+    if (ROOT_DEV == DEV_FD0 || ROOT_DEV == DEV_DF0) {
 	close_filp(d_inode, filp);
 	printk("VFS: Insert root floppy and press ENTER\n");
 	wait_for_keypress();
