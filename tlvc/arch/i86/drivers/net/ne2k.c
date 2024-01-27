@@ -48,7 +48,7 @@ static struct wait_queue txwait;
 static struct netif_stat netif_stat;
 static byte_t model_name[] = "ne2k";
 static byte_t dev_name[] = "ne0";
-static size_t ne2k_getpkg(char *, size_t);
+static size_t ne2k_getpkg(char *, size_t, word_t);
 struct netbuf *netbuf_init(struct netbuf *, int);
 
 extern int ne2k_next_pk;
@@ -56,6 +56,10 @@ extern word_t ne2k_flags;
 extern word_t ne2k_has_data;
 extern struct eth eths[];
 
+/* Distinguish between buffered and non buffered IO */
+/* Don't change these constants, the asm code is using them literally */
+#define BUF_IS_LOCAL 0
+#define BUF_IS_FAR 1
 
 /*
  * Read a complete packet from the NIC buffer
@@ -90,7 +94,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 #if NET_BUF_STRAT != NO_BUFS
 		   if (rnext) {
 			rnext->len++;	/* mark as busy */
-			res = ne2k_getpkg(rnext->data, len);
+			res = ne2k_getpkg(rnext->data, len, BUF_IS_LOCAL);
 			if (res > 0) {
 				verified_memcpy_tofs(data, rnext->data, res);
 				rnext->len = 0;
@@ -101,7 +105,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 		    } else
 #endif
 		    {
-			res = ne2k_getpkg(data, len);
+			res = ne2k_getpkg(data, len, BUF_IS_FAR);
 			break;
 		    }
 		}
@@ -125,7 +129,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
  * thus the semaphore.
  */
 
-static size_t ne2k_getpkg(char *data, size_t len) {
+static size_t ne2k_getpkg(char *data, size_t len, word_t type) {
 
 	size_t size;
 	word_t nhdr[2];	/* buffer header from the NIC, for debugging */
@@ -135,7 +139,7 @@ static size_t ne2k_getpkg(char *data, size_t len) {
 	getsem++;				/* set the busy flag */
 	set_irq();
 
-	size = ne2k_pack_get(data, len, nhdr);
+	size = ne2k_pack_get(data, len, nhdr, type);
 	//printk("r%04x|%04x/",nhdr[0], nhdr[1]);	// NIC buffer header
 	debug_eth("ne0: read: req %d, got %d real %d\n", len, size, nhdr[1]);
 
@@ -144,7 +148,7 @@ static size_t ne2k_getpkg(char *data, size_t len) {
 
 		/* Sanity check, this should not happen.
 		 * If this happens, we're reading garbage from the NIC, all pointers
-		 * may be invalid, clear device and buffers.
+		 * may be invalid: Clear device and buffers.
 		 *	
 		 * Likely reason: We have a 8 bit interface running with 16k buffer enabled.
 		 * 
@@ -155,7 +159,7 @@ static size_t ne2k_getpkg(char *data, size_t len) {
 		 */
 
 		netif_stat.rq_errors++;
-		printk("$%04x.%02x$", ne2k_getpage(), ne2k_next_pk&0xff);
+		//printk("$%04x.%02x$", ne2k_getpage(), ne2k_next_pk&0xff);
 		if (verbose) printk(EMSG_DMGPKT, dev_name, nhdr[0], nhdr[1]);
 #if 0
 		if (nhdr[0] == 0) { 	// When this happens, the NIC has serious trouble,
@@ -179,8 +183,6 @@ static size_t ne2k_getpkg(char *data, size_t len) {
  * Pass packet to driver for send
  */
 
-#define TX_IS_LOCAL 1
-#define TX_IS_FAR 0
 static size_t ne2k_write(struct inode *inode, struct file *file, char *data, size_t len)
 {
 	size_t res;
@@ -218,11 +220,11 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 		    }
 		}
 
-		/* NIC is ready, send the data */
+		/* NIC is ready, send the data, no buffering */
 		if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
 
 		if (len < 64) len = 64;  /* issue #133 */
-		ne2k_pack_put(data, len, TX_IS_FAR);
+		ne2k_pack_put(data, len, BUF_IS_FAR);
 
 		res = len;
 		break;
@@ -312,7 +314,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 				nxt = nxt->next;
 			}
 			if (nxt->len == 0) {	/* buffer available */
-				nxt->len = ne2k_getpkg(nxt->data, MAX_PACKET_ETH);
+				nxt->len = ne2k_getpkg(nxt->data, MAX_PACKET_ETH, BUF_IS_LOCAL);
 				//printk("r%d;", nxt-net_ibuf);
 				//wake_up(&rxwait);
 				nxt = nxt->next;
@@ -336,7 +338,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 		if (stat & NE2K_STAT_TX) {
 #if NET_BUF_STRAT != NO_BUFS
 			if (tnext && tnext->len) {
-				ne2k_pack_put(tnext->data, tnext->len, TX_IS_LOCAL);
+				ne2k_pack_put(tnext->data, tnext->len, BUF_IS_LOCAL);
 				tnext->len = 0;
 				tnext = tnext->next;
 			}

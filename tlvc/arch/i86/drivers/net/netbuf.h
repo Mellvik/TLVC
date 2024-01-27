@@ -23,7 +23,7 @@
  * When HEAP allocation is used, the # of buffers may be set in /bootopts via
  * the 'netbufs=' directive. 'netbufs=2,1' means 2 receive buffers, 1 transmit
  * buffer. The kernel will not do sanity checking on the netbufs= numbers,
- * it's entirely possible to make the system unbuutable by requesting too many
+ * it's entirely possible to make the system unbootable by requesting too many
  * buffers. 2,1 or 2,2 are reasonable choices for regular usage. Again, zero is
  * a valid selection and will turn off buffers entirely.
  * When using heap allocation, a header strucure per buffer is also 
@@ -43,7 +43,8 @@
 /* Set the current strategy */
 #define NET_BUF_STRAT	HEAP_BUFS
 
-/* Use when strategy is STATIC_BUFS */
+/* Use when strategy is STATIC_BUFS or HEAP_BUFS - in the latter case only 
+ * if netbufs= is missing from /bootopts */
 #define NET_OBUFCNT 2
 #define NET_IBUFCNT 2
 

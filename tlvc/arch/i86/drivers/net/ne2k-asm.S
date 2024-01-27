@@ -77,8 +77,8 @@ io_ne2k_reset      = 0x1F	// Really a port, not a register, force HW reset of th
 
 // Ring segmentation
 
-tx_first           = 0x40
-rx_first           = 0x46
+tx_head		   = 0x40
+rx_head		   = 0x46
 rx_last_16	   = 0x80
 rx_last_8	   = 0x60	// For 8k buffer in 8 bit mode - per spec. 
 
@@ -194,12 +194,12 @@ dma_init:
 // BX    : NIC memory address (to write to)
 // CX    : byte count
 // DS:SI : host memory address (to read from)
+// Also using the 3rd arg to the caller (local/user flag) from the stack
 //-------------------------------------
 
 dma_write:
 
 	push    %cx
-	push	%bx	// TODO check if this is required (2)
 	push	%ds
 
 	inc     %cx     // make byte count even
@@ -218,12 +218,10 @@ dma_write:
 	//mov	net_port,%dx
 	add	$io_ne2k_data_io,%dx
 	mov	ne2k_flags,%ax		// Get this before changing the data segment
-#if (NET_OBUFCNT == 0)
 	mov	8(%bp),%bx		// get the 3rd arg from the call
-	cmp	$0,%bx			// not zero means local
-	jnz	1f			// use kernel buffer
-#endif
-	mov	current,%bx		// setup for far memory xfer
+	cmp	$0,%bx			// zero means kernel (buffer)
+	jz	1f			// use kernel data seg
+	mov	current,%bx		// setup for user data seg
 	mov	TASK_USER_DS(%bx),%ds
 1:
 	cld
@@ -261,7 +259,6 @@ check_dma_w:
 	out	%al,%dx
 
 	sti			// Mandatory
-	pop	%bx
 	pop     %cx
 	ret
 
@@ -290,13 +287,12 @@ dma_read:
 	mov     %ds,%bx
 	mov     %bx,%es
 	pop	%ax
-#if (NET_IBUFCNT == 0)
-	cmp	$0,%al		// Use local buffer if zero
-	jz	buf_local
-	mov	current,%bx	// Normal: read directly into the (far) buffer
+	cmp	$0,%al		// Use local (kernel DS) buffer if zero
+	jz	rbuf_local
+	mov	current,%bx	// use task DS buffer
 	mov	TASK_USER_DS(%bx),%es
-#endif
-buf_local:
+
+rbuf_local:
 	mov	net_port,%dx	// command register
 	mov	$0x0a,%al	// set RD0 & STA
 	out     %al,%dx		// start DMA read
@@ -368,7 +364,7 @@ ne2k_getpage:
 	mov	net_port,%dx		// command register
 	out	%al,%dx
 
-	//mov	net_port,%dx
+	//mov	net_port,%dx		// already set
 	add	$io_ne2k_rx_get,%dx     // BOUNDARY
 	in      %dx,%al
 
@@ -430,6 +426,7 @@ nrs_exit:
 // arg1: buffer to receive the data
 // arg2: int - requested read size (max buffer)
 // arg3: int array [2] (return) containing the NIC packet header.
+// arg4: flag whether dest is kernel buffer or proc data
 //
 // returns:
 // AX : < 0 if error, >0 is length read
@@ -454,7 +451,7 @@ ne2k_pack_get:
 	mov	$4,%cx		// Bytes to read
 	//mov     %ds,%ax
 	//mov     %ax,%es		// local address space
-	xor	%al,%al		// indicate local address space
+	xor	%al,%al		// indicate kernel DS
 	call	dma_read
 
 	mov	0(%di),%ax	// AH : next record, AL : status
@@ -498,7 +495,7 @@ ne2k_pack_get:
 	//inc	%bh		// Point to next page
 	//cmp	$rx_last,%bh	// check wraparound
 	//jnz	npg_cont0
-	//mov	$rx_first,%bh
+	//mov	$rx_head,%bh
 npg_cont0:
 	//add	$256,%di	// Update destination memory address 
 				// (keep the 4 byte NIC header)
@@ -506,7 +503,8 @@ npg_cont0:
 	push	%ax
 	add	$4,%bx		// Skip the 4 bytes already read
 
-	mov	$1,%al		// use far transfer
+	//mov	$1,%al		// use far transfer
+	mov	10(%bp),%ax	// buffer type flag
 	call    dma_read
 	pop     %ax
 
@@ -517,7 +515,7 @@ npg_cont:
 	mov	%al,ne2k_next_pk  // save 'real' next ptr
 	mov	%al,%bl		// save for later
 	dec	%al
-	cmp	$rx_first,%al
+	cmp	$rx_head,%al
 	jnb	npg_next	// if the decrement sent us outside the ring..
 	mov	ne2k_rx_last,%al
 	dec	%al
@@ -580,7 +578,7 @@ nts_exit:
 //-----------------------------------------------------------------------------
 // arg1 : packet buffer to transfer
 // arg2 : size in bytes
-// arg3 : 0 if data is far, 1 if local
+// arg3 : 1 if data is far, 0 if kernel data seg
 // returns:
 //	AX : error code
 
@@ -596,7 +594,7 @@ ne2k_pack_put:
 
 	mov     6(%bp),%cx	// arg2 - count
 	xor     %bl,%bl
-	mov     $tx_first,%bh
+	mov     $tx_head,%bh
 	mov     4(%bp),%si	// arg1 - buffer
 	call    dma_write	// copy the data
 
@@ -733,7 +731,7 @@ ne2k_init:
 
 	mov	net_port,%dx
 	add	$io_ne2k_rx_first,%dx
-	mov     $rx_first,%al	// start of ring, usually 0x46
+	mov     $rx_head,%al	// start of ring, usually 0x46
 	out     %al,%dx
 
 	// set ending page for the ring buffer,
@@ -749,8 +747,7 @@ ne2k_init:
 	shl	%cl,%ah		// %AL is the block count to add to 
 				// the buffer start address (usually 0x40),
 				// the sum becoming the PSTOP value
-	add	$tx_first,%ah	// NOTE: tx_first is where the buffer starts,
-				// we don't want rx_first here.
+	add	$tx_head,%ah	// NOTE: tx_head is where the entire buffer starts
 	pop	%cx
 	mov	%ah,%al
 	jmp	1f
@@ -771,7 +768,7 @@ ne2k_init:
 	// initialize start of TX buffer
 	mov	net_port,%dx
 	add	$io_ne2k_tx_start,%dx
-	mov     $tx_first,%al
+	mov     $tx_head,%al
 	out     %al,%dx
 
 	// FIXME _ wait till open (start) before enabling intr
@@ -812,7 +809,7 @@ ne2k_rx_init:
 
 	// set RX_get pointer [BOUNDARY] 
 
-	mov     $rx_first,%al
+	mov     $rx_head,%al
 	mov	%al,%ah		// save copy
 	mov	net_port,%dx
 	add	$io_ne2k_rx_get,%dx
@@ -826,7 +823,7 @@ ne2k_rx_init:
 
 	//mov	net_port,%dx
 	add	$io_ne2k_rx_put,%dx
-	mov	%ah,%al		// restore $rx_first value
+	mov	%ah,%al		// restore $rx_head value
 	inc	%al		// Keep CURRENT one ahead of BOUNDARY
 	out     %al,%dx
 	mov	%al,ne2k_next_pk 	// Initialize our local copy of
@@ -909,7 +906,7 @@ ne2k_stop:
 // NE2K probe
 //-----------------------------------------------------------------------------
 //
-// Access the command register, check that the changes stick
+// Access the interface registers, check that the readback makes sense
 
 // returns:
 // AX: 0=found 1=not found
@@ -918,28 +915,38 @@ ne2k_stop:
 
 ne2k_probe:
 
-	// Poke then peek at the base address of the interface.
-	// If something is there, return 0.
+	// Original strategy: Poke then peek at the base address of the interface.
+	// Write 0x20, set the AbortDMA (RD2) bit (should be set already after reset/PowerUp),
+	// Then read back, the STP bit is set by reset. If 0x21, it's likely a 8390.
 	// No attempt is made to get details about the i/f.
+	// ------
+	// UPDATE: QEMU doesn't emulate the STP bit correctly and the above test
+	// fails. A more rigorous test is required to accomodate both QEMU and real HW, 
+	// this one presumably identifies not only the 8390 but the ne2(1)k.
 
 	mov	net_port,%dx	// command register
-	mov	$0x20,%al	// set page 0
+	mov	$0xA1,%al	// page 2, NODMA, STOP
 	out	%al,%dx
-	in	%dx,%al
-	cmp	$0xff,%al	// cannot be FF
-	jz	np_err
-	test	%al,%al		// cannot be 0
-	jz	np_err
-	
+	mov	$0xff,%al
+	add	$io_ne2k_tx_conf,%dx
+	out	%al,%dx		// Write FF to the TXconfig reg via page 2!
+	sub	$io_ne2k_tx_conf,%dx
+	mov	$0x20,%al
+	out	%al,%dx		// Back to page 0
+	add	$io_ne2k_frame_errs,%dx
+	inb	%dx,%al		// Clear counter by reading
+	inb	%dx,%al		// should read zero
+	test	%al,%al
+	jnz	np_err
+
+np_ok:
 	xor     %ax,%ax
 	jmp     np_exit
 
 np_err:
-
-	mov     $1,%ax
+	//mov     $1,%ax	// comment out to return the status reg content
 
 np_exit:
-
 	ret
 
 //-----------------------------------------------------------------------------
@@ -1170,7 +1177,7 @@ of_drop_2:
 	mov	%al,ne2k_next_pk
 	// do the wrap-around exercise
 	dec	%al
-	cmp	$rx_first,%al
+	cmp	$rx_head,%al
 	jnb	1f
 	mov	ne2k_rx_last,%al
 	dec	%al

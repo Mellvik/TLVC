@@ -43,7 +43,7 @@ extern void   ne2k_addr_set(byte_t *);
 extern word_t ne2k_rx_stat();
 extern word_t ne2k_tx_stat();
 
-extern word_t ne2k_pack_get(char *, word_t, word_t *);
+extern word_t ne2k_pack_get(char *, word_t, word_t *, word_t);
 extern word_t ne2k_pack_put(char *, word_t, word_t);
 
 extern word_t ne2k_test();
