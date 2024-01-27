@@ -75,7 +75,6 @@ struct drive_infot {            /* CHS per drive*/
 #endif
 };
 extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
-extern int running_qemu;		/* set in directhd if a qemu disk image is detected */
 					/* used to handle QEMU bugs and quirks */
 
 #ifdef CONFIG_BLK_DEV_BHD
@@ -174,8 +173,10 @@ static void end_request(int uptodate)
     req = CURRENT;
 
     if (!uptodate) {
-	printk("%s[%04x]: I/O error in sector %lu\n", DEVICE_NAME, 
-		req->rq_dev, req->rq_blocknr);
+        /*if (req->rq_errors >= 0)*/
+        printk(DEVICE_NAME ": I/O %s error dev %D lba sector %lu\n",
+            (req->rq_cmd == WRITE)? "write": "read",
+            req->rq_dev, req->rq_blocknr);
 
 #ifdef MULTI_BH
 #ifdef BLOAT_FS
@@ -188,6 +189,7 @@ static void end_request(int uptodate)
     }
 
     bh = req->rq_bh;
+    EBH(bh)->b_nr_sectors = req->rq_nr_sectors;	/* for raw IO */
 
 #ifdef BLOAT_FS
     req->rq_bh = bh->b_reqnext;
@@ -195,11 +197,12 @@ static void end_request(int uptodate)
 #endif
 
     mark_buffer_uptodate(bh, uptodate);
+    mark_buffer_clean(bh);      /* EXPERIMENTAL: moved from ll_rw_blk  */
     //debug_blkdrv("ER:%04x;", req);
-#if BUFFER_DEBUG
+#if DEBUG_BUFFER
     __far unsigned int *content;
-    content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer + 0x3fe));
-    printk("ER%04x|%04x|%04x;", req, req->rq_dev, *content);
+    content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer));
+    printk("ER%d|%04x|%04x|%04x;", uptodate, req, req->rq_dev, *content);
 #endif
 
     unlock_buffer(bh);
@@ -237,6 +240,7 @@ static void end_request(int uptodate)
 
 #endif /* MAJOR_NR */
 
+/* to be deleted */
 #define INIT_REQUEST(req) \
 	if (!req || req->rq_dev == -1U) \
 		return; \
@@ -246,4 +250,17 @@ static void end_request(int uptodate)
 	if (req->rq_bh && !EBH(req->rq_bh)->b_locked) \
 		panic("%s:buffer not locked", DEVICE_NAME); \
 
+#ifdef CHECK_BLOCKIO
+#define CHECK_REQUEST(req) \
+    if (req->rq_status != RQ_ACTIVE \
+        || (req->rq_cmd != READ && req->rq_cmd != WRITE) \
+        || MAJOR(req->rq_dev) != MAJOR_NR) \
+        panic(DEVICE_NAME ": bad request dev %D cmd %d active %d", \
+            req->rq_dev, req->rq_cmd, req->rq_status); \
+    if (req->rq_bh && !EBH(req->rq_bh)->b_locked) \
+        panic(DEVICE_NAME ": not locked");
+#else
+#define CHECK_REQUEST(req)
 #endif
+
+#endif /* _BLK_H */

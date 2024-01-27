@@ -135,7 +135,11 @@ static void unlock_inode(register struct inode *inode)
     wake_up((struct wait_queue *)inode);
 }
 
-void invalidate_inodes(kdev_t dev)
+void invalidate_inodes(kdev_t dev) {
+	finvalidate_inodes(dev, 0);
+}
+
+void finvalidate_inodes(kdev_t dev, int force)
 {
     register struct inode *prev;
     register struct inode *inode = inode_llru;
@@ -143,8 +147,8 @@ void invalidate_inodes(kdev_t dev)
     do {
         prev = inode->i_prev;	/* clear_inode() changes the queues.. */
 	if (inode->i_dev != dev) continue;
-	if (inode->i_count || inode->i_dirt || inode->i_lock)
-	    printk("VFS: inode busy on removed device %D\n", dev);
+	if (!force && (inode->i_count || inode->i_dirt || inode->i_lock))
+	    printk("VFS: inode %04x busy on removed device %D\n", inode, dev);
 	else
 	    clear_inode(inode);
     } while ((inode = prev) != NULL);

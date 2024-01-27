@@ -52,15 +52,14 @@ int rfd_open(register struct inode *inode, struct file *filp)
     //unsigned int minor;
 
     //minor = MINOR(inode->i_rdev);
-    printk("rdf open\n");
+    //printk("rdf open\n");
     return(floppy_open(inode, filp));
 }
 
 void rfd_close(struct inode *inode, struct file *filp)
 {
-    printk("rdf close\n");
-    //return(floppy_release(inode, filp));
-    return; 	/* Nothing to do */
+    //printk("rdf close\n");
+    return(floppy_release(inode, filp));
 }
 
 /* FIXME change ops struct to point directly to the block driver entries when appropriate */

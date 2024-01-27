@@ -204,7 +204,10 @@ struct inode *minix_new_inode(struct inode *dir, __u16 mode)
             map_buffer(bh);
             if ((j = find_first_zero_bit((void *)bh->b_data, 8192)) < 8192)
                 break;
-        }
+        } else {
+	    printk("new inode: get_map_block returned bh zero\n");
+	    goto errout2;
+	}
     }
     if (i >= sb->u.minix_sb.s_imap_blocks || !bh || j >= 8192)
         goto errout;

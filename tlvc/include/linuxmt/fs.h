@@ -466,7 +466,9 @@ extern void ll_rw_page(void);
 
 extern void print_bufmap_status(void);
 
+extern struct super_block *get_super(kdev_t);
 extern void put_super(kdev_t);
+extern int do_umount(kdev_t);
 extern kdev_t ROOT_DEV;
 
 extern void show_buffers(void);
@@ -500,6 +502,14 @@ extern size_t block_write(struct inode *, struct file *, char *, size_t);
 
 #ifdef CONFIG_EXEC_COMPRESS
 extern size_t decompress(char *buf, seg_t seg, size_t orig_size, size_t compr_size, int safety);
+#endif
+
+//#define CHECK_MEDIA_CHANGE	/* enable media change handing in direct floppy driver */
+
+#if defined(CONFIG_BLK_DEV_FD) && defined(CHECK_MEDIA_CHANGE)
+extern int check_disk_change(kdev_t);
+#else
+#define check_disk_change(dev)      0
 #endif
 
 #ifdef BLOAT_FS

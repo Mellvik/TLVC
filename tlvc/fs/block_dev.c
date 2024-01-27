@@ -30,9 +30,12 @@ size_t block_read(struct inode *inode, struct file *filp, char *buf, size_t coun
     /* Amount we can do I/O over */
     pos = ((loff_t)inode->i_size) - filp->f_pos;
     if (pos <= 0) {
-	debug("blockread: EOF reached size %ld pos %ld.\n", inode->i_size, filp->f_pos);
 	return 0;		/* EOF */
     }
+
+    //if (check_disk_change(inode->i_rdev))
+        //return -ENXIO;
+
     if ((loff_t)count > pos) count = (size_t)pos;
 
     while (count > 0) {
@@ -79,6 +82,9 @@ size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t cou
     size_t chars, offset;
     size_t written = 0;
 
+    //if (check_disk_change(inode->i_rdev))
+        //return -ENXIO;
+
     if (filp->f_flags & O_APPEND) filp->f_pos = (loff_t)inode->i_size;
 
     while (count > 0) {
@@ -120,13 +126,10 @@ size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t cou
 	written += chars;
 	count -= chars;
     }
-    {
-	register struct inode *pinode = inode;
-	if ((loff_t)pinode->i_size < filp->f_pos)
-	    pinode->i_size = (__u32) filp->f_pos;
-	pinode->i_mtime = pinode->i_ctime = CURRENT_TIME;
-	pinode->i_dirt = 1;
-    }
+    if ((loff_t)inode->i_size < filp->f_pos)
+	inode->i_size = (__u32) filp->f_pos;
+    inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+    inode->i_dirt = 1;
     return written;
 }
 
@@ -169,8 +172,8 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	    		chars = count;
 	} else if (count < SECT_SIZE) /* partial trailing sector */
 		chars = count;
-	printk("RAW %u/%u bl %lu:", (unsigned int) chars, (unsigned int) count,
-					filp->f_pos >> SECT_SIZE_BITS);
+	//printk("RAW %u/%u bl %lu:", (unsigned int) chars, (unsigned int) count,
+	//				filp->f_pos >> SECT_SIZE_BITS);
 	if (chars) {
 	/*
 	 *      Get a (bounce) buffer for the partial block.
@@ -212,19 +215,19 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	} else {	/* we're moving full sectors */
 		unsigned char *o_data;
 		seg_t o_seg;
+		int no_sec;
 
 		chars = (count & 0xffff); /* try to transfer the whole thing -
 					 * up to 64k, which is more than the 
 					 * system can handle anyway. */
-				/* FIXME: How do we get info about 
-				 * partial IO back from the lower levels? */
 
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
-		o_data = bh->b_data;		/* save the 'real' values */
+		o_data = bh->b_data;		/* save the 'original' values */
 		o_seg = ebh->b_L2seg;
 		ebh->b_L2seg = current->t_regs.ds;
 		bh->b_data = (unsigned char *)buf;
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
+		no_sec = ebh->b_nr_sectors;
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
@@ -234,6 +237,10 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 			if (!written) written = -EIO;
 			break;
 	    	}
+		if (no_sec != ebh->b_nr_sectors) {
+			//printk("partial raw IO: %d, got %d\n", no_sec, ebh->b_nr_sectors);
+			chars = (ebh->b_nr_sectors << SECT_SIZE_BITS);
+		}
 	}
 	
 	buf += chars;

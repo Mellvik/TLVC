@@ -55,7 +55,7 @@ static int minix_set_super_state(struct super_block *sb, int notflags, int state
 	debug_sup("MINIX set super state %d\n", ms->s_state);
 	if (ms->s_state != oldstate)
 	    mark_buffer_dirty(bh);
-	printk("set_super_state %04x/%04x\n", *(int *)(bh->b_data), *(int *)(bh->b_data+16));
+	//printk("set_super_state %04x/%04x\n", *(int *)(bh->b_data), *(int *)(bh->b_data+16));
 	//printk("set_super_state %04x/%04x/%04x/%04x\n", bh, bh->b_data, *(int *)(bh->b_data), *(int *)(bh->b_data+16));
 	unmap_brelse(bh);
 	return oldstate;
@@ -315,6 +315,7 @@ struct buffer_head *minix_bread(struct inode *inode,
 {
     register struct buffer_head *bh;
 
+    //printk("m_bread %d;", block);
     return !(bh = minix_getblk(inode, block, create)) ? NULL : readbuf(bh);
 }
 
@@ -351,17 +352,16 @@ static struct buffer_head *minix_get_inode(register struct inode *inode,
     unsigned int ino;
 
     ino = inode->i_ino;
+    //printk("get_inode %d/%x;", ino, ino);
     if (!ino || ino > inode->i_sb->u.minix_sb.s_ninodes) {
 	printk("Bad inode number on dev %s: %d is out of range\n",
 		kdevname(inode->i_dev), ino);
-    }
-    else {
+    } else {
 	block = inode->i_sb->u.minix_sb.s_imap_blocks + 2 +
 	    inode->i_sb->u.minix_sb.s_zmap_blocks + (ino - 1) / MINIX_INODES_PER_BLOCK;
 	if (!(bh = bread(inode->i_dev, (block_t) block))) {
 	    printk("unable to read i-node block\n");
-	}
-	else {
+	} else {
 	    map_buffer(bh);
 	    *raw_inode = ((struct minix_inode *) bh->b_data) +
 		(ino - 1) % MINIX_INODES_PER_BLOCK;

@@ -7,7 +7,7 @@
 #include <linuxmt/types.h>
 #include <linuxmt/list.h>
 
-/*#define HEAP_DEBUG*/
+//#define HEAP_DEBUG
 
 // Heap block header
 
