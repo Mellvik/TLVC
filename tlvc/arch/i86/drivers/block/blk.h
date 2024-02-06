@@ -114,7 +114,7 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 #endif
 
-extern struct wait_queue wait_for_request; /* testing, used ot be inside FLOPPYDISK */
+extern struct wait_queue wait_for_request; /* testing, used to be inside FLOPPYDISK */
 #ifdef FLOPPYDISK	/* direct floppy */
 
 static void floppy_on();	/*(unsigned int nr); */

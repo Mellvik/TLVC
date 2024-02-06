@@ -354,7 +354,6 @@ void resetup_one_dev(struct gendisk *dev, int drive)
 
 void INITPROC setup_dev(register struct gendisk *dev)
 {
-	//int j = 0;
 #ifdef BDEV_SIZE_CHK
 	blk_size[dev->major] = NULL;
 #endif
@@ -362,8 +361,16 @@ void INITPROC setup_dev(register struct gendisk *dev)
 	memset((void *)dev->part, 0, sizeof(struct hd_struct)*dev->max_nr*dev->max_p);
 	dev->init(dev);
 
+#define MAX_BIOS_DRIVES 2
+#ifdef CONFIG_BLK_DEV_BHD
+#define MAX_DRIVES MAX_BIOS_DRIVES
+#endif
+#ifdef CONFIG_BLK_DEV_HD
+#define MAX_DRIVES MAX_ATA_DRIVES
+#endif
+
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD)
-	for (int i = 0; i < MAX_ATA_DRIVES; i++) {
+	for (int i = 0; i < MAX_DRIVES; i++) {
 		int first_minor = i << dev->minor_shift;
 		current_minor = (unsigned short) (first_minor + 1);
 		check_partition(dev, MKDEV(dev->major, first_minor));

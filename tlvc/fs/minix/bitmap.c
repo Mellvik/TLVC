@@ -139,10 +139,8 @@ repeat:
         printk("new_block: bad block %u\n", j);
         return 0;
     }
-    //debug_blk("minix_new_block: block %ld uptodate %d\n",
-        //EBH(bh)->b_blocknr, EBH(bh)->b_uptodate);
-    printk("minix_new_block: %ld bh %04x\n", 
-        EBH(bh)->b_blocknr, bh);
+    debug_blk("minix_new_block: block %ld uptodate %d\n",
+        EBH(bh)->b_blocknr, EBH(bh)->b_uptodate);
     zero_buffer(bh, 0, BLOCK_SIZE);
     mark_buffer_uptodate(bh, 1);
     mark_buffer_dirty(bh);
