@@ -101,7 +101,11 @@
 #define FLOPPY_DMA 2		/* hardwired on old PCs */
 
 #include "blk.h"
+#ifdef CONFIG_BLK_DEV_BHD	/* Kludge - FIXME */
+int running_qemu = 0;
+#else
 extern int running_qemu;
+#endif
 
 /* This is confusing. DEVICE_INTR is the do_floppy variable.
  * The code is sometimes using the macro, some times the variable.

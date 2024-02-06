@@ -31,7 +31,8 @@
 #define DEBUG_STARTDEF	0		/* default startup debug display*/
 #define DEBUG_BLKDRV	0		/* Disk/floppy drivers */
 #define DEBUG_RAW	0		/* Raw disk/floppy I/O */
-#define DEBUG_BLK	0		/* block level i/o*/
+#define DEBUG_BLK	0		/* (direct) block level i/o*/
+#define	DEBUG_BIOSIO	0		/* BIOS block IO */
 #define DEBUG_ETH	0		/* ethernet*/
 #define DEBUG_FAT	0		/* FAT filesystem*/
 #define DEBUG_FILE	0		/* sys open and file i/o*/
@@ -61,6 +62,12 @@ void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*
 #define debug_blkdrv	PRINTK
 #else
 #define debug_blkdrv(...)
+#endif
+
+#if DEBUG_BIOSIO
+#define debug_biosio	PRINTK
+#else
+#define debug_biosio(...)
 #endif
 
 #if DEBUG_BLK

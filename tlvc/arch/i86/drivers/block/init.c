@@ -56,7 +56,8 @@ void INITPROC device_init(void)
      */
     if (!boot_rootdev && (SETUP_ELKS_FLAGS & EF_BIOS_DEV_NUM) != 0) {
 
-#ifdef CONFIG_BLK_DEV_BIOS
+    /* FIXME: There are several cases where this ifdef doesn't work right */
+#if defined(CONFIG_BLK_DEV_BIOS) && !defined(CONFIG_BLK_DEV_FD)
 	extern kdev_t INITPROC bioshd_conv_bios_drive(unsigned int biosdrive);
 
 	rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);

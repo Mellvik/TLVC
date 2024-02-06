@@ -13,7 +13,7 @@
 
 #include <linuxmt/config.h>
 
-#ifdef CONFIG_BLK_DEV_HD
+#ifdef CONFIG_BLK_DEV_FD
 
 #include <linuxmt/kernel.h>
 #include <linuxmt/major.h>
