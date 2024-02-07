@@ -37,6 +37,8 @@ static int nr_free_inodes = NR_INODE;
 #define SET_COUNT(i)
 #endif
 
+void finvalidate_inodes(kdev_t, int);
+
 static void remove_inode_free(register struct inode *inode)
 {
     register struct inode *ino;
