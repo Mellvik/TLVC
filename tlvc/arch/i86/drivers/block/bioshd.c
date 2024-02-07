@@ -68,7 +68,7 @@
 #define DRIVE_FD2	6	/* PC98 only*/
 #define DRIVE_FD3	7	/* PC98 only*/
 
-#define BIOSDISK
+#define BIOSDISK	/* for blk.h */
 
 #include "blk.h"
 
@@ -163,9 +163,9 @@ static struct gendisk bioshd_gendisk = {
     MAJOR_NR,			/* Major number */
     "hd",			/* Major name */
     MINOR_SHIFT,		/* Bits to shift to get real from partition */
-    1 << MINOR_SHIFT,		/* Number of partitions per real */ /* FIXME
-				 * we don't support 32 partitions, wastes space */
-    NUM_DRIVES,			/* maximum number of real */
+    1 << MINOR_SHIFT,		/* Number of partitions per physical disk */
+				/* FIXME we don't support 32 partitions, wastes space */
+    NUM_DRIVES,			/* maximum number of physical */
     bioshd_geninit,		/* init function */
     hd,				/* hd struct */
     bioshd_sizes,		/* sizes not blocksizes */
@@ -309,7 +309,7 @@ static unsigned short INITPROC bioshd_gethdinfo(void) {
 		/* sanity checks already done, accepting data */
 		/* (if the IDE ID check fails, the drivep struct stays intact) */
 		printk(", IDE CHS %d/%d/%d\n", drivep->cylinders,
-		drivep->heads, drivep->sectors);
+			drivep->heads, drivep->sectors);
 	    }
 	}
 #else
@@ -380,7 +380,7 @@ static unsigned short int INITPROC bioshd_getfdinfo(void)
 
 #elif defined(CONFIG_BLK_DEV_BFD)
 
-/* use BIOS to query floppy configuration*/
+/* use BIOS to query floppy configuration */
 static unsigned short int INITPROC bioshd_getfdinfo(void)
 {
     register struct drive_infot *drivep = &drive_info[DRIVE_FD0];
@@ -845,7 +845,6 @@ int INITPROC bioshd_init(void)
     if (!(_fd_count + _hd_count)) return 0;
 
     copy_ddpt();	/* make a RAM copy of the disk drive parameter table*/
-    copy_fdpt();
 
     count = register_blkdev(MAJOR_NR, DEVICE_NAME, &bioshd_fops);
 
