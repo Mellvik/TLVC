@@ -39,11 +39,11 @@ void del_from_runqueue(register struct task_struct *p)
 	printk("task %d not on run-queue (state=%d)\n", p->pid, p->state);
 	return;
     }
-    if (p == &idle_task) {
-        printk("idle task may not sleep\n");
-        return;
-    }
 #endif
+    if (p == &idle_task) {
+	//printk("idle task may not sleep\n");
+	return;
+    }
     //nr_running--;
     (p->next_run->prev_run = p->prev_run)->next_run = p->next_run;
     p->next_run = p->prev_run = NULL;
@@ -92,8 +92,7 @@ void schedule(void)
         if (prev->signal || (prev->timeout && (prev->timeout <= jiffies))) {
             prev->timeout = 0UL;
             prev->state = TASK_RUNNING;
-        }
-        else {
+        } else {
 	    timeout = prev->timeout;
 	}
     }
@@ -118,7 +117,7 @@ void schedule(void)
 
         previous = prev;
         current = next;
-	debug_sched("sched: %d\n", current->pid);
+	debug_sched("sched: %d %d\n", prev->pid, next->pid);
         tswitch();  /* Won't return for a new task */
 
         if (timeout) {
@@ -246,3 +245,4 @@ void INITPROC sched_init(void)
     t->state = TASK_RUNNING;
     t->next_run = t->prev_run = t;
 }
+
