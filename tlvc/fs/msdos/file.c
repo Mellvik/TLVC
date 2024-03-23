@@ -149,6 +149,7 @@ void msdos_truncate(register struct inode *inode)
 {
 	cluster_t cluster;
 
+	debug_fat("truncate inode %ld\n", inode->i_ino);
 	debug_fat("truncate\n");
 	cluster = (cluster_t)SECTOR_SIZE(inode)*MSDOS_SB(inode->i_sb)->cluster_size;
 	(void)fat_free(inode,(inode->i_size + (cluster-1)) / cluster);
