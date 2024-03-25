@@ -21,12 +21,10 @@ __task task[MAX_TASKS];
 __ptask current = task;
 __ptask previous;
 
-//static unsigned char nr_running;
 extern int intr_count;
 
 void add_to_runqueue(register struct task_struct *p)
 {
-    //nr_running++;
     (p->prev_run = idle_task.prev_run)->next_run = p;
     p->next_run = &idle_task;
     idle_task.prev_run = p;
@@ -39,12 +37,11 @@ void del_from_runqueue(register struct task_struct *p)
 	printk("task %d not on run-queue (state=%d)\n", p->pid, p->state);
 	return;
     }
-#endif
     if (p == &idle_task) {
 	//printk("idle task may not sleep\n");
 	return;
     }
-    //nr_running--;
+#endif
     (p->next_run->prev_run = p->prev_run)->next_run = p->next_run;
     p->next_run = p->prev_run = NULL;
 
@@ -85,6 +82,9 @@ void schedule(void)
 
     /* We have to let a task exit! */
     if (prev->state == TASK_EXITING)
+	return;
+
+    if (last_pid <= 0)	/* don't try to reschedule the idle_task [0] */
 	return;
 
     clr_irq();
