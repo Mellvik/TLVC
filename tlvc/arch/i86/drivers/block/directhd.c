@@ -100,7 +100,6 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 #endif
 
 
-//int running_qemu;		/* Detect QEMU from HD serial #, if set in qemu.sh */
 extern int hdparms[];		/* Geometry data from /bootopts */
 
 #include "blk.h"
@@ -531,14 +530,14 @@ int INITPROC directhd_init(void)
 		dp->cylinders = ide_buffer[54];
 		dp->heads = ide_buffer[55];
 		dp->sectors = ide_buffer[56];
-		*hdparm = 0; 	/* IDE takes presedence over bootopts - IS THIS OK? */
+		*hdparms = 0; 	/* IDE takes presedence over bootopts - IS THIS OK? */
 
 	    } else {		/* old drive, limited ID, limited cmd set, allow
 				 * bootopts to override the geometry in ide_data */
-		if (*hdparm > 0 && hdparm[i]) {
-			dp->cylinders = hdparm[i];
-			dp->heads = hdparm[i+1];
-			dp->sectors = hdparm[i+2];
+		if (*hdparms > 0 && hdparms[i]) {
+			dp->cylinders = hdparms[i];
+			dp->heads = hdparms[i+1];
+			dp->sectors = hdparms[i+2];
 		} else {
 			dp->cylinders = ide_buffer[1];
 			dp->heads = ide_buffer[3];
@@ -549,7 +548,7 @@ int INITPROC directhd_init(void)
 
 	    hdcount++;
 	    printk("athd%d: IDE CHS: %d/%d/%d %sserial# %s\n", drive, dp->cylinders,
-		dp->heads, dp->sectors, hdparm[i] ? "(from /bootopts) " : "", &ide_buffer[10]);
+		dp->heads, dp->sectors, hdparms[i] ? "(from /bootopts) " : "", &ide_buffer[10]);
 
 	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
