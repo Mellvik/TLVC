@@ -42,7 +42,11 @@ struct netif_parms netif_parms[MAX_ETHS] = {
 __u16 kernel_cs, kernel_ds;
 int tracing;
 int nr_mapbufs;
-int ide_chs[3] = {0,0,0};
+
+#define CHS_DRIVES 2	/* # of drives to config in bootopts */
+#define CHS_ARR_SIZE	CHS_DRIVES * 4
+int hdparms[CHS_ARR_SIZE] = {0};	/* cover 2 drives */
+
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 static int boot_console = 0;
 static char bininit[] = "/bin/init";
@@ -258,6 +262,11 @@ static struct dev_name_struct {
 	{ "dhdb",    DEV_DHDB },
 	{ "dhdc",    DEV_DHDC },
 	{ "dhdd",    DEV_DHDD },
+#elif CONFIG_BLK_DEV_XD
+	{ "xda",     DEV_XDA},
+	{ "xdb",     DEV_XDB },
+	{ "hda",     DEV_HDA },
+	{ "hdb",     DEV_HDB },
 #else
 	{ "hda",     DEV_HDA },
 	{ "hdb",     DEV_HDB },
@@ -324,6 +333,8 @@ static int INITPROC parse_dev(char * line)
 	return (base + atoi(line));
 }
 
+/* Parse comma-separated list of numbers. Empty fields (adjacent commas) mean
+ * zero, negative numbers become zero */
 static void INITPROC parse_parms(int cnt, char *line, int *nums, int base)
 {
 	int i;
@@ -334,10 +345,10 @@ static void INITPROC parse_parms(int cnt, char *line, int *nums, int base)
 		m = l;
 		while ((*l) && (*l != ',')) l++;
 		c = *l;		/* ensure robust eol handling */
-		if (l > m) {
+		if (l > m && *m != '-') {
 			*l = '\0';
 			nums[i] = (int)simple_strtol(m, base);
-		} else nums[i] = 0;	/* item missing */
+		} else nums[i] = 0;	/* item missing or negative */
 		if (!c) break;
 		l++;
 	}
@@ -352,19 +363,23 @@ static void INITPROC comirq(char *line)
 		if (irq[i]) set_serial_irq(i, irq[i]);
 }
 
-static void INITPROC init_chs(int dev, char *line)
+static void INITPROC init_hdparms(int dev, char *line)
 {
-	int i, val[3];
+	int i, val[CHS_ARR_SIZE] = {0};
 
-	parse_parms(3, line, val, 10);
-	for (i = 0; i < 3; i++) {
+	parse_parms(CHS_ARR_SIZE, line, hdparms, 10);
+	printk("init_hdparms: ");
+	for (i = 0; i < CHS_ARR_SIZE; i++) {
+#if 0
 		if (!val[i]) {	/* sanity check, no zero values accepted */ 
 			val[0] = 0;
 			return;
 		}
-		ide_chs[i] = val[i];
+#endif
+		//hdparms[i] = val[i];
+		printk("%d ", hdparms[i]);
 	}
-	//printk("init_chs: %d/%d/%d\n", ide_chs[0], ide_chs[1], ide_chs[2]);
+	printk("\n");
 }
 
 static void INITPROC parse_nic(char *line, struct netif_parms *parms)
@@ -504,9 +519,9 @@ static int INITPROC parse_options(void)
 			continue;
 		}
 
-		/* TODO: expand to cover all drives later */
-		if (!strncmp(line,"chs0=", 5)) {
-			init_chs(0, line+5);
+		if (!strncmp(line,"hdparms=", 8)) {
+			parse_parms(CHS_ARR_SIZE, line+8, hdparms, 10);
+			//init_hdparms(0, line+8);
 			continue;
 		}
 		if (!strncmp(line, "netbufs=", 8)) {
