@@ -45,7 +45,7 @@ int nr_mapbufs;
 
 #define CHS_DRIVES 2	/* # of drives to config in bootopts */
 #define CHS_ARR_SIZE	CHS_DRIVES * 4
-int hdparms[CHS_ARR_SIZE] = {0};	/* cover 2 drives */
+int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
 
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 static int boot_console = 0;
@@ -333,8 +333,8 @@ static int INITPROC parse_dev(char * line)
 	return (base + atoi(line));
 }
 
-/* Parse comma-separated list of numbers. Empty fields (adjacent commas) mean
- * zero, negative numbers become zero */
+/* Parse comma-separated list of numbers. Missing and empty fields (adjacent
+ * commas) mean zero */
 static void INITPROC parse_parms(int cnt, char *line, int *nums, int base)
 {
 	int i;
@@ -345,7 +345,7 @@ static void INITPROC parse_parms(int cnt, char *line, int *nums, int base)
 		m = l;
 		while ((*l) && (*l != ',')) l++;
 		c = *l;		/* ensure robust eol handling */
-		if (l > m && *m != '-') {
+		if (l > m) {
 			*l = '\0';
 			nums[i] = (int)simple_strtol(m, base);
 		} else nums[i] = 0;	/* item missing or negative */
@@ -361,25 +361,6 @@ static void INITPROC comirq(char *line)
 	parse_parms(MAX_SERIAL, line, irq, 0);
 	for (i = 0; i < MAX_SERIAL; i++) 
 		if (irq[i]) set_serial_irq(i, irq[i]);
-}
-
-static void INITPROC init_hdparms(int dev, char *line)
-{
-	int i, val[CHS_ARR_SIZE] = {0};
-
-	parse_parms(CHS_ARR_SIZE, line, hdparms, 10);
-	printk("init_hdparms: ");
-	for (i = 0; i < CHS_ARR_SIZE; i++) {
-#if 0
-		if (!val[i]) {	/* sanity check, no zero values accepted */ 
-			val[0] = 0;
-			return;
-		}
-#endif
-		//hdparms[i] = val[i];
-		printk("%d ", hdparms[i]);
-	}
-	printk("\n");
 }
 
 static void INITPROC parse_nic(char *line, struct netif_parms *parms)
@@ -521,7 +502,6 @@ static int INITPROC parse_options(void)
 
 		if (!strncmp(line,"hdparms=", 8)) {
 			parse_parms(CHS_ARR_SIZE, line+8, hdparms, 10);
-			//init_hdparms(0, line+8);
 			continue;
 		}
 		if (!strncmp(line, "netbufs=", 8)) {
