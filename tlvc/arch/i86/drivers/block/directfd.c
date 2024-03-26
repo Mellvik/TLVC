@@ -59,8 +59,8 @@
 /*
  * TODO (HS 2023):
  * - When XMS buffers are active, the BIOS hd driver will use DMASEG as a bounce buffer
- *   thus colliding with the usage here. This is a problem only in the odd case 
- *   that we're using BIOS HD + DIRECT FD + XMS buffers + TRACK cache, 
+ *   thus colliding with our usage (i18 sector track buffer). This is a problem only in
+ *   the odd case of using BIOS HD + DIRECT FD + XMS buffers + TRACK cache, 
  *   which really should not happen. IOW - use either BIOS block IO or DIRECT block IO,
  *   don't mix!!
  * - Update DMA code
@@ -98,18 +98,12 @@
 #define FLOPPYDISK
 #define MAJOR_NR FLOPPY_MAJOR
 #define MINOR_SHIFT	5	/* shift to get drive num */
-#define FLOPPY_DMA 2		/* hardwired on old PCs */
 
 #include "blk.h"
-#ifdef CONFIG_BLK_DEV_BHD	/* Kludge - FIXME */
-int running_qemu = 0;
-#else
-extern int running_qemu;
-#endif
 
-/* This is confusing. DEVICE_INTR is the do_floppy variable.
+/* This is confusing. DEVICE_INTR is the do_floppy pointer.
  * The code is sometimes using the macro, some times the variable.
- * It may seem this is a trick to get GCC to shut up ...
+ * FIXME: Use one or the other.
  */
 #ifdef DEVICE_INTR	/* from blk.h */
 void (*DEVICE_INTR) () = NULL;
@@ -966,9 +960,8 @@ static void rw_interrupt(void)
 	break;
     }
 
+    int drive = (MINOR(CURRENT->rq_dev) >> MINOR_SHIFT) & 3;
     if (probing) {
-	int drive = (MINOR(CURRENT->rq_dev) >> MINOR_SHIFT) & 3;
-
 	printk("df%d: Auto-detected floppy type %s\n", drive, floppy->name);
 	current_type[drive] = floppy;
 #ifdef BDEV_SIZE_CHK
@@ -991,20 +984,18 @@ static void rw_interrupt(void)
 	DEBUG("rd:%04x:%04x->%04lx:%04x;", DMASEG, buffer_area,
 		(unsigned long)CURRENT->rq_seg, CURRENT->rq_buffer);
 	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
-    } else if (command == FD_READ 
-#ifndef CONFIG_FS_XMS_BUFFER
-	   && _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer) >= LAST_DMA_ADDR
-#endif
-	) {
-	/* if the dest buffer is out of reach for DMA (always the case if using
-	 * XMS buffers) we need to read/write via the bounce buffer */
+    } else if (command == FD_READ /* NOTE: Need to detect xms buffer use here, 
+					maybe a	usebounce flag */
+	   && _MK_LINADDR(CURRENT->rq_seg, CURRENT->rq_buffer) >= LAST_DMA_ADDR) {
+	/* If the dest buffer is out of reach for DMA (always the case if using XMS buffers)
+	 * or the buffer spans a 64k boundary, we do I/O via the bounce buffer */
 	xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, tmp_floppy_area, kernel_ds, BLOCK_SIZE/2);
-	printk("directfd: illegal buffer usage, rq_buffer %04x:%04x\n", 
+	printk("df%d: illegal buffer usage, rq_buffer %04x:%04x\n", drive,
 		CURRENT->rq_seg, CURRENT->rq_buffer);
     }
     request_done(1);
     //printk("RQOK;");
-    redo_fd_request();	/* Continue with the next request - if any */
+    redo_fd_request();	/* Continue with next request if any */
 }
 
 /*
@@ -1443,7 +1434,7 @@ static void redo_fd_request(void)
 	else if (req->rq_cmd == WRITE)
 	    command = FD_WRITE;
 	else {
-	    printk("redo_fd_request: unknown command\n");
+	    printk("df%d: unknown command (%x)\n", drive, command);
 	    request_done(0);
 	    goto repeat;
 	}
@@ -1635,9 +1626,10 @@ static void INITPROC config_types(void)
 	    printk(", ");
 	    base_type[1] = find_base(1, CMOS_READ(0x10) & 0xF);
 	}
-    } else {	/* No CMOS, force type 1 & just one drive */
-	base_type[0] = probe_list[FT_360k_PC - 1];
-	printk("df0 is 360k/PC (1)");
+    } else {	/* No CMOS, force 2 type 1 drives - for convenience. 
+		 * Neither may exist, we have no way to find out. */
+	base_type[0] = base_type[1] = probe_list[FT_360k_PC - 1];
+	printk("df0, df1 set to 360k/PC (type 1)");
     }
     printk("\n");
 }
@@ -1664,9 +1656,9 @@ int floppy_open(struct inode *inode, struct file *filp)
     	if (old_dev && old_dev != inode->i_rdev)
 	    return -EBUSY;	/* no reopens using different minor */
 	fd_ref[dev]++;
-	//cache_drive = cache_track = -1;	
+	/**/cache_drive = cache_track = -1;	
 
-	//if (fd_ref[dev] == 1) invalidate_buffers(inode->i_rdev);	/* EXPERIMENTAL */
+	/**/if (fd_ref[dev] == 1) invalidate_buffers(inode->i_rdev);	/* EXPERIMENTAL */
 					/* probably superfluous, done on prev close */
 	just_opened |= (1 << dev);
 #ifdef CHECK_MEDIA_CHANGE_XXX
@@ -1779,8 +1771,10 @@ void INITPROC floppy_init(void)
 	return;	/* should be able to signal failure back to the caller */
     }
 
-    if (request_dma(FLOPPY_DMA, (void *)DEVICE_NAME))
+    if (request_dma(FLOPPY_DMA, (void *)DEVICE_NAME)) {
 	printk("Unable to grab DMA%d for the floppy driver\n", FLOPPY_DMA);
+	return;
+    }
 
 #ifdef ENABLE_FDC_82077
     /* Try to determine the floppy controller type */
