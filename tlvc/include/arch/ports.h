@@ -5,11 +5,11 @@
  *
  *  IRQ	ELKS Device         Config Option           Status
  *  0   Timer                                       Required
- *  1   Keyboard            CONFIG_CONSOLE_DIRECT   Optional
+ *  1   Keyboard	    CONFIG_CONSOLE_DIRECT   Optional
  *  2*  Cascade -> 9 on AT  CONFIG_ETH_WD           Optional on XT, not available on AT
  *  3   Com2 (/dev/ttyS1)   CONFIG_CHAR_DEV_RS      Optional
  *  4   Com1 (/dev/ttyS0)   CONFIG_CHAR_DEV_RS      Optional
- *  5*  PC/XT MFM or IDE HD CONFIG_BLK_DEV_HD
+ *  5*  PC/XT MFM 	    CONFIG_BLK_DEV_MHD
  *  6*  STD floppy ctrlr    CONFIG_BLK_DEV_FD
  *  7   Unused (LPT, Com3)
  *  8   Unused (RTC)
@@ -115,8 +115,14 @@
 #define HD1_PORT	0x1f0
 #define HD2_PORT	0x170
 #define XTIDE_PORT	0x300		/* 8bit XT/IDE or CF cards, usually w/BIOS */
-#define HD_IRQ		5
 #define HD1_AT_IRQ	14
 #define HD2_AT_IRQ	15
+#define HD_IRQ		5
 
 #define FLOPPY_IRQ	6
+#define FLOPPY_DMA	2
+
+/* MFM disk */
+#define MHD_IRQ		5
+#define MHD_DMA		3
+#define MHD_PORT	0x320
