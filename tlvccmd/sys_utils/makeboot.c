@@ -421,7 +421,7 @@ usage:
 		fatalmsg("Can't specify current boot device as target\n");
 
 	if (((MAJOR(targetdev) == BIOSHD_MAJOR) && (MINOR(targetdev) < BIOS_FD0_MINOR)) ||
-	     (MAJOR(targetdev) == ATHD_MAJOR)) {	/* hard drive*/
+	     (MAJOR(targetdev) == ATHD_MAJOR) || MAJOR(targetdev) == XD_MAJOR) {	/* hard drive*/
 		if (!opt_writeflat && !opt_writembr) {
 			if ((targetdev & BIOS_MINOR_MASK) == 0)	/* non-partitioned device*/
 				fatalmsg("Must specify partitioned device (example /dev/hda1)\n");

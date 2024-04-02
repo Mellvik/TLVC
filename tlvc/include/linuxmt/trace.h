@@ -21,7 +21,7 @@
 //#define CHECK_KSTACK
 
 /* display each system call/return value along with max system stack usage */
-#define CHECK_STRACE
+//#define CHECK_STRACE
 
 /* check matched sleep/wait and idle task sleeps when writing/testing drivers */
 //#define CHECK_SCHED

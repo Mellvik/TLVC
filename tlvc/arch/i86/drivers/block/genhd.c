@@ -46,7 +46,11 @@ int boot_partition = 0;		/* MBR boot partition, if any*/
 extern int blk_size[];
 #endif
 
-#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD)
+#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_XD)
+#define HAS_HARD_DISK
+#endif
+
+#ifdef HAS_HARD_DISK
 
 static unsigned short current_minor;
 
@@ -361,15 +365,21 @@ void INITPROC setup_dev(register struct gendisk *dev)
 	memset((void *)dev->part, 0, sizeof(struct hd_struct)*dev->max_nr*dev->max_p);
 	dev->init(dev);
 
-#define MAX_BIOS_DRIVES 2
+/*
+ * FIXME: This will NOT work if we have both directhd and mfm drives,
+ * verified not to work on newer (like 386...) systems.
+ */
 #ifdef CONFIG_BLK_DEV_BHD
 #define MAX_DRIVES MAX_BIOS_DRIVES
 #endif
 #ifdef CONFIG_BLK_DEV_HD
 #define MAX_DRIVES MAX_ATA_DRIVES
 #endif
+#ifdef CONFIG_BLK_DEV_XD
+#define MAX_DRIVES MAX_XD_DRIVES
+#endif
 
-#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_HD)
+#ifdef HAS_HARD_DISK
 	for (int i = 0; i < MAX_DRIVES; i++) {
 		int first_minor = i << dev->minor_shift;
 		current_minor = (unsigned short) (first_minor + 1);

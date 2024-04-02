@@ -316,8 +316,10 @@ int main(int argc, char ** argv)
 		die("unable to stat %s");
 	if (!(buf = malloc(512))) 
 		die("Cannot malloc buffer memory"); 
-	if (((BLOCKS -1)<<10) > statbuf.st_size)
-		die("Requested blockcount exceeds device size");
+	if (((BLOCKS -1)<<10) > statbuf.st_size) {
+		printf("Requested blockcount (%lu) exceeds device size (%lu)\n", BLOCKS, statbuf.st_size);
+		exit(-1);
+	}
 
 	/* The above should be enough, but some times the device is 
 	 * unsure about its own limits ...*/

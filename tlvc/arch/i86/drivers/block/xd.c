@@ -10,45 +10,51 @@
  * - We don't check for extreme transfer sizes (like > 32k) which will crash 
  *   the system because the RAM refresh is disturbed. This is safe because 
  *   TLVC cannot - without special programming - transfer more than 20k in a raw
- *   read/write operation. Block mode operations are always 1k.
+ *   read/write operation anyway. Block mode operations are always 1k.
  * - Sectors - controller level - start at 0, not 1!!
- * - If the error code from the controller is 0x31, it means parameter error, like
- *   requesting 0 or negative number of sectors.
  * - The 1st MFM controller is always at 0x320, IRQ5, DMA3. This is a commonly used 
- *   address on network interfaces and others. Collisions hafe interesting consequences,
+ *   address on network interfaces and others. Collisions have interesting consequences,
  *   not necessarily easy to decipher. 
  * - Using a MFM controller on a AT or later machine may or may not work. 1st gen
- *   AT machines emulate MFM controllers @ 0x320 for compatibility, even though the
- *   disk(s) are IDE/ATA. This means adding a physical mfm controller at that address
- *   will have unpredictable consequences.
+ *   AT machines emulate MFM controllers @ 0x320 for compatibility, masking the fact that
+ *   the disk(s) are IDE/ATA. Adding a physical mfm controller at that address
+ *   may or may not work.
  * - There is no 'standard' MFM controller. All have the same basic command set, most
  *   have extensions and the behaviour of the 'state machine' governing the command
- *   phase varies. There is no standard way to determine disk drive data (CHS etc.).
+ *   phase varies. E.g. there is no standard way to determine disk drive data (CHS etc.).
  *   This is why the 'big' Linux MFM driver pokes into the controller ROM to find the 
  *   type and details. We don't have space for that, and assume the 
  *   default 10MB CHS values (304/4/17/128) unless /bootopts is used to define the size.
  *   The last value in the quadruple is the Write Precompensation track, aka WPCOM.
  *   The good thing is that since all drives in this category have (or emulate) 17
  *   sectors, there is no problem booting even if the real size of the drive is unknown
- *   at that point. Then TLVC can make its own assumptions about size.
+ *   at that point. After booting, TLVC can make its own assumptions about size.
  *   Note however, that the controller needs to be told the CHS values we plan to use
- *   in order to provide access to the entire drive w/o errors. (see the xd_setparam()
+ *   in order to provide access to the entire drive w/o errors (see the xd_setparam()
  *   function()).
- * - A drive works only with the type of controller with which it has been formatted. 
- *   IOW moving drives around is a no-go. Pending the availability of a formatting
- *   utility for TLVC, a crude formatter is included in the driver. If compiled in, 
+ * - A drive works only with the type of controller with which it was formatted. 
+ *   IOW moving drives around is a no-go. Newer controllers (actually most except the 
+ *   very first generation, pre 1985) have a formatter included in the firmware, to be
+ *   started from MSDOS DEBUG, typically at C800:5. For the older controllers, other
+ *   tricks are required.
+ * - Pending the availability of a formatting utility for TLVC, a crude formatter is
+ *   included in the driver. If compiled in (#define ALLOW_FORMATTING), 
  *   set the /bootopts sector count for the drive to 0, and the drive will be formatted.
- *   [Obviously, the sector count needs to be set back to normal before the next boot.]
+ *   [Obviously, the sector count needs to be reset to normal before the next boot.]
  *   There is no safe way (at this point) to detect the completion of the format process,
  *   so keeping an eye on the activity LED is required. It's important to set the correct
  *   CHSW parameters before the formatting. Also notice that the interleave is preset to 5,
  *   which is good for <8MHz machines, otherwise use 4.
- * - Beware that the sluggishness of 4.77MHz PCs may cause unexpected behaviour, in 
- *   particular related to interrupts - like the interrupt occuring before the request call
+ * - INTERLEAVE: The Hard Drive Bible dieagrees with the above (which comes from a WD document).
+ *   Their recipe is 4:1 @4.77MHz or less, 3:1 @ 5-10MHz, 2:1 @ 10-16 MHz, 1:1 for higher.
+ *   Remember - this is all about old MFM/RLL drives.
+ * - Beware that the sluggishness of 4.77MHz PCs may deliver surprisese, in 
+ *   particular related to interrupts. Like the interrupt occuring before the request call
  *   has completed (see also comments in the code).
- * - If drive 0 is missing and drive 1 present, many BIOSes will seem to hang at boot time.
+ * - If drive 0 is missing and drive 1 present, some BIOSes will seem to hang at boot time.
  *   Be patient, 15-20 seconds, and it continues - TLVC will boot fine. Such configuration 
- *   is not disk bootable though (floppy OK).
+ *   is not hard-disk bootable though (floppy OK).
+ * - RESET: On some controllers, the drive parameters must be re-programmed after a reset.
  */
 
 /*
@@ -57,8 +63,7 @@
  * - Add ioctl to manipulate drive parameters, such as automatic retries -
  *   to be able to continue after hard errors and to support real performance 
  *   testing.
- * - Add /bootopts support for 2 drives' CHS params (add Wcomp and landingzone)
- * - Fix probe (currently experimental)
+ * - Add format utility.
  */
 
 #include <linuxmt/config.h>
@@ -163,20 +168,23 @@ static struct	xdmsg {	/* convert error numbers to messages */
 	const char	*msg;
 } xdmsg[] = {
 	0xFF,	"Controller timeout",
+	0x30,	"Hardware Failure",	/* maps several 3x error codes */
 	0x21,	"Illegal disk address",
 	0x20,	"Invalid command",
+	0x1A,	"Format/alt.track error", /* maps 1a-1f errors */
 	0x19,	"Bad track",
 	0x18,	"Correctable data error",
 	0x15,	"Seek error",
-	0x14,	"Sector not found",
 	0x12,	"No address mark",
 	0x11,	"Data error",
-	0x10,	"ID error",
 	0x06,	"No track 0",
 	0x04,	"Drive not ready",
 	0x03,	"Write fault",
-	0x02,	"No seek complete",
-	0x01,	"No index signal",
+	/*0x14,	"Sector not found",*/	/* 1,2,10,14 -> equals seek err (15) */
+					/* mapped automatically by many controllers */
+	/*0x10,	"ID error",*/
+	/*0x02,	"No seek complete",*/
+	/*0x01,	"No index signal",*/
 	0x00,	"Unknown error"
 };
 
@@ -205,14 +213,15 @@ void xd_release(struct inode *, struct file *);
 static void xd_geninit();
 static void mdelay(int);
 static void setup_DMA(int);
-static void deverror(int, const char *);
+static void deverror(int, byte_t *);
 //static int get_drive_type(int); 
 static void do_xdintr(int, struct pt_regs *);
 static int xd_waitport(byte_t, byte_t, int);
 static void redo_xd_request(void);
 static void xd_build (byte_t *, byte_t, byte_t, byte_t, word_t, byte_t, byte_t, byte_t);
 static int xd_recal(int);
-static int xdcmd(int, int, int);
+static int xdcmd(byte_t *, int);
+//static int xdcmd(int, int, int);
 static word_t xd_command(byte_t *, byte_t, byte_t *, byte_t *, byte_t *, int);
 static void xd_format(int);
 
@@ -286,6 +295,7 @@ static void do_xd_request(void)
 	//mdelay(100);
 }
 
+#define OLD_WAY 0
 /*
  * Start a R/W request, then return and wait for the completion interrupt. Unless
  * there is an error before we even get started, in which case we signal back
@@ -294,9 +304,11 @@ static void do_xd_request(void)
 static void redo_xd_request(void)
 {
     sector_t start;
-    unsigned raw_mode, tmp;
-    unsigned count, track, cyl;
-    byte_t head, sec, sense[10] = {0,};
+    unsigned count, raw_mode, tmp;
+#if !OLD_WAY
+    unsigned track, cyl;
+    byte_t head, sec, sense[4], cmd[6];
+#endif
     struct drive_infot *dp;
     struct request *req;
     int minor, drive;
@@ -340,13 +352,11 @@ static void redo_xd_request(void)
     	goto repeat;
     }
 
-    /* create DCB, Device Control Block */
     /* Sector count starts at 0, not the (now) normal 1 */
     start += hd[minor].start_sect;
-#define OLD_WAY 0
 #if OLD_WAY
     tmp = start / dp->sectors;
-    xd_cmd.c_head = (tmp % dp->heads) & 0x1f;	/* drive added in xdcmd() */
+    xd_cmd.c_head = (tmp % dp->heads) & 0x1f | (drive << 5);
     tmp /= dp->heads;
     xd_cmd.c_cyln = tmp;
     xd_cmd.c_sect = (start % dp->sectors) | ((tmp >> 2)&0xC0);
@@ -363,21 +373,24 @@ static void redo_xd_request(void)
     debug_xd("xd%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %c\n",
 		drive, cyl, head, sec, start, count, req->rq_buffer,
 		(unsigned long)req->rq_seg, req->rq_cmd == READ? 'R' :'W');
-    byte_t cmd[6];
-    xd_build(cmd, req->rq_cmd == READ ? CMD_READ : CMD_WRITE, drive, head, cyl, sec, count&0xFF, XD_CNTF);
+    xd_build(cmd, req->rq_cmd == READ ? CMD_READ : CMD_WRITE, drive, head, 
+				cyl, sec, count&0xFF, XD_CNTF);
     //printk("xd%d: Command %x|%x|%x|%x|%x|%x\n", drive, cmd[0], cmd[1],
     //				cmd[2], cmd[3], cmd[4], cmd[5]);
 #endif
     setup_DMA(count);
 #if OLD_WAY
-    if (xdcmd(req->rq_cmd == READ ? CMD_READ : CMD_WRITE, DMA_MODE, drive)) {
+    //if (xdcmd(req->rq_cmd == READ ? CMD_READ : CMD_WRITE, DMA_MODE, drive)) {
+    xd_cmd.c_cmmd = req->rq_cmd == READ ? CMD_READ : CMD_WRITE;
+    if (xdcmd((byte_t *)&xd_cmd, DMA_MODE)) {
 	printk("xd%d: Command phase error, CHS %d/%d/%d \n", drive, xd_cmd.c_cyln,
 			xd_cmd.c_head, xd_cmd.c_sect);
 #else
-    if ((tmp = xd_command(cmd, DMA_MODE, 0, 0, sense, 10))) {
+    if ((tmp = xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT))) {
 	printk("xd%d: Cmd phase error, ret %d, cmd %x, sense %x\n", 
 				drive, tmp, cmd[0], sense[0]);
 #endif
+	/* Must not end here if we expect an interrupt!!! */
 	end_request(0);
 	goto repeat;
     } 
@@ -429,7 +442,7 @@ static void setup_DMA(int nr_sectors)
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
 
     count = nr_sectors<<9;
-    if (use_xms || (physaddr + (unsigned int)count) < physaddr)
+    if (use_xms || (physaddr + (unsigned int)count) < physaddr) /* 64k wrap test */
 	dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
     else
 	dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
@@ -483,9 +496,37 @@ int xd_ioctl(struct inode *inode,
 }
 
 /*
- * Very simplistic, brute force command issuance, plenty room for (uncaught) 
+ * Very simolistic, brute force command issuance, plenty room for (uncaught) 
  * errors.
  */
+static int xdcmd(byte_t *cmd, int mode)
+{
+	register int i;
+
+	outb_p(0, XD_SELECT);
+	outb_p(mode, XD_CONTROL);
+
+	//if (xd_waitport(STAT_COMMAND|STAT_READY|STAT_SELECT, STAT_COMMAND|STAT_READY|STAT_SELECT, 30)) {
+	if (xd_waitport(STAT_SELECT, STAT_SELECT, 100)) {
+		printk("xd: controller not ready, stat %x\n", inb_p(XD_STATUS));
+		return -1;
+	}
+	i = 6; 	/* size of command block */
+	while (i--) {
+		printk("%02x/%02x|", *cmd, inb(XD_STATUS));
+
+		if (inb(XD_STATUS) | STAT_COMMAND)
+			outb_p(*cmd++, XD_DATA);
+		else {	/* DEBUG */
+			printk("got %x(%d);", inb(XD_STATUS), i);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+#if 0 /* OLD VERSION */
 static int xdcmd(int command, int mode, int drive)
 {
 	register char *x;
@@ -520,42 +561,41 @@ static int xdcmd(int command, int mode, int drive)
 
 	return 0;
 }
+#endif
 
 static void do_xdintr(int irq, struct pt_regs *regs)
 {
 	register int i;
-	char	 j = 0xFF;
-	int drive = 0;	/* kludge, remove later */
+	byte_t j = 0xFF;
+	int drive = 0;
 
-	//kputchar('Z');
 	i = inb_p(XD_DATA); 
 	outb_p(PIO_MODE, XD_CONTROL);	/* turn off interrupts/DMA */
+	//kputchar('Z');
 	//debug_xd("xd INTstat %x %x; ", inb(XD_STATUS), i);
 	drive = i>>5;			/* get drive # from status byte */
 	if (xd_busy) {
 		if (i & CSB_ERROR) {
-			if (xdcmd(CMD_SENSE, PIO_MODE, drive))	/* FIX USE NEW */
-				goto error;
-#if 0
-			for (i = 100; (inb_p(XD_STATUS) & STAT_READY) == 0;)
-				if (i-- == 0)
-#else
-			if (xd_waitport(STAT_READY, STAT_READY, 20))
-#endif
-					goto error;
-			j = inb_p(XD_DATA) & 0x3f;	/* get 1st byte of SENSE data */
-error:			if (xtnoerr == 0) {
-				for (i = 0; xdmsg[i].num != 0; i++)
-					if (xdmsg[i].num == j)
-						break;
-				deverror(drive, xdmsg[i].msg);
-			}
-    			//clear_dma_ff(MHD_DMA);
-			//if ((i = get_dma_residue(MHD_DMA)))	/* DEBUG */
-				//printk("DMA resid %d\n", i);
-			//outb_p(0, XD_RESET);
-			xd_recal(drive);
+			byte_t cmd[6], sense[4];
+
+			memset(&cmd[2], 0, 4); /* skip this? the controller doesn't care ... */
+			cmd[0] = CMD_SENSE;
+			cmd[1] = drive << 5;
+			//if (xdcmd(CMD_SENSE, PIO_MODE, drive))
+			//if (!xdcmd(cmd, PIO_MODE) && !xd_waitport(STAT_READY, STAT_READY, 20))
+			    //j = inb_p(XD_DATA) & 0x3f;	/* get 1st byte of SENSE data */
+
+			/* get error code */
+			if (!xd_command(cmd, PIO_MODE, sense, NULL, NULL, XD_TIMEOUT)) {
+			    //printk("Sense %x|%x|%x|%x;", sense[0], sense[1], sense[2], sense[3]);
+			    j = sense[0]&0x3f;	/* some ctrlrs set the high bit(s) */
+			} /* else unknown error */
+
+			if (xtnoerr == 0)
+			    deverror(drive, sense);
+
 			if (j != 0x18) {	/* check for correctable error */
+			        //xd_recal(drive); 	/* LATER */
 				i = 0;		/* indicate error */
 				goto done;
 			}
@@ -593,9 +633,11 @@ void xd_release(struct inode *inode, struct file *filp)
 }
 
 /* controller reset & probe: check if anything there */
-/* At power on, status is usually 0xc3, the upper 2 bits always set on some controllers.
- * After reset, the status is 0xc0. In order to use for probing, select the 
- * interface and the SELECTED bit should be set. */
+/* At power on, status is usually 0c3 (or 0xc3, the upper 2 bits always set on some
+ * controllers).
+ * After reset, the status is 0 (or 0xc0). In order to use for probing, select the 
+ * interface and check that the SELECTED bit is set.
+ * Need experience with more controllers to verify. */
 
 static int INITPROC xd_reset(void)
 {
@@ -605,14 +647,14 @@ static int INITPROC xd_reset(void)
 	int prev;
 	outb_p(0, XD_RESET);
 	mdelay(100);
-	if ((prev = inb(XD_STATUS)) & STAT_SELECT) {
-		printk(" unexpected status 0x%x;", prev);
-		printk("(%x);", inb(XD_STATUS + 4));	/* DEBUG: poke for a 2nd controller @ 0x324 */
-		return 0;	/* For now, return OK */
+	if ((prev = inb(XD_STATUS)) & STAT_SELECT) { /* should not be selected after reset */
+		//printk(" unexpected status 0x%x;", prev);
+		//printk("(%x);", inb(XD_STATUS + 4));	/* DEBUG: poke for a 2nd controller @ 0x324 */
+		return 1;	/* controller not found */
 	}
 	//printk(" reset: %x;", prev);
 #else
-	printk(" not resetting controller;");	/* DEBUG */
+	printk(" DEBUG: not resetting controller;");
 #endif
 	/* FIXME: Use xd_waitport() */
 	do {
@@ -624,6 +666,9 @@ static int INITPROC xd_reset(void)
 			//prev = in;
 		//}
 	} while (!(in & STAT_SELECT) && i--);
+
+	/* Compaq controller returns 0xc8, 86box emulating 'IBM Fixed Disk Controller'
+	 * returns 0x0d (SELECT, COMMAND, READY) */
 	//printk(" xd reset returned %x;", in);
 	return(!i);
 }
@@ -634,7 +679,7 @@ static void INITPROC xd_setparam(byte_t drive, byte_t heads, word_t cyls,
 {
 	byte_t cmdblk[14];
 
-	xd_build(cmdblk,CMD_SETPARAM, drive,0,0,0,0,0);
+	xd_build(cmdblk, CMD_SETPARAM, drive, 0, 0, 0, 0, 0);
 	cmdblk[6] = (byte_t) (cyls >> 8) & 0x03;
 	cmdblk[7] = (byte_t) (cyls & 0xff);
 	cmdblk[8] = heads & 0x0f;
@@ -645,7 +690,7 @@ static void INITPROC xd_setparam(byte_t drive, byte_t heads, word_t cyls,
 	cmdblk[13] = 0x0b;	/* 'Maximum length of an error burst
 				 * to be corrected' - 11 is max and seemingly the default */
 
-	/* Some controllers require geometry info as data, not command */
+	/* Some controllers require geometry info as data, others as an extended cmd block. */
 	/* This setup takes care of both */
 
 	if (xd_command(cmdblk, PIO_MODE, NULL, &cmdblk[6], NULL, XD_TIMEOUT * 2))
@@ -798,9 +843,21 @@ static int get_drive_type(int drive) 	/* works for some, not all cards */
 }
 #endif
 
-static void deverror(int drive, const char *msg)
+static void deverror(int drive, byte_t *sense)
 {
-	printk(DEVICE_NAME "%d: %s\n", drive, msg);
+	register int i, j = sense[0]&0x3f;
+
+	if ((j & 0x30) == 0x30 ) j = 0x30;
+	if (j > 0x29 && j < 0x30) j = 0x2A;
+	for (i = 0; xdmsg[i].num != 0; i++) {
+	    if (xdmsg[i].num == j)
+		break;
+	}
+	printk("xd%d: %s (%02X)", drive, xdmsg[i].msg, j);
+	if ((j & 0x30) == 0x10) /* drive error, add blocknr */
+				/* possibly get sector # from sense[] */
+	    printk(" @ block %lu", CURRENT->rq_blocknr);
+	printk("\n");
 }
 
 /* crude status wait loop */
@@ -815,47 +872,52 @@ static int xd_waitport(byte_t flags, byte_t mask, int timeout)
 }
 
 /* xd_command: handle all data IO necessary for a single command */
+
 /* NOTE: Be careful with printk's inside the switch. Commands initiating
  * DMA transfers will commence immediately after the last command byte,
  * and the interrupt may kick in before we're finished here, delivering
- * unpredictable results.
+ * some times surprising results.
+ * NOTE II: This function must be reentrant, it calls itself.
  */
 
 static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 			byte_t *outdata, byte_t *sense, int timeout)
 {
 	word_t csb;
-	byte_t l_sense[4], complete = 0;
+	byte_t complete = 0;
 
 	debug_xd("xd_cmd: cmd = 0x%X, mode = 0x%X, indata = 0x%X, outdata = 0x%X, sense = 0x%X\n",
 			*command, mode, indata, outdata, sense);
 
+	//printk("Cm0x%x;", command[0]);
 	outb(0, XD_SELECT);
 	outb(mode, XD_CONTROL);
-	if (!sense) sense = l_sense;	/* clean up later */
 
 	if (xd_waitport(STAT_SELECT, STAT_SELECT, timeout))
 		return 1;
 
 	while (!complete) {
 		if (xd_waitport(STAT_READY, STAT_READY, timeout))
-			return 1;
+			return 10;
 
 		switch (inb(XD_STATUS) & (STAT_COMMAND | STAT_INPUT)) {
 			case 0:
 				if (mode == DMA_MODE) {
+					/* write via DMA command issued */
 					complete++;
+					break;
 				} else {
-					printk("%02x#", *outdata);
+					//printk("%02x#", *outdata);
 					outb_p(outdata ? *outdata++ : 0, XD_DATA);
 				}
 				break;
 
 			case STAT_INPUT:
 				if (mode == DMA_MODE) {
+					/* read via DMA command issued */
 					complete++;
-				}
-				else {
+					break;
+				} else {
 					if (indata)
 						*indata++ = inb_p(XD_DATA);
 					else
@@ -864,33 +926,30 @@ static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 				break;
 
 			case STAT_COMMAND:
-				printk("%02x$", *command);
+				//printk("%02x$", *command);
 				outb(command ? *command++ : 0, XD_DATA);
 				break;
 
 			case STAT_COMMAND | STAT_INPUT:
-				complete = 1;
+				complete++;
 				break;
 		}
 	}
-	if (mode == DMA_MODE) return 0;		/* the interrupt handler does error processing */
+	if (mode == DMA_MODE) return 0;
 
 	csb = inb_p(XD_DATA);
-	printk("csb %x;", csb);
+	//printk("csb %x;", csb);
 	
-	if (csb == 0xff) csb = 0;	/* DEBUG FIXME (for 86Box) */
+	//if (csb == 0xff) csb = 0;	/* DEBUG FIXME (for 86Box) */
 
-#if 0
 	if (xd_waitport(0, STAT_SELECT, timeout))	/* wait until deselected */
 		return 3;
-#endif
 
-	/* do error processing for non-DMA commands */
+	/* Error processing for non-DMA commands */
 	if (csb & CSB_ERROR) {
 		byte_t cmd[6];
 		xd_build(cmd, CMD_SENSE, (csb & CSB_LUN) >> 5,0,0,0,0,0);
-		if (xd_command(cmd, PIO_MODE, NULL, NULL, sense, XD_TIMEOUT))
-			printk("xd: warning! sense command failed!\n");
+		xd_command(cmd, PIO_MODE, sense, NULL, NULL, XD_TIMEOUT);
 		//printk("sense %x|%x|%x|%x;", sense[0], sense[1], sense[2], sense[3]);
 	}
 
@@ -918,12 +977,17 @@ static int xd_recal(int drive)
 	byte_t cmd[6];
 
 	r = inb(XD_DATA); /* empty data reg just in case */
-	//xd_cmd.c_ctrl = 0;
-	//r = xdcmd(CMD_RECAL, PIO_MODE, drive);
-	xd_build(cmd, CMD_RECAL, drive, 0, 0, 0, 0, 0);
+
+	/* RECAL simply tells the drive to return to track zero */
+	xd_build(cmd, CMD_RECAL, drive, 0, 0, 0, 0, XD_CNTF);
+#if OLD_WAY
+	xdcmd(cmd, PIO_MODE);
+	r = inb(XD_DATA);
+	printk("recal: %x;", r);
+	r &= CSB_ERROR;
+#else
 	r = xd_command(cmd, PIO_MODE, NULL, NULL, NULL, XD_TIMEOUT * 8);
-	//if (r)
-		//printk("xd%d: warning! error recalibrating, controller may be unstable\n", drive);
+#endif
 	return r;
 }
 
@@ -940,7 +1004,7 @@ static void xd_format(int drive)
 	byte_t cmd[6], sense[4];
 
 	xd_build(cmd, CMD_FORMATDRV, drive, 0, 0, 0, XD_INTERLEAVE, XD_CNTF);
-	if (xd_command(cmd, PIO_MODE, 0, 0, sense, 25))
+	if (xd_command(cmd, PIO_MODE, 0, 0, sense, XD_TIMEOUT))
 		printk("xd%d: Format command returned 0x%x\n", drive, sense[0]);
 }
 #endif

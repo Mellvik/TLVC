@@ -27,8 +27,10 @@
 #include <arch/segment.h>
 #include <arch/irq.h>
 
-static irq_handler irq_action [16];
-static void *irq_trampoline [16];
+typedef struct int_handler int_handler_s;
+
+static irq_handler irq_action[16];
+static int_handler_s *irq_trampoline[16];
 
 // TODO: simplify the whole by replacing IRQ by INT number
 // Would also allow to handle any of the 0..255 interrupts
@@ -41,20 +43,16 @@ struct int_handler {
 	byte_t irq;
 } __attribute__ ((packed));
 
-typedef struct int_handler int_handler_s;
-
 /*
  * Experimental:
- * move interrupt vectors away from the heap to avoid the fragmentation they represent
+ * move interrupt vectors away from the heap to avoid fragmentation
  * now that IRQs are assigned on demand instead of at boot time.
- * (also remove the overhead of 12 bytes per 6 byte vector on the heap - admittedly 
- * mostly eaten by the extra code needed here).
+ * Also removes the overhead of 12 bytes per 6 byte vector on the heap.
 */
+
 #define USE_LOCAL_IRQVEC
-
 #ifdef USE_LOCAL_IRQVEC
-
-#define INT_VECTOR_MAX	8	/* Don't need 16, may in odd cases need 10 */
+#define INT_VECTOR_MAX	10	/* Don't need 16, may in odd cases need 10 */
 
 static int_handler_s int_vector[INT_VECTOR_MAX];
 #endif
@@ -63,6 +61,7 @@ static int_handler_s int_vector[INT_VECTOR_MAX];
 void do_IRQ(int i,void *regs)
 {
     irq_handler ih = irq_action[i];
+
     if (!ih)
         printk("Unexpected interrupt: %u\n", i);
     else (*ih)(i, regs);
@@ -82,12 +81,13 @@ static int_handler_s *handler_alloc(void)
 			return &int_vector[i];
 		}
 	}
-	/* overflow */
+	return NULL;
+#else
+	return (int_handler_s *) heap_alloc(sizeof (int_handler_s), HEAP_TAG_INTHAND);
 #endif
-	return (int_handler_s *) heap_alloc (sizeof (int_handler_s), HEAP_TAG_INTHAND);
 }
 
-static int int_handler_add (int irq, int vect, int_proc proc, int_handler_s *h)
+static int int_handler_add(int irq, int vect, int_proc proc, int_handler_s *h)
 {
 	if (!h) h = handler_alloc();
 	if (!h) return -ENOMEM;
@@ -97,7 +97,7 @@ static int int_handler_add (int irq, int vect, int_proc proc, int_handler_s *h)
 	h->seg  = kernel_cs;	/* resident kernel code segment */
 	h->irq  = irq;
 
-	int_vector_set (vect, (int_proc) h, kernel_ds);
+	int_vector_set(vect, (int_proc) h, kernel_ds);
 
 	return 0;
 }
@@ -111,15 +111,15 @@ int request_irq(int irq, irq_handler handler, int hflag)
     irq = remap_irq(irq);
     if (irq < 0 || !handler) return -EINVAL;
 
-    if (irq_action [irq]) return -EBUSY;
+    if (irq_action[irq]) return -EBUSY;
     h = handler_alloc();
     if (!h) return -ENOMEM;
 
     save_flags(flags);
     clr_irq();
 
-    irq_action [irq] = handler;
-    irq_trampoline [irq] = h;
+    irq_action[irq] = handler;
+    irq_trampoline[irq] = h;
 
     if (hflag == INT_SPECIFIC)
         proc = (int_proc) handler;
@@ -128,7 +128,7 @@ int request_irq(int irq, irq_handler handler, int hflag)
 
     // TODO: IRQ number has no meaning for an INT handler
     // see above simplification TODO
-    int_handler_add (irq, irq_vector(irq), proc, h);
+    int_handler_add(irq, irq_vector(irq), proc, h);
 
     enable_irq(irq);
     restore_flags(flags);
@@ -156,16 +156,10 @@ int free_irq(int irq)
     restore_flags(flags);
 
 #ifdef USE_LOCAL_IRQVEC
-    int i;
-    for (i = 0; i < INT_VECTOR_MAX; i++) {
-   	if (&int_vector[i] == irq_trampoline[irq]) {
-	    int_vector[i].call = 0;
-	    return 0;
-	}
-    }
-    /* overflow */
-#endif
+    irq_trampoline[irq]->call = 0;
+#else
     heap_free(irq_trampoline[irq]);
+#endif
     return 0;
 }
 

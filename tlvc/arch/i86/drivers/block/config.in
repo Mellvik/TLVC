@@ -1,15 +1,17 @@
-#
+
 # Block device driver configuration
 #
 mainmenu_option next_comment
     comment 'Block device drivers'
 
-	bool 'BIOS block device support'	CONFIG_BLK_DEV_BIOS	y
-	if [ "$CONFIG_BLK_DEV_BIOS" = "y" ]; then
+	bool 'BIOS block device support'	CONFIG_BLK_DEV_BIOS	n
+	if [ "$CONFIG_BLK_DEV_BIOS" == "y" ]; then
+	    bool '  BIOS hard drive support'	CONFIG_BLK_DEV_BHD	y
+	    bool '  IDE hard drive CHS probe'	CONFIG_IDE_PROBE	y
 	    bool '  BIOS floppy drive support'	CONFIG_BLK_DEV_BFD	y
-	    if [ "$CONFIG_BLK_DEV_BFD" = "y" ]; then
+	    if [ "$CONFIG_BLK_DEV_BFD" == "y" ]; then
 		bool '    Pre-set floppy types'	CONFIG_BLK_DEV_BFD_HARD n
-		if [ "$CONFIG_BLK_DEV_BFD_HARD" = "y" ]; then
+		if [ "$CONFIG_BLK_DEV_BFD_HARD" == "y" ]; then
 		    comment 'Currently ignored and assumed to be 2880k for both drives.'
 		    choice '      Primary floppy drive type'	  \
 			   "None	CONFIG_BLK_DEV_BFD0_NONE  \
@@ -26,19 +28,37 @@ mainmenu_option next_comment
 			    1440k	CONFIG_BLK_DEV_BFD1_1440  \
 			    2880k	CONFIG_BLK_DEV_BFD1_2880"	None
 		fi
+	    else
+	    	bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	n
 	    fi
-	    bool '  BIOS hard drive support'	CONFIG_BLK_DEV_BHD	y
-	    bool '  IDE hard drive CHS probe'	CONFIG_IDE_PROBE	y
-	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	n
 	else
-	    bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
+	    comment 'Direct/native block devices, choose one HD type'
 	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	y
+	    if [ "$CONFIG_HW_PCXT" == "y" ]; then
+	    	bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	n
+		if [ "$CONFIG_BLK_DEV_HD" == "y" ]; then
+		    bool '  XT/CF-lite is primary HD @0x300' CONFIG_HW_CFIDE0	n
+		else
+	    	    bool '  DIRECT XT/MFM disk support'	CONFIG_BLK_DEV_XD	n
+		fi
+		#if [ "$CONFIG_HW_CFIDE0" == "y" ]; then
+		#	define_bool CONFIG_HW_BLK_XD n
+		#fi
+		#if [ "$CONFIG_BLK_DEV_XD" == "y" ]; then
+		#	define_bool CONFIG_HW_BLK_CFIDE0 n
+		#fi
+	    else
+	    	bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
+	    fi
+	    if [ "$CONFIG_HW_CFIDE0" == "y" ]; then
+		define_bool CONFIG_BLK_DEV_HD y
+	    fi
 	fi
-	if [ "$CONFIG_HW_PCXT" = "y" ]; then
-	    bool '  XT/CF-lite is primary HD @0x300' CONFIG_HW_CFIDE0	y
+	if [ "$CONFIG_BLK_DEV_HD" == "y" -a "$CONFIG_BLK_DEV_XD" == "y" ]; then
+	   define_bool CONFIG_BLK_HD n
 	fi
 
-	if [ "$CONFIG_BLK_DEV_FD" = "y" ]; then
+	if [ "$CONFIG_BLK_DEV_FD" == "y" -o "$CONFIG_BLK_DEV_XD" == "y" ]; then
 	    define_bool CONFIG_DMA y
 	else
 	    define_bool CONFIG_DMA n
