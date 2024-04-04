@@ -84,6 +84,7 @@
 #include <linuxmt/errno.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
 #include <linuxmt/heap.h>	/* for heap_alloc */
+#include <linuxmt/string.h>	/* for memset */
 
 #include <arch/dma.h>
 #include <arch/system.h>
@@ -160,38 +161,29 @@
 
 #define XD_TIMEOUT	HZ	/* Really 1sec in jiffies, we're not there yet ... */
 
-static struct	xd_cmd {	/* command packet */
-	unsigned char c_cmmd;
-	unsigned char c_head;
-	unsigned char c_sect;
-	unsigned char c_cyln;
-	unsigned char c_bcnt;
-	unsigned char c_ctrl;
-} xd_cmd;
-
 static struct	xdmsg {	/* convert error numbers to messages */
 	const char	num;
 	const char	*msg;
 } xdmsg[] = {
-	0xFF,	"Controller timeout",
-	0x30,	"Hardware Failure",	/* maps several 3x error codes */
-	0x21,	"Illegal disk address",
-	0x20,	"Invalid command",
-	0x1A,	"Format/alt.track error", /* maps 1a-1f errors */
-	0x19,	"Bad track",
-	0x18,	"Correctable data error",
-	0x15,	"Seek error",
-	0x12,	"No address mark",
-	0x11,	"Data error",
-	0x06,	"No track 0",
-	0x04,	"Drive not ready",
-	0x03,	"Write fault",
-	/*0x14,	"Sector not found",*/	/* 1,2,10,14 -> equals seek err (15) */
+	{0xFF,	"Controller timeout"},
+	{0x30,	"Hardware Failure"},	/* maps several 3x error codes */
+	{0x21,	"Illegal disk address"},
+	{0x20,	"Invalid command"},
+	{0x1A,	"Format/alt.track error"}, /* maps 1a-1f errors */
+	{0x19,	"Bad track"},
+	{0x18,	"Correctable data error"},
+	{0x15,	"Seek error"},
+	{0x12,	"No address mark"},
+	{0x11,	"Data error"},
+	{0x06,	"No track 0"},
+	{0x04,	"Drive not ready"},
+	{0x03,	"Write fault"},
+	/*{0x14,	"Sector not found"},*/	/* 1,2,10,14 -> equals seek err (15) */
 					/* mapped automatically by many controllers */
-	/*0x10,	"ID error",*/
-	/*0x02,	"No seek complete",*/
-	/*0x01,	"No index signal",*/
-	0x00,	"Unknown error"
+	/*{0x10,	"ID error"},*/
+	/*{0x02,	"No seek complete"},*/
+	/*{0x01,	"No index signal"},*/
+	{0x00,	"Unknown error"}
 };
 
 
@@ -226,8 +218,6 @@ static int xd_waitport(byte_t, byte_t, int);
 static void redo_xd_request(void);
 static void xd_build (byte_t *, byte_t, byte_t, byte_t, word_t, byte_t, byte_t, byte_t);
 static int xd_recal(int);
-static int xdcmd(byte_t *, int);
-//static int xdcmd(int, int, int);
 static word_t xd_command(byte_t *, byte_t, byte_t *, byte_t *, byte_t *, int);
 
 //#define ALLOW_FORMATTING	/* comment out to avoid accidental disasters */
@@ -305,7 +295,6 @@ static void do_xd_request(void)
 	//mdelay(100);
 }
 
-#define OLD_WAY 0
 /*
  * Start a R/W request, then return and wait for the completion interrupt. Unless
  * there is an error before we even get started, in which case we signal back
@@ -314,11 +303,9 @@ static void do_xd_request(void)
 static void redo_xd_request(void)
 {
     sector_t start;
-    unsigned count, raw_mode, tmp;
-#if !OLD_WAY
-    unsigned track, cyl;
+    //unsigned raw_mode;
+    unsigned count, track, cyl;
     byte_t head, sec, sense[4], cmd[6];
-#endif
     struct drive_infot *dp;
     struct request *req;
     int minor, drive;
@@ -349,10 +336,10 @@ static void redo_xd_request(void)
     dp = &drive_info[drive]; 
     if (req->rq_nr_sectors) {
     	count = req->rq_nr_sectors;
-	raw_mode = 1;
+	//raw_mode = 1;
     } else {
 	count = BLOCK_SIZE / 512;
-    	raw_mode = 0;
+    	//raw_mode = 0;
     }
     start = req->rq_blocknr;
 
@@ -364,18 +351,6 @@ static void redo_xd_request(void)
 
     /* Sector count starts at 0, not the (now) normal 1 */
     start += hd[minor].start_sect;
-#if OLD_WAY
-    tmp = start / dp->sectors;
-    xd_cmd.c_head = (tmp % dp->heads) & 0x1f | (drive << 5);
-    tmp /= dp->heads;
-    xd_cmd.c_cyln = tmp;
-    xd_cmd.c_sect = (start % dp->sectors) | ((tmp >> 2)&0xC0);
-    xd_cmd.c_ctrl = XD_CNTF;
-    xd_cmd.c_bcnt = count; 
-    debug_xd("xd%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %c\n",
-		drive, tmp, xd_cmd.c_head, xd_cmd.c_sect&0x3f, start, count, req->rq_buffer,
-		(unsigned long)req->rq_seg, req->rq_cmd == READ? 'R' :'W');
-#else
     track = start / dp->sectors;
     head  = track % dp->heads;
     cyl   = track / dp->heads;
@@ -387,26 +362,9 @@ static void redo_xd_request(void)
 				cyl, sec, count&0xFF, XD_CNTF);
     //printk("xd%d: Command %x|%x|%x|%x|%x|%x\n", drive, cmd[0], cmd[1],
     //				cmd[2], cmd[3], cmd[4], cmd[5]);
-#endif
     setup_DMA(count);
-#if OLD_WAY
-    //if (xdcmd(req->rq_cmd == READ ? CMD_READ : CMD_WRITE, DMA_MODE, drive)) {
-    xd_cmd.c_cmmd = req->rq_cmd == READ ? CMD_READ : CMD_WRITE;
-    if (xdcmd((byte_t *)&xd_cmd, DMA_MODE)) {
-	printk("xd%d: Command phase error, CHS %d/%d/%d \n", drive, xd_cmd.c_cyln,
-			xd_cmd.c_head, xd_cmd.c_sect);
-#else
     xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT);
     /* Don't attempt to do error processing when having requested DMA_MODE */
-    //if ((tmp = xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT))) {
-	//printk("xd%d: Cmd phase error, ret %d, cmd %x, sense %x\n", 
-				//drive, tmp, cmd[0], sense[0]);
-#endif
-	/* Must not end here if we expect an interrupt!!! */
-	//end_request(0);
-	//goto repeat;
-    //} 
-    //printk("$");
 }
 
 
@@ -506,74 +464,6 @@ int xd_ioctl(struct inode *inode,
     }
     return -EINVAL;
 }
-
-/*
- * Very simolistic, brute force command issuance, plenty room for (uncaught) 
- * errors.
- */
-static int xdcmd(byte_t *cmd, int mode)
-{
-	register int i;
-
-	outb_p(0, XD_SELECT);
-	outb_p(mode, XD_CONTROL);
-
-	//if (xd_waitport(STAT_COMMAND|STAT_READY|STAT_SELECT, STAT_COMMAND|STAT_READY|STAT_SELECT, 30)) {
-	if (xd_waitport(STAT_SELECT, STAT_SELECT, 100)) {
-		printk("xd: controller not ready, stat %x\n", inb_p(XD_STATUS));
-		return -1;
-	}
-	i = 6; 	/* size of command block */
-	while (i--) {
-		printk("%02x/%02x|", *cmd, inb(XD_STATUS));
-
-		if (inb(XD_STATUS) | STAT_COMMAND)
-			outb_p(*cmd++, XD_DATA);
-		else {	/* DEBUG */
-			printk("got %x(%d);", inb(XD_STATUS), i);
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-#if 0 /* OLD VERSION */
-static int xdcmd(int command, int mode, int drive)
-{
-	register char *x;
-	register int i;
-
-	xd_cmd.c_cmmd = command;
-	xd_cmd.c_head |= (drive & 0x07) << 5;
-	outb_p(0, XD_SELECT);
-	outb_p(mode, XD_CONTROL);
-
-	//if (xd_waitport(STAT_SELECT, STAT_SELECT, 30)) {
-	/* 2 sec timeout: If the previoius cmd had errors and the drive was reset,
-	 * we need plenty of time to recover */
-	if (xd_waitport(STAT_COMMAND|STAT_READY|STAT_SELECT, STAT_COMMAND|STAT_READY|STAT_SELECT, 100)) {
-		printk("xd%d: command phase timeout, stat %x\n", drive, inb_p(XD_STATUS));
-		return -1;
-	}
-	x = (char *)&xd_cmd;
-	i = sizeof(xd_cmd);
-	while (i--) {
-		printk("%02x/%02x|", *x, inb(XD_STATUS));
-		if (inb(XD_STATUS) | STAT_COMMAND)
-			outb_p(*x++, XD_DATA);
-		else {	/* DEBUG */
-			printk("got %x(%d);", inb(XD_STATUS), i);
-			return -1;
-		}
-	}
-	/* May want to check that status is OK here */
-	//i = inb_p(XD_DATA);
-	//debug_xd("cmd status %x/%x; ", i, inb(XD_STATUS));
-
-	return 0;
-}
-#endif
 
 static void do_xdintr(int irq, struct pt_regs *regs)
 {
@@ -899,7 +789,7 @@ static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 	word_t csb;
 	byte_t complete = 0;
 
-	debug_xd("xd_cmd: cmd = 0x%X, mode = 0x%X, indata = 0x%X, outdata = 0x%X, sense = 0x%X\n",
+	debug_xd("xd_command: cmd = 0x%X, mode = 0x%X, indata = 0x%X, outdata = 0x%X, sense = 0x%X\n",
 			*command, mode, indata, outdata, sense);
 
 	//printk("Cm0x%x;", command[0]);
@@ -986,22 +876,13 @@ static void xd_build(byte_t *cmdblk, byte_t command, byte_t drive, byte_t head,
 /* xd_recal: recalibrate a given drive and reset controller if necessary */
 static int xd_recal(int drive)
 {
-	int r;
 	byte_t cmd[6];
 
-	r = inb(XD_DATA); /* empty data reg just in case */
+	inb(XD_DATA); /* empty data reg just in case */
 
 	/* RECAL simply tells the drive to return to track zero */
 	xd_build(cmd, CMD_RECAL, drive, 0, 0, 0, 0, XD_CNTF);
-#if OLD_WAY
-	xdcmd(cmd, PIO_MODE);
-	r = inb(XD_DATA);
-	printk("recal: %x;", r);
-	r &= CSB_ERROR;
-#else
-	r = xd_command(cmd, PIO_MODE, NULL, NULL, NULL, XD_TIMEOUT * 8);
-#endif
-	return r;
+	return(xd_command(cmd, PIO_MODE, NULL, NULL, NULL, XD_TIMEOUT * 8));
 }
 
 #ifdef ALLOW_FORMATTING
