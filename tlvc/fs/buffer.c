@@ -446,10 +446,8 @@ struct buffer_head *get_free_buffer(void)
 		for (i=0; i<nr_mapbufs; i++)
 			brelseL1_index(i, 1);
 		//printk("\n");
-		break;
-#else
-		continue;
 #endif
+		break;
 
 	    case 2:	/* EXPERIMENTAL: This may not make much sense */
 			/* ends up here when heavy load on XT floppy & MFM */
