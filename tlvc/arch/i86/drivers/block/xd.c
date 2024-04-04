@@ -32,19 +32,22 @@
  *   Note however, that the controller needs to be told the CHS values we plan to use
  *   in order to provide access to the entire drive w/o errors (see the xd_setparam()
  *   function()).
- * - A drive works only with the type of controller with which it was formatted. 
+ * - A drive 'works' only with the type of controller with which it was formatted. 
  *   IOW moving drives around is a no-go. Newer controllers (actually most except the 
  *   very first generation, pre 1985) have a formatter included in the firmware, to be
  *   started from MSDOS DEBUG, typically at C800:5. For the older controllers, other
  *   tricks are required.
  * - Pending the availability of a formatting utility for TLVC, a crude formatter is
- *   included in the driver. If compiled in (#define ALLOW_FORMATTING), 
- *   set the /bootopts sector count for the drive to 0, and the drive will be formatted.
+ *   included in the driver. If compiled in (#define ALLOW_FORMATTING), set the /bootopts
+ *   sector count for the drive to 0, and a drive format will be attempted.
  *   [Obviously, the sector count needs to be reset to normal before the next boot.]
  *   There is no safe way (at this point) to detect the completion of the format process,
- *   so keeping an eye on the activity LED is required. It's important to set the correct
+ *   so keeping an eye on the activity LED is required. No LED activity means formatting
+ *   take a look at the status code returned. It's important to set the correct
  *   CHSW parameters before the formatting. Also notice that the interleave is preset to 5,
  *   which is good for <8MHz machines, otherwise use 4.
+ *   It is also worth noticing that neither the set drive parameter nor the format command 
+ *   take a sector count parameter, it is apparently assumed that the sector count is always 17. 
  * - INTERLEAVE: The Hard Drive Bible dieagrees with the above (which comes from a WD document).
  *   Their recipe is 4:1 @4.77MHz or less, 3:1 @ 5-10MHz, 2:1 @ 10-16 MHz, 1:1 for higher.
  *   Remember - this is all about old MFM/RLL drives.
@@ -55,6 +58,9 @@
  *   Be patient, 15-20 seconds, and it continues - TLVC will boot fine. Such configuration 
  *   is not hard-disk bootable though (floppy OK).
  * - RESET: On some controllers, the drive parameters must be re-programmed after a reset.
+ * - SOME CONTROLLERS CAN NEVER WORK: Some 3rd gen MFM controllers, like the Longshine LCS6210D,
+ *   work only via the embedded BIOS. No API, no IOports, no IRQ lines, no DMA ACK lines etc.
+ *   The driver will just not find such controllers. Use BIOS HD instead.
  */
 
 /*
@@ -223,9 +229,13 @@ static int xd_recal(int);
 static int xdcmd(byte_t *, int);
 //static int xdcmd(int, int, int);
 static word_t xd_command(byte_t *, byte_t, byte_t *, byte_t *, byte_t *, int);
-static void xd_format(int);
 
-#define ALLOW_FORMATTING	/* comment out to avoid accidental disasters */
+//#define ALLOW_FORMATTING	/* comment out to avoid accidental disasters */
+
+#ifdef ALLOW_FORMATTING
+static void xd_format(int);
+#endif
+
 //#define DEBUG
 #ifdef DEBUG
 #define debug_xd printk
@@ -386,14 +396,16 @@ static void redo_xd_request(void)
 	printk("xd%d: Command phase error, CHS %d/%d/%d \n", drive, xd_cmd.c_cyln,
 			xd_cmd.c_head, xd_cmd.c_sect);
 #else
-    if ((tmp = xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT))) {
-	printk("xd%d: Cmd phase error, ret %d, cmd %x, sense %x\n", 
-				drive, tmp, cmd[0], sense[0]);
+    xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT);
+    /* Don't attempt to do error processing when having requested DMA_MODE */
+    //if ((tmp = xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT))) {
+	//printk("xd%d: Cmd phase error, ret %d, cmd %x, sense %x\n", 
+				//drive, tmp, cmd[0], sense[0]);
 #endif
 	/* Must not end here if we expect an interrupt!!! */
-	end_request(0);
-	goto repeat;
-    } 
+	//end_request(0);
+	//goto repeat;
+    //} 
     //printk("$");
 }
 
@@ -648,8 +660,8 @@ static int INITPROC xd_reset(void)
 	outb_p(0, XD_RESET);
 	mdelay(100);
 	if ((prev = inb(XD_STATUS)) & STAT_SELECT) { /* should not be selected after reset */
-		//printk(" unexpected status 0x%x;", prev);
-		//printk("(%x);", inb(XD_STATUS + 4));	/* DEBUG: poke for a 2nd controller @ 0x324 */
+		//printk(" reset: unexpected status 0x%x;", prev);
+		//printk("(%x);", inb(XD_STATUS + 4));	/* DEBUG: poke for controller @ 0x324 */
 		return 1;	/* controller not found */
 	}
 	//printk(" reset: %x;", prev);
@@ -743,13 +755,13 @@ void INITPROC xd_init(void)
 	 *    deliver wrong data (like 305/4/17 regardless).
 	 * 2) Read from /bootopts - may not be present
 	 * 3) Use defaults set above - inflexible (10M)
-	 * 4) (Not yet supported) Read controller switches to get the drive type
+	 * 4) Read controller switches to get the drive type
 	 *    (see the get_drive_type() function, may or may not work with
 	 *     your controller and the coding is different from one to the next).
-	 * It may be possible to poke the BIOS code on the card too,
-	 * but it gets very complicated, so /bootopts seems like a 
+	 * It may be possible to peek into the BIOS code on the card too,
+	 * but it gets very complicated and RAM intensive, so /bootopts seems like a 
 	 * smart choice.
-	 * Note: Old BIOSes will respond to CHS queries for non-existent drives!
+	 * Note: Old BIOSes will happily respond to CHS queries for non-existent drives!
 	 */
 #ifdef NOTYET
 	struct biosparms bdt;
@@ -783,11 +795,11 @@ void INITPROC xd_init(void)
 	printk("xd%d: CHS %d/%d/%d/%d %s\n", 
 		drive, dp->cylinders, dp->heads, dp->sectors, dp->wpcomp,
 		chs_src == 1 ? "(from /bootopts)" : "(preset)");
-	xd_setparam(drive, dp->heads, dp->cylinders, dp->wpcomp);
 
 #ifdef ALLOW_FORMATTING
-	if (dp->sectors == 0) {
-		printk("xd%d: Formatting drive. Change bootopts and reboot when done.\n");
+	if (dp->sectors < 0) {
+		xd_setparam(drive, dp->heads, dp->cylinders, dp->wpcomp);
+		printk("xd%d: Formatting drive. Change bootopts and reboot when done.\n", drive);
 		xd_format(drive);
 		printk("Looping ");
 		while (1) {
@@ -799,6 +811,7 @@ void INITPROC xd_init(void)
 		}
 	}
 #endif
+	xd_setparam(drive, dp->heads, dp->cylinders, dp->wpcomp);
     }
     if (!hdcount) {
     	printk("xd: No drives found\n");
@@ -1004,7 +1017,7 @@ static void xd_format(int drive)
 	byte_t cmd[6], sense[4];
 
 	xd_build(cmd, CMD_FORMATDRV, drive, 0, 0, 0, XD_INTERLEAVE, XD_CNTF);
-	if (xd_command(cmd, PIO_MODE, 0, 0, sense, XD_TIMEOUT))
+	if (xd_command(cmd, PIO_MODE, 0, 0, sense, XD_TIMEOUT*10))
 		printk("xd%d: Format command returned 0x%x\n", drive, sense[0]);
 }
 #endif
