@@ -36,10 +36,9 @@ include $(BASEDIR)/Makefile-rules
 # Objects to compile.
 # unused: wait.o lock.o
 
-UNUSED = dma.o
 OBJS  = sched.o printk.o sleepwake.o version.o sys.o sys2.o fork.o \
 	exit.o time.o signal.o
-ifeq ($(CONFIG_BLK_DEV_FD), y)
+ifeq ($(CONFIG_DMA), y)
 OBJS  += dma.o
 endif
 

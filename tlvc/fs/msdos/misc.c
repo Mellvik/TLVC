@@ -126,7 +126,6 @@ int FATPROC msdos_add_cluster(register struct inode *inode)
 
 	for (curr = 0; curr < sb->cluster_size; curr++) {
 		sector = sb->data_start + (this - 2) * sb->cluster_size + curr;
-		printk("zeroing sector %lu\r\n", sector);
 		debug("zeroing sector %lu\r\n", sector);
 
 		if (curr < sb->cluster_size-1 && !(sector & 1)) {

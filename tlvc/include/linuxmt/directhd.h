@@ -70,8 +70,4 @@
 /* other definitions */
 #define MAX_ATA_DRIVES 4		/* 2 per i/o channel and 2 i/o channels */
 
-#if 0
-#define ATA_DEVICE_NAME	"dhd"
-#endif
-
 #endif

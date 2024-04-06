@@ -28,9 +28,9 @@
 #include <arch/segment.h>
 #include <arch/irq.h>
 
-#ifdef CONFIG_BLK_DEV_FD
-#define FIXED_SECTOR_SIZE 512 /* Change if variable sect size is introduced */
-#define FLOPPYDISK
+#if defined(CONFIG_BLK_DEV_FD) || defined(CONFIG_BLK_DEV_XD)
+#define FIXED_SECTOR_SIZE 512
+#define ASYNC_IO
 struct wait_queue wait_for_request;
 static struct request *__get_request_wait(int, kdev_t);
 #endif
@@ -46,6 +46,7 @@ static struct request *__get_request_wait(int, kdev_t);
  */
 
 #define NR_REQUEST	20
+//#define DEBUG_BUFFER	1
 
 static struct request request_list[NR_REQUEST];
 
@@ -158,7 +159,7 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
 	printk("AQ%04x|", req);
 #endif
     }
-    //mark_buffer_clean(req->rq_bh);	/* EXPERIMENTAL: moved to blk.h */
+    //mark_buffer_clean(req->rq_bh);	/* EXPERIMENTAL: moved to end_request, blk.h */
 }
 
 static void make_request(unsigned short major, int rw, struct buffer_head *bh)
@@ -223,7 +224,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	 * on write, and need the wait. (HS)
 	 */
 
-#if defined(MULTI_BH) || defined(FLOPPYDISK)
+#if defined(MULTI_BH) || defined(ASYNC_IO)
 	req = __get_request_wait(max_req, buffer_dev(bh));
 #else
 	panic("Can't get request.");
@@ -258,7 +259,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 }
 
 
-#if defined(MULTI_BH) || defined(FLOPPYDISK)
+#if defined(MULTI_BH) || defined(ASYNC_IO)
 
 /*
  * wait until a free request in the first N entries is available.
@@ -439,4 +440,9 @@ void INITPROC blk_dev_init(void)
 #ifdef CONFIG_ROMFS_FS
     romflash_init ();
 #endif
+
+#ifdef CONFIG_BLK_DEV_XD
+    xd_init();
+#endif
+
 }

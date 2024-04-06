@@ -62,6 +62,9 @@ struct drive_infot {            /* CHS per drive*/
     int cylinders;
     int sectors;
     int heads;
+#ifdef CONFIG_BLK_DEV_XD
+    int wpcomp;
+#endif
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
     int sector_size;		/* The BIOS HD/flpy driver supports multiple
 				 * sector sizes, the direct drivers do not.
@@ -76,14 +79,17 @@ struct drive_infot {            /* CHS per drive*/
 };
 extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
 					/* used to handle QEMU bugs and quirks */
+extern int running_qemu;	/* for directhd.c and directfd.c */
 
 #ifdef CONFIG_BLK_DEV_BHD
 extern unsigned char hd_drive_map[];
+#define MAX_BIOS_DRIVES 2
 #endif
+
+#define MAX_XD_DRIVES	2
 
 extern struct blk_dev_struct blk_dev[MAX_BLKDEV];
 extern void resetup_one_dev(struct gendisk *dev, int drive);
-
 
 #ifdef MAJOR_NR
 
@@ -114,8 +120,9 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 #endif
 
-extern struct wait_queue wait_for_request; /* testing, used to be inside FLOPPYDISK */
+extern struct wait_queue wait_for_request; /* testing, needed for ASYNC_IO */
 #ifdef FLOPPYDISK	/* direct floppy */
+#define ASYNC_IO
 
 static void floppy_on();	/*(unsigned int nr); */
 static void floppy_off();	/*(unsigned int nr); */
@@ -126,6 +133,18 @@ static void floppy_off();	/*(unsigned int nr); */
 #define DEVICE_NR(device) (MINOR(device) >> MINOR_SHIFT)
 #define DEVICE_ON(device) floppy_on(DEVICE_NR(device))
 #define DEVICE_OFF(device) floppy_off(DEVICE_NR(device))
+
+#endif
+
+#ifdef MFMDISK		/* Old style XT MFM disk */
+#define ASYNC_IO
+
+#define DEVICE_NAME "xd"
+#define DEVICE_INTR do_xdintr
+#define DEVICE_REQUEST do_xd_request
+#define DEVICE_NR(device) (MINOR(device)>>MINOR_SHIFT)
+#define DEVICE_ON(device)
+#define DEVICE_OFF(device)
 
 #endif
 
@@ -205,7 +224,7 @@ static void end_request(int uptodate)
     printk("ER%d|%04x|%04x|%04x;", uptodate, req, req->rq_dev, *content);
 #endif
 
-    unlock_buffer(bh);
+    unlock_buffer(bh);		/* will wake the waiting process */
 
 #ifdef BLOAT_FS
     if ((bh = req->rq_bh) != NULL) {
@@ -233,7 +252,7 @@ static void end_request(int uptodate)
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
     CURRENT = req->rq_next;
-#if defined(MULTI_BH) || defined(FLOPPYDISK)
+#if defined(MULTI_BH) || defined(ASYNC_IO)
     wake_up(&wait_for_request);
 #endif
 }

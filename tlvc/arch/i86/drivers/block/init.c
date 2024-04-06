@@ -34,6 +34,8 @@
 
 int boot_rootdev;	/* set by /bootopts options if configured*/
 extern int boot_partition;
+int boot_xd = 0;	/* if 1, boot from MFM device - must be 0 or 1 */
+int running_qemu = 0;	/* for directhd/fd */
 
 void INITPROC device_init(void)
 {
@@ -65,7 +67,7 @@ void INITPROC device_init(void)
 #else 	/* Direct HD/FD */
 	/* Should work with BIOS hd + direct FD too */
 	if (ROOT_DEV & 0x80) 	/* hard drive */
-		rootdev = MKDEV(ATHD_MAJOR, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
+		rootdev = MKDEV(ATHD_MAJOR + boot_xd, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
 						+ boot_partition);
 	else			/* floppy */
 		rootdev = MKDEV(FLOPPY_MAJOR, (ROOT_DEV & 0x03));

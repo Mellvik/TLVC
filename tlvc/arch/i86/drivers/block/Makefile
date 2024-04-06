@@ -56,13 +56,16 @@ ifeq ($(CONFIG_BLK_DEV_SSD_SD8018X), y)
 	OBJS += ssd.o ssd-sd.o spi-8018x.o
 endif
 
-# experimental (and not working) direct hd support
 ifeq ($(CONFIG_BLK_DEV_HD), y)
-OBJS += directhd.o
+	OBJS += directhd.o
 endif
-# now works (april 2023)
+
 ifeq ($(CONFIG_BLK_DEV_FD), y)
-OBJS += directfd.o
+	OBJS += directfd.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_XD), y)
+	OBJS += xd.o
 endif
 
 #########################################################################

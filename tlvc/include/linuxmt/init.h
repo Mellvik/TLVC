@@ -33,6 +33,7 @@ extern void INITPROC serial_init(void);
 extern void INITPROC rs_setbaud(dev_t, unsigned long);
 extern void INITPROC sock_init(void);
 extern void INITPROC tty_init(void);
+extern void INITPROC xd_init(void);
 
 extern void INITPROC device_init(void);
 extern void INITPROC setup_dev(register struct gendisk *);

@@ -310,14 +310,18 @@ void wait_on_buffer(struct buffer_head *bh)
 
     ebh->b_count++;
     wait_set((struct wait_queue *)bh);       /* use bh as wait address */
+    //kputchar('W');
     for (;;) {
 
         current->state = TASK_UNINTERRUPTIBLE;
         if (!ebh->b_locked)
             break;
+    	//kputchar('S');
         schedule();
+    	//kputchar('#');
     }
 
+    //kputchar('@');
     wait_clear((struct wait_queue *)bh);
     current->state = TASK_RUNNING;
     ebh->b_count--;
@@ -337,10 +341,10 @@ void unlock_buffer(struct buffer_head *bh)
 {
     EBH(bh)->b_locked = 0;
     wake_up((struct wait_queue *)bh);	/* use bh as wait address*/
-
+    //kputchar('U');
 	//FIXME: Check if this one is useful at all or if the one in brelse is enough.
 	// ALSO, if we want to use schedule() instead of sleep/wait on this one.
-    wake_up(&bufwait);	/* If we ran out of buffers, get_free_buffers is waiting */
+    //wake_up(&bufwait);	/* If we ran out of buffers, get_free_buffers is waiting */
 }
 
 void invalidate_buffers(kdev_t dev)
@@ -428,7 +432,7 @@ struct buffer_head *get_free_buffer(void)
 
 	    switch (sync_loop) {
 	    case 0:
-		printk("DEBUG: no free bufs, syncing\n"); /* FIXME delete */
+		//printk("DEBUG: no free bufs, syncing\n"); /* FIXME delete */
 		sync_buffers(0,0);
 		break;
 
@@ -438,16 +442,15 @@ struct buffer_head *get_free_buffer(void)
 	     * Skip if we're running with L1 buffers only.
 	     * (in which case brelseL1_index() is a dummy anyway)
 	     */ 
-		printk("RelL1:");
+		//printk("RelL1:");
 		for (i=0; i<nr_mapbufs; i++)
 			brelseL1_index(i, 1);
-		printk("\n");
-		break;
-#else
-		continue;
+		//printk("\n");
 #endif
+		break;
 
 	    case 2:	/* EXPERIMENTAL: This may not make much sense */
+			/* ends up here when heavy load on XT floppy & MFM */
 		printk("SyncWait;");
 		sync_buffers(0, 1);	/* sync w/ wait */
 		break;
@@ -455,6 +458,7 @@ struct buffer_head *get_free_buffer(void)
 	    default:
 		/* we're out of buffers - which happens quite a bit when using floppy
 		 * based file systems: Sleep instead of looping.
+		 * [ see XT comment above, applies here too ]
 		 */
 		sleep_on(&bufwait);
 		printk("Bufwait %d [%lu] jiffies;", sync_loop, jiffies-jif);
