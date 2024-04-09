@@ -34,9 +34,9 @@
 #include <getopt.h>
 #include <paths.h>
 #include <errno.h>
+#include <libgen.h>	/* for basename() */
 
 #define LINEARADDRESS(off, seg)		((off_t) (((off_t)seg << 4) + off))
-char *basename(char *);
 
 int memread(int fd, word_t off, word_t seg, void *buf, int size)
 {

@@ -397,7 +397,7 @@ static int INITPROC parse_options(void)
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 	/* check file starts with ## and max len 511 bytes*/
-	/* If the bootopts file has been recentluy deleted, we may be reading an old
+	/* If the bootopts file has been recently deleted, we may be reading an old
 	 * copy lingering in memory since low memory is not being 
 	 * initialized between runs. FIXME
 	 * Maybe just read a random sector when the file isn't found (bootsect.S)

@@ -583,7 +583,7 @@ int main(int argc, char **argv)
 	  ast_putbcd(AST_NS_DOM, tmp->tm_mday);
 	  ast_putbcd(AST_NS_MON, tmp->tm_mon+1);
 	  ast_putreg(AST_NS_YEAR, tmp->tm_year - 80);
-	  ast_putreg(AST_NS_GO, 0xff);	/* clear subsec counters for a clean start */
+	  //ast_putreg(AST_NS_GO, 0xff);	/* clear subsec counters for a clean start */
 	} else { 
 		/* no precautions (the Ricoh has 1 sec visible resolution, very DOS
 		 * oriented. The ADJ bit does not do what you might think it does. */
