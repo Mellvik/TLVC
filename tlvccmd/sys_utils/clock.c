@@ -452,6 +452,7 @@ int main(int argc, char **argv)
     } else  {
       if (verbose) printf("No CMOS clock found, assuming AST\n");
       astclock = 1;
+    }
   }
 
   if (readit + writeit + setit > 1)
