@@ -392,16 +392,11 @@ static int INITPROC parse_options(void)
 	char *line = (char *)options;
 	char *next;
 
-	/* copy /bootops loaded by boot loader at 0050:0000*/
+	/* copy /bootops loaded by boot loader at 0050:0000 */
 	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, sizeof(options));
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
-	/* check file starts with ## and max len 511 bytes*/
-	/* If the bootopts file has been recentluy deleted, we may be reading an old
-	 * copy lingering in memory since low memory is not being 
-	 * initialized between runs. FIXME
-	 * Maybe just read a random sector when the file isn't found (bootsect.S)
-	 */
+	/* check file starts with ## and max len 511 bytes */
 	if (*(unsigned short *)options != 0x2323 || options[OPTSEGSZ-1])
 		return 0;
 
@@ -411,14 +406,14 @@ static int INITPROC parse_options(void)
 	next = line;
 	while ((line = next) != NULL && *line) {
 		if ((next = option(line)) != NULL) {
-			if (*line == '#') {	/* skip line after comment char*/
+			if (*line == '#') {	/* skip line after comment char */
 				next = line;
 				while (*next != '\n' && *next != '\0')
 					next++;
 				continue;
 			} else *next++ = 0;
 		}
-		if (*line == 0)		/* skip spaces and linefeeds*/
+		if (*line == 0)		/* skip spaces and linefeeds */
 			continue;
 		/*
 		 * check for kernel options first..
@@ -429,10 +424,10 @@ static int INITPROC parse_options(void)
 			printk("root %s=0x%04x\n", line+5, dev);
 #endif
 			ROOT_DEV = (kdev_t)dev;
-			boot_rootdev = dev;    /* stop translation in device_setup*/
+			boot_rootdev = dev;    /* stop translation in device_setup */
 			continue;
 		}
-		if (!strncmp(line,"console=",8)) {
+		if (!strncmp(line,"console=", 8)) {
 			int dev = parse_dev(line+8);
 			char *p = strchr(line+8, ',');
 			if (p) {
@@ -462,32 +457,32 @@ static int INITPROC parse_options(void)
 			dprintk_on = 1;
 			continue;
 		}
-		if (!strncmp(line,"init=",5)) {
+		if (!strncmp(line,"init=", 5)) {
 			line += 5;
 			init_command = argv_init[1] = line;
 			continue;
 		}
-		if (!strncmp(line,"ne0=",4)) {
+		if (!strncmp(line,"ne0=", 4)) {
 			parse_nic(line+4, &netif_parms[ETH_NE2K]);
 			continue;
 		}
-		if (!strncmp(line,"wd0=",4)) {
+		if (!strncmp(line,"wd0=", 4)) {
 			parse_nic(line+4, &netif_parms[ETH_WD]);
 			continue;
 		}
-		if (!strncmp(line,"3c0=",4)) {
+		if (!strncmp(line,"3c0=", 4)) {
 			parse_nic(line+4, &netif_parms[ETH_EL3]);
 			continue;
 		}
-		if (!strncmp(line,"bufs=",5)) {
+		if (!strncmp(line,"bufs=", 5)) {
 			L2_bufs = (int)simple_strtol(line+5, 10);
 			continue;
 		}
-		if (!strncmp(line,"cache=",6)) {
+		if (!strncmp(line,"cache=", 6)) {
 			nr_mapbufs = (int)simple_strtol(line+6, 10);
 			continue;
 		}
-		if (!strncmp(line,"comirq=",7)) {
+		if (!strncmp(line,"comirq=", 7)) {
 			comirq(line+7);
 			continue;
 		}
@@ -516,7 +511,7 @@ static int INITPROC parse_options(void)
 		/*
 		 * Then check if it's an environment variable or an init argument.
 		 */
-		if (!strchr(line,'=')) {    /* no '=' means init argument*/
+		if (!strchr(line,'=')) {    /* no '=' means init argument */
 			if (args >= MAX_INIT_ARGS)
 				break;
 			argv_init[args++] = line;
@@ -536,8 +531,7 @@ static void INITPROC finalize_options(void)
 {
 	int i;
 
-	/* set ROOTDEV environment variable for rc.sys fsck*/
-	/* HS: Now in mount.cfg */
+	/* set ROOTDEV environment variable for fsck in /etc/mount.cfg */
 	if (envs < MAX_INIT_ENVS)
 		envp_init[envs++] = root_dev_name(ROOT_DEV);
 
@@ -557,9 +551,9 @@ static void INITPROC finalize_options(void)
 
 	/* convert argv array to stack array for sys_execv*/
 	args--;
-	argv_init[0] = (char *)args;        	/* 0 = argc*/
+	argv_init[0] = (char *)args;		/* 0 = argc*/
 	char *q = (char *)&argv_init[args+2+envs+1];
-	for (i=1; i<=args; i++) {                   /* 1..argc = av*/
+	for (i=1; i<=args; i++) {		/* 1..argc = av*/
 		char *p = argv_init[i];
 		char *savq = q;
 		while ((*q++ = *p++) != 0)

@@ -622,7 +622,7 @@ void INITPROC xd_init(void)
 	return;
     }
 
-    printk("xd: MFM disk driver @ 0x%x, irq %d, DMA %d", MHD_PORT, MHD_IRQ, MHD_DMA);
+    printk("xd: MFM disk controller @ 0x%x, irq %d, DMA %d", MHD_PORT, MHD_IRQ, MHD_DMA);
 
     if (xd_reset()) {	/* works as a probe */
 	printk(" not found\n");
