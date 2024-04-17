@@ -208,7 +208,7 @@ static void end_request(int uptodate)
     }
 
     bh = req->rq_bh;
-    EBH(bh)->b_nr_sectors = req->rq_nr_sectors;	/* for raw IO */
+    EBH(bh)->b_nr_sectors = req->rq_nr_sectors;	/* Actual # of sectors read */
 
 #ifdef BLOAT_FS
     req->rq_bh = bh->b_reqnext;

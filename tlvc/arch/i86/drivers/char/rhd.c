@@ -1,13 +1,16 @@
 /*
- * TLVC implementation of raw access to direct (non BIOS) hard disk devices.
+ * TLVC implementation of raw access to direct (IDE) hard disk devices.
  *
  * Helge Skrivervik 06/23
  */
 
 /* 
  * /dev/rhd[a..c][0..4]
- * Physical IO is shared with the block driver.
+ * Physical IO via the block driver.
  * Data are copied directly to/from user process space.
+ *
+ * NOTE: The major device numbers must be the same for the 
+ * block and corresponding raw device
  */
 
 #include <linuxmt/config.h>

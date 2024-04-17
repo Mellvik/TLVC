@@ -187,8 +187,6 @@ static struct	xdmsg {	/* convert error numbers to messages */
 };
 
 
-extern int boot_xd;		/* set if xd device found to enable boot code to
-				 distinguish between directhd and xd */
 extern int	hdparms[];	/* Get CHS values from /bootopts */
 
 static int	xd_busy;
@@ -707,7 +705,6 @@ void INITPROC xd_init(void)
     	printk("xd: No drives found\n");
 	return;
     }
-    boot_xd++;	/* will fail if unit 0 is missing, unit 1 present */
     xd_gendisk.nr_real = hdcount;
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
     if (gendisk_head == NULL) {

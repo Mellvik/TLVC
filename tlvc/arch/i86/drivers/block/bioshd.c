@@ -295,12 +295,12 @@ static unsigned short INITPROC bioshd_gethdinfo(void) {
 #else
 	    drivep->heads = (BD_DX >> 8) + 1;
 	    drivep->sectors = BD_CX & 0x3f;
-	    /* NOTE: some BIOS may underreport cylinders by 1*/
+	    /* NOTE: some BIOS may underreport cylinders by 1 */
 	    drivep->cylinders = (((BD_CX & 0xc0) << 2) | (BD_CX >> 8)) + 1;
 #endif
 	    drivep->fdtype = -1;
 	    drivep->sector_size = 512;
-	    printk("bioshd: hd%c BIOS CHS %d/%d/%d", 'a'+drive, drivep->cylinders,
+	    printk("bioshd: hd%c CHS %d/%d/%d", 'a'+drive, drivep->cylinders,
 		drivep->heads, drivep->sectors);
 	}
 #ifdef CONFIG_IDE_PROBE
@@ -308,13 +308,12 @@ static unsigned short INITPROC bioshd_gethdinfo(void) {
 	    if (!get_ide_data(drive, drivep)) {	/* get CHS from the drive itself */
 		/* sanity checks already done, accepting data */
 		/* (if the IDE ID check fails, the drivep struct stays intact) */
-		printk(", IDE CHS %d/%d/%d\n", drivep->cylinders,
+		printk(", IDE CHS %d/%d/%d", drivep->cylinders,
 			drivep->heads, drivep->sectors);
 	    }
 	}
-#else
-	printk("\n");
 #endif
+	printk("\n");
 	drivep++;
     }
     return ndrives;
@@ -785,15 +784,6 @@ int INITPROC bioshd_init(void)
 
 #ifdef CONFIG_BLK_DEV_BHD
     _hd_count = bioshd_gethdinfo();
-#if NOTNEEDED
-    if (sys_caps & CAP_PC_AT) {	/* PC/AT or greater */
-	enable_irq(HD1_AT_IRQ);	/* AT ST506 */
-	enable_irq(HD2_AT_IRQ);	/* AHA1542 */
-    }
-    else {
-	enable_irq(HD_IRQ);	/* XT ST506 */
-    }
-#endif
     bioshd_gendisk.nr_real = _hd_count;
 #endif /* CONFIG_BLK_DEV_BHD */
 

@@ -139,10 +139,10 @@ size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t cou
  * DO NOT CHANGE THAT.
  *
  * A regular buffer acts as a bounce buffer for small and odd sized * (< SECTSIZE) transfers.
- * For all other transfers we use the buffer header to pass metadata back and forth,
+ * For other transfers, the buffer header is used to pass metadata back and forth while
  * data transfers go directly to/from the process' memory space.
  */
-struct buffer_head * get_free_buffer(void);
+struct buffer_head *get_free_buffer(void);
 
 static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		  char *buf, size_t count, int wr)
@@ -150,7 +150,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
     struct buffer_head *bh;
     ext_buffer_head *ebh;
     size_t chars, offset;
-    int written = 0;
+    int io_count = 0;
 
     bh = get_free_buffer();
     ebh = EBH(bh);
@@ -158,10 +158,9 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 					
     while (count > 0) {
     /*
-     *      Partial block processing: At the beginning of the transfer if the starting
-     *	    position is not on a block boundary, and at the end unless the transfer 
-     *	    size matches a block boundary.
-     *	    As much as I'd like to not use the buffer system at all, this is the easy 
+     *      Partial sector processing.
+     *
+     *	    As much as I'd like to stay off the buffer system, this is the easy 
      *	    way to temporarily acquire a bounce buffer for the odd cases.
      */
 	offset = ((size_t)filp->f_pos) & (SECT_SIZE - 1);
@@ -172,28 +171,24 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	    		chars = count;
 	} else if (count < SECT_SIZE) /* partial trailing sector */
 		chars = count;
-	//printk("RAW %u/%u bl %lu:", (unsigned int) chars, (unsigned int) count,
-	//				filp->f_pos >> SECT_SIZE_BITS);
+
+	//printk("RAW pos %u, cnt %u/%u bl %lu:", (unsigned int) offset,
+		//(unsigned int) chars, (unsigned int) count,
+		//filp->f_pos >> SECT_SIZE_BITS);
+
 	if (chars) {
-	/*
-	 *      Get a (bounce) buffer for the partial block.
-	 *	Cannot use getblk() since that would send us right into the
-	 * 	buffer cache looking for a match.
-	 */
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
+		ebh->b_nr_sectors = 1;	/* tell low level this is raw */
 		ll_rw_blk(READ, bh);
 		wait_on_buffer(bh);
 		if (!ebh->b_uptodate) {
-			written = -EIO;
+			if (!io_count) io_count = -EIO;
 			break;
 		}
 		/* 
 		 * Got the data, now process partial block
 		 */
 		if (wr == BLOCK_WRITE) {
-			/*
-			 * Alter buffer, mark dirty
-		 	 */
 	    		xms_fmemcpyb(buffer_data(bh) + offset, buffer_seg(bh), buf,
 				current->t_regs.ds, chars);
 	    		/*
@@ -201,8 +196,8 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	     		 */
 	    		ll_rw_blk(WRITE, bh);
 	    		wait_on_buffer(bh);
-	    		if (!ebh->b_uptodate) { /* Write error. */
-				if (!written) written = -EIO;
+	    		if (!ebh->b_uptodate) { /* Write error */
+				if (!io_count) io_count = -EIO;
 				break;
 	    		}
 		} else {
@@ -212,10 +207,10 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	    		xms_fmemcpyb(buf, current->t_regs.ds, buffer_data(bh) + offset,
 				buffer_seg(bh), chars);
 		}
-	} else {	/* we're moving full sectors */
+	} else {	/* moving full sectors */
 		unsigned char *o_data;
 		seg_t o_seg;
-		int no_sec;
+		int sec_cnt;
 
 		chars = (count & 0xffff); /* try to transfer the whole thing -
 					 * up to 64k, which is more than the 
@@ -227,31 +222,33 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		ebh->b_L2seg = current->t_regs.ds;
 		bh->b_data = (unsigned char *)buf;
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
-		no_sec = ebh->b_nr_sectors;
+		chars &= ~(SECT_SIZE - 1);
+		sec_cnt = ebh->b_nr_sectors;
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
 		ebh->b_L2seg = o_seg;		/* restore */
 		bh->b_data = o_data;
-    		if (!ebh->b_uptodate) {		/* Write error. */
-			if (!written) written = -EIO;
-			break;
-	    	}
-		if (no_sec != ebh->b_nr_sectors) {
-			//printk("partial raw IO: %d, got %d\n", no_sec, ebh->b_nr_sectors);
+		if (sec_cnt != ebh->b_nr_sectors) {
+			//printk("partial raw IO: %d, got %d\n", sec_cnt, ebh->b_nr_sectors);
 			chars = (ebh->b_nr_sectors << SECT_SIZE_BITS);
 		}
+    		if (!ebh->b_uptodate) {		/* IO error */
+			if (!io_count) io_count = -EIO;
+			break;
+	    	}
 	}
 	
 	buf += chars;
 	filp->f_pos += chars;
-	written += chars;
+	io_count += chars;
 	count -= chars;
-	//printk("raw: chars %d, pos %ld, bh %04x\n", chars, filp->f_pos >> SECT_SIZE_BITS, bh);
+	//printk("raw: chars %d, nxt blk %ld, bh %04x;", chars, filp->f_pos >> SECT_SIZE_BITS, bh);
     }
     ebh->b_dev = NODEV;	/* Invalidate buffer */
     brelse(bh);
-    return written;
+    //printk("raw returning %d\n", io_count);
+    return io_count;
 }
 
 size_t block_rd(struct inode *inode, struct file *filp,

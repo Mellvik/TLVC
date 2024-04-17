@@ -32,9 +32,16 @@
 #define MINOR_SHIFT	5	/* FIXME move to include file, this is bad */
 				/* or create a conv_drive function in directhd.c */
 
+#ifdef CONFIG_BLK_DEV_XD	/* choose MFM or IDE controller, */
+#define HD_MAJOR XD_MAJOR	/* they're mutually exclusive */
+#elif CONFIG_BLK_DEV_HD
+#define HD_MAJOR ATHD_MAJOR
+#else
+#define HD_MAJOR BIOSHD_MAJOR	/* Enables BIOSHD + DIRECTFD */
+#endif
+
 int boot_rootdev;	/* set by /bootopts options if configured*/
 extern int boot_partition;
-int boot_xd = 0;	/* if 1, boot from MFM device - must be 0 or 1 */
 int running_qemu = 0;	/* for directhd/fd */
 
 void INITPROC device_init(void)
@@ -58,16 +65,17 @@ void INITPROC device_init(void)
      */
     if (!boot_rootdev && (SETUP_ELKS_FLAGS & EF_BIOS_DEV_NUM) != 0) {
 
-    /* FIXME: There are several cases where this ifdef doesn't work right */
 #if defined(CONFIG_BLK_DEV_BIOS) && !defined(CONFIG_BLK_DEV_FD)
 	extern kdev_t INITPROC bioshd_conv_bios_drive(unsigned int biosdrive);
 
 	rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);
 
-#else 	/* Direct HD/FD */
+#else 	/* Direct HD/XD/FD */
 	/* Should work with BIOS hd + direct FD too */
-	if (ROOT_DEV & 0x80) 	/* hard drive */
-		rootdev = MKDEV(ATHD_MAJOR + boot_xd, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
+	/* Will NOT work with PC98 */
+
+	if (ROOT_DEV & 0x80) 	/* hard drive: HD, XD, BIOSHD */
+		rootdev = MKDEV(HD_MAJOR, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
 						+ boot_partition);
 	else			/* floppy */
 		rootdev = MKDEV(FLOPPY_MAJOR, (ROOT_DEV & 0x03));
@@ -80,6 +88,6 @@ void INITPROC device_init(void)
 	/* use boot_rootdev from /bootopts */
 	rootdev = boot_rootdev;
 
-    printk("device_setup: root device 0x%x\n", rootdev);
+    //printk("device_setup: root device 0x%x\n", rootdev);
     ROOT_DEV = rootdev;
 }
