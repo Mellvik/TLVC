@@ -33,7 +33,6 @@ extern void INITPROC serial_init(void);
 extern void INITPROC rs_setbaud(dev_t, unsigned long);
 extern void INITPROC sock_init(void);
 extern void INITPROC tty_init(void);
-extern void INITPROC xd_init(void);
 
 extern void INITPROC device_init(void);
 extern void INITPROC setup_dev(register struct gendisk *);
@@ -48,9 +47,8 @@ extern int INITPROC directhd_init(void);
 extern void INITPROC floppy_init(void);
 extern void INITPROC rd_init(void);
 extern void INITPROC ssd_init(void);
-extern void INITPROC rhd_init(void);
-extern void INITPROC rfd_init(void);
 extern void romflash_init(void);
+extern void INITPROC xd_init(void);
 
 /* char device init routines*/
 extern void INITPROC chr_dev_init(void);
@@ -64,6 +62,9 @@ extern void INITPROC mem_dev_init(void);
 extern void INITPROC meta_init(void);
 extern void INITPROC pty_init(void);
 extern void INITPROC tcpdev_init(void);
+extern void INITPROC rhd_init(void);
+extern void INITPROC rfd_init(void);
+extern void INITPROC rxd_init(void);
 
 extern void kfork_proc(void (*addr)());
 extern void arch_setup_user_stack(struct task_struct *, word_t entry);

@@ -45,6 +45,10 @@ ifeq ($(CONFIG_BLK_DEV_FD), y)
     OBJS += rfd.o
 endif
 
+ifeq ($(CONFIG_BLK_DEV_XD), y)
+    OBJS += rxd.o
+endif
+
 ifeq ($(CONFIG_BLK_DEV_HD), y)
     OBJS += rhd.o
 endif

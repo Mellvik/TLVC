@@ -31,9 +31,6 @@
 #include <arch/segment.h>
 
 #define	SECSIZ		512	/* Fixed sector size for now */
-#define FLOPPY		/* required for blk.h definitions */
-#include "../block/blk.h"
-#define DEVICE_NAME "r" DEVICE_NAME
 
 int floppy_open(struct inode *, struct file *);
 int fd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
@@ -42,16 +39,13 @@ size_t block_wr(struct inode *, struct file *, char *, size_t);
 size_t block_rd(struct inode *, struct file *, char *, size_t);
 
 /*
- * Let the blocl device open function do whatever is required - it will
+ * Let the blocK device open function do whatever is required - it will
  * recognize char device access and act accordingly.
- * There is no keeping track of opens/closes when doing raw access.
+ * There is (currently) no keeping track of opens/closes when doing raw access.
  */
 
 int rfd_open(register struct inode *inode, struct file *filp)
 {
-    //unsigned int minor;
-
-    //minor = MINOR(inode->i_rdev);
     //printk("rdf open\n");
     return(floppy_open(inode, filp));
 }
