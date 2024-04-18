@@ -310,9 +310,9 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
     if (first_time)
 	printk("Partitions:");
     first_time = 0;
+    if (hd->part[MINOR(dev)].nr_sects == 0) return; /* no drive */
     first_sector = hd->part[MINOR(dev)].start_sect;
 
-#if 1
     /*
      * This is a kludge to allow the partition check to be
      * skipped for specific drives (e.g. IDE cd-rom drives)
@@ -321,10 +321,9 @@ static void INITPROC check_partition(register struct gendisk *hd, kdev_t dev)
 	hd->part[MINOR(dev)].start_sect = (sector_t) 0;
 	return;
     }
-#endif
 
     print_minor_name(hd, MINOR(dev));
-	//printk("check_partition: hd %04x dv %04x sec %d\n", hd, dev, (sector_t)first_sector);
+    //printk("check_partition: hd %04x dv %04x sec %d\n", hd, dev, (sector_t)first_sector);
 #ifdef CONFIG_MSDOS_PARTITION
     if (msdos_partition(hd, dev, first_sector))
 	return;
@@ -366,8 +365,7 @@ void INITPROC setup_dev(register struct gendisk *dev)
 	dev->init(dev);
 
 /*
- * FIXME: This will NOT work if we have both directhd and mfm drives,
- * verified not to work on newer (like 386...) systems.
+ * A system can have only one disk 'category' - BIOS, IDE/ATA or XD.
  */
 #ifdef CONFIG_BLK_DEV_BHD
 #define MAX_DRIVES MAX_BIOS_DRIVES

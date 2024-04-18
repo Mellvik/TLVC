@@ -70,7 +70,8 @@
  *   Also, this driver uses CMOS settings to set the drive type which applies to drives 0 
  *   and 1 only. 2 and 3 will have base_type[] 0 and ultimately fail.
  * - Add verbose flag to reduce 'normal' verbosity (replace the former per-drive
- *   flag in ftd_msg[].
+ *   flag in ftd_msg[]).
+ * - Eliminate unneccessary zero initialization 
  */
 
 #include <linuxmt/config.h>
@@ -287,7 +288,10 @@ static int fd_device[4] = { 0, 0, 0, 0 }; /* has the i_rdev used in the last acc
 					   * via different devices (minor numbers) */
 
 /* Synchronization of FDC access. */
-static int format_status = FORMAT_NONE, fdc_busy = 0;
+#ifdef INCLUDE_FD_FORMATTING
+static int format_status = FORMAT_NONE
+#endif
+static int fdc_busy = 0;
 static struct wait_queue fdc_wait;
 
 /* bit vector set when media changed - causes I/O to be discarded until unset */
@@ -705,7 +709,7 @@ static void setup_DMA(void)
 	if (command == FD_WRITE)
 	    xms_fmemcpyw(tmp_floppy_area, kernel_ds, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
     }
-    DEBUG("%d/%lx;", count, dma_addr);
+    DEBUG("DMA: %d/%lx;", count, dma_addr);
     clr_irq();
     disable_dma(FLOPPY_DMA);
     clear_dma_ff(FLOPPY_DMA);
@@ -715,6 +719,7 @@ static void setup_DMA(void)
     set_dma_count(FLOPPY_DMA, count);
     enable_dma(FLOPPY_DMA);
     set_irq();
+    //printk("DMA: %d/%lx;", count, dma_addr);
 }
 
 static void output_byte(char byte)
@@ -1074,7 +1079,7 @@ static void seek_interrupt(void)
  */
 static void transfer(void)
 {
-    read_track = (command == FD_READ) && (CURRENT_ERRORS < 4) &&
+    read_track = !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
 	(floppy->sect <= MAX_BUFFER_SECTORS);
     DEBUG("trns%d-", read_track);
 
@@ -1397,7 +1402,10 @@ static void redo_fd_request(void)
 		req->rq_cmd == WRITE? 'W':'R', device, floppy->name, req->rq_blocknr);
     debug_blkdrv("df[%04x]: %c blk %ld\n", req->rq_dev, req->rq_cmd==WRITE? 'W' : 'R',
 		req->rq_blocknr);
-    if (format_status != FORMAT_BUSY) {
+#ifdef INCLUDE_FD_FORMATTING
+    if (format_status != FORMAT_BUSY)
+#endif
+    {
     	unsigned int tmp;
 	if (current_drive != drive) {
 	    current_track = NO_TRACK;
@@ -1408,13 +1416,15 @@ static void redo_fd_request(void)
 	nr_sectors = 2;			/* Default: Block IO - 1k blocks */
 	if (raw)
 		nr_sectors = req->rq_nr_sectors;;
-	start = (unsigned int) req->rq_blocknr;	/* rq_blocknr is ALWAYS sectors */
+	start = (unsigned int) req->rq_blocknr;	/* rq_blocknr is ALWAYS sector # */
 	if (start + nr_sectors > floppy->size) {
 	    if (!raw || start >= floppy->size) {
 		request_done(0);
 		goto repeat;
-	    } else
+	    } else {
 		nr_sectors = floppy->size - start;
+		req->rq_nr_sectors = nr_sectors;	/* tell requester we truncated */
+	    }
 	}
 	sector = start % floppy->sect;
 	tmp = start / floppy->sect;
@@ -1471,7 +1481,7 @@ static void redo_fd_request(void)
 
     DEBUG("prep %d|%d,%d|%d-", cache_track, seek_track, cache_drive, current_drive);
 
-    if ((((seek_track << 1) + cyl_mask) == cache_track) && (current_drive == cache_drive)) {
+    if (!raw && (((seek_track << 1) + cyl_mask) == cache_track) && (current_drive == cache_drive)) {
 	/* Requested block is in the cache. If reading, go get it.
 	 * If the sector count is odd, we cache sectors+1 when head=0 to get 
 	 * full blocks. When head=1 we read the entire track

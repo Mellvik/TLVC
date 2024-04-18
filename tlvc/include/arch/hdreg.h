@@ -1,10 +1,9 @@
 #ifndef __LINUXMT_HDREG_H
 #define __LINUXMT_HDREG_H
 
-/* This file contains some defines for the AT-hd-controller. Various sources.
+/* 
+ * This file contains some defines for the AT-hd-controller. Various sources.
  */
-
-/* ide.c has it's own port definitions in "ide.h" */
 
 /* First Hd controller regs. Ref: IBM AT Bios-listing */
 #define HD_DATA		0x1f0	/* _CTL when writing */
@@ -21,8 +20,6 @@
 
 #define HD_CMD		0x3f6	/* used for resets */
 #define HD_ALTSTATUS	0x3f6	/* same as HD_STATUS but doesn't clear irq */
-
-/* remainder is shared between hd.c, ide.c, ide-cd.c, and the hdparm utility */
 
 /*@-namechecks@*/
 

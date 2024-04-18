@@ -1,11 +1,11 @@
 /*
- * TLVC implementation of raw access to direct (IDE) hard disk devices.
+ * Raw/char driver for the TLVC XD (MFM) disk driver - copy of the raw HD driver
  *
- * Helge Skrivervik 06/23
+ * Helge Skrivervik 04/24
  */
 
 /* 
- * /dev/rhd[a..c][0..4]
+ * /dev/rxd[a..c][0..4]
  * Physical IO via the block driver.
  * Data are copied directly to/from user process space.
  *
@@ -15,7 +15,7 @@
 
 #include <linuxmt/config.h>
 
-#ifdef CONFIG_BLK_DEV_HD
+#ifdef CONFIG_BLK_DEV_XD
 
 #include <linuxmt/kernel.h>
 #include <linuxmt/major.h>
@@ -34,9 +34,9 @@
 
 #define	SECSIZ		512	/* Fixed sector size for now */
 
-int directhd_open(struct inode *, struct file *);
-int directhd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
-void directhd_release(struct inode *, struct file *);
+int xd_open(struct inode *, struct file *);
+int xd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
+void xd_release(struct inode *, struct file *);
 size_t block_wr(struct inode *, struct file *, char *, size_t);
 size_t block_rd(struct inode *, struct file *, char *, size_t);
 
@@ -45,40 +45,39 @@ size_t block_rd(struct inode *, struct file *, char *, size_t);
  * at/uses the minor device.
  */
 
-int rhd_open(register struct inode *inode, struct file *filp)
+int rxd_open(register struct inode *inode, struct file *filp)
 {
-    //printk("rdh open\n");
-    return(directhd_open(inode, filp));
+    //printk("rxd open\n");
+    return(xd_open(inode, filp));
 }
 
-void rhd_close(struct inode *inode, struct file *filp)
+void rxd_close(struct inode *inode, struct file *filp)
 {
-    //printk("rdh close\n");
-    //return(directhd_release(inode, filp));
+    //printk("rxd close\n");
+    //return(x_release(inode, filp));
     return; 	/* Nothing to do */
 }
 
 /* FIXME change ops struct to point directly to the block driver entries when appropriate */
-static struct file_operations rhd_fops = {
+static struct file_operations rxd_fops = {
     NULL,			/* lseek */
     block_rd,			/* read */
     block_wr,			/* write */
     NULL,			/* readdir */
     NULL,			/* select */
-    directhd_ioctl,		/* ioctl - FIXME: Useful or dangerous? */	
-    rhd_open,			/* open */
-    rhd_close			/* release */
+    xd_ioctl,			/* ioctl - FIXME: Useful or dangerous? */	
+    rxd_open,			/* open */
+    rxd_close			/* release */
 };
 
 /*@+type@*/
 
-void INITPROC rhd_init(void)
+void INITPROC rxd_init(void)
 {
     /* Device initialization done by the block driver, nothing required */
-
-    if (register_chrdev(RAW_HD_MAJOR, "rhd", &rhd_fops))
-	printk("RHD: Unable to get major %d for raw disk devices\n", RAW_HD_MAJOR);
-    //printk("rhd: Raw access to block devices configured\n");
+    if (register_chrdev(RAW_XD_MAJOR, "rxd", &rxd_fops))
+	printk("RXD: Unable to get major %d for raw disk devices\n", RAW_XD_MAJOR);
+    printk("rxd: Raw access to block devices configured\n");
 }
 
 #endif

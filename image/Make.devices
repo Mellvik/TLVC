@@ -166,6 +166,11 @@ ifeq ($(CONFIG_BLK_DEV_XD), y)
 	$(MKDEV) /dev/xda2 b 6 2
 	$(MKDEV) /dev/xda3 b 6 3
 	$(MKDEV) /dev/xda4 b 6 4
+	$(MKDEV) /dev/rxda  c 6 0 
+	$(MKDEV) /dev/rxda1 c 6 1
+	$(MKDEV) /dev/rxda2 c 6 2
+	$(MKDEV) /dev/rxda3 c 6 3
+	$(MKDEV) /dev/rxda4 c 6 4
 #	$(MKDEV) /dev/xdb b 6 32
 #	$(MKDEV) /dev/xdb1 b 6 33
 #	$(MKDEV) /dev/xdb2 b 6 34
