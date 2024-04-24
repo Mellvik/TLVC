@@ -14,6 +14,7 @@
 #define UINT_MAX	(~0U)
 #define LONG_MAX	((long)(~0UL>>1))
 #define ULONG_MAX	(~0UL)
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #define structof(p,t,m) ((t *) ((char *) (p) - offsetof (t,m)))
 
