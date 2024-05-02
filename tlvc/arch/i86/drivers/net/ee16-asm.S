@@ -40,14 +40,14 @@ ee16_insw:
 
         mov     current,%bx
         mov     TASK_USER_DS(%bx),%es	// destination segment = user process
-	cli
+	//cli
 
 word_loop:
         in      %dx,%ax
         stosw
         loop    word_loop
 
-	sti
+	//sti
         pop     %es
         pop     %di
 
@@ -76,14 +76,14 @@ ee16_sendpk:
 	shr	%cx		// make word count
 	mov     current,%bx	// setup for far memory xfer
 	mov     TASK_USER_DS(%bx),%ds
-	cli
+	//cli
 
 wr_loop:
 	lodsw
 	out     %ax,%dx
 	loop	wr_loop
 
-	sti
+	//sti
 	pop     %ds
 	pop	%si
 

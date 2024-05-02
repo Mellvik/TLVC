@@ -1,8 +1,11 @@
 /*
- * eexpress.h: Intel EtherExpress16 defines
+ * ee16.h: Intel EtherExpress16 defines
  * Lifted from Linux, adapted to TLVC by @mellvik May-24
  */
 #define ETH_FRAME_LEN	1514		/* Max. octets in frame sans FCS */
+#define COMMON_CMD_SIZE	6		/* size of non-data commands */
+#define NOP_CMD_SIZE COMMON_CMD_SIZE
+#define XMIT_CMD_SIZE	22		/* includes BD, 8 bytes */
 /*
  * EtherExpress card register addresses
  * as offsets from the base IO port address, like 0x320
@@ -45,12 +48,13 @@
 #define ISCP_START 0x0000
 /* System Command Block */
 #define SCB_START 0x0008
+
 /* Start of buffer region.  Everything before this is used for control
  * structures and the CU configuration program.  The memory layout is
- * determined in eexp_hw_probe(), once we know how much memory is
+ * determined in ee16_hw_probe(), once we know how much memory is
  * available on the card.
  */
-#define TX_BUF_START 0x0100
+#define PROG_AREA_START 0x0100
 #define TX_BUF_SIZE ((24+ETH_FRAME_LEN+31)&~0x1f)
 #define RX_BUF_SIZE ((32+ETH_FRAME_LEN+31)&~0x1f)
 
@@ -102,10 +106,11 @@
  * Cmd_INT on the last command in the sequence, followed by a
  * dummy Cmd_Nop with Cmd_END after this.
  */
-#define Cmd_END     0x8000
+#define Cmd_END     0x8000	/* command flags */
 #define Cmd_SUS     0x4000
 #define Cmd_INT     0x2000
-#define Cmd_Nop     0x0000
+
+#define Cmd_Nop     0x0000	/* actual commands */
 #define Cmd_SetAddr 0x0001
 #define Cmd_Config  0x0002
 #define Cmd_MCast   0x0003

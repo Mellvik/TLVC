@@ -6,7 +6,7 @@
 */
 /*
  * TODO:
- * - Many optimizations to take full advntage of the NIC buffers
+ * - Many optimizations to take full advantage of the NIC buffers
  * - Honor the verbose bit in the bootopts flag
  * - Fix and test 8bit bus functionality
  *
@@ -66,6 +66,11 @@
 #include "eth-msgs.h"
 #include "ee16.h"
 
+/* TLVC environment */
+
+#define NET_DEBUG	0
+//#define NOP_REGIME	1
+
 extern struct eth eths[];
 
 /* runtime configuration set in /bootopts or defaults in ports.h */
@@ -74,25 +79,33 @@ extern struct eth eths[];
 #define net_ram     (netif_parms[ETH_EE16].ram)
 #define net_flags   (netif_parms[ETH_EE16].flags)
 
-static unsigned char found;
-
 static struct netif_stat netif_stat;
 static char model_name[] = "ee16";
 static char dev_name[] = "ee0";
 
+/* Device specific constants and state-keepers */
 static const char *ee16_ifmap[] = {"AUI", "BNC", "TP"};
 enum ee16_iftype {AUI=0, BNC=1, TPE=2};
-static unsigned short num_tx_bufs, rx_buf_end, rx_buf_start;
-static unsigned short tx_head, tx_reap, tx_tail, tx_link;
-static unsigned short rx_first;
-static unsigned short rx_last;
+
+static unsigned short num_tx_bufs;	/* number of transmit buffers */
+static unsigned short num_rx_bufs;	/* number of receive buffers */
+static unsigned short rx_buf_end;	/* where the rx buffer chain ends */
+static unsigned short rx_buf_start;	/* start of the receive buffer chain */
+static unsigned short rx_first;		/* First RX buffer (= rx_buf_start) */
+static unsigned short rx_last;		/* Last rx-buffer in chain */
 static unsigned short rx_ptr;		/* next packet buffer to read */
-static unsigned short num_rx_bufs;
+static unsigned short tx_head;		/* Next free transmit buffer */
+static unsigned short tx_reap;		/* Last tx buffer processed, possibly in-use */
+static unsigned short tx_tail;		/* The tx buffer before tx_head in the chain */
+static unsigned short tx_link;
+static unsigned short tx_buf_start;	/* start of TX buffer chain */
 //static unsigned long init_time;		/* counts jiffies since last init, do we need this ?? */
 static unsigned char dev_started;
 static unsigned char tx_avail;		/* set when NIC transmit buffers are available */
+static unsigned char rx_avail;
 //static unsigned short last_tx_restart;
 
+static unsigned char found;
 static unsigned short verbose;
 static unsigned char usecount;
 static struct wait_queue rxwait;
@@ -129,7 +142,6 @@ struct file_operations ee16_fops =
 
 #define STARTED_RU      2
 #define STARTED_CU      1
-#define NET_DEBUG	0
 
 /* macros from Linux jiffies.h, typecheck() removed */
 #define time_after(a,b)	 ((long)((b) - (a)) < 0)
@@ -166,7 +178,7 @@ static unsigned short start_code[] = {
 #define CONF_PROMISC  0x2e
 	0x0000,                 /* no HDLC : normal CRC : enable broadcast
 				 * disable promiscuous/multicast modes */
-	0x003c,                 /* minimum frame length = 60 octets) */
+	0x0040,                 /* minimum frame length = 60 octets) */
 	0x0000,Cmd_SetAddr,
 	0x003e,                 /* link to next command */
 #define CONF_HWADDR  0x38
@@ -234,18 +246,11 @@ static unsigned short SHADOW(unsigned short addr) {
 	return addr + 0x4000;
 }
 
-/* Fast (?) way to check for more data available in NIC buffers */
+/* Fast way to check for more data pending in NIC buffers */
 static unsigned short get_rx_status(unsigned int port) {
-	int retval;
-	unsigned int old_ptr;
 
-	clr_irq();
-	old_ptr = inw(port+READ_PTR);
-	outw(rx_ptr, port+READ_PTR);
-	retval = inw(port+DATAPORT);
-	outw(old_ptr, port+READ_PTR);
-	set_irq();
-	return retval;
+	outw(rx_ptr & ~31, port + SM_PTR);
+	return(inw(port+SHADOW(rx_ptr)));
 }
 
 /*
@@ -352,7 +357,7 @@ static int INITPROC ee16_hw_probe(void)
 	while (i < 6) printk(":%02x", (mac_addr[i++]&0xff));
 	printk(", flags 0x%x\n", net_flags); 
 
-	rx_buf_start = TX_BUF_START + (num_tx_bufs*TX_BUF_SIZE);
+	rx_buf_start = tx_buf_start + (num_tx_bufs*TX_BUF_SIZE);
 	return 0;
 }
 
@@ -376,8 +381,8 @@ static size_t ee16_write(struct inode *inode, struct file *file, char *data, siz
 	int res;
 
 	while (1) {
-#if NET_DEBUG
-		//printk("T");
+#if NET_DEBUG > 1
+		//kputchar('T');
 		printk("\nT %d/%d|", len, tx_avail);
 #endif
 		prepare_to_wait_interruptible(&txwait);
@@ -395,7 +400,6 @@ static size_t ee16_write(struct inode *inode, struct file *file, char *data, siz
 				break;
 			}
 		}
-		//printk("T%d^", len);
 		
 		ee16_put_packet(net_port, data, len);
 		res = len;
@@ -405,11 +409,28 @@ static size_t ee16_write(struct inode *inode, struct file *file, char *data, siz
 	return res;
 }
 
+/*
+ * When we send a command to the 586, then kicks it with SIGNAL_CA,
+ * it will read the command, then zero it, which (apparently) indicate
+ * some kind of readyness to continue (or at least to issue the next cmd).
+ * NOTE:
+ * If the 586 is really busy, the 'original' 10 jiffies are insufficient.
+ * Some sources claim we may have to wait up to 0.9 secs, a serious delay
+ * by any measure. Thus this loop may not be a good idea in the first 
+ * place. It may be smarter to check for zero before issuing the next command
+ * rather than wait just after issuing the command - of course unless the
+ * code depends on the command having been accepted and acted upon.
+ * 
+ * The NetBSD driver is smart about this, setting an async flag whenever possible.
+ * FIXME!!
+ */
+#define CMD_CLEAR_TIMEOUT 40
+
 static void ee16_cmd_clear(unsigned int ioaddr)
 {
 	unsigned long oldtime = jiffies;
 
-	while (scb_rdcmd(ioaddr) && time_before(jiffies, oldtime + 10));
+	while (scb_rdcmd(ioaddr) && time_before(jiffies, oldtime + CMD_CLEAR_TIMEOUT));
 	if (scb_rdcmd(ioaddr)) {
 		printk("%s: command didn't clear\n", dev_name);
 	}
@@ -417,7 +438,7 @@ static void ee16_cmd_clear(unsigned int ioaddr)
 
 
 /*
- * Handle an EtherExpress interrupt
+ * Handle an EtherExpress interrupt in the odd(!) case that the CU isn't running. 
  * If we've finished initializing, start the RU and CU up.
  * If we've already started, reap tx buffers, handle any received packets,
  * check to make sure we've not become wedged.
@@ -485,33 +506,41 @@ static void ee16_int(int irq, struct pt_regs *regs)
 	ioaddr = net_port;
 	disable_irq(ioaddr);
 	old_read_ptr = inw(ioaddr+READ_PTR);	/* in case we interrupted something, */
-	old_write_ptr = inw(ioaddr+WRITE_PTR);  /* save the current pointer values */
-	//outb(SIRQ_dis|irqrmap[net_irq], ioaddr+SET_IRQ);
+	old_write_ptr = inw(ioaddr+WRITE_PTR);  /* save the current pointers */
 	status = scb_status(ioaddr);
 
 #if NET_DEBUG
-	printk("ee0: intstat %x/%x;", status, dev_started);
+	printk("ee0 int %x;", status);
+	//kputchar('I');
 #endif
 	if (dev_started == (STARTED_CU | STARTED_RU)) {
-		//do {
+		do {
 			ee16_cmd_clear(ioaddr);
 			ack_cmd = SCB_ack(status);
 			scb_command(ioaddr, ack_cmd);
 			outb(0, ioaddr+SIGNAL_CA);
+			//printk("nt %x;", status);
 			ee16_cmd_clear(ioaddr);
 			if (SCB_complete(status)) {	/* TX interrupt */
 				if (!ee16_hw_lasttxstat(ioaddr))
 					printk("%s: tx interrupt but no status\n", dev_name);
-				tx_avail++;	/* One buffer freed */
-				wake_up(&txwait);
+				else {
+					// moved to lasttxstat()
+					//tx_avail++;	/* One buffer freed (maybe skip if status 0?)  */
+					wake_up(&txwait);
+				}
 			}
 			if (SCB_rxdframe(status)) {	/* RX interrupt */
+				rx_avail++;
 				wake_up(&rxwait);
 				//ee16_hw_rx_pio(ioaddr);
 			}
 			status = scb_status(ioaddr);
-		//} while (status & 0xc000);
+		} while (status & 0xc000);	/* we may have new (supressed) interrupts while 
+						 * processing, complete the loop or we 
+						 * risk losing some */
 
+		/* this part needs more testing */
 		if (SCB_RUdead(status)) {
 			printk("%s: RU stopped: status %04x\n", dev_name, status);
 #if 0
@@ -544,7 +573,6 @@ static void ee16_int(int irq, struct pt_regs *regs)
 		outb(0, ioaddr+SIGNAL_CA);
 	}
 	ee16_cmd_clear(ioaddr);
-	//outb(SIRQ_en|irqrmap[net_irq], ioaddr+SET_IRQ);
 	outw(old_read_ptr, ioaddr+READ_PTR);
 	outw(old_write_ptr, ioaddr+WRITE_PTR);
 	enable_irq(ioaddr);
@@ -559,13 +587,14 @@ static void ee16_int(int irq, struct pt_regs *regs)
 static void ee16_release(struct inode *inode, struct file *file)
 {
 	if (--usecount == 0) {
-		outb(SIRQ_dis|irqrmap[net_irq], net_port+SET_IRQ);
+		disable_irq(net_port);
+		//outb(SIRQ_dis|irqrmap[net_irq], net_port+SET_IRQ);
 		scb_command(net_port, SCB_CUsuspend|SCB_RUsuspend);
 		outb(0, net_port+SIGNAL_CA);
 		outb(i586_RST, net_port+EEPROM_Ctrl);
 		free_irq(net_irq);
 	}
-#if NET_DEBUG
+#if NET_DEBUG > 3
 	printk("ee16: release\n");
 #endif
 }
@@ -579,12 +608,14 @@ static size_t ee16_read(struct inode *inode, struct file *filp, char *data, size
 	while(1) {
 		
 		rx_status = get_rx_status(net_port);
-#if NET_DEBUG
-		printk("R%04x", rx_status);		// DEBUG
+#if NET_DEBUG > 1
+		//printk("R%04x", rx_status);		// DEBUG
+		kputchar('R');		// DEBUG
 #endif
 		prepare_to_wait_interruptible(&rxwait);
 
-		if (!FD_Done(rx_status)) {	// No data in NIC buffer
+		if (!Stat_Done(rx_status)) {	// No data in NIC buffer
+		//if (!rx_avail) {	// No data in NIC buffer
 			if (filp->f_flags & O_NONBLOCK) {
 				res = -EAGAIN;
 				break;
@@ -631,7 +662,7 @@ static int ee16_open(struct inode *inode, struct file *file)
 	ee16_hw_init586(net_port);	/* may fail, need return value, */
 					/* release IRQ if failure FIXME */
  	ee16_hw_set_interface();	/* set conn type from flags	*/
-#if NET_DEBUG
+#if NET_DEBUG > 3
 	printk("ee16 is now open\n");
 #endif
 	return 0;
@@ -671,7 +702,7 @@ int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 {       
 	int res = 0;
 	
-#if NET_DEBUG
+#if NET_DEBUG > 1
 	printk("S%d/%d;", sel_type, tx_avail);
 #endif
 	switch (sel_type) {
@@ -686,7 +717,8 @@ int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 		
 		case SEL_IN:
 			if (!FD_Done(get_rx_status(net_port))) {	// data in NIC buffer??
-#if NET_DEBUG
+			//if (!rx_avail) {	// data in NIC buffer??
+#if NET_DEBUG > 1
 				printk("SrxW;");
 #endif
 				select_wait(&rxwait);
@@ -698,7 +730,7 @@ int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 		default:
 			res = -EINVAL;
 	}
-#if NET_DEBUG
+#if NET_DEBUG > 1
 	printk("s%d;", res);
 #endif
 	return res;
@@ -711,7 +743,7 @@ static void ee16_hw_set_interface(void)
 {
 	unsigned char oldval = inb(net_port + 0x300e);
 
-#if NET_DEBUG
+#if NET_DEBUG > 2
 	/* FIXME: Is AUI always the default ?? */
 	printk("ee16: setif, got %x\n", oldval);
 #endif
@@ -780,17 +812,42 @@ static void udelay(int usec)
  * the data into the appropriate transmit buffer and then modify the
  * preceding jump to point at the new transmit command.  This means that
  * the 586 command unit is continuously active.
+ *
+ * NEW REGIME (HS): Place one NOP per TX buffer at the beginning of the
+ * memory block, each pointing (link) to itself. Then, when a buffer is ready 
+ * for transmission, it links to the next NOP and when change the link in
+ * the currently executing NOP to point to us. That way we can fill up all
+ * TX buffer, each pointing to its own NOP and ready to go. And when there
+ * nothing to do, the CU loops in the last used NOP.
  */
 static void ee16_hw_txinit(unsigned int ioaddr)
 {
-	unsigned short tx_block = TX_BUF_START;
+	unsigned short tx_block = PROG_AREA_START;
 	unsigned short curtbuf;
 
+#ifdef NOP_REGIME
+	for (curtbuf = 0; curtbuf < num_tx_bufs; curtbuf++) {
+		outw(tx_block, ioaddr + WRITE_PTR);
+	        outw(0x0000, ioaddr + DATAPORT);	/* clear status */
+		outw(Cmd_Nop, ioaddr + DATAPORT);	/* enter command */
+		outw(tx_block, ioaddr + DATAPORT);	/* add link to self */
+		tx_block += NOP_CMD_SIZE;
+	}
+	tx_buf_start = tx_block;
+#else
+	tx_buf_start = PROG_AREA_START;
+#endif
+
+//---------------- this is pretty useless, we're doing the same every time we create a new xmit packet
 	for (curtbuf = 0; curtbuf < num_tx_bufs; curtbuf++) {
 		outw(tx_block, ioaddr + WRITE_PTR);
 	        outw(0x0000, ioaddr + DATAPORT);
 		outw(Cmd_INT|Cmd_Xmit, ioaddr + DATAPORT);
+#ifdef NOP_REGIME
+		outw(PROG_AREA_START + curtbuf*NOP_CMD_SIZE, ioaddr + DATAPORT);
+#else
 		outw(tx_block+0x08, ioaddr + DATAPORT);
+#endif
 		outw(tx_block+0x0e, ioaddr + DATAPORT);
 		outw(0x0000, ioaddr + DATAPORT);
 		outw(0x0000, ioaddr + DATAPORT);
@@ -801,10 +858,16 @@ static void ee16_hw_txinit(unsigned int ioaddr)
 		outw(0x0000, ioaddr + DATAPORT);
 		tx_block += TX_BUF_SIZE;
 	}
-	tx_head = TX_BUF_START;
-	tx_reap = TX_BUF_START;
+//----------------------------------
+
+	tx_head = tx_buf_start;
+	tx_reap = tx_buf_start;
 	tx_tail = tx_block - TX_BUF_SIZE;
+#ifdef NOP_REGIME
+	tx_link = tx_buf_start - NOP_CMD_SIZE;	/* last NOP command */
+#else
 	tx_link = tx_tail + 0x08;
+#endif
 	rx_buf_start = tx_block;
 	tx_avail = num_tx_bufs;
 }
@@ -854,7 +917,7 @@ static void ee16_hw_rxinit(unsigned int ioaddr)
 	/* Close Rx buffer descriptor ring */
 	outw(rx_last + 0x16 + 2, ioaddr+WRITE_PTR);
 	outw(rx_first + 0x16, ioaddr+DATAPORT);
-
+	rx_avail = 0;
 #if NET_DEBUG
 	printk("INIT: #rxbufs %d, #txbufs %d\n", num_rx_bufs, num_tx_bufs);
 #endif
@@ -904,8 +967,6 @@ static void ee16_hw_init586(unsigned int ioaddr)
 	outw((dev->flags & IFF_PROMISC)?(i|1):(i & ~1),
 	     ioaddr+SHADOW(CONF_PROMISC));
 	lp->was_promisc = dev->flags & IFF_PROMISC;
-#endif
-#if 0
 	ee16_setup_filter(dev);
 #endif
 	/* Write our hardware address */
@@ -970,6 +1031,7 @@ static void ee16_hw_init586(unsigned int ioaddr)
 }
 
 /*
+ * Called after each transfer-completed intr.
  * Reap tx buffers and return last transmit status.
  * if ==0 then either:
  *    a) we're not transmitting anything, so why are we here?
@@ -977,22 +1039,32 @@ static void ee16_hw_init586(unsigned int ioaddr)
  * otherwise, Stat_Busy(return) means we've still got some packets
  * to transmit, Stat_Done(return) means our buffers should be empty
  * again
- * TODO: Evaluate this carefully, it looks reaaly complicated for a simple task. (HS)
+ * TODO: Evaluate this carefully, it looks really complicated for a simple task. (HS)
  */
 static unsigned short ee16_hw_lasttxstat(unsigned int ioaddr)
 {
 	unsigned short tx_block = tx_reap;
 	unsigned short status;
 
-	if (tx_head == tx_reap)	{	/* Insurance really - return if empty */
-		tx_avail = num_tx_bufs;	/* more insurance */
+	if (tx_head == tx_reap)		/* Insurance really - return if empty */
 		return 0;
-	}
+
 	do {
 		outw(tx_block & ~31, ioaddr + SM_PTR);
 		status = inw(ioaddr + SHADOW(tx_block));
-		if (!Stat_Done(status)) {
+#if NET_DEBUG > 1
+		printk("|%x|", status);
+#endif
+		tx_avail++;		/* experimental, moved from _int proper */
+		if (!Stat_Done(status)) {	/* hmmmm, looks like this block hasn't been sent yet */
+			kputchar('X');		/* maybe the interrupt was all about the previous block, 
+						 * still, it may not make sense to try to restart this,
+						 * it should be automatically entered into the CU cmd chain */
+//#ifdef NOP_REGIME
+			tx_link = PROG_AREA_START + NOP_CMD_SIZE*((tx_block - tx_buf_start)/TX_BUF_SIZE);
+//#else
 			tx_link = tx_block;
+//#endif
 			return status;
 		} else {
 			//last_tx_restart = 0;
@@ -1024,21 +1096,27 @@ static unsigned short ee16_hw_lasttxstat(unsigned int ioaddr)
 			//else
 				//dev->stats.tx_packets++;
 		}
-		if (tx_block == TX_BUF_START+((num_tx_bufs-1)*TX_BUF_SIZE))
-			tx_reap = tx_block = TX_BUF_START;
+		if (tx_block == tx_buf_start+((num_tx_bufs-1)*TX_BUF_SIZE))
+			tx_reap = tx_block = tx_buf_start;
 		else
 			tx_reap = tx_block += TX_BUF_SIZE;
 		//netif_wake_queue(dev);	/** FIXME ****/
 
 	} while (tx_reap != tx_head);
 
+#ifdef NOP_REGIME
+	tx_link = PROG_AREA_START + NOP_CMD_SIZE*((tx_tail - tx_buf_start)/TX_BUF_SIZE);
+#else
 	tx_link = tx_tail + 0x08;
+#endif
 	return status;
 }
 /*
  * Check all the receive buffers, and hand any received packets
  * to the upper levels. Basic sanity check on each frame
  * descriptor, though we don't bother trying to fix broken ones.
+ * CORRECTION: Get exactly one receive buffer into the provided
+ * address, loop only on bad packets.
  */
 //static void ee16_hw_rx_pio(unsigned int ioaddr)
 static int ee16_get_packet(char *buffer, int len)
@@ -1048,9 +1126,10 @@ static int ee16_get_packet(char *buffer, int len)
 	unsigned short ioaddr = net_port;
 	unsigned short status, pkt_len = 0;
 
-#if NET_DEBUG
-	printk("get_packet (%d)\n", len);
+#if NET_DEBUG > 1
+	printk("get_packet (%x/%d)\n", rx_block, len);
 #endif
+	disable_irq(ioaddr);
  	do {
  		unsigned short rfd_cmd, rx_next, pbuf;
 
@@ -1062,7 +1141,7 @@ static int ee16_get_packet(char *buffer, int len)
 			pbuf = inw(ioaddr + DATAPORT);	/* get ptr to data */
 			outw(pbuf, ioaddr + READ_PTR);	/* prepare to read it */
 			pkt_len = inw(ioaddr + DATAPORT);	/* 1st word is length+status */
-#if NET_DEBUG
+#if NET_DEBUG > 1
 			printk("rx: len 0x%x(%d);", pkt_len, pkt_len&0x3fff);
 #endif
 			if (rfd_cmd != 0x0000) {
@@ -1103,15 +1182,38 @@ static int ee16_get_packet(char *buffer, int len)
 			        ee16_insw(ioaddr+DATAPORT, (word_t *)buffer, (pkt_len+1)>>1);
 				boguscount = 0; /* for now, one at a time, break the loop */
 			}
+			/* FIXME: don't think this is meaningful (HS) */
 			outw(rx_block, ioaddr+WRITE_PTR);
-			outw(0, ioaddr+DATAPORT);	/* clear descriptor */
-			outw(0, ioaddr+DATAPORT);
+			outw(0, ioaddr+DATAPORT);	/* clear status field */
+			outw(0, ioaddr+DATAPORT);	/* clear cmd field */
 			rx_block = rx_next;
+			outw(rx_next, ioaddr+READ_PTR);
+			if (!Stat_Done(inw(ioaddr+DATAPORT))) 
+				rx_avail--; /* EXPERIMENTAL */
 		}
 	} while (FD_Done(status) && boguscount--);
 	rx_ptr = rx_block;
+	enable_irq(ioaddr);
 	return pkt_len;
 }
+
+#if NET_DEBUG > 1
+static void dump_header(unsigned short ptr, int len)
+{
+	int i = 0;
+	unsigned short old_read_ptr = inw(net_port+READ_PTR);
+
+	printk("\n");
+	outw(ptr, net_port + READ_PTR);
+	while (i < len/2) {
+		printk("%04x ", inw(net_port+DATAPORT));
+		if (!(++i%16)) printk("\n");
+	}
+	if (i%16) printk("\n");
+	outw(old_read_ptr, net_port+READ_PTR);
+}
+#endif
+
 
 /*
  * Hand a packet to the card for transmission
@@ -1124,12 +1226,62 @@ static int ee16_get_packet(char *buffer, int len)
  */
 static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 {
-#if NET_DEBUG
-	printk("put: %x %d;", buf, len);
+	unsigned short tail_stat = 0;
+
+#if NET_DEBUG  > 2
+	unsigned short old_read_ptr = inw(ioaddr+READ_PTR);
+
+	outw(tx_tail&~31, ioaddr+SM_PTR);
+	tail_stat = inw(ioaddr+SHADOW(tx_tail));
+	printk("put: %d/%x/%x/%x;", len, tx_head, tx_tail, tail_stat);
+	if (!tail_stat) dump_header(tx_tail, XMIT_CMD_SIZE);
 #endif
+	tx_avail--;						/* the CMD block */
+	tail_stat = 0;	/*DEBUG, toggle the CU stop/start regime */
+	//clr_irq();
+	disable_irq(ioaddr);
+#ifdef NOP_REGIME
+	unsigned short this_nop = PROG_AREA_START + NOP_CMD_SIZE*((tx_head - tx_buf_start)/TX_BUF_SIZE);
+
+ 	outw(tx_head+XMIT_CMD_SIZE, ioaddr + WRITE_PTR);	/* dump data just after */
+	ee16_sendpk(ioaddr + DATAPORT, buf, len);
+ 	outw(tx_head, ioaddr + WRITE_PTR);
+	outw(0x0000, ioaddr + DATAPORT);	/* clear status */
+        outw(Cmd_INT|Cmd_Xmit, ioaddr + DATAPORT);	/* add cmd */
+	outw(this_nop, ioaddr + DATAPORT);	/* Link to the next cmd (NOP) */
+	outw(tx_head+0x0e, ioaddr + DATAPORT);	/* Ptr to BD (next word) */
+	outw(0x0000, ioaddr + DATAPORT);	/* 6 byte address field */
+	outw(0x0000, ioaddr + DATAPORT);	/* not used */
+	outw(0x0000, ioaddr + DATAPORT);	
+						/* Buffer descriptor starts here (4w) */
+	outw(0x8000|len, ioaddr + DATAPORT);	/* Data length in bytes + END marker */
+	outw(-1, ioaddr + DATAPORT);		/* Next BD (none) */
+	outw(tx_head+0x16, ioaddr + DATAPORT);	/* Where the data is (2 bytes down) */
+	outw(0, ioaddr + DATAPORT);
+
+	/* TX cmd ready, link it into the command chain */
+ 	outw(this_nop, ioaddr + WRITE_PTR);
+	outw(0x0000, ioaddr + DATAPORT);	/* clr status */
+	outw(Cmd_Nop, ioaddr + DATAPORT);	/* the nop command, already initialized */
+						/* but we need to move the pointer anyway */
+	outw(this_nop, ioaddr + DATAPORT);	/* the link, point to itself */
+
+	/* this_nop - the one executed when this tx is done, is ready */
+	/* At this point the CU is (probably) looping in the previous NOP cmd. */
+	/* Thus - change the prevoius NOP cmd to point to us so we can get going */
+	if (this_nop == PROG_AREA_START)
+		this_nop = PROG_AREA_START + (NOP_CMD_SIZE * (num_tx_bufs - 1));
+	else
+		this_nop -= NOP_CMD_SIZE;
+	outw(this_nop+4, ioaddr + WRITE_PTR);	/* point to the link field */
+	//outw(0x0000, ioaddr + DATAPORT);	/* clr status */
+	//outw(Cmd_Nop, ioaddr + DATAPORT);	/* incidentally just 0x0000 */
+	outw(tx_head, ioaddr + DATAPORT);	/* update link, here we go ... */
+	//trans_start = jiffies;
+#else
 	// EXPERIMENTAL: Avoid getting the CU wedged...
 	// Need to find out why it happens.
-	//if (netif_stat.if_status & ETHF_8BIT_BUS) {
+	if (!tail_stat || netif_stat.if_status & ETHF_8BIT_BUS) {
 		/* Stop the CU so that there is no chance that it
 		   jumps off to a bogus address while we are writing the
 		   pointer to the next transmit packet in 8-bit mode --
@@ -1140,7 +1292,9 @@ static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 		   HS Apr24 */
 		scb_command(ioaddr, SCB_CUsuspend);
 		outw(0xFFFF, ioaddr+SIGNAL_CA);
-	//}
+	}
+	disable_irq(ioaddr);	/* doesn't seem to matter */
+	/* most of this is already in place (txinit()), we just have to add the variables */
  	outw(tx_head, ioaddr + WRITE_PTR);
 	outw(0x0000, ioaddr + DATAPORT);
         outw(Cmd_INT|Cmd_Xmit, ioaddr + DATAPORT);
@@ -1153,26 +1307,33 @@ static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 	outw(-1, ioaddr + DATAPORT);
 	outw(tx_head+0x16, ioaddr + DATAPORT);
 	outw(0, ioaddr + DATAPORT);
-	tx_avail--;		/* One buffer down */
 	ee16_sendpk(ioaddr + DATAPORT, buf, len);
 	outw(tx_tail+0xc, ioaddr + WRITE_PTR);
 	outw(tx_head, ioaddr + DATAPORT);
 	//trans_start = jiffies;
+#endif
+	//set_irq();
 	tx_tail = tx_head;
-	if (tx_head == TX_BUF_START+((num_tx_bufs-1)*TX_BUF_SIZE))
-		tx_head = TX_BUF_START;
+	if (tx_head == tx_buf_start+((num_tx_bufs-1)*TX_BUF_SIZE))
+		tx_head = tx_buf_start;
 	else
 		tx_head += TX_BUF_SIZE;
+#if 0
 	if (tx_head != tx_reap) {
 		//netif_wake_queue(dev); /* FIXME!!!!! *********/
+		// May use this to avoid the tx_avail regime ??
+		wake_up(&txwait);
 	}
-	//if (netif_stat.if_status & ETHF_8BIT_BUS) {
+#endif
+	enable_irq(ioaddr);
+	if (!tail_stat || netif_stat.if_status & ETHF_8BIT_BUS) {
 		/* Restart the CU so that the packet can actually
 		   be transmitted. (Zoltan Szilagyi 10-12-96) */
 		scb_command(ioaddr, SCB_CUresume);
 		outw(0xFFFF, ioaddr+SIGNAL_CA);
-	//}
+	}
 	//dev->stats.tx_packets++;
 	//last_tx = jiffies;
+	//kputchar('P');
 }
 
