@@ -2,10 +2,11 @@
  * ee16.h: Intel EtherExpress16 defines
  * Lifted from Linux, adapted to TLVC by @mellvik May-24
  */
-#define ETH_FRAME_LEN	1514		/* Max. octets in frame sans FCS */
+#define ETH_FRAME_LEN	1518		/* Max. octets in frame inc FCS */
 #define COMMON_CMD_SIZE	6		/* size of non-data commands */
 #define NOP_CMD_SIZE COMMON_CMD_SIZE
 #define XMIT_CMD_SIZE	22		/* includes BD, 8 bytes */
+#define MEM_CTRL_FMCS16 0x10		/* from NetBSD driver, for mem mapping */
 /*
  * EtherExpress card register addresses
  * as offsets from the base IO port address, like 0x320

@@ -102,7 +102,6 @@ static unsigned short tx_buf_start;	/* start of TX buffer chain */
 //static unsigned long init_time;		/* counts jiffies since last init, do we need this ?? */
 static unsigned char dev_started;
 static unsigned char tx_avail;		/* set when NIC transmit buffers are available */
-static unsigned char rx_avail;
 //static unsigned short last_tx_restart;
 
 static unsigned char found;
@@ -429,10 +428,11 @@ static size_t ee16_write(struct inode *inode, struct file *file, char *data, siz
 static void ee16_cmd_clear(unsigned int ioaddr)
 {
 	unsigned long oldtime = jiffies;
+	unsigned short s;
 
 	while (scb_rdcmd(ioaddr) && time_before(jiffies, oldtime + CMD_CLEAR_TIMEOUT));
-	if (scb_rdcmd(ioaddr)) {
-		printk("%s: command didn't clear\n", dev_name);
+	if ((s = scb_rdcmd(ioaddr))) {
+		printk("%s: command (%x) didn't clear\n", dev_name, s);
 	}
 }
 
@@ -515,12 +515,14 @@ static void ee16_int(int irq, struct pt_regs *regs)
 #endif
 	if (dev_started == (STARTED_CU | STARTED_RU)) {
 		do {
+#if 0	/* Experimental, moved down. The docs suggest this, but it's unclear why it would matter. */
 			ee16_cmd_clear(ioaddr);
 			ack_cmd = SCB_ack(status);
 			scb_command(ioaddr, ack_cmd);
 			outb(0, ioaddr+SIGNAL_CA);
 			//printk("nt %x;", status);
 			ee16_cmd_clear(ioaddr);
+#endif
 			if (SCB_complete(status)) {	/* TX interrupt */
 				if (!ee16_hw_lasttxstat(ioaddr))
 					printk("%s: tx interrupt but no status\n", dev_name);
@@ -531,10 +533,17 @@ static void ee16_int(int irq, struct pt_regs *regs)
 				}
 			}
 			if (SCB_rxdframe(status)) {	/* RX interrupt */
-				rx_avail++;
 				wake_up(&rxwait);
 				//ee16_hw_rx_pio(ioaddr);
 			}
+#if 1		/* check comment above */
+			ee16_cmd_clear(ioaddr);
+			ack_cmd = SCB_ack(status);
+			scb_command(ioaddr, ack_cmd);
+			outb(0, ioaddr+SIGNAL_CA);
+			//printk("nt %x;", status);
+			ee16_cmd_clear(ioaddr);
+#endif
 			status = scb_status(ioaddr);
 		} while (status & 0xc000);	/* we may have new (supressed) interrupts while 
 						 * processing, complete the loop or we 
@@ -615,7 +624,6 @@ static size_t ee16_read(struct inode *inode, struct file *filp, char *data, size
 		prepare_to_wait_interruptible(&rxwait);
 
 		if (!Stat_Done(rx_status)) {	// No data in NIC buffer
-		//if (!rx_avail) {	// No data in NIC buffer
 			if (filp->f_flags & O_NONBLOCK) {
 				res = -EAGAIN;
 				break;
@@ -717,7 +725,6 @@ int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 		
 		case SEL_IN:
 			if (!FD_Done(get_rx_status(net_port))) {	// data in NIC buffer??
-			//if (!rx_avail) {	// data in NIC buffer??
 #if NET_DEBUG > 1
 				printk("SrxW;");
 #endif
@@ -877,7 +884,7 @@ static void ee16_hw_txinit(unsigned int ioaddr)
  * The end of the list isn't marked, which means that the 82586 receive
  * unit will loop until buffers become available (this avoids it giving us
  * "out of resources" messages).
- * HS: How does this affect our noticing overruns?
+ * HS:That's why we never get overrun message, must FIX.
  */
 static void ee16_hw_rxinit(unsigned int ioaddr)
 {
@@ -917,7 +924,6 @@ static void ee16_hw_rxinit(unsigned int ioaddr)
 	/* Close Rx buffer descriptor ring */
 	outw(rx_last + 0x16 + 2, ioaddr+WRITE_PTR);
 	outw(rx_first + 0x16, ioaddr+DATAPORT);
-	rx_avail = 0;
 #if NET_DEBUG
 	printk("INIT: #rxbufs %d, #txbufs %d\n", num_rx_bufs, num_tx_bufs);
 #endif
@@ -1039,7 +1045,7 @@ static void ee16_hw_init586(unsigned int ioaddr)
  * otherwise, Stat_Busy(return) means we've still got some packets
  * to transmit, Stat_Done(return) means our buffers should be empty
  * again
- * TODO: Evaluate this carefully, it looks really complicated for a simple task. (HS)
+ * NOTE: There is no Stat_Busy check, must fix.
  */
 static unsigned short ee16_hw_lasttxstat(unsigned int ioaddr)
 {
@@ -1061,7 +1067,7 @@ static unsigned short ee16_hw_lasttxstat(unsigned int ioaddr)
 						 * still, it may not make sense to try to restart this,
 						 * it should be automatically entered into the CU cmd chain */
 //#ifdef NOP_REGIME
-			tx_link = PROG_AREA_START + NOP_CMD_SIZE*((tx_block - tx_buf_start)/TX_BUF_SIZE);
+			//tx_link = PROG_AREA_START + NOP_CMD_SIZE*((tx_block - tx_buf_start)/TX_BUF_SIZE);
 //#else
 			tx_link = tx_block;
 //#endif
@@ -1111,6 +1117,7 @@ static unsigned short ee16_hw_lasttxstat(unsigned int ioaddr)
 #endif
 	return status;
 }
+
 /*
  * Check all the receive buffers, and hand any received packets
  * to the upper levels. Basic sanity check on each frame
@@ -1187,10 +1194,8 @@ static int ee16_get_packet(char *buffer, int len)
 			outw(0, ioaddr+DATAPORT);	/* clear status field */
 			outw(0, ioaddr+DATAPORT);	/* clear cmd field */
 			rx_block = rx_next;
-			outw(rx_next, ioaddr+READ_PTR);
-			if (!Stat_Done(inw(ioaddr+DATAPORT))) 
-				rx_avail--; /* EXPERIMENTAL */
 		}
+		boguscount = 0;		/* We want only one (TLVC) */
 	} while (FD_Done(status) && boguscount--);
 	rx_ptr = rx_block;
 	enable_irq(ioaddr);
@@ -1220,13 +1225,10 @@ static void dump_header(unsigned short ptr, int len)
  * NOTE: If we get here, we MUST have already checked
  * to make sure there is room in the transmit
  * buffer region.
- * NOTE: This should be interrupt safe. The interrupt handler will
- *	 save and restore the pointers and _sendpk() block interrupts
- *	 internally.
  */
 static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 {
-	unsigned short tail_stat = 0;
+	unsigned short tail_stat;
 
 #if NET_DEBUG  > 2
 	unsigned short old_read_ptr = inw(ioaddr+READ_PTR);

@@ -1,7 +1,7 @@
 //
-// Temporary: Copy of
-// Low level routines for ELKS EtherLink III ethernet driver (3c509)
-// for use with the EtherExpress16 driver. 
+// 
+// Low level routines for TLVC EtherExpress16 driver. 
+// Copied from the EtherLink III driver.
 // FIXME: merge these into a net-lib asm file.
 //
 // Helge Skrivervik (@mellvik) april 2024
@@ -90,7 +90,7 @@ wr_loop:
 	ret
 
 //-------------------------------------------------
-	.global ee16_mdelay
+	.global ee16_udelay
 
 ee16_udelay:
 
