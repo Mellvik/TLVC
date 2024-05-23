@@ -38,6 +38,7 @@ struct netif_parms netif_parms[MAX_ETHS] = {
     { NE2K_IRQ, NE2K_PORT, 0, NE2K_FLAGS },
     { WD_IRQ, WD_PORT, WD_RAM, WD_FLAGS },
     { EL3_IRQ, EL3_PORT, 0, EL3_FLAGS },
+    { EE16_IRQ, EE16_PORT, 0, EE16_FLAGS },
 };
 __u16 kernel_cs, kernel_ds;
 int tracing;
@@ -472,6 +473,10 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"3c0=", 4)) {
 			parse_nic(line+4, &netif_parms[ETH_EL3]);
+			continue;
+		}
+		if (!strncmp(line,"ee0=", 4)) {
+			parse_nic(line+4, &netif_parms[ETH_EE16]);
 			continue;
 		}
 		if (!strncmp(line,"bufs=", 5)) {

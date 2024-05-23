@@ -14,6 +14,7 @@
 extern struct file_operations ne2k_fops;    /* 0 CONFIG_ETH_NE2K */
 extern struct file_operations wd_fops;      /* 1 CONFIG_ETH_WD */
 extern struct file_operations el3_fops;     /* 2 CONFIG_ETH_EL3 */
+extern struct file_operations ee16_fops;    /* 3 CONFIG_ETH_EE16 */
 
 struct eth eths[MAX_ETHS];
 
@@ -108,5 +109,9 @@ void INITPROC eth_init(void)
 #ifdef CONFIG_ETH_EL3
     eths[ETH_EL3].ops = &el3_fops;
     el3_drv_init();
+#endif
+#ifdef CONFIG_ETH_EE16
+    eths[ETH_EE16].ops = &ee16_fops;
+    ee16_drv_init();
 #endif
 }

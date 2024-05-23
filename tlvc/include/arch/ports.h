@@ -108,6 +108,11 @@
 #define EL3_IRQ		11
 #define EL3_FLAGS	0x80
 
+/* Intel EtherExpress 16, ee16.c */
+#define EE16_PORT	0x360
+#define EE16_IRQ	11
+#define EE16_FLAGS	0x80
+
 /* bioshd.c*/
 #define FDC_DOR		0x3F2		/* floppy digital output register*/
 

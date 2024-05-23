@@ -30,16 +30,16 @@
 #include "eth-msgs.h"
 
 /* Offsets from base I/O address. */
-#define EL3_DATA 0x00
-#define EL3_CMD 0x0eU
-#define EL3_STATUS 0x0eU
-#define	EEPROM_READ 0x80U
+#define EL3_DATA	0x00
+#define EL3_CMD		0x0eU
+#define EL3_STATUS	0x0eU
+#define	EEPROM_READ	0x80U
 
 #define EL3WINDOW(win_num) outw(SelectWindow + (win_num), ioaddr + EL3_CMD)
 
 
-/* The top five bits written to EL3_CMD are a command, the lower
-   11 bits are the parameter, if applicable. */
+/* The top five bits of EL3_CMD make up the command, the lower
+   11 bits make up the parameter, if applicable. */
 enum c509cmd {
 	TotalReset = 0<<11, SelectWindow = 1<<11, StartCoax = 2<<11,
 	RxDisable = 3<<11, RxEnable = 4<<11, RxReset = 5<<11, RxDiscard = 8<<11,
@@ -88,20 +88,20 @@ enum RxFilter {
 #define EP_ID_PORT_START 0x110  /* avoid 0x100 to avoid conflict with SB16 */
 #define EP_ID_PORT_INC 0x10
 #define EP_ID_PORT_END 0x200
-#define EP_TAG_MAX		0x7 /* must be 2^n - 1 */
+#define EP_TAG_MAX		0x7	/* must be 2^n - 1 */
 
 static int INITPROC el3_isa_probe();
 //static word_t read_eeprom(int, int);
 static word_t id_read_eeprom(int);
 static size_t el3_write(struct inode *, struct file *, char *, size_t);
-static void el3_int(int, struct pt_regs *);
 static size_t el3_read(struct inode *, struct file *, char *, size_t);
+static void el3_int(int, struct pt_regs *);
 static void el3_release(struct inode *, struct file *);
 static int el3_open(struct inode *, struct file *);
 static int el3_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
 static int el3_select(struct inode *, struct file *, int);
-static void el3_down();
-static void update_stats();
+static void el3_down(void);
+static void update_stats(void);
 void el3_sendpk(int, char *, int);
 void el3_insw(int, char *, int);
 
@@ -778,8 +778,8 @@ int el3_select(struct inode *inode, struct file *filp, int sel_type)
 	int res = 0;
 	
 	/* Need to block interrupts to avoid a race condition which happens if
-	   an interrupt happens just after we check RX_STATUS. The interrupt
-	   will turn off recdeive interrupts and select doesn't know that we have data.
+	   an interrupt occurs just after we check RX_STATUS. The interrupt
+	   will turn off receive interrupts and select doesn't know that we have data.
 	 */
 	outw(SetIntrEnb | 0x0, ioaddr + EL3_CMD);
 	switch (sel_type) {

@@ -37,6 +37,9 @@ endif
 ifeq ($(CONFIG_ETH_EL3), y)
 OBJS += el3-asm.o el3.o
 endif
+ifeq ($(CONFIG_ETH_EE16), y)
+OBJS += ee16-asm.o ee16.o
+endif
 
 all: net_drv.a
 
