@@ -342,7 +342,7 @@ void tcp_retrans_expire(void)
 
     while (n != NULL) {
 	datalen = n->len - TCP_DATAOFF(&n->tcphdr[0]);
-	if (n->tcphdr[0].flags & TF_FIN) datalen++;
+	if (n->tcphdr[0].flags & (TF_SYN | TF_FIN)) datalen++;
 
 	/* calc RTT and remove if seqno was acked*/
 	if (SEQ_LEQ(ntohl(n->tcphdr[0].seqnum) + datalen, n->cb->send_una)) {
@@ -352,9 +352,9 @@ void tcp_retrans_expire(void)
 		    n->cb->rtt = (TCP_RTT_ALPHA * n->cb->rtt + (100 - TCP_RTT_ALPHA) * rtt) / 100;
 		debug_tcp("tcp: rtt %d RTT %ld RTO %ld\n", rtt, n->cb->rtt, n->rto);
 	    }
-	    debug_retrans("tcp retrans: remove seq %lu+%u unack %lu rtrns %d\n",
+	    debug_retrans("tcp retrans: remove seq %lu+%u unack %lu\n",
 		ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
-		n->cb->send_una - n->cb->iss, n->cb->rtrns);
+		n->cb->send_una - n->cb->iss);
 	    n = rmv_from_retrans(n);
 	    continue;
 	} else
