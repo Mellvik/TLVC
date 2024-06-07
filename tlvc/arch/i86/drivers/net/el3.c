@@ -11,8 +11,6 @@
 
 */
 
-#define ELKS
-
 #include <arch/io.h>
 #include <arch/ports.h>
 #include <arch/segment.h>
@@ -142,9 +140,8 @@ struct file_operations el3_fops =
 };
 
 void INITPROC el3_drv_init(void) {
-	ioaddr = net_port;		// temporary
 
-	if (!ioaddr) {
+	if (!net_port) {
 		printk("el3: ignored\n");
 		return;
 	}
@@ -152,6 +149,7 @@ void INITPROC el3_drv_init(void) {
 	if (el3_isa_probe() == 0) {
 		found++;
 		eths[ETH_EL3].stats = &netif_stat;
+
 		/* The EL3 will grab and hold its default IRQ line
 		 * unless we tell it not to. */
 		EL3WINDOW(0);
@@ -160,7 +158,7 @@ void INITPROC el3_drv_init(void) {
 
 }
 
-static int INITPROC el3_find_id_port ( void ) {
+static int INITPROC el3_find_id_port (void) {
 
 	for ( el3_id_port = EP_ID_PORT_START ;
 	      el3_id_port < EP_ID_PORT_END ;
@@ -180,7 +178,7 @@ static int INITPROC el3_find_id_port ( void ) {
 }
 
 /* Return 0 on success, 1 on error */
-static int INITPROC el3_isa_probe( void )
+static int INITPROC el3_isa_probe(void)
 {
 	short lrs_state = 0xff;
 	int i;
@@ -191,7 +189,7 @@ static int INITPROC el3_isa_probe( void )
 	   ID_PORT.  We find cards past the first by setting the 'current_tag'
 	   on cards as they are found.  Cards with their tag set will not
 	   respond to subsequent ID sequences.
-	   ELKS supports only one card, comment kept for future reference. HS */
+	   TLVC supports only one card, comment kept for future reference. HS */
 
 	if (el3_find_id_port()) return 1;
 
@@ -326,21 +324,21 @@ static size_t el3_write(struct inode *inode, struct file *file, char *data, size
 }
 
 /* *****************************************************************************************************
-	A note about ELKS, EL3 and Interrupts
-	ELKS does not service network interrupts as they arrive. Instead, when the application calls the
+	A note about TLVC, EL3 and Interrupts
+	TLVC does not service network interrupts as they arrive. Instead, when the application calls the
 	driver, the status is checked and a read initiated if data is ready - or a write is initiated if 
 	the interface is ready. Otherwise the application is but to sleep, to be awakened by the wake_up
 	calls from the driver. A more traditional approach is to act on the cause of an interrupt 
 	- e.g. transfer an arrived packet into a buffer, immediately.
 	The 3Com 3C509 family of NICs expect the latter, and the RxComplete and RxEarly interrupt status
 	bits can only be reset by emptying the NIC's FIFO.
-	In order to get this scheme to work with ELKS, we mask off the RxComplete interrupt immediately 
+	In order to get this scheme to work with TLVC, we mask off the RxComplete interrupt immediately 
 	after seeing it, and reenable it in the packet read routine when the FIFO is empty. Not optimal
 	from a performance point of view, but it works and will do for now. 
 
 	As to Transmits, the TxComplete interrupt from the 3c5xx NICs indicate a transmit error. 
 	The TxAvailable interrupt signals the availability of enough space in the output FIFO to hold a
-	packet of a predetermined size. Since ELKS (ktcp) limits the send to 512 bytes and we rarely experiment 
+	packet of a predetermined size. Since TLVC (ktcp) limits the send to 512 bytes and we rarely experiment 
 	with sizes above 1k, this driver sets the limit to 1040 bytes.
 	There are definite performance improvements to be gained by tuning this. 
  *******************************************************************************************************/
@@ -473,7 +471,7 @@ el3_get_stats(struct net_device *dev)
 	operation, and it's simpler for the rest of the driver to assume that
 	window 1 is always valid rather than use a special window-state variable.
 	*/
-/* ELKS: Dummy for now */
+/* TLVC: Dummy for now */
 static void update_stats( void )
 {
 
