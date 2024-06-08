@@ -1,8 +1,7 @@
 /*
  *
  * NE2K Ethernet driver - supports NICs using the NS DP8390 and
- * compatible chip sets. Tested with Eagle 8390 (6321839050001 PnP) and
- * Winbond W89C902P based cards.
+ * compatible chip sets. 
  *
  * 8 bit i/f support and autoconfig added by Helge Skrivervik (@mellvik) april 2022
  * based on the RTL8019AS chip in the interface card from Weird Electronics.
@@ -517,15 +516,22 @@ void ne2k_display_status(void)
 
 void INITPROC ne2k_drv_init(void)
 {
-	int err, i, j, k;
+	int i, j, k;
 	word_t prom[16];/* PROM containing HW MAC address and more 
 			 * (aka SAPROM, Station Address PROM).
-			 * PROM size is 16 bytes. If read in word (16 bit) mode,
-			 * the upper byte is either a copy of the lower or 00.
-			 * depending on the chip. This may be used to detect 8 vs 16
-			 * bit cards automagically.
-			 * The address occupies the first 6 bytes, followed by a 'card signature'.
-			 * If bytes 14 & 15 == 0x57, this is a ne2k clone.
+			 * PROM size is 16 words, the low byte holding the info
+			 * (newer cards may have proprietary info in the high byte).
+			 *
+			 * QEMU duplicates the low byte to the high byte, which we use
+			 * to set the QEMU flag (for ftp). This feature is currently
+			 * unused as there is no way to pass that info up to ftp.
+			 *
+			 * The MAC address occupies the first 6 bytes, followed by a 'card signature'
+			 * which is usually empty except for bytes 28 and 30, which contain
+			 * a 'B' if it's an 8bit card, 'W' if it's a 16bit card.
+			 * If a NIC doesn't implement this feature, 16-bit mode
+			 * may be forced using the flag field in /bootopts - just like a 16bit
+			 * card may be forced to run in 8bit mode.
 			 */
 	byte_t *cprom, *mac_addr;
 
@@ -540,10 +546,10 @@ void INITPROC ne2k_drv_init(void)
 		return;
 	}
 
-	err = ne2k_probe();
+	i = ne2k_probe();
 	verbose = (net_flags&ETHF_VERBOSE);
 	printk("eth: %s at 0x%x, irq %d", dev_name, net_port, net_irq);
-	if (err) {
+	if (i) {
 		printk(" not found\n");
 		return;
 	}
@@ -552,18 +558,16 @@ void INITPROC ne2k_drv_init(void)
 	cprom = (byte_t *)prom;
 	ne2k_get_hw_addr(prom);
 
-	err = j = k = 0;
-	//for (i = 0; i < 32; i++) printk("%02x", cprom[i]);
+	j = k = 0;
+	//for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
 	//printk("\n");
 
-	/* if the high byte of every word is 0, this is a 16 bit card
-	 * if the high byte = low byte in every word, this is probably QEMU */
-	for (i = 1; i < 12; i += 2) j += cprom[i];
-	for (i = 0; i < 12; i += 2) k += cprom[i];	/* QEMU check */
+	for (i = 0; i < 12; i += 2) {
+		k += cprom[i]-cprom[i+1];	/* QEMU test */
+		j += cprom[i];			/* All zero test */
+	}
 
-	/* ne2k_flags may be used as a simple variable until
-	 * we add in the buffer flags below */
-	if (j && (j!=k)) {	
+	if (!(net_flags&ETHF_16BIT_BUS) && cprom[28] == 'B' && cprom[30] == 'B') {
 		ne2k_flags = ETHF_8BIT_BUS;
 		model_name[2] = '1';
 		netif_stat.if_status |= NETIF_AUTO_8BIT; 
@@ -571,13 +575,13 @@ void INITPROC ne2k_drv_init(void)
 		for (i = 0; i < 16; i++) cprom[i] = (char)prom[i]&0xff;
 		ne2k_flags = 0;
 	}
-	if (j == k && !memcmp(cprom, mac_addr, 5)) netif_stat.if_status |= NETIF_IS_QEMU;
+	if (!k && j) netif_stat.if_status |= NETIF_IS_QEMU;
 	//for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
 	//printk("\n");
 
 	memcpy(mac_addr, cprom, 6);
 	printk(", (%s) MAC %02x", model_name, mac_addr[0]);
-	ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works */
+	ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works from ktcp */
 
 	i = 1;
 	while (i < 6) printk(":%02x", mac_addr[i++]);
@@ -585,6 +589,9 @@ void INITPROC ne2k_drv_init(void)
 		/* flag that we're forcing 8 bit bus on 16 NIC */
 		if (!ne2k_flags) printk(" (8bit)");
 		ne2k_flags = ETHF_8BIT_BUS; 	/* Forced 8bit */
+	} else if (net_flags&ETHF_16BIT_BUS) {
+		ne2k_flags = 0;	/* no other flags set yet */
+		printk(" (16bit)");
 	}
 	if (!(ne2k_flags&ETHF_8BIT_BUS))
 		netif_stat.oflow_keep = 3;	// Experimental: use 3 if 16k buffer

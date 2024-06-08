@@ -1003,13 +1003,13 @@ ne2k_get_hw_addr:
 	mov     4(%bp),%di
 
 	// Effectively a soft reset of the NIC, required in order to get access to the
-	// address PROM. The PROM is 16 bytes, we get 32 back if reading in word mode,
-	// the upper byte of each word is garbage. The MAC address is in the first 6 bytes.
+	// address PROM. The PROM is 16 or 32 bytes depending on the bus widths. We read
+	// it in word mode and always get 32 back.
+	// The MAC address is in the first 6 bytes.
 	// The remaining 10 bytes sometimes identify the card type. The PROM content from 
 	// an 8 bit Weird Electronics (RTL8019AS) card looks like this:
 	// 001f1102602d49534138455448204242, the last 10 bytes being 'ISA8ETH BB'.
-	// Many 16 bit cards have 0x57 in the last 2 bytes, supposedly indicating
-	// 'true ne2k clones'.
+	// The BB means it's an 8bit card, WW would indicate 16bit bus support.
 
 w_reset:
 	call	ne2k_base_init	// basic initialization
@@ -1050,7 +1050,7 @@ w_reset:
 //		0 -> clear input buffer	and reset the NIC
 //		1 -> keep the oldest (next-to-read) packet, always safe
 //		2 and higher: delete this # of packets from the end (BOUNDARY)
-//		towards the head. In 8bit/4k mode, >1 doesn't make much sense.
+//		towards the head. In 8bit/8k mode, >1 doesn't make much sense.
 //	The defaults are set in the _intr routine in the .c part of the driver,
 //	typically 3 if the buffer is 16k, 1 or 0 if lower.
 //
