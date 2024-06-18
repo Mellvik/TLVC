@@ -56,6 +56,7 @@ struct netif_stat {
 #define ETHF_16K_BUF	0x02	/* Force 16k NIC buffer */
 #define ETHF_32K_BUF	0x03	/* Force 32k NIC buffer */
 #define ETHF_4K_BUF	0x04	/* Force  4k NIC buffer */
+#define ETHF_BUF_MASK	0x07	/* mask for all buffer sizes */
 #define ETHF_8BIT_BUS	0x10	/* Force  8 bit bus */
 #define ETHF_16BIT_BUS 	0x20	/* Force 16 bit bus */
 #define ETHF_USE_BNC	0x08	/* Use BNC connection */
