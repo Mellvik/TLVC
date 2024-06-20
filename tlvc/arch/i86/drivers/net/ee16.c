@@ -345,7 +345,10 @@ static int INITPROC ee16_hw_probe(void)
 	word_t *mac = (word_t *)&netif_stat.mac_addr;
 	byte_t *mac_addr = (byte_t *)mac;
 	unsigned int i;
-	unsigned short mval, xsum = 0;
+	unsigned short xsum = 0;
+#ifdef USE_EEPROM_SHM_CFG  
+	unsigned short mval;
+#endif
 
 	printk("eth: %s at 0x%x, irq %d", dev_name, ioaddr, net_irq);
 	outb(ASIC_RST, ioaddr+EEPROM_Ctrl);
@@ -363,7 +366,9 @@ static int INITPROC ee16_hw_probe(void)
 	hw_addr[0] = ee16_hw_readeeprom(ioaddr,2);
 	hw_addr[1] = ee16_hw_readeeprom(ioaddr,3);
 	hw_addr[2] = ee16_hw_readeeprom(ioaddr,4);
+#ifdef USE_EEPROM_SHM_CFG
 	mval = ee16_hw_readeeprom(ioaddr,6) & 0xff;	/* shared mem config */
+#endif
 
 #ifdef NOT_USEFUL
 	/* Address validity check - Standard Address or Compaq LTE Address */
@@ -375,6 +380,8 @@ static int INITPROC ee16_hw_probe(void)
 	}
 	printk("|%04x%04x%04x|", hw_addr[2], hw_addr[1], hw_addr[0]);
 #endif
+	if (!(hw_addr[0]+hw_addr[1]+hw_addr[2]))
+		return -ENODEV;
 	/*
 	 * Calculate the EEPROM checksum.  Carry on anyway if it's bad,
 	 * though.
@@ -522,7 +529,7 @@ void INITPROC ee16_drv_init(void) {
 		found++;
 		eths[ETH_EE16].stats = &netif_stat;
 	} else
-		printk("ee16: not found\n");
+		printk(" not found\n");
 
 }
 
