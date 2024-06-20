@@ -111,6 +111,7 @@
 /* Intel EtherExpress 16, ee16.c */
 #define EE16_PORT	0x360
 #define EE16_IRQ	11
+#define EE16_RAM	0xC800		/* Beware: if present, shared mem will be activated */
 #define EE16_FLAGS	0x80
 
 /* bioshd.c*/

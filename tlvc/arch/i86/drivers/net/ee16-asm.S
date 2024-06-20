@@ -20,8 +20,8 @@
 	.text
 
 //-----------------------------------------------------------------------------
-// Read data from port
-// Handles words only, count is words
+// Read data into process memory from port
+// Handles words only - for now. Count is bytes
 //-----------------------------------------------------------------------------
 // void ee16_insw(int port, char *data, int count)
 //
@@ -35,17 +35,20 @@ ee16_insw:
 	push	%es
 
 	mov	4(%di),%dx	// Port
-	mov	8(%di),%cx	// length (words)
+	mov	8(%di),%cx	// byte count
 	mov	6(%di),%di	// Buffer pointer
 
-        mov     current,%bx
-        mov     TASK_USER_DS(%bx),%es	// destination segment = user process
+	inc	%cx
+	shr	%cx		// make word count
+	cld
+        mov	current,%bx
+        mov	TASK_USER_DS(%bx),%es	// destination segment = user process
 	//cli
 
 word_loop:
-        in      %dx,%ax
+        in	%dx,%ax
         stosw
-        loop    word_loop
+        loop	word_loop
 
 	//sti
         pop     %es
@@ -55,27 +58,26 @@ word_loop:
 
 
 //-----------------------------------------------------------------------------
-// Write data to port
+// Write data buffer to port
 // Words only - will not work bit 8bit bus for now
 //-----------------------------------------------------------------------------
-// void ee16_sendpk(int port, char *data, int count)
+// void ee16_outsw(int port, char *data, seg_t seg, int count)
 //
 
-	.global ee16_sendpk
+	.global ee16_outsw
 
-ee16_sendpk:
+ee16_outsw:
         push    %si
 	mov	%sp,%si
 	push	%ds
 
 	mov	4(%si),%dx	// Port
-        mov     8(%si),%cx      // byte count
-        mov     6(%si),%si      // buffer addr
+        mov     10(%si),%cx	// byte count
+	lds	6(%si),%si	// buf -> %si, seg -> %ds
 
 	inc	%cx
 	shr	%cx		// make word count
-	mov     current,%bx	// setup for far memory xfer
-	mov     TASK_USER_DS(%bx),%ds
+	cld
 	//cli
 
 wr_loop:

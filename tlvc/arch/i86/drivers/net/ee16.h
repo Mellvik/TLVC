@@ -2,11 +2,12 @@
  * ee16.h: Intel EtherExpress16 defines
  * Lifted from Linux, adapted to TLVC by @mellvik May-24
  */
-#define ETH_FRAME_LEN	1518		/* Max. octets in frame inc FCS */
+#define ETH_FRAME_LEN	1518		/* Max. octets in frame, 1500+14+4 */
 #define COMMON_CMD_SIZE	6		/* size of non-data commands */
 #define NOP_CMD_SIZE COMMON_CMD_SIZE
 #define XMIT_CMD_SIZE	22		/* includes BD, 8 bytes */
 #define MEM_CTRL_FMCS16 0x10		/* from NetBSD driver, for mem mapping */
+#define RX_CMD_SIZE	32		/* RFD + BD */
 /*
  * EtherExpress card register addresses
  * as offsets from the base IO port address, like 0x320
@@ -32,13 +33,12 @@
 #define SIRQ_en       0x08
 #define SIRQ_dis      0x00
 /* EEPROM_Ctrl */
-#define EC_Clk        0x01
-#define EC_CS         0x02
-#define EC_Wr         0x04
-#define EC_Rd         0x08
-#define ASIC_RST      0x40
-#define i586_RST      0x80
-#define eeprom_delay() { udelay(40); }
+#define EC_Clk        0x01	/* EEPROM clock bit */
+#define EC_CS         0x02	/* EEPROM Chip Select */
+#define EC_Wr         0x04	/* EEPROM data-in bit */
+#define EC_Rd         0x08	/* EEPROM data-out bit */
+#define ASIC_RST      0x40	/* ASIC reset pin */
+#define i586_RST      0x80	/* i82586 reset pin */
 
 /*
  * i82586 Memory Configuration
@@ -50,7 +50,8 @@
 /* System Command Block */
 #define SCB_START 0x0008
 
-/* Start of buffer region.  Everything before this is used for control
+/*
+ * Start of buffer region.  Everything before this is used for control
  * structures and the CU configuration program.  The memory layout is
  * determined in ee16_hw_probe(), once we know how much memory is
  * available on the card.
@@ -62,12 +63,17 @@
 /*
  * SCB defines
  */
+#define ACK_complete	0x8000
+#define ACK_rxdframe	0x4000
+#define ACK_CUstopped	0x2000
+#define ACK_RUstopped	0x1000
 /* these functions take the SCB status word and test the relevant status bit */
 #define SCB_complete(s) (((s) & 0x8000) != 0)
 #define SCB_rxdframe(s) (((s) & 0x4000) != 0)
 #define SCB_CUdead(s)   (((s) & 0x2000) != 0)
 #define SCB_RUdead(s)   (((s) & 0x1000) != 0)
 #define SCB_ack(s)      ((s) & 0xf000)
+#define SCB_actioncmd(s)      ((s) & 0xf000)
 /* Command unit status: 0=idle, 1=suspended, 2=active */
 #define SCB_CUstat(s)   (((s)&0x0300)>>8)
 /* Receive unit status: 0=idle, 1=suspended, 2=out of resources, 4=ready */
@@ -85,6 +91,12 @@
 #define SCB_RUsuspend   0x0030
 #define SCB_RUabort     0x0040
 
+/*
+ * Config register bits
+ */
+#define Cfg_Loopback	0x02	/* enable loopback */
+#define Cfg_EnaMCS16	0x80	/* enable memcs16 select test */
+				/* NOTE: Never set when reading cfg reg! */
 /*
  * Command block defines
  */
