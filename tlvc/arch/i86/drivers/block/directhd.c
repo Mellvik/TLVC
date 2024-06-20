@@ -81,7 +81,7 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 //#define USE_INTERRUPTS		/* EXPERIMENTAL - test interrupts */
 				/* cannot work with XT/IDE, XT/CF */
 #define OLD_IDE_DELAY 1000	/* delay required for old drives, system dependent */
-#define DEBUG
+//#define DEBUG
 
 //#define USE_LOCALBUF		/* For debugging: use local bounce buffer instead of */
 				/* direct buffer io via far pointers.
@@ -207,7 +207,7 @@ void insw(unsigned int port, word_t *buffer, int count)
     byte_t *buf = (byte_t *)buffer;
 #else
     word_t *buf = buffer;
-    count >>= 1;
+    count = (count+1)>>1;
 #endif
     //printk("insw %x,%x,%d;", port, buf, count);
     do {
@@ -250,12 +250,12 @@ void outsw(unsigned int port, word_t *buffer, int count)
     byte_t *buf = (byte_t *)buffer;
 #else
     word_t *buf = buffer;
-    count >>= 1;
+    count = (count+1) >> 1;
 #endif
     //printk("%04x:", buffer);
-    for (i = 0; i < count; i++) {
-	OUTBW(buffer[i], port);
-    }
+    for (i = 0; i < count; i++)
+	OUTBW(buf[i], port);
+
     return;
 }
 #endif
@@ -270,13 +270,12 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
     } else 
 #endif
     {
-
 	//printk("%x,%x,%x,%lx,%d;", port, buffer, seg, locbuf, count);
 #ifdef CONFIG_HW_PCXT
 	byte_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
 #else
 	word_t __far *locbuf = _MK_FP(seg, (unsigned)buffer);
-	count >>= 1;
+	count = (count+1) >> 1;
 #endif
 	do {
 	    OUTBW(*locbuf++, port);

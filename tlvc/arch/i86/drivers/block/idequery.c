@@ -72,15 +72,15 @@ static void INITPROC dump_ide(word_t *buffer, int size) {
 int INITPROC get_ide_data(int drive, struct drive_infot *drive_info) {
 
 	word_t port = io_ports[drive >> 1];
-	int retval = 0, i;
+	int retval = 0, i, timeout = 10000;
 
 	word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
 
 	out_hd(drive, IDE_DRIVE_ID);
-    	while (WAITING(port));
+    	while (WAITING(port) && timeout--);
 
 	i = STATUS(port);
-	if (!i || (i & 1) == 1) {
+	if (!timeout || !i || (i & 1) == 1) {
 		/* Error - drive not found or non-IDE.
 		 * NOTE: If drive # is 2 (i.e. 2nd controller), there may be a drive 3
 		 * (slave) even if drive 2 (the master) is missing. 
