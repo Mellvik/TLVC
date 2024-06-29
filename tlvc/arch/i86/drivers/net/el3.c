@@ -103,7 +103,7 @@ static void update_stats(void);
 void el3_sendpk(int, char *, int);
 void el3_insw(int, char *, int);
 
-extern void el3_mdelay(int);
+extern void el3_udelay(int);
 extern struct eth eths[];
 
 /* Maximum events (Rx packets, etc.) to handle at each interrupt. */
@@ -141,6 +141,7 @@ struct file_operations el3_fops =
 
 void INITPROC el3_drv_init(void) {
 
+	ioaddr = net_port;
 	if (!net_port) {
 		printk("el3: ignored\n");
 		return;
@@ -235,7 +236,7 @@ static word_t read_eeprom(int addr, int index)
 	outw(EEPROM_READ + index, addr + 10);
 	/* Pause for at least 162 us. for the read to take place.
 	   Some chips seem to require much longer */
-	el3_mdelay(200);
+	el3_udelay(200);
 	return inw(addr + 12);
 }
 #endif
@@ -251,7 +252,7 @@ static word_t id_read_eeprom(int index)
 
 	/* Pause for at least 162 us. for the read to take place. */
 	/* Some chips seem to require much longer */
-	el3_mdelay(400);
+	el3_udelay(400);
 
 	for (bit = 15; bit >= 0; bit--)
 		word = (word << 1) + (inb(el3_id_port) & 0x01);
@@ -314,7 +315,7 @@ static size_t el3_write(struct inode *inode, struct file *file, char *data, size
 #endif
 		// FIXME - may not be needed. Maybe trust interrupts ...
 		//while (inb(ioaddr + EL3_STATUS) & CmdBusy) 
-			//el3_mdelay(1);		// Wait - for now, to avoid collision
+			//el3_udelay(1);		// Wait - for now, to avoid collision
 
 		res = len;
 		outw(SetIntrEnb | active_imask, ioaddr + EL3_CMD);	// Reenable interrupts
@@ -371,7 +372,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 					// FIXME: Doesn't seem to be a problem, delete printk later
 				
 					printk("eth: RX discard wait (%x)\n", err);
-					el3_mdelay(1);
+					el3_udelay(1);
 				}
 			} else {
 				wake_up(&rxwait);
@@ -562,7 +563,7 @@ static size_t el3_read(struct inode *inode, struct file *filp, char *data, size_
 			while ((res = inw(ioaddr + EL3_STATUS) & 0x1000)) {
 				/// FIXME: printk to be removed	later, seems stable
 				printk("eth: RD discard delay (%x)\n", res);
-				el3_mdelay(1);
+				el3_udelay(1);
 			}
 			res = -EIO;
 		} else {
@@ -600,7 +601,7 @@ static void el3_down( void )
 	if (!(net_flags&ETHF_USE_AUI)) {
 		EL3WINDOW(4);
 		outw(inw(ioaddr + WN4_MEDIA) & ~MEDIA_TP, ioaddr + WN4_MEDIA);
-		el3_mdelay(500);
+		el3_udelay(500);
 	}
 #endif
 
@@ -635,7 +636,7 @@ static int el3_open(struct inode *inode, struct file *file)
 	/* Set the IRQ line. */
 	outw((net_irq << 12), ioaddr + WN0_IRQ);
 
-	//printk("el3: IOBASE %x\n", inw(ioaddr + WN0_ADDR_CONF) & 0xf);
+	//printk("el3: IOBASE %x, IRQ %d allocated\n", inw(ioaddr + WN0_ADDR_CONF) & 0xf, net_irq);
 
 	/* Set the station address in window 2 each time opened. */
 	EL3WINDOW(2);
@@ -660,7 +661,7 @@ static int el3_open(struct inode *inode, struct file *file)
 	if (!(net_flags & ETHF_USE_AUI)) {
 		EL3WINDOW(4);
 		outw(inw(ioaddr + WN4_MEDIA) | MEDIA_TP, ioaddr + WN4_MEDIA);
-		el3_mdelay(1000);
+		el3_udelay(1000);
 	}
 
 	EL3WINDOW(1);
@@ -792,6 +793,10 @@ int el3_select(struct inode *inode, struct file *filp, int sel_type)
 		
 		case SEL_IN:
 
+			el3_udelay(300);	/* experimental delay to increase speed of */
+						/* outward ftp transfers. May need different
+						 * values on different machines */ 
+						/* '300' quadruples the speed on a 40MHz 386SX system */
 			// Don't use RxComplete for this test, it has been masked out!
 			if (inw(ioaddr+RX_STATUS) & 0x8000) {
 				//printk("s%x", inw(ioaddr+RX_STATUS));

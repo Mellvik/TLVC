@@ -91,16 +91,16 @@ wr_loop:
 	ret
 
 //-------------------------------------------------
-	.global el3_mdelay
+	.global el3_udelay
 
-el3_mdelay:
+el3_udelay:
 
 	push	%bp
 	mov	%sp,%bp
 	mov	4(%bp),%cx	// count
-mdly_loop:
+udly_loop:
 	outb	$0x80		// presumably approx 1us
-	loop	mdly_loop
+	loop	udly_loop
 
 	pop	%bp
 	ret
