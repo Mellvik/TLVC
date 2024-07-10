@@ -12,7 +12,6 @@
 */
 
 #include <arch/io.h>
-#include <arch/ports.h>
 #include <arch/segment.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/major.h>
@@ -112,9 +111,9 @@ static int max_interrupt_work = 5;
 /* runtime configuration set in /bootopts or defaults in ports.h */
 #define net_irq     (netif_parms[ETH_EL3].irq)
 #define net_port    (netif_parms[ETH_EL3].port)
-#define net_ram     (netif_parms[ETH_EL3].ram)
 #define net_flags   (netif_parms[ETH_EL3].flags)
-static int ioaddr;	// FIXME  remove later
+
+static int ioaddr;
 static word_t el3_id_port;
 static unsigned char found;
 
@@ -139,10 +138,11 @@ struct file_operations el3_fops =
     el3_release
 };
 
-void INITPROC el3_drv_init(void) {
+void INITPROC el3_drv_init(void)
+{
 
 	ioaddr = net_port;
-	if (!net_port) {
+	if (!ioaddr) {
 		printk("el3: ignored\n");
 		return;
 	}
@@ -159,11 +159,11 @@ void INITPROC el3_drv_init(void) {
 
 }
 
-static int INITPROC el3_find_id_port (void) {
-
-	for ( el3_id_port = EP_ID_PORT_START ;
-	      el3_id_port < EP_ID_PORT_END ;
-	      el3_id_port += EP_ID_PORT_INC ) {
+static int INITPROC el3_find_id_port(void)
+{
+	for (el3_id_port = EP_ID_PORT_START;
+	     el3_id_port < EP_ID_PORT_END;
+	     el3_id_port += EP_ID_PORT_INC) {
 		outb(0, el3_id_port);
 		/* See if anything's listening */
 		outb(0xff, el3_id_port);
@@ -328,9 +328,9 @@ static size_t el3_write(struct inode *inode, struct file *file, char *data, size
 	A note about TLVC, EL3 and Interrupts
 	TLVC does not service network interrupts as they arrive. Instead, when the application calls the
 	driver, the status is checked and a read initiated if data is ready - or a write is initiated if 
-	the interface is ready. Otherwise the application is but to sleep, to be awakened by the wake_up
+	the interface is ready. Otherwise the application is put to sleep, to be awakened by the wake_up
 	calls from the driver. A more traditional approach is to act on the cause of an interrupt 
-	- e.g. transfer an arrived packet into a buffer, immediately.
+	- e.g. transfer received packets into a buffer immediately.
 	The 3Com 3C509 family of NICs expect the latter, and the RxComplete and RxEarly interrupt status
 	bits can only be reset by emptying the NIC's FIFO.
 	In order to get this scheme to work with TLVC, we mask off the RxComplete interrupt immediately 
@@ -793,11 +793,7 @@ int el3_select(struct inode *inode, struct file *filp, int sel_type)
 		
 		case SEL_IN:
 
-			el3_udelay(300);	/* experimental delay to increase speed of */
-						/* outward ftp transfers. May need different
-						 * values on different machines */ 
-						/* '300' quadruples the speed on a 40MHz 386SX system */
-			// Don't use RxComplete for this test, it has been masked out!
+			/* Don't use the RxComplete intr for this test, it has been masked out! */
 			if (inw(ioaddr+RX_STATUS) & 0x8000) {
 				//printk("s%x", inw(ioaddr+RX_STATUS));
 				select_wait(&rxwait);

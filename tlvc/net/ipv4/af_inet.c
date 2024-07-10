@@ -368,14 +368,14 @@ static int inet_write(register struct socket *sock, char *ubuf, int size,
 
 	if (ret < 0) {
             if (ret == -ERESTARTSYS) {
-		/* delay process 100ms*/
+		/* delay process 100ms - shortening this */
+		/* may cause deadlock on fast systems (hs) */
 		current->state = TASK_INTERRUPTIBLE;
 		current->timeout = jiffies + (HZ / 10); /* 1/10 sec = 100ms*/
                 schedule();
             } else
                 return ret;
-        }
-        else {
+        } else {
 	    count -= usize;
 	    ubuf += usize;
 	}

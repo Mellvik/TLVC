@@ -457,7 +457,7 @@ void tcp_reject(struct iphdr_s *iph) {
 
 	tcph = (struct tcphdr_s *)(((char *)iph) + 4 * IP_HLEN(iph));
 	seqno = ntohl(tcph->seqnum);
-	printf("tcp: refusing packet from %s:%u to :%u fl 0x%02x\n", in_ntoa(iph->saddr),
+	debug_tcp("tcp: refusing packet from %s:%u to :%u fl 0x%02x\n", in_ntoa(iph->saddr),
 		ntohs(tcph->sport), ntohs(tcph->dport), tcph->flags);
 
 	/* Dummy up a new control block and send RST to shutdown sender */
