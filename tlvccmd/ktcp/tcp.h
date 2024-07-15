@@ -31,7 +31,7 @@
 
 /* max outstanding send window size*/
 #define TCP_SEND_WINDOW_MAX	1536	/* should be less than TCP_RETRANS_MAXMEM*/
-					/* was 1024 */
+					/* was 1024, then 1536 which works fine */
 
 /* threshold to wait before pushing data to application (turned off for now) */
 //#define PUSH_THRESHOLD	512
@@ -39,10 +39,11 @@
 /* timeout values in 1/16 seconds, or (seconds << 4). Half second = 8 */
 #define TIMEOUT_ENTER_WAIT	(4<<4)	/* TIME_WAIT state (was 30, then 10) */
 #define TIMEOUT_CLOSE_WAIT	(10<<4)	/* CLOSING/LAST_ACK/FIN_WAIT states (was 240) */
-#define TIMEOUT_INITIAL_RTT	(1<<4)	/* initial RTT before retransmit (was 4) */
+#define TIMEOUT_INITIAL_RTT	4	/* initial RTT before retransmit (was 4, then 1<<4) */
 #define TCP_RETRANS_MAXWAIT	(4<<4)	/* max retransmit wait (4 secs) */
 #define TCP_RETRANS_MINWAIT_SLIP 8	/* min retrans timeout for slip/cslip (1/2 sec) */
 #define TCP_RETRANS_MINWAIT_ETH	4	/* min retrans timeout for ethernet (1/4 sec) */
+#define TCP_RETRANS_ADJUST	2	/* retrans timeout multiplicator for slow peers */
 
 /* retransmit settings*/
 #define TCP_RTT_ALPHA			90
@@ -122,7 +123,10 @@ struct tcpcb_s {
 
 	__u8	state;
 	__u8	unaccepted;		/* boolean */
+	__u8	sndwin_loop;		/* loop count waiting for space in retrans buffer */
+	__u8	peer_speed;		/* peer speed index, for throttling retrans */
 	timeq_t	rtt;			/* in 1/16 secs*/
+	//__u16	retrns_cnt;		/* # of packets in retrans buffer */
 
 	__u32	time_wait_exp;
 	//__u16	wait_data;
