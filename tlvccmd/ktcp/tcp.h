@@ -30,23 +30,24 @@
 #define USE_SWS			0	/* =1 to use silly window algorithm */
 
 /* max outstanding send window size*/
-#define TCP_SEND_WINDOW_MAX	1024	/* should be less than TCP_RETRANS_MAXMEM*/
+#define TCP_SEND_WINDOW_MAX	1536	/* should be less than TCP_RETRANS_MAXMEM*/
+					/* was 1024 */
 
 /* threshold to wait before pushing data to application (turned off for now) */
 //#define PUSH_THRESHOLD	512
 
-/* timeout values in 1/16 seconds, or (seconds << 4). Half second = 8*/
-#define TIMEOUT_ENTER_WAIT	(4<<4)	/* TIME_WAIT state (was 30, then 10)*/
-#define TIMEOUT_CLOSE_WAIT	(10<<4)	/* CLOSING/LAST_ACK/FIN_WAIT states (was 240)*/
-#define TIMEOUT_INITIAL_RTT	(1<<4)	/* initial RTT before retransmit (was 4)*/
-#define TCP_RETRANS_MAXWAIT	(4<<4)	/* max retransmit wait (4 secs)*/
-#define TCP_RETRANS_MINWAIT_SLIP 8	/* min retrans timeout for slip/cslip (1/2 sec)*/
-#define TCP_RETRANS_MINWAIT_ETH	4	/* min retrans timeout for ethernet (1/4 sec)*/
+/* timeout values in 1/16 seconds, or (seconds << 4). Half second = 8 */
+#define TIMEOUT_ENTER_WAIT	(4<<4)	/* TIME_WAIT state (was 30, then 10) */
+#define TIMEOUT_CLOSE_WAIT	(10<<4)	/* CLOSING/LAST_ACK/FIN_WAIT states (was 240) */
+#define TIMEOUT_INITIAL_RTT	(1<<4)	/* initial RTT before retransmit (was 4) */
+#define TCP_RETRANS_MAXWAIT	(4<<4)	/* max retransmit wait (4 secs) */
+#define TCP_RETRANS_MINWAIT_SLIP 8	/* min retrans timeout for slip/cslip (1/2 sec) */
+#define TCP_RETRANS_MINWAIT_ETH	4	/* min retrans timeout for ethernet (1/4 sec) */
 
 /* retransmit settings*/
 #define TCP_RTT_ALPHA			90
-#define TCP_RETRANS_MAXMEM		4096	/* max retransmit total memory*/
-#define TCP_RETRANS_MAXTRIES		6	/* max # retransmits (~12 secs total)*/
+#define TCP_RETRANS_MAXMEM		5120	/* max retransmit total memory (was 4096) */
+#define TCP_RETRANS_MAXTRIES		6	/* max # retransmits (~12 secs total) */
 
 #define SEQ_LT(a,b)	((long)((a)-(b)) < 0)
 #define SEQ_LEQ(a,b)	((long)((a)-(b)) <= 0)

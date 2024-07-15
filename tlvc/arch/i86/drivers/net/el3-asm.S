@@ -1,5 +1,5 @@
 //
-// Low level routines for ELKS EtherLink III ethernet driver (3c509)
+// Low level routines for ELKS/TLVC EtherLink III ethernet driver (3c509)
 //
 // Helge Skrivervik (@mellvik) june 2022
 //
@@ -17,7 +17,7 @@
 	.text
 
 //-----------------------------------------------------------------------------
-// Read data from port
+// Read data from port to buffer in user-task data segment
 //-----------------------------------------------------------------------------
 // void el3_insw(int port, char *data, int count)
 //
@@ -51,7 +51,7 @@ word_loop:
 
 
 //-----------------------------------------------------------------------------
-// Write data to port
+// Write data from buffer in user data segment to port 
 //-----------------------------------------------------------------------------
 // void el3_sendpk(int port, char *data, int count)
 //

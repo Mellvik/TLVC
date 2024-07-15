@@ -290,9 +290,11 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
     memcpy(n->tcphdr, th, len);
     memcpy(&n->apair, apair, sizeof(struct addr_pair));
     n->retrans_num = 0;
-    n->first_trans = Now;
 
     n->rto = cb->rtt << 1;			/* set retrans timeout to twice RTT*/
+    if (cb->rtt > 2) n->rto <<= 1;		/* if the peer is very slow or heavily loaded,
+						 * give it a break instead of pouring out
+						 * retransmits. (hs) */
     if (linkprotocol == LINK_ETHER) {
 	if (n->rto < TCP_RETRANS_MINWAIT_ETH)
 	    n->rto = TCP_RETRANS_MINWAIT_ETH;	/* 1/4 sec min retrans timeout on ethernet*/
@@ -300,6 +302,7 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 	if (n->rto < TCP_RETRANS_MINWAIT_SLIP)
 	    n->rto = TCP_RETRANS_MINWAIT_SLIP;	/* 1/2 sec min retrans timeout on slip/cslip*/
     }
+    n->first_trans = Now;
     n->next_retrans = Now + n->rto;
     //cb->rtrns++;		// count # of outstanding pkts per cb
 }

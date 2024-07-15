@@ -6,18 +6,12 @@
 */
 /*
  * TODO:
- * - Fix and test 8bit bus functionality
- * - More testing with 16k, currently seems to work fine with both PIO and shmem,
- *   shmem is slightly (4-5%) faster.
+ * - Fix and test 8bit bus functionality (low pri)
  * - There are still occasional hangs in probe() when changing from shmem to pio mode
  *   w/o powercycling (ie. via /bootopts and reboot)
  * - Much of the error handling code is untested as it's hard to get errors to happen in 
  *   protected environments. This also applied to the CUwedged recovery code.
  *
- */
-
-/*
- * Developer notes:
  */
 
 /* Here's the scoop on memory mapping 	(in verbatim from the Linux driver )
@@ -52,7 +46,6 @@
  */
 
 #include <arch/io.h>
-#include <arch/ports.h>
 #include <arch/segment.h>
 #include <linuxmt/memory.h>
 #include <linuxmt/errno.h>
@@ -278,7 +271,7 @@ static unsigned short SHADOW(unsigned short addr) {
  * The NetBSD driver is smart about this, setting an async flag whenever possible.
  * FIXME!!
  */
-#define CMD_CLEAR_TIMEOUT 40	/* approx .8 seconds */
+#define CMD_CLEAR_TIMEOUT ((HZ/10)*8)	/* approx .8 seconds */
 
 static void ee16_cmd_clear(unsigned int ioaddr)
 {
@@ -350,7 +343,7 @@ static int INITPROC ee16_hw_probe(void)
 	unsigned short mval;
 #endif
 
-	printk("eth: %s at 0x%x, irq %d", dev_name, ioaddr, net_irq);
+	printk("eth: %s at 0x%x, irq %d, (%s)", dev_name, ioaddr, net_irq, model_name);
 	outb(ASIC_RST, ioaddr+EEPROM_Ctrl);
 	outb(0, ioaddr+EEPROM_Ctrl);
 	ee16_udelay(5000);
@@ -421,13 +414,6 @@ static int INITPROC ee16_hw_probe(void)
 								 * setting is wrong.
 								 */
 	}
-#ifdef USE_EEPROM_SHM_CFG
- 	if (verbose) printk(" (HWconf: IRQ %d, %s, %d-bit bus, shmem 0x%x)", irq,
- 		ee16_ifmap[conn], (netif_stat.if_status&ETHF_8BIT_BUS)?8:16, mval);
-#else
- 	if (verbose) printk(" (HWconf: IRQ %d, %s, %d-bit bus)", irq,
- 		ee16_ifmap[conn], (netif_stat.if_status&ETHF_8BIT_BUS)?8:16);
-#endif
 
 	/* Find out how much RAM we have on the card 
 	 * (don't trust the eeprom shared mem size for this).
@@ -457,10 +443,9 @@ static int INITPROC ee16_hw_probe(void)
 	num_tx_bufs = memory_size >> 3;	/* must be >=3 for the restartCU regime to work */
 
 	if (memory_size < 16 || memory_size > 64) {
-		printk(", bad memory size (%dk).\n", memory_size);
+		printk("\n%s: bad memory size (%dk).\n", dev_name, memory_size);
 		return -ENODEV;
-	} else
-		printk(", %dk RAM\n", memory_size);
+	}
 	rx_buf_end = (memory_size<<10) - 0xa;
 
 	pio_mode = 1;
@@ -476,7 +461,7 @@ static int INITPROC ee16_hw_probe(void)
 	 */
 
 	if (!net_ram) {	/* forced pio mode */
-		if (verbose) printk("eth: no shared mem, using PIO mode\n");
+		if (verbose) printk(", using PIO mode\n");
 	} else {
 		unsigned short pg = 2;	/* 2 for c800, 4 for d000 */
 		unsigned short adjust, decode, edecode;
@@ -487,7 +472,7 @@ static int INITPROC ee16_hw_probe(void)
 			pg = 4;
 		}
 		shmem = _MK_FP(shmem_seg, 0);
-		if (verbose) printk("eth: using shared mem at 0x%x (%lx)\n", shmem_seg, (long) shmem);
+		//if (verbose) printk("eth: using shared mem at 0x%x (%lx)\n", shmem_seg, (long) shmem);
 		pio_mode = 0;
 		if (memory_size < 32)
 			printk("eth: Warning - shmem mode may be unstable with memory < 32k!\n");
@@ -499,20 +484,20 @@ static int INITPROC ee16_hw_probe(void)
 		outb(adjust, ioaddr + MEM_Ctrl);
 		outb((~decode & 0xFF), ioaddr + MEM_Page_Ctrl);
 		outb(edecode, ioaddr + MEM_ECtrl);	/* Clear 0xe0000 */
-
-#ifdef TEST_SHMEM
-		*shmem=0xa5a5;
-		shmem[1] = 0x5a5a;
-		shmem[0x80] = 0x5a5a;
-		unsigned short *k = 0x100;
-		fmemsetw(k, shmem_seg, 0xa000, (TX_BUF_SIZE*num_tx_bufs)/2);
-		printk("test shared memory: %x %x\n", *shmem, *(shmem+TX_BUF_SIZE-1));
-#endif
 	}
 
-	printk("eth: %s (%s) on MAC %02x", dev_name, model_name, (mac_addr[0]&0xff));
+	printk(" MAC %02x", (mac_addr[0]&0xff));
 	i = 1;  
 	while (i < 6) printk(":%02x", (mac_addr[i++]&0xff));
+#ifdef USE_EEPROM_SHM_CFG
+ 	if (verbose) printk(" (HWconf: IRQ %d, %s, %d-bit bus, shmem 0x%x)\n\t", irq,
+ 		ee16_ifmap[conn], (netif_stat.if_status&ETHF_8BIT_BUS)?8:16, mval);
+#else
+ 	if (verbose) printk(" (HWconf: IRQ %d, %s, %d-bit bus)\n\t", irq,
+ 		ee16_ifmap[conn], (netif_stat.if_status&ETHF_8BIT_BUS)?8:16);
+#endif
+	printk(" %dk RAM", memory_size);
+	if (net_ram) printk(" (shmem 0x%4x)", shmem_seg);
 	printk(", flags 0x%x\n", net_flags); 
 
 	return 0;
@@ -521,7 +506,7 @@ static int INITPROC ee16_hw_probe(void)
 void INITPROC ee16_drv_init(void) {
 
 	if (!net_port) {
-		printk("ee16: no port, ignored\n");
+		printk("ee16: no port configured, ignored\n");
 		return;
 	}
 	verbose = !!(net_flags&ETHF_VERBOSE);
@@ -680,8 +665,6 @@ static void ee16_int(int irq, struct pt_regs *regs)
 
 #if NET_DEBUG == 2
 	printk("ee0 int %x;", status);
-#elif NET_DEBUG
-	kputchar('I');
 #endif
 	if (dev_started == (STARTED_CU | STARTED_RU)) {
 		kputchar('>');
@@ -805,7 +788,6 @@ static size_t ee16_read(struct inode *inode, struct file *filp, char *data, size
 			}
 		}
 
-		kputchar('^');
 		if ((res = ee16_get_packet(data, len)) <= 0) {
 			printk("%s: Network read error (%d)\n", dev_name, res);
 			res = -EIO;
@@ -880,7 +862,6 @@ static int ee16_ioctl(struct inode *inode, struct file *file, unsigned int cmd, 
 int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 {       
 	int res = 0;
-	unsigned rx_status;
 	
 #if NET_DEBUG > 1
 	printk("S%d/%d/%x;", sel_type, tx_avail, tx_head-tx_reap);
@@ -897,9 +878,6 @@ int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 		
 		case SEL_IN:
 
-			rx_status = peek_buffer(rx_ptr);	/* KLUDGE to speed up file transfers */
-			if (!FD_Done(rx_status)) ee16_udelay(700);
-
 			if (!FD_Done(peek_buffer(rx_ptr))) {	// data in NIC buffer??
 #if NET_DEBUG > 1
 				printk("SrxW;");
@@ -908,6 +886,7 @@ int ee16_select(struct inode *inode, struct file *filp, int sel_type)
 				select_wait(&rxwait);
 				break;
 			}
+			kputchar('w');
 			res = 1;
 			break;
 		
@@ -1419,7 +1398,7 @@ static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 	unsigned short tail = tx_tail; 	/* concurrency protection */
 	unsigned short txcmd[XMIT_CMD_SIZE/2];
 
-#if NET_DEBUG 
+#if NET_DEBUG > 1
 	unsigned short tail_stat = peek_buffer(tx_tail);
 	//unsigned short __far *chks = _MK_FP(current->t_regs.ds, (unsigned)(buf+50));
 	//printk("put: %x/%x/%x/%x(%x)", tx_head, tx_reap, *chks, tail_stat, len);

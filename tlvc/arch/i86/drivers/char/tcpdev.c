@@ -24,6 +24,12 @@
 
 #ifdef CONFIG_INET
 
+#ifdef LOCAL_DEBUG	/* for flow tracing */
+void kputchar(int);
+#else
+#define kputchar(x)
+#endif
+
 unsigned char tdin_buf[TCPDEV_INBUFFERSIZE];	/* for reading tcpdev*/
 unsigned char tdout_buf[TCPDEV_OUTBUFFERSIZE];	/* for writing tcpdev*/
 
@@ -55,15 +61,16 @@ static size_t tcpdev_read(struct inode *inode, struct file *filp, char *data,
 	    return -ERESTARTSYS;
 	}
     }
+    kputchar(',');
 
     /*
      *  If the userspace tcpip stack requests less data than what is in the
      *  buffer it will lose data, so the tcpip stack should read BIG.
      */
-    if (len < tdout_tail)
+    if (len < tdout_tail) {
 	debug_net("TCPDEV(%d) read len too small %u\n", current->pid, len);
 	//printk("TCPDEV read len too small %u (%u)\n", len, tdout_tail);
-    else len = tdout_tail;
+    } else len = tdout_tail;
     memcpy_tofs(data, tdout_buf, len);
     tdout_tail = 0;
     up(&bufout_sem);		/* flag buffer available */
@@ -127,10 +134,13 @@ static int tcpdev_select(struct inode *inode, struct file *filp, int sel_type)
 	break;
     case SEL_IN:
 	debug("TCPDEV(%d) select SEL_IN\n", current->pid);
-	if (tdout_tail != 0)
+	if (tdout_tail != 0) {
+	    kputchar(':');
 	    ret = 1;
-	else
+	} else {
+	    kputchar(';');
 	    select_wait(&tcpdevq);
+	}
 	break;
     default:
 	debug("TCPDEV(%d) select bad type %d\n", current->pid, sel_type);
