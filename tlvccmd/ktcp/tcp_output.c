@@ -278,6 +278,7 @@ void tcp_reoutput(struct tcp_retrans_list_s *n)
 
     ip_sendpacket((unsigned char *)n->tcphdr, n->len, &n->apair, n->cb);
     netstats.tcpretranscnt++;
+    n->cb->retranscnt++;
 }
 
 /* called every ktcp cycle when tcp_timeruse nonzero - check for expired retrans*/
@@ -332,7 +333,7 @@ void tcp_retrans_retransmit(void)
     while (n != NULL) {
 	/* check for retrans time up*/
 	if (TIME_GEQ(Now, n->next_retrans + (long)(n->cb->peer_speed * TCP_RETRANS_ADJUST))) {
-    	    printf("retrans (%d)\n", tcp_timeruse);	/* DEBUG ONLY */
+    	    //printf("retrans (%d,%d)\n", tcp_timeruse, n->len - TCP_DATAOFF(&n->tcphdr[0]));	/* DEBUG */
 	    tcp_reoutput(n);
 	    if (n->retrans_num >= TCP_RETRANS_MAXTRIES) {
 		printf("tcp retrans: max retries exceeded seq %lu unack %lu time %ld\n",
@@ -423,7 +424,7 @@ void tcp_output(struct tcpcb_s *cb)
     apair.daddr = cb->remaddr;
     apair.protocol = PROTO_TCP;
 
-    add_for_retrans(cb, th, len, &apair);
     ip_sendpacket((unsigned char *)th, len, &apair, cb);
+    add_for_retrans(cb, th, len, &apair);
     netstats.tcpsndcnt++;
 }

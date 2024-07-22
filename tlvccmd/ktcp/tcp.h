@@ -39,7 +39,7 @@
 /* timeout values in 1/16 seconds, or (seconds << 4). Half second = 8 */
 #define TIMEOUT_ENTER_WAIT	(4<<4)	/* TIME_WAIT state (was 30, then 10) */
 #define TIMEOUT_CLOSE_WAIT	(10<<4)	/* CLOSING/LAST_ACK/FIN_WAIT states (was 240) */
-#define TIMEOUT_INITIAL_RTT	4	/* initial RTT before retransmit (was 4, then 1<<4) */
+#define TIMEOUT_INITIAL_RTT	(1<<4)	/* initial RTT before retransmit (was 4, then 1<<4) */
 #define TCP_RETRANS_MAXWAIT	(4<<4)	/* max retransmit wait (4 secs) */
 #define TCP_RETRANS_MINWAIT_SLIP 8	/* min retrans timeout for slip/cslip (1/2 sec) */
 #define TCP_RETRANS_MINWAIT_ETH	4	/* min retrans timeout for ethernet (1/4 sec) */
@@ -49,6 +49,8 @@
 #define TCP_RTT_ALPHA			90
 #define TCP_RETRANS_MAXMEM		5120	/* max retransmit total memory (was 4096) */
 #define TCP_RETRANS_MAXTRIES		6	/* max # retransmits (~12 secs total) */
+#define TCP_PEER_INDEX_MAX		20	/* don't let the retrans slowdown get out
+						 *  of hand, use 200 for debugging */
 
 #define SEQ_LT(a,b)	((long)((a)-(b)) < 0)
 #define SEQ_LEQ(a,b)	((long)((a)-(b)) <= 0)
@@ -123,10 +125,10 @@ struct tcpcb_s {
 
 	__u8	state;
 	__u8	unaccepted;		/* boolean */
-	__u8	sndwin_loop;		/* loop count waiting for space in retrans buffer */
+	__u8	sndwin_loop;		/* consecutive loops while waiting for retrans buffer */
 	__u8	peer_speed;		/* peer speed index, for throttling retrans */
 	timeq_t	rtt;			/* in 1/16 secs*/
-	//__u16	retrns_cnt;		/* # of packets in retrans buffer */
+	__u16	retranscnt;		/* # of retranmits for this connection */
 
 	__u32	time_wait_exp;
 	//__u16	wait_data;

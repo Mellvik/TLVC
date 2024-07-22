@@ -240,8 +240,10 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 
     if (h->flags & TF_RST) {
 	/* TODO: Check seqnum for security */
+#if VERBOSE
 	printf("tcp: RST from %s:%u->%u\n",
 	    in_ntoa(cb->remaddr), ntohs(h->sport), ntohs(h->dport));
+#endif
 	rmv_all_retrans_cb(cb);
 
 	if (cb->state == TS_CLOSE_WAIT) {
