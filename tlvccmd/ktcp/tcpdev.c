@@ -388,14 +388,24 @@ static void tcpdev_write(void)
 	debug_tcp("tcp limit: seq %lu size %d maxwnd %u unack %lu rcvwnd %u\n",
 	    cb->send_nxt - cb->iss, size, maxwindow, cb->send_nxt - cb->send_una, cb->rcv_wnd);
 	retval_to_sock(sock, -ERESTARTSYS);	/* source will wait for 100ms, then retry */
+	//write(2, "$", 1);
 	return;
     }
 
+#define RETRANS_LIMIT 7
+    if (cb->retranscnt > RETRANS_LIMIT ) {
+	cb->sndwin_loop += 2;
+	cb->retranscnt = 0;
+    }
     if (cb->sndwin_loop > cb->peer_speed) {    /* Adjust the 'peer performance index' */
+        if (cb->peer_speed < 2) cb->sndwin_loop <<= 1;	/* faster convergence */
 	cb->peer_speed = cb->sndwin_loop;
-	fprintf(stderr, "spd ind %d\n", cb->sndwin_loop);
+	//fprintf(stderr, "spd ind %d\n", cb->sndwin_loop);	/* show the would-be value */
+	if (cb->peer_speed > TCP_PEER_INDEX_MAX)
+		cb->peer_speed = TCP_PEER_INDEX_MAX;
     }
     cb->sndwin_loop = 0;
+    //write(2, "_", 1);
 
     debug_tcp("tcp write: seq %lu size %d rcvwnd %u unack %lu (cnt %d, mem %u)\n",
 	cb->send_nxt - cb->iss, size, cb->rcv_wnd, cb->send_nxt - cb->send_una,
