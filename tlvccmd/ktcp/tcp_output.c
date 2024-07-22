@@ -127,61 +127,14 @@ __u16 tcp_chksumraw(struct tcphdr_s *h, __u32 saddr, __u32 daddr, __u16 len)
     return ~(__u16)sum;
 }
 
-/*** __u16 tcp_chksumraw(struct tcphdr_s *h, __u32 saddr, __u32 daddr, __u16 len)
-	.text
-	.globl _tcp_chksumraw
-_tcp_chksumraw:
-	push	bp
-	mov	bp, sp
-	push	di
-	push	si
-
-	mov	si, 4[bp]	! h
-	mov	ax, $E[bp]	! len
-	mov	cx, ax
-	xchg	al, ah
-	mov	bx, cx
-	sar	cx, #$1
-
-	mov	dx, bx
-	and	bx, #$1
-	jz	loop2
-
-	mov	bx, dx
-	dec	bx
-	mov	dl, [si + bx]
-	xor	dh, dh
-	add	ax, dx
-
-loop2:
-	adc	ax, [si]
-        inc si
-        inc si
-        loop	loop2
-
-	adc	ax, 6[bp]
-	adc	ax, 8[bp]
-	adc	ax, $A[bp]
-	adc	ax, $C[bp]
-	adc	ax, #$600
-        adc     ax, 0
-
-        not	ax
-
-	pop	si
-	pop	di
-	pop	bp
-	ret
-***/
-
 struct tcp_retrans_list_s *
 rmv_from_retrans(struct tcp_retrans_list_s *n)
 {
     struct tcp_retrans_list_s *next = n->next;
 
     tcp_timeruse--;
+    //n->cb->retrns_cnt--;
     tcp_retrans_memory -= n->len;
-    //n->cb->rtrns--;	// EXPERIMENTAL
     debug_mem("retrans free: (cnt %d mem %u)\n", tcp_timeruse, tcp_retrans_memory);
 
 #ifdef REVERSE_LIST
@@ -282,7 +235,8 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
 #endif
 
     /* start timeout blocking in main loop*/
-    tcp_timeruse++;
+    tcp_timeruse++;	/* actually counts the # of packets in the retransmit buffer */
+    //cb->retrns_cnt++;
 
     tcp_retrans_memory += len;
     debug_mem("retrans alloc: (cnt %d, mem %u)\n", tcp_timeruse, tcp_retrans_memory);
@@ -292,9 +246,6 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
     n->retrans_num = 0;
 
     n->rto = cb->rtt << 1;			/* set retrans timeout to twice RTT*/
-    if (cb->rtt > 2) n->rto <<= 1;		/* if the peer is very slow or heavily loaded,
-						 * give it a break instead of pouring out
-						 * retransmits. (hs) */
     if (linkprotocol == LINK_ETHER) {
 	if (n->rto < TCP_RETRANS_MINWAIT_ETH)
 	    n->rto = TCP_RETRANS_MINWAIT_ETH;	/* 1/4 sec min retrans timeout on ethernet*/
@@ -304,7 +255,7 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
     }
     n->first_trans = Now;
     n->next_retrans = Now + n->rto;
-    //cb->rtrns++;		// count # of outstanding pkts per cb
+    //fprintf(stderr, "rtt/rto/tu: %ld/%ld/%d\n", cb->rtt, n->rto, tcp_timeruse);
 }
 
 void tcp_reoutput(struct tcp_retrans_list_s *n)
@@ -318,13 +269,16 @@ void tcp_reoutput(struct tcp_retrans_list_s *n)
 	n->rto = TCP_RETRANS_MAXWAIT;
     n->next_retrans = Now + n->rto;
 
+#ifdef VERBOSE
     printf("tcp retrans: seq %lu+%u size %d rcvwnd %u unack %lu rto %ld rtt %ld state %d (RETRY %d cnt %d mem %u)\n",
 	ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
 	n->len - TCP_DATAOFF(&n->tcphdr[0]), n->cb->rcv_wnd, n->cb->send_una - n->cb->iss,
 	n->rto, n->cb->rtt, n->cb->state, n->retrans_num, tcp_timeruse, tcp_retrans_memory);
+#endif
 
     ip_sendpacket((unsigned char *)n->tcphdr, n->len, &n->apair, n->cb);
     netstats.tcpretranscnt++;
+    n->cb->retranscnt++;
 }
 
 /* called every ktcp cycle when tcp_timeruse nonzero - check for expired retrans*/
@@ -378,7 +332,8 @@ void tcp_retrans_retransmit(void)
     
     while (n != NULL) {
 	/* check for retrans time up*/
-	if (TIME_GEQ(Now, n->next_retrans)) {
+	if (TIME_GEQ(Now, n->next_retrans + (long)(n->cb->peer_speed * TCP_RETRANS_ADJUST))) {
+    	    //printf("retrans (%d,%d)\n", tcp_timeruse, n->len - TCP_DATAOFF(&n->tcphdr[0]));	/* DEBUG */
 	    tcp_reoutput(n);
 	    if (n->retrans_num >= TCP_RETRANS_MAXTRIES) {
 		printf("tcp retrans: max retries exceeded seq %lu unack %lu time %ld\n",
@@ -469,7 +424,7 @@ void tcp_output(struct tcpcb_s *cb)
     apair.daddr = cb->remaddr;
     apair.protocol = PROTO_TCP;
 
-    add_for_retrans(cb, th, len, &apair);
     ip_sendpacket((unsigned char *)th, len, &apair, cb);
+    add_for_retrans(cb, th, len, &apair);
     netstats.tcpsndcnt++;
 }

@@ -337,7 +337,7 @@ static void tcpdev_write(void)
     struct tdb_write *db = (struct tdb_write *)sbuf; /* read from sbuf*/
     struct tcpcb_list_s *n;
     struct tcpcb_s *cb;
-    void *  sock = db->sock;
+    void *sock = db->sock;
     unsigned int size, maxwindow;
 
     sock = db->sock;
@@ -384,11 +384,28 @@ static void tcpdev_write(void)
     if (maxwindow > TCP_SEND_WINDOW_MAX)	/* limit retrans memory usage*/
 	maxwindow = TCP_SEND_WINDOW_MAX;
     if (cb->send_nxt - cb->send_una + size > maxwindow) {
+	cb->sndwin_loop++;
 	debug_tcp("tcp limit: seq %lu size %d maxwnd %u unack %lu rcvwnd %u\n",
 	    cb->send_nxt - cb->iss, size, maxwindow, cb->send_nxt - cb->send_una, cb->rcv_wnd);
-	retval_to_sock(sock, -ERESTARTSYS);	/* kernel will retry 100ms later*/
+	retval_to_sock(sock, -ERESTARTSYS);	/* source will wait for 100ms, then retry */
+	//write(2, "$", 1);
 	return;
     }
+
+#define RETRANS_LIMIT 7
+    if (cb->retranscnt > RETRANS_LIMIT ) {
+	cb->sndwin_loop += 2;
+	cb->retranscnt = 0;
+    }
+    if (cb->sndwin_loop > cb->peer_speed) {    /* Adjust the 'peer performance index' */
+        if (cb->peer_speed < 2) cb->sndwin_loop <<= 1;	/* faster convergence */
+	cb->peer_speed = cb->sndwin_loop;
+	//fprintf(stderr, "spd ind %d\n", cb->sndwin_loop);	/* show the would-be value */
+	if (cb->peer_speed > TCP_PEER_INDEX_MAX)
+		cb->peer_speed = TCP_PEER_INDEX_MAX;
+    }
+    cb->sndwin_loop = 0;
+    //write(2, "_", 1);
 
     debug_tcp("tcp write: seq %lu size %d rcvwnd %u unack %lu (cnt %d, mem %u)\n",
 	cb->send_nxt - cb->iss, size, cb->rcv_wnd, cb->send_nxt - cb->send_una,
