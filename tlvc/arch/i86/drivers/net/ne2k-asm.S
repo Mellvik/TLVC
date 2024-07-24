@@ -1003,7 +1003,7 @@ ne2k_get_hw_addr:
 	mov     4(%bp),%di
 
 	// Effectively a soft reset of the NIC, required in order to get access to the
-	// address PROM. The PROM is 16 or 32 bytes depending on the bus widths. We read
+	// address PROM. The PROM is 16 or 32 bytes depending on the bus width. We read
 	// it in word mode and always get 32 back.
 	// The MAC address is in the first 6 bytes.
 	// The remaining 10 bytes sometimes identify the card type. The PROM content from 
@@ -1032,7 +1032,8 @@ w_reset:
 	mov	$32,%cx		// bytes to read
 	xor	%bx,%bx		// read from 0:0
 	xor	%al,%al		// AL = 0 : local xfer
-	call	dma_read
+	call	dma_read	// read is always word mode at this point,
+				// ne2k_flags has not been set yet
 
 	mov	net_port,%dx
 	add	$io_ne2k_tx_conf,%dx	// set tx back to normal
