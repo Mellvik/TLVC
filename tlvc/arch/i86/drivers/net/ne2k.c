@@ -41,7 +41,7 @@ int net_port;	    /* required for ne2k-asm.S */
 static unsigned char usecount;
 static unsigned char found;
 static unsigned int verbose;
-static int getsem;
+static int getpkg_busy;
 static struct wait_queue rxwait;
 static struct wait_queue txwait;
 static struct netif_stat netif_stat;
@@ -59,6 +59,7 @@ extern struct eth eths[];
 /* Don't change these constants, the asm code is using them literally */
 #define BUF_IS_LOCAL 0
 #define BUF_IS_FAR 1
+//static int bufsinuse;
 
 /*
  * Read a complete packet from the NIC buffer
@@ -69,7 +70,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 
 	size_t res;  // actual packet size
 
-	//printk("R");
+	//kputchar('R');
 	while(1) {
 		prepare_to_wait_interruptible(&rxwait);
 #if NET_BUF_STRAT != NO_BUFS
@@ -77,36 +78,27 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 			res = rnext->len;
 			verified_memcpy_tofs(data, rnext->data, res);
 			rnext->len = 0;
+			//bufsinuse--;
 			rnext = rnext->next;
+			//kputchar('b');
 			break;
 		}
 #endif
-		/* The local buffers are empty. If the ne2k_has_data flag is set, there is
-		 * more data buffered in the NIC, and we might as well go get them 
-		 * instead of waiting for another round through the interrupt
-		 * handler.
+		/* The local buffers are empty - or we have no buffers.
+		 * Pull the data directly from the NIC.
+		 * In the buffered case this may happen because the host
+		 * rx buffer is smaller than the NIC buffer.
+		 *
 		 * NOTE: Possible race condition. A RCV INTR may happen
 		 * while we're reading a packet - thus the semaphore in getpkg 
 		 */
-		//printk("r");
-		if (ne2k_has_data) { 
+		//kputchar('r');
+		if (ne2k_has_data && !getpkg_busy) { 
 #if NET_BUF_STRAT != NO_BUFS
-		   if (rnext) {
-			rnext->len++;	/* mark as busy */
-			res = ne2k_getpkg(rnext->data, len, BUF_IS_LOCAL);
-			if (res > 0) {
-				verified_memcpy_tofs(data, rnext->data, res);
-				rnext->len = 0;
-				printk("B");
-				break;
-			}
-			rnext->len = 0;	/* getpkg is busy, fall thru */
-		    } else
+		    //kputchar('B');
 #endif
-		    {
-			res = ne2k_getpkg(data, len, BUF_IS_FAR);
-			break;
-		    }
+		    res = ne2k_getpkg(data, len, BUF_IS_FAR);
+		    break;
 		}
 		if (filp->f_flags & O_NONBLOCK) {
 			res = -EAGAIN;
@@ -134,8 +126,8 @@ static size_t ne2k_getpkg(char *data, size_t len, word_t type) {
 	word_t nhdr[2];	/* buffer header from the NIC, for debugging */
 
 	clr_irq();
-	if (getsem) { set_irq(); return(0);}	/* busy, just return */
-	getsem++;				/* set the busy flag */
+	if (getpkg_busy) { set_irq(); return(0);}	/* busy, just return */
+	getpkg_busy++;				/* set the busy flag */
 	set_irq();
 
 	size = ne2k_pack_get(data, len, nhdr, type);
@@ -174,7 +166,7 @@ static size_t ne2k_getpkg(char *data, size_t len, word_t type) {
 		}
 #endif
 	}
-	getsem = 0;	/* reset busy-flag */
+	getpkg_busy = 0;	/* reset busy-flag */
 	return(size);
 }
 
@@ -200,7 +192,7 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 				nxt = nxt->next;
 			}
 			if (nxt->len == 0) {
-				//printk("t");
+				//kputchar('t');
 				nxt->len = len;
 				verified_memcpy_fromfs(nxt->data, data, len);
 				res = len;
@@ -282,7 +274,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 {
 	word_t stat, page;
 
-	//printk("/");
+	//kputchar("/");
 	while (1) {
 		stat = ne2k_int_stat();
 		if (!stat) break; 	/* If zero, we're done! */
@@ -303,35 +295,28 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 			break; 
 		}
 
-		if (stat & NE2K_STAT_RX) {
-		    ne2k_has_data = 1; 	// data available
+		if (stat & NE2K_STAT_RX)
+			ne2k_has_data = 1;
+
+		if (ne2k_has_data) {		/* Even if we didn't get an RX int, there may be 
+						 * data to pull from the NIC - buffer space 
+						 * permitting ... */
 #if NET_BUF_STRAT != NO_BUFS
-		    int i; struct netbuf *nxt = rnext;
-		    if (rnext) {
-			for (i = 0; i < netbufs[NET_RXBUFS]; i++) {
-				if (nxt->len == 0) break;
-				nxt = nxt->next;
-			}
-			if (nxt->len == 0) {	/* buffer available */
+		    struct netbuf *nxt = rnext;
+		    if (rnext && !getpkg_busy) {	/* sanity check: 0 buffers is a real possibility */
+			while (ne2k_has_data) {
+			    if (nxt->len == 0) {	/* buffer available */
 				nxt->len = ne2k_getpkg(nxt->data, MAX_PACKET_ETH, BUF_IS_LOCAL);
-				//printk("r%d;", nxt-net_ibuf);
-				//wake_up(&rxwait);
-				nxt = nxt->next;
-			} 
+				//bufsinuse++;	/* DEBUG */
+				//kputchar('0'+bufsinuse);
+			    } 
+			    nxt = nxt->next;
+			    if (nxt == rnext) break;
+			}
 		    }
 #endif
 		    wake_up(&rxwait);
-
-#if NET_BUF_STRAT != NO_BUFS
-		    /* if there is no more data in the NIC or the buffers are full,
-		     * reset the ISR bit and continue. Otherwise take another round.
-		     * This also catches the case when the ne2k_getpkg routine 
-		     * is busy, returning zero.
-		     */
-		    if (!ne2k_has_data || !rnext || (rnext && nxt->next))
-#endif
-			outb(NE2K_STAT_RX, net_port + EN0_ISR); // Clear intr bit
-								// only if done
+		    outb(NE2K_STAT_RX, net_port + EN0_ISR);
 		}
 
 		if (stat & NE2K_STAT_TX) {
@@ -457,6 +442,7 @@ static int ne2k_open(struct inode *inode, struct file *file)
 		//printk("eth: using %d/%d buffers\n", netbufs[NET_RXBUFS], netbufs[NET_TXBUFS]);
 		tnext = netbuf_init(net_obuf, netbufs[NET_TXBUFS]);
 		rnext = netbuf_init(net_ibuf, netbufs[NET_RXBUFS]);
+		//bufsinuse = 0;
 #endif
 
 		ne2k_start();
@@ -511,7 +497,7 @@ void ne2k_display_status(void)
 
 /*
  * Ethernet main initialization (during boot)
- * FIXME: Needs return value to signal that initalization failed.
+ * FIXME: Needs return value to signal if initalization failed.
  */
 
 void INITPROC ne2k_drv_init(void)
@@ -559,15 +545,21 @@ void INITPROC ne2k_drv_init(void)
 	ne2k_get_hw_addr(prom);
 
 	j = k = 0;
-	//for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
-	//printk("\n");
+
+#define PRINT_EPROM
+#ifdef PRINT_EPROM
+	for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
+	printk("\n");
+#endif
 
 	for (i = 0; i < 12; i += 2) {
 		k += cprom[i]-cprom[i+1];	/* QEMU test */
 		j += cprom[i];			/* All zero test */
 	}
 
-	if (!(net_flags&ETHF_16BIT_BUS) && cprom[28] == 'B' && cprom[30] == 'B') {
+					// FIX THIS, read EPROM consistently
+	if (!(net_flags&ETHF_16BIT_BUS) && ((cprom[28] == 'B' && cprom[30] == 'B') ||
+					    (cprom[14] == 'B' && cprom[15] == 'B'))) {
 		ne2k_flags = ETHF_8BIT_BUS;
 		model_name[2] = '1';
 		netif_stat.if_status |= NETIF_AUTO_8BIT; 
