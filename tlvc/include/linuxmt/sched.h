@@ -111,7 +111,10 @@ struct task_struct {
 /* We use typedefs to avoid using struct foobar (*) */
 typedef struct task_struct __task, *__ptask;
 
-extern __task task[MAX_TASKS];
+extern __task *task;
+extern __task *next_task_slot;
+extern int max_tasks;
+extern int task_slots_unused;
 
 extern volatile jiff_t jiffies;	/* ticks updated by the timer interrupt*/
 extern __ptask current;
@@ -123,7 +126,7 @@ extern int tz_offset;
 #define CURRENT_TIME (xtime.tv_sec + (jiffies - xtime_jiffies)/HZ)
 
 #define for_each_task(p) \
-	for (p = &task[0] ; p!=&task[MAX_TASKS]; p++ )
+        for (p = &task[0] ; p!=&task[max_tasks]; p++ )
 
 /* Scheduling and sleeping function prototypes */
 
@@ -170,6 +173,7 @@ extern unsigned int get_ustack(struct task_struct *,int);
 extern void put_ustack(register struct task_struct *,int,int);
 
 extern void tswitch(void);
+extern void setsp(void *);
 extern int run_init_process(const char *cmd);
 extern int run_init_process_sptr(const char *cmd, char *sptr, int slen);
 extern void ret_from_syscall(void);
