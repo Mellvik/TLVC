@@ -13,7 +13,9 @@
 #include <linuxmt/mm.h>
 #include <linuxmt/mem.h>
 #include <linuxmt/heap.h>
+#include <linuxmt/sched.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -28,6 +30,9 @@ int allflag;	/* show all memory*/
 
 unsigned int ds;
 unsigned int heap_all;
+unsigned int taskoff;
+int maxtasks;
+struct task_struct task_table;
 
 int memread(int fd, word_t off, word_t seg, void *buf, int size)
 {
@@ -49,15 +54,51 @@ word_t getword(int fd, word_t off, word_t seg)
 	return word;
 }
 
+void process_name(int fd, unsigned int off, unsigned int seg)
+{
+    word_t argc, argv;
+    char buf[80];
+
+    argc = getword(fd, off, seg);
+
+    while (argc-- > 0) {
+        off += 2;
+        argv = getword(fd, off, seg);
+        if (!memread(fd, argv, seg, buf, sizeof(buf)))
+            return;
+        printf("%s ",buf);
+        break;      /* display only executable name for now */
+    }
+}
+
+struct task_struct *find_process(int fd, unsigned int seg)
+{
+    int i;
+    int off = taskoff;
+
+    for (i = 0; i < maxtasks; i++) {
+        if (!memread(fd, off, ds, &task_table, sizeof(task_table))) {
+            perror("taskinfo");
+            exit(1);
+        }
+        if ((unsigned)task_table.mm.seg_code == seg ||
+            (unsigned)task_table.mm.seg_data == seg) {
+            return &task_table;
+        }
+        off += sizeof(struct task_struct);
+    }
+    return NULL;
+}
+
 void dump_heap(int fd)
 {
 	word_t total_size = 0;
 	word_t total_free = 0;
 	long total_segsize = 0;
-	static char *heaptype[] = { "free", "SEG ", "STR ", "TTY ", "INT ", "BUFH", "PIPE", "NETW" };
+	static char *heaptype[] = { "free", "SEG ", "BUF ", "TTY ", "TASK", "BUFH", "PIPE" };
 	static char *segtype[] = { "free", "CSEG", "DSEG", "BUF ", "RDSK", "PROG" };
 
-	printf("  HEAP   TYPE  SIZE    SEG   TYPE    SIZE  CNT\n");
+	printf("  HEAP   TYPE  SIZE    SEG   TYPE    SIZE  CNT  NAME\n");
 
 	word_t n = getword (fd, heap_all + offsetof(list_s, next), ds);
 	while (n != heap_all) {
@@ -69,6 +110,7 @@ void dump_heap(int fd)
 		segext_t segsize;
 		word_t segflags, ref_count;
 		int free, used, tty, buffer;
+        struct task_struct *t;
 
 		if (tag == HEAP_TAG_SEG)
 			segflags = getword(fd, mem + offsetof(segment_s, flags), ds) & SEG_FLAG_TYPE;
@@ -90,7 +132,14 @@ void dump_heap(int fd)
 				segbase = getword(fd, mem + offsetof(segment_s, base), ds);
 				segsize = getword(fd, mem + offsetof(segment_s, size), ds);
 				ref_count = getword(fd, mem + offsetof(segment_s, ref_count), ds);
-				printf("   %4x   %s %7ld %4d", segbase, segtype[segflags], (long)segsize << 4, ref_count);
+				printf("   %4x   %s %7ld %4d  ",
+                    segbase, segtype[segflags], (long)segsize << 4, ref_count);
+                if (segflags == SEG_FLAG_CSEG || segflags == SEG_FLAG_DSEG) {
+                    if ((t = find_process(fd, mem)) != NULL) {
+			            process_name(fd, t->t_begstack, t->t_regs.ss);
+                    }
+                }
+
 				total_segsize += (long)segsize << 4;
 				break;
 			}
@@ -101,7 +150,7 @@ void dump_heap(int fd)
 		n = getword(fd, n + offsetof(list_s, next), ds);
 	}
 
-	printf("  Heap/free   %5d/%5d Total mem %7ld\n", total_size, total_free, total_segsize);
+	printf("  Heap/free   %5u/%5u Total mem %7ld\n", total_size, total_free, total_segsize);
 }
 
 void usage(void)
@@ -143,11 +192,16 @@ int main(int argc, char **argv)
 		perror("meminfo");
 		return 1;
 	}
-	if (ioctl(fd, MEM_GETDS, &ds) || ioctl(fd, MEM_GETHEAP, &heap_all)) {
-		perror("meminfo");
-		return 1;
-	}
-
+    if (ioctl(fd, MEM_GETDS, &ds) ||
+        ioctl(fd, MEM_GETHEAP, &heap_all) ||
+        ioctl(fd, MEM_GETTASK, &taskoff) ||
+        ioctl(fd, MEM_GETMAXTASKS, &maxtasks)) {
+          perror("meminfo");
+        return 1;
+    }
+    if (!memread(fd, taskoff, ds, &task_table, sizeof(task_table))) {
+        perror("taskinfo");
+    }
 	dump_heap(fd);
 
 	if (!ioctl(fd, MEM_GETUSAGE, &mu)) {

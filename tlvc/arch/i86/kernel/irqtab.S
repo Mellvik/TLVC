@@ -364,9 +364,9 @@ restore_regs:
 	iret
 
 /*
- *	tswitch();
+ *	tswitch()
  *
- *	This function can only be called with SS=DS=ES=kernel DS and
+ *	This function can only be called with SS=DS=kernel DS and
  *	CS=kernel CS. SS:SP is the relevant kernel stack. Thus we don't need
  *	to arse about with segment registers. The kernel isn't relocating.
  *
@@ -391,6 +391,13 @@ tswitch:
 	pop	%bp		// BP of schedule()
 	ret
 
+// setsp(void *sp) - set stack pointer
+	.global setsp
+setsp:
+	pop	%bx		// return address
+	pop	%ax
+	mov	%ax,%sp
+	jmp	*%bx
 
 // Halt - wait for next interrupt to save CPU power
 	.global idle_halt
@@ -401,6 +408,7 @@ idle_halt:
 	.data
 	.global	intr_count
 	.global endistack
+	.global	istack
 	.extern	current
 	.extern	previous
 
@@ -420,6 +428,7 @@ _gint_count:			// General interrupts count. Start with 1
 pmsg:	.ascii "Running unknown code"
 	.byte	0
 #endif
+	.p2align 1
 endistack:
 	.skip ISTACK_BYTES,0		// interrupt stack
 istack:

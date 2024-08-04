@@ -13,10 +13,10 @@
  *  6*  STD floppy ctrlr    CONFIG_BLK_DEV_FD
  *  7   Unused (LPT, Com3)
  *  8   Unused (RTC)
- *  9   3C509/EL3 (/dev/eth) CONFIG_ETH_EL3         Optional
- * 10   Available - use for Com4, Ethernet, ...
- * 11   Available - use for e.g. Ethernet
- * 12   NE2K (/dev/eth)     CONFIG_ETH_NE2K         Optional
+ *  9   Available, use for Ethernet, ...
+ * 10   Available, use for Com4, Ethernet, ...
+ * 11   Available, use for e.g. Ethernet
+ * 12   Available, use for e.g. Ethernet, ...
  * 12*  Unused (Mouse)                              Turned off
  * 13   Unused (Math coproc.)                       Turned off
  * 14*  AT HD IDE (/dev/hda+b) CONFIG_BLK_DEV_HD
@@ -91,7 +91,7 @@
 #define COM4_IRQ	7		/* unregistered unless COM4_PORT found*/
 #endif
 
-/* Ethernet card settings may be overridden in /bootopts using netirq= and netport= */ 
+/* Ethernet card settings may be overridden in /bootopts */
 /* ne2k, ne2k.c */ 
 #define NE2K_PORT	0x300
 #define NE2K_IRQ	12
@@ -114,8 +114,10 @@
 #define EE16_RAM	0xC800		/* Beware: if present, shared mem will be activated */
 #define EE16_FLAGS	0x80
 
-/* bioshd.c*/
-#define FDC_DOR		0x3F2		/* floppy digital output register*/
+/* AMD LANCE (7990) and some later variants, like th 79C760 */
+#define LANCE_PORT	0x350
+#define LANCE_IRQ	11
+#define LANCE_FLAGS	0x80
 
 /* IDE hard drive, directhd.c */
 #define HD1_PORT	0x1f0
@@ -123,12 +125,13 @@
 #define XTIDE_PORT	0x300		/* 8bit XT/IDE or CF cards, usually w/BIOS */
 #define HD1_AT_IRQ	14
 #define HD2_AT_IRQ	15
-#define HD_IRQ		5
+#define HD_IRQ		HD1_AT_IRQ	/* DEPRECATED, to be delete (directhd.c) */
 
+/* direct (non-BIOS) floppy */
 #define FLOPPY_IRQ	6
 #define FLOPPY_DMA	2
 
-/* MFM disk */
+/* XT type MFM disk */
 #define MHD_IRQ		5
 #define MHD_DMA		3
 #define MHD_PORT	0x320

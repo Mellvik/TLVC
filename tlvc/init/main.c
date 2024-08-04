@@ -14,6 +14,7 @@
 #include <linuxmt/trace.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/devnum.h>
+#include <linuxmt/heap.h>
 #include <arch/system.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
@@ -33,12 +34,12 @@ int root_mountflags = MS_RDONLY;
 int root_mountflags = 0;
 #endif
 struct netif_parms netif_parms[MAX_ETHS] = {
-    /* NOTE:  The order must match the defines in netstat.h:
-     * ETH_NE2K, ETH_WD, ETH_EL3	*/
+    /* NOTE:  The order must match the defines in netstat.h */
     { NE2K_IRQ, NE2K_PORT, 0, NE2K_FLAGS },
     { WD_IRQ, WD_PORT, WD_RAM, WD_FLAGS },
     { EL3_IRQ, EL3_PORT, 0, EL3_FLAGS },
-    { EE16_IRQ, EE16_PORT, 0, EE16_FLAGS },
+    { EE16_IRQ, EE16_PORT, EE16_RAM, EE16_FLAGS },
+    { LANCE_IRQ, LANCE_PORT, 0, LANCE_FLAGS },
 };
 __u16 kernel_cs, kernel_ds;
 int tracing;
@@ -49,7 +50,8 @@ int nr_mapbufs;
 int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
 
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
-static int boot_console = 0;
+static int boot_console;
+static seg_t membase, memend;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
 #ifdef CONFIG_SYS_NO_BININIT
@@ -62,6 +64,7 @@ static char *init_command = bininit;
 /*
  * Parse /bootopts startup options
  */
+static char opts;
 static int args = 2;	/* room for argc and av[0] */
 static int envs;
 static int argv_slen;
@@ -84,11 +87,17 @@ static char * INITPROC option(char *s);
 
 static void init_task(void);
 static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra);
+static void INITPROC early_kernel_init(void);
 
-
+/* this procedure is called using temp stack then switched, no temp vars allowed */
 void start_kernel(void)
 {
-    kernel_init();
+    early_kernel_init();        /* read bootopts using kernel interrupt stack */
+    task = heap_alloc(max_tasks * sizeof(struct task_struct),
+        HEAP_TAG_TASK|HEAP_TAG_CLEAR);
+    if (!task) panic("No task mem");
+    setsp(&task->t_regs.ax);    /* change to idle task stack */
+    kernel_init();              /* continue init running on idle task stack */
 
     /* fork and run procedure init_task() as task #1*/
     kfork_proc(init_task);
@@ -107,25 +116,25 @@ void start_kernel(void)
     }
 }
 
-void INITPROC kernel_init(void)
+static void INITPROC early_kernel_init(void)
 {
-    seg_t base, end;
-
-    /* sched_init sets us (the current stack) to be idle task #0*/
-    sched_init();
-    setup_arch(&base, &end);
-    mm_init(base, end);
-    irq_init();
-    tty_init();
+    setup_arch(&membase, &memend);  /* initializes kernel heap */
+    mm_init(membase, memend);       /* parse_options may call seg_add */
+    tty_init();                     /* parse_options may call rs_setbaud */
 
 #ifdef CONFIG_TIME_TZ
-    tz_init(CONFIG_TIME_TZ);
+    tz_init(CONFIG_TIME_TZ);        /* parse_options may call tz_init */
 #endif
-
 #ifdef CONFIG_BOOTOPTS
-    /* parse options found in /bootops */
-    int opts = parse_options();
+    opts = parse_options();         /* parse options found in /bootops */
 #endif
+}
+
+void INITPROC kernel_init(void)
+{
+    /* set us (the current stack) to be idle task #0*/
+    sched_init();
+    irq_init();
 
     /* set console from /bootopts console= or 0=default*/
     set_console(boot_console);
@@ -165,7 +174,7 @@ void INITPROC kernel_init(void)
     seg_t s = 0, e = 0;
 #endif
 
-    kernel_banner(base, end, s, e - s);
+    kernel_banner(membase, memend, s, e - s);
 }
 
 static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra)
@@ -182,8 +191,8 @@ static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t ext
     printk("8018X machine, ");
 #endif
 
-    printk("syscaps 0x%x, %uK base ram, %d tasks.\n", sys_caps, SETUP_MEM_KBYTES, MAX_TASKS);
-    printk("TLVC kernel %s (%u text, %u ftext, %u data, %u bss, %u heap)\n",
+    printk("syscaps 0x%x, %uK base ram, %d tasks.\n", sys_caps, SETUP_MEM_KBYTES, max_tasks);
+    printk("TLVC %s (%u text, %u ftext, %u data, %u bss, %u heap)\n",
            system_utsname.release,
            (unsigned)_endtext, (unsigned)_endftext, (unsigned)_enddata,
            (unsigned)_endbss - (unsigned)_enddata, heapsize);
@@ -479,12 +488,20 @@ static int INITPROC parse_options(void)
 			parse_nic(line+4, &netif_parms[ETH_EE16]);
 			continue;
 		}
+		if (!strncmp(line,"le0=", 4)) {
+			parse_nic(line+4, &netif_parms[ETH_LANCE]);
+			continue;
+		}
 		if (!strncmp(line,"bufs=", 5)) {
 			L2_bufs = (int)simple_strtol(line+5, 10);
 			continue;
 		}
 		if (!strncmp(line,"cache=", 6)) {
 			nr_mapbufs = (int)simple_strtol(line+6, 10);
+			continue;
+		}
+		if (!strncmp(line,"tasks=", 6)) {
+			max_tasks = (int)simple_strtol(line+6, 10);
 			continue;
 		}
 		if (!strncmp(line,"comirq=", 7)) {

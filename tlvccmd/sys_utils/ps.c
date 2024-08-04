@@ -38,6 +38,8 @@
 
 #define LINEARADDRESS(off, seg)		((off_t) (((off_t)seg << 4) + off))
 
+static int maxtasks;
+
 int memread(int fd, word_t off, word_t seg, void *buf, int size)
 {
 	if (lseek(fd, LINEARADDRESS(off, seg), SEEK_SET) == -1)
@@ -164,11 +166,11 @@ int main(int argc, char **argv)
 	int c, fd;
 	unsigned int j, ds, off;
 	word_t cseg, dseg;
-	struct task_struct task_table;
 	struct passwd * pwent;
 	int f_listall = 0;
 	char *progname = argv[0];
 	int f_uptime = !strcmp(basename(progname), "uptime");
+	struct task_struct task_table;
 
 	while ((c = getopt(argc, argv, "lu")) != -1) {
         	switch (c) {
@@ -180,17 +182,18 @@ int main(int argc, char **argv)
         		break;
         	default:
         		printf("Usage: %s: [-lu]\n", progname);
-        		exit(1);
+        		return 1;
         	}
 	}
 
 	if ((fd = open("/dev/kmem", O_RDONLY)) < 0) {
-		perror("ps");
-		exit(1);
+		printf("ps: no /dev/kmem\n");
+		return 1;
 	}
-	if (ioctl(fd, MEM_GETDS, &ds) < 0) {
-		perror("ps");
-		exit(1);
+	if (ioctl(fd, MEM_GETDS, &ds) < 0 ||
+	    ioctl(fd, MEM_GETMAXTASKS, &maxtasks) < 0) {
+		printf("ps: ioctl mem_getds\n");
+		return 1;
 	}
 
     if (f_uptime) {
@@ -200,8 +203,8 @@ int main(int argc, char **argv)
 
 	    if (ioctl(fd, MEM_GETUPTIME, &upoff) < 0 ||
                 !memread(fd, upoff, ds, &uptime, sizeof(uptime))) {
-		    perror("ps");
-		    exit(1);
+		    printf("ps: ioctl mem_getuptime\n");
+		    return 1;
 	    }
 
         unsigned long n = uptime / HZ;
@@ -216,12 +219,12 @@ int main(int argc, char **argv)
 #else
 	printf("uptime: CONFIG_CPU_USAGE not enabled in config.\n");
 #endif
-        exit(0);
+        return 0;
     }
 
 	if (ioctl(fd, MEM_GETTASK, &off) < 0) {
-		perror("ps");
-		exit(1);
+		printf("ps: ioctl mem_gettask\n");
+		return 1;
 	}
 
 	printf("  PID   GRP  TTY USER STAT ");
@@ -233,14 +236,13 @@ int main(int argc, char **argv)
 	printf(" HEAP  FREE   SIZE COMMAND\n");
 	for (j = 1; j < MAX_TASKS; j++) {	/* Skipping the null task */
 		if (!memread(fd, off + j*sizeof(struct task_struct), ds, &task_table, sizeof(task_table))) {
-			perror("ps");
+			printf("ps: memread\n");
 			return 1;
 		}
 
 		if (task_table.kstack_magic != KSTACK_MAGIC) {
 			if (task_table.kstack_magic == 0) continue;
-			errno = EILSEQ;
-			perror("Recompile ps, mismatched task structure");
+			printf("Recompile ps, mismatched task structure\n");
 			return 1;
 		}
 		if (task_table.t_regs.ss == 0)
