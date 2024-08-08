@@ -405,12 +405,29 @@ idle_halt:
 	hlt
 	ret
 
+#ifdef CONFIG_PREC_TIMER
+        .global test_udelay
+
+test_udelay:
+
+        push    %bp
+        mov     %sp,%bp
+        mov     4(%bp),%cx      // count
+1:
+        outb    $0x80
+        loop    1b
+
+        pop     %bp
+        ret
+#endif
+
 	.data
 	.global	intr_count
 	.global endistack
 	.global	istack
 	.extern	current
 	.extern	previous
+
 
 #ifdef CONFIG_BLK_DEV_BIOS
 bios_call_cnt:                  // call BIOS IRQ 0 handler every 5th interrupt

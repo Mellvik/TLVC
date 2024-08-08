@@ -31,7 +31,7 @@ void INITPROC setup_arch(seg_t *start, seg_t *end)
 	 * If ramdisk configured, subtract space for it from end of memory.
 	 */
 
-	/* Heap allocations at even addresses, helps debugging*/
+	/* Heap allocations at even addresses, important for performance */
 	unsigned int endbss = (unsigned int)(_endbss + 1) & ~1;
 
 	/*
