@@ -9,6 +9,8 @@
 #define MEM_GETHEAP	7
 #define MEM_GETUPTIME	8
 #define MEM_GETFARTEXT  9
+#define MEM_GETMAXTASKS 10
+#define MEM_GETJIFFADDR 11
 
 struct mem_usage {
 	unsigned int free_memory;

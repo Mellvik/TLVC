@@ -391,13 +391,9 @@ void ll_rw_blk(int rw, register struct buffer_head *bh)
     dev = NULL;
     if ((major = MAJOR(buffer_dev(bh))) < MAX_BLKDEV)
 	dev = blk_dev + major;
-    if (!dev || !dev->request_fn) {
-	printk("ll_rw_blk: Trying to read nonexistent block-device %s (%lu)\n",
-	       kdevname(buffer_dev(bh)), buffer_blocknr(bh));
-	mark_buffer_clean(bh);
-	mark_buffer_uptodate(bh, 0);
-    } else
-	make_request(major, rw, bh);
+    if (!dev || !dev->request_fn)
+	panic("ll_rw_blk: unknown device %D", buffer_dev(bh));
+    make_request(major, rw, bh);
 }
 
 void INITPROC blk_dev_init(void)

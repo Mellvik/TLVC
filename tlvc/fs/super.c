@@ -131,7 +131,7 @@ void put_super(kdev_t dev)
 
     if (!(sb = get_super(dev))) return;
     if (sb->s_covered)
-	printk("VFS: Mounted device %s - tssk, tssk\n", kdevname(dev));
+	printk("VFS: Mounted device %D - tssk, tssk\n", dev);
     else {
 	sop = sb->s_op;
 	if (sop && sop->put_super) sop->put_super(sb);
@@ -178,7 +178,7 @@ static struct super_block *read_super(kdev_t dev, int t, int flags,
 
 #if CONFIG_FULL_VFS
     if (!(type = get_fs_type(t))) {
-	printk("VFS: device %s unknown fs type %d\n", kdevname(dev), t);
+	printk("VFS: device %D unknown fs type %d\n", dev, t);
 	return NULL;
     }
 #else
@@ -471,7 +471,7 @@ void mount_root(void)
 	retval = open_filp(0, d_inode, &filp);
     }
     if (retval) {
-	printk("VFS: Unable to open root device %s\n", kdevname(ROOT_DEV));
+	printk("VFS: Unable to open root device %D\n", ROOT_DEV);
 	halt();
     }
 
@@ -509,6 +509,6 @@ void mount_root(void)
     }
 #endif
 
-    printk("VFS: Unable to mount root fs on %s\n", kdevname(ROOT_DEV));
+    printk("VFS: Unable to mount root fs on %D\n", ROOT_DEV);
     halt();
 }

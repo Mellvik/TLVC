@@ -17,6 +17,7 @@ mainmenu_option next_comment
 		bool 'Compaq DeskPro Hardware (fast mode)' CONFIG_HW_COMPAQFAST n
 		bool 'MK-88 Hardware (IRQ 3 keyboard)' CONFIG_HW_MK88 n
 		bool 'IBM PC/XT or compatible (8bit ISA)' CONFIG_HW_PCXT n
+		bool 'Add Precision timer (for debugging)' CONFIG_PREC_TIMER n
 
 		comment 'Devices'
 
