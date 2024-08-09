@@ -49,7 +49,7 @@ unsigned int get_time_10ms(void)
     static unsigned int lastcount;
 
     outb(0, TIMER_CMDS_PORT);       /* latch timer value */
-    lo = inb(TIMER_DATA_PORT);
+    lo = inb(TIMER_DATA_PORT)&0xff;
     hi = inb(TIMER_DATA_PORT) << 8;
     count = lo | hi;
     pdiff = lastcount - count;
@@ -68,7 +68,6 @@ unsigned int get_time_50ms(void)
     clr_irq();
     jdiff = (unsigned)jiffies - (unsigned)lastjiffies;
     lastjiffies = jiffies;          /* 32 bit save required after ~10.9 mins */
-    outb(0, TIMER_CMDS_PORT);       /* latch timer value */
     set_irq();
 
     pticks = get_time_10ms();

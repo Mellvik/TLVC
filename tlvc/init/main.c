@@ -50,7 +50,6 @@ int nr_mapbufs;
 #ifdef CONFIG_PREC_TIMER
 unsigned int hptimer;
 void testloop(unsigned);
-void test_udelay(unsigned);	/* in irqtab.S */
 #endif
 
 #define CHS_DRIVES 2	/* # of drives to config in bootopts */
@@ -184,10 +183,11 @@ void INITPROC kernel_init(void)
 
     kernel_banner(membase, memend, s, e - s);
 #ifdef CONFIG_PREC_TIMER
+    unsigned x = hptimer?hptimer:10000;
     //timer_test();
-    testloop(hptimer ? hptimer:10000);
-    testloop(3000);
-    testloop(500);
+    testloop(x);
+    testloop(x/10);
+    testloop(x/100);
 #endif
 }
 
@@ -647,10 +647,16 @@ void testloop(unsigned timer)
 {
 	unsigned pticks, x = timer;
 
-	get_time_10ms();
-	//while (x--) outb(x, 0x80);
-	test_udelay(timer);
-	pticks = get_time_10ms();
+#if 1
+	get_time_50ms();
+	while (x--) outb(x, 0x80);
+	pticks = get_time_50ms();
 	printk("hptimer %u: %k (%u)\n", timer, pticks, pticks);
+#else
+	while (x--) {
+		outb(0, TIMER_CMDS_PORT);       /* latch timer value */
+		printk("%u; ", inb(TIMER_DATA_PORT) + (inb(TIMER_DATA_PORT) << 8));
+	}
+#endif
 }
 #endif

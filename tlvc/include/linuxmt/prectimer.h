@@ -3,7 +3,7 @@
  * 2 Aug 2024 Greg Haerr
  */
 
-#define TIMER_TEST	1	/* =1 to include timer_*() test routines */
+#define TIMER_TEST	0	/* =1 to include timer_*() test routines */
 
 /* all routines return pticks = 0.8381 usecs */
 unsigned int get_time_10ms(void);   /* < 10ms measurements */
