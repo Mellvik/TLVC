@@ -405,22 +405,6 @@ idle_halt:
 	hlt
 	ret
 
-#ifdef CONFIG_PREC_TIMER
-        .global test_udelay
-
-test_udelay:
-
-        push    %bp
-        mov     %sp,%bp
-        mov     4(%bp),%cx      // count
-1:
-        outb    $0x80
-        loop    1b
-
-        pop     %bp
-        ret
-#endif
-
 	.data
 	.global	intr_count
 	.global endistack

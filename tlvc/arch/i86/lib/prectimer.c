@@ -40,7 +40,7 @@ static unsigned long lastjiffies;
  * unsigned long get_time       pticks      1 hr  (< 359953 jiffies = 2^32 / 11932)
  * unsigned long jiffies        jiffies   497 days(< 2^32 jiffies)
  */
-
+#if 0 	/* deprecated, too unreliable */
 /* read PIT diff count, returns < 11932 pticks (10ms), no overflow checking */
 unsigned int get_time_10ms(void)
 {
@@ -49,7 +49,8 @@ unsigned int get_time_10ms(void)
     static unsigned int lastcount;
 
     outb(0, TIMER_CMDS_PORT);       /* latch timer value */
-    lo = inb(TIMER_DATA_PORT)&0xff;
+    lo = inb(TIMER_DATA_PORT);
+    //lo = inb(TIMER_DATA_PORT)&0xff;
     hi = inb(TIMER_DATA_PORT) << 8;
     count = lo | hi;
     pdiff = lastcount - count;
@@ -58,19 +59,31 @@ unsigned int get_time_10ms(void)
     lastcount = count;
     return pdiff;
 }
+#endif
 
 /* count up to 5 jiffies in pticks, returns < 59660 pticks (50ms), w/overflow check */
 unsigned int get_time_50ms(void)
 {
-    int jdiff;
-    unsigned int pticks;
+    int pticks, jdiff;
+    unsigned int lo, hi, count;
+    flag_t flags;
+    static unsigned int lastcount;
 
+    save_flags(flags);
     clr_irq();
+    /* ia16-elf-gcc won't generate 32-bit subtract so use 16-bit and check wrap */
     jdiff = (unsigned)jiffies - (unsigned)lastjiffies;
     lastjiffies = jiffies;          /* 32 bit save required after ~10.9 mins */
-    set_irq();
+    outb(0, TIMER_CMDS_PORT);       /* latch timer value */
+    restore_flags(flags);
 
-    pticks = get_time_10ms();
+    lo = inb(TIMER_DATA_PORT);
+    hi = inb(TIMER_DATA_PORT) << 8;
+    count = lo | hi;
+    pticks = lastcount - count;
+    if (pticks < 0)                 /* wrapped */
+        pticks += MAX_PTICK;        /* = MAX_PTICK - count + lastcount */
+    lastcount = count;
     if (jdiff < 0)                  /* lower half wrapped */
         jdiff = -jdiff;             /* = 0x10000000 - lastjiffies + jiffies */
     if (jdiff >= 2) {
@@ -87,8 +100,7 @@ unsigned long get_time(void)
     unsigned int pticks;
     static unsigned long lasttime;
 
-    clr_irq();                  /* for saving lasttime below */
-    lasttime = lastjiffies;
+    lasttime = lastjiffies;     /* race condition here before clr_irq in get_time_50ms */
     pticks = get_time_50ms();
     if (pticks != 0)
         return pticks;          /* < 50ms */
@@ -98,6 +110,7 @@ unsigned long get_time(void)
 
 #if TIMER_TEST
 /* sample timer routines */
+#if 0
 void timer_10ms(void)
 {
     unsigned int pticks;
@@ -105,6 +118,7 @@ void timer_10ms(void)
     pticks = get_time_10ms();
     printk("%u %u = %k\n", pticks, (unsigned)jiffies, pticks);
 }
+#endif
 
 void timer_50ms(void)
 {
