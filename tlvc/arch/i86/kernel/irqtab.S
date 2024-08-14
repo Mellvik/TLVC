@@ -412,6 +412,7 @@ idle_halt:
 	.extern	current
 	.extern	previous
 
+
 #ifdef CONFIG_BLK_DEV_BIOS
 bios_call_cnt:                  // call BIOS IRQ 0 handler every 5th interrupt
 	.word	5		// must be disabled if using direct floppy

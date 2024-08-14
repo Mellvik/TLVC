@@ -15,15 +15,17 @@
 #include <linuxmt/debug.h>
 #include <linuxmt/devnum.h>
 #include <linuxmt/heap.h>
+#include <linuxmt/prectimer.h>
 #include <arch/system.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
+#include <arch/io.h>
 
 /*
  *	System variable setups
  */
-#define ENV		1		/* allow environ variables as bootopts*/
-#define DEBUG		0		/* display parsing at boot*/
+#define ENV		1		/* allow environ variables as bootopts */
+#define DEBUG		0		/* display parsing at boot */
 
 #define MAX_INIT_ARGS	8
 #define MAX_INIT_ENVS	8
@@ -44,6 +46,11 @@ struct netif_parms netif_parms[MAX_ETHS] = {
 __u16 kernel_cs, kernel_ds;
 int tracing;
 int nr_mapbufs;
+
+#ifdef CONFIG_PREC_TIMER
+unsigned int hptimer;
+void testloop(unsigned);
+#endif
 
 #define CHS_DRIVES 2	/* # of drives to config in bootopts */
 #define CHS_ARR_SIZE	CHS_DRIVES * 4
@@ -68,7 +75,7 @@ static char opts;
 static int args = 2;	/* room for argc and av[0] */
 static int envs;
 static int argv_slen;
-/* argv_init doubles as sptr data for sys_execv later*/
+/* argv_init doubles as sptr data for sys_execv later */
 static char *argv_init[80] = { NULL, bininit, NULL };
 #if ENV
 static char *envp_init[MAX_INIT_ENVS+1];
@@ -99,7 +106,7 @@ void start_kernel(void)
     setsp(&task->t_regs.ax);    /* change to idle task stack */
     kernel_init();              /* continue init running on idle task stack */
 
-    /* fork and run procedure init_task() as task #1*/
+    /* fork and run procedure init_task() as task #1 */
     kfork_proc(init_task);
     wake_up_process(&task[1]);
 
@@ -132,14 +139,14 @@ static void INITPROC early_kernel_init(void)
 
 void INITPROC kernel_init(void)
 {
-    /* set us (the current stack) to be idle task #0*/
+    /* set us (the current stack) to be idle task #0 */
     sched_init();
     irq_init();
 
-    /* set console from /bootopts console= or 0=default*/
+    /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
 
-    /* init direct, bios or headless console*/
+    /* init direct, bios or headless console */
     console_init();
 
 #ifdef CONFIG_CHAR_DEV_RS
@@ -147,7 +154,7 @@ void INITPROC kernel_init(void)
 #endif
 
     inode_init();
-    if (buffer_init())	/* also enables xms and unreal mode if configured and possible*/
+    if (buffer_init())	/* also enables xms and unreal mode if configured and possible */
 	panic("No buf mem");
 
     device_init();
@@ -175,6 +182,13 @@ void INITPROC kernel_init(void)
 #endif
 
     kernel_banner(membase, memend, s, e - s);
+#ifdef CONFIG_PREC_TIMER
+    unsigned x = hptimer?hptimer:10000;
+    //timer_test();
+    testloop(x);
+    testloop(x/10);
+    testloop(x/100);
+#endif
 }
 
 static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra)
@@ -525,6 +539,11 @@ static int INITPROC parse_options(void)
 			parse_parms(2, line+8, netbufs, 10);
 			continue;
 		}
+#ifdef CONFIG_PREC_TIMER
+		if (!strncmp(line,"hptimer=",8)) {
+			hptimer = (unsigned int)simple_strtol(line+8, 10);
+		}
+#endif
 		if (!strncmp(line,"TZ=",3)) {
 			tz_init(line+3);
 			/* fall through and add line to environment */
@@ -622,3 +641,22 @@ static char * INITPROC option(char *s)
 	return s;
 }
 #endif /* CONFIG_BOOTOPTS*/
+
+#ifdef TIMER_TEST
+void testloop(unsigned timer) 
+{
+	unsigned pticks, x = timer;
+
+#if 1
+	get_time_50ms();
+	while (x--) outb(x, 0x80);
+	pticks = get_time_50ms();
+	printk("hptimer %u: %k (%u)\n", timer, pticks, pticks);
+#else
+	while (x--) {
+		outb(0, TIMER_CMDS_PORT);       /* latch timer value */
+		printk("%u; ", inb(TIMER_DATA_PORT) + (inb(TIMER_DATA_PORT) << 8));
+	}
+#endif
+}
+#endif
