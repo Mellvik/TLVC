@@ -23,112 +23,68 @@
 #include <linuxmt/types.h>
 #include <linuxmt/heap.h>
 
+#include <arch/irq.h>
 #include <arch/ports.h>
 #include <arch/segment.h>
-#include <arch/irq.h>
-
-typedef struct int_handler int_handler_s;
-
-static irq_handler irq_action[16];
-static int_handler_s *irq_trampoline[16];
-
-// TODO: simplify the whole by replacing IRQ by INT number
-// Would also allow to handle any of the 0..255 interrupts
-// including the 0..7 processor exceptions & traps
-
-struct int_handler {
-	byte_t call;		/* CALLF opcode (9Ah) */
-	int_proc proc;
-	word_t seg;
-	byte_t irq;
-} __attribute__ ((packed));
 
 /*
- * Experimental:
- * move interrupt vectors away from the heap to avoid fragmentation
- * now that IRQs are assigned on demand instead of at boot time.
- * Also removes the overhead of 12 bytes per 6 byte vector on the heap.
-*/
+ * Irq index numbers >= 16 are used for hardware exceptions or syscall.
+ * This allows handling of any of the 0..255 interrupts
+ * including the 0..7 processor exceptions & traps.
+ */
+struct int_handler {
+    byte_t call;        /* CALLF opcode (9Ah) */
+    word_t proc;
+    word_t seg;
+    byte_t irq;         /* actually irq index number */
+} __attribute__ ((packed));
 
-#define USE_LOCAL_IRQVEC
-#ifdef USE_LOCAL_IRQVEC
-#define INT_VECTOR_MAX	10	/* Don't need 16, may in odd cases need 10 */
-
-static int_handler_s int_vector[INT_VECTOR_MAX];
-#endif
+static struct int_handler trampoline[NR_IRQS];
+static irq_handler irq_action[NR_IRQS];
 
 /* called by _irqit assembler hook after saving registers */
-void do_IRQ(int i,void *regs)
+void do_IRQ(int i, struct pt_regs *regs)
 {
-    irq_handler ih = irq_action[i];
-
+    irq_handler ih = irq_action [i];
     if (!ih)
         printk("Unexpected interrupt: %u\n", i);
     else (*ih)(i, regs);
 }
 
-// Add a dynamically allocated handler
-// that redirects to the static handler
-
-static int_handler_s *handler_alloc(void)
+/* install interrupt vector to point to handler trampoline */
+static void int_handler_add(int irq, int vect, int_proc proc)
 {
-#ifdef USE_LOCAL_IRQVEC
-	int i;
+    struct int_handler *h;
 
-	for (i = 0; i < INT_VECTOR_MAX; i++) {
-		if (int_vector[i].call == 0) {
-			int_vector[i].call++; /* insurance */
-			return &int_vector[i];
-		}
-	}
-	return NULL;
-#else
-	return (int_handler_s *) heap_alloc(sizeof (int_handler_s), HEAP_TAG_INTHAND);
-#endif
+    h = &trampoline[irq];
+    h->call = 0x9A;         /* CALLF opcode */
+    h->proc = (word_t)proc;
+    h->seg  = kernel_cs;    /* resident kernel code segment */
+    h->irq  = irq;
+    int_vector_set(vect, (word_t)h, kernel_ds);
 }
 
-static int int_handler_add(int irq, int vect, int_proc proc, int_handler_s *h)
-{
-	if (!h) h = handler_alloc();
-	if (!h) return -ENOMEM;
-
-	h->call = 0x9A;		/* CALLF opcode */
-	h->proc = proc;
-	h->seg  = kernel_cs;	/* resident kernel code segment */
-	h->irq  = irq;
-
-	int_vector_set(vect, (int_proc) h, kernel_ds);
-
-	return 0;
-}
-
+/* request an IRQ from 0 to 15 */
 int request_irq(int irq, irq_handler handler, int hflag)
 {
-    int_handler_s *h;
     int_proc proc;
     flag_t flags;
 
     irq = remap_irq(irq);
     if (irq < 0 || !handler) return -EINVAL;
 
-    if (irq_action[irq]) return -EBUSY;
-    h = handler_alloc();
-    if (!h) return -ENOMEM;
+    if (irq_action [irq]) return -EBUSY;
 
     save_flags(flags);
     clr_irq();
 
-    irq_action[irq] = handler;
-    irq_trampoline[irq] = h;
+    irq_action [irq] = handler;
 
     if (hflag == INT_SPECIFIC)
         proc = (int_proc) handler;
     else
         proc = _irqit;
-
-    // TODO: IRQ number has no meaning for an INT handler
-    // see above simplification TODO
-    int_handler_add(irq, irq_vector(irq), proc, h);
+    int_handler_add(irq, irq_vector(irq), proc);
 
     enable_irq(irq);
     restore_flags(flags);
@@ -151,25 +107,27 @@ int free_irq(int irq)
     clr_irq();
 
     disable_irq(irq);
-    int_vector_set(irq_vector(irq), 0, 0);  /* reset vector to 0:0 */
+    /* don't reset vector to 0:0, instead allow "unexpected interrupt" above */
+    /*int_vector_set(irq_vector(irq), 0, 0);*/
     irq_action[irq] = NULL;
     restore_flags(flags);
 
-#ifdef USE_LOCAL_IRQVEC
-    irq_trampoline[irq]->call = 0;
-#else
-    heap_free(irq_trampoline[irq]);
-#endif
     return 0;
 }
 
 /*
- *	IRQ setup.
+ *  IRQ setup.
  */
 void INITPROC irq_init(void)
 {
     /* use INT 0x80h for system calls */
-    int_handler_add(0x80, 0x80, _irqit, NULL);
+    int_handler_add(IDX_SYSCALL, 0x80, _irqit);
+
+#ifdef CONFIG_ARCH_IBMPC
+    /* catch INT 0x00h divide by zero trap */
+    irq_action[IDX_DIVZERO] = div0_handler;
+    int_handler_add(IDX_DIVZERO, 0x00, _irqit);
+#endif
 
 #if defined(CONFIG_TIMER_INT0F) || defined(CONFIG_TIMER_INT1C)
     /* Use IRQ 7 vector (simulated by INT 0Fh) for timer interrupt handler */
@@ -192,7 +150,7 @@ void INITPROC irq_init(void)
 
     /* Connect timer interrupt handler to hardware IRQ 0 */
     if (request_irq(TIMER_IRQ, timer_tick, INT_GENERIC))
-    	panic("Unable to get timer");
+        panic("Unable to get timer");
 
     enable_timer_tick();        /* reprogram timer for 100 HZ */
 #endif

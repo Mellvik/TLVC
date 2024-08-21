@@ -3,6 +3,7 @@
 #include <linuxmt/trace.h>
 #include <arch/asm-offsets.h>
 #include <arch/ports.h>
+#include <arch/irq.h>
 
 	.arch	i8086, nojumps
 	.code16
@@ -71,7 +72,7 @@ int_vector_set:
 !
 !	There are three possible cases to cope with
 !
-!	Interrupted user mode or syscall (_gint_count == 0)
+!	Syscall or Interrupted user mode (_gint_count == 0)
 !		Switch to process's kernel stack
 !		Optionally, check (SS == current->t_regs.ss)
 !		and panic on failure
@@ -94,10 +95,10 @@ int_vector_set:
 	.extern	schedule
 	.extern	do_signal
 	.extern	do_IRQ
-	.extern	stack_check
 	.extern	syscall
-	.extern trace_begin
-	.extern trace_end
+	.extern	stack_check
+	.extern	trace_begin
+	.extern	trace_end
 	.extern	panic
 
 	.global _irqit
@@ -131,7 +132,7 @@ ktask:				// Already using interrupt stack
 //	Using a process's kernel stack, switch to interrupt stack
 //
 itask:
-	mov	$istack-14,%si	// 14 offsets 0-13 of SI below
+	mov	$istack-14,%si  // 14 offsets 0-13 of SI below
 	jmp	save_regs
 //
 //	User mode case
@@ -190,21 +191,21 @@ save_regs:
 //	ds:[di] has IRQ number
 //
 	movb	(%di),%al
-	cmpb	$0x80,%al
+	cmpb	$IDX_SYSCALL,%al
 	jne	updct
 //
 //	----------PROCESS SYSCALL----------
 //
 	sti
-	call	stack_check	// Check USER mode stack
+	call	stack_check	// Check user mode stack
 
 #ifdef CONFIG_TRACE
 	call	trace_begin
 #endif
 
-	pop	%ax		// Get syscall function code
+	pop	%ax		// get syscall function code in AX
 	call	syscall
-	push	%ax
+	push	%ax		// syscall return value in ax
 
 #ifdef CONFIG_TRACE
 	// strace.c must be compiled with tail optimization off to protect top of stack
@@ -236,14 +237,8 @@ ret_from_syscall:
 /*
 !
 !	----------PROCESS INTERRUPT----------
-!
-!	Update intr_count
-!
 */
 updct:
-#ifdef CHECK_SCHED
-	incw	intr_count	// only needed for schedule during interrupt warning
-#endif
 //
 //	Call the C code
 //
@@ -267,16 +262,13 @@ updct:
 //
 	cmp	$16,%ax
 	jge	was_trap	// Traps need no reset
-#ifdef CONFIG_BLK_DEV_BIOS
-#ifdef CONFIG_ARCH_PC98
-	jmp	do_eoi
-#else
+
+#if defined(CONFIG_BLK_DEV_BFD) && !defined(CONFIG_ARCH_PC98)
 	or	%ax,%ax		// Is int #0?
 	jnz	do_eoi
-#endif
+
 //
 //	IRQ 0 (timer) has to go on to the bios for some systems
-//	Don't use unless we're using BIOS block IO
 //
 	decw	bios_call_cnt	// Will call bios int?
 	jne	do_eoi
@@ -285,6 +277,7 @@ updct:
 	lcall	*org_irq0
 	jmp	was_trap	// EOI already sent by bios int
 #endif
+
 //
 //	Send EOI to interrupt controller
 //
@@ -321,13 +314,7 @@ a6:	out	%al,$PIC1_CMD		// Ack on primary controller
 //
 was_trap:
 //
-//	Restore intr_count
-//
-#ifdef CHECK_SCHED
-	decw	intr_count
-#endif
-//
-//	Now look at rescheduling
+//	Look at rescheduling
 //
 	cmpw	$1,_gint_count
 	jne	restore_regs	// No
@@ -406,23 +393,16 @@ idle_halt:
 	ret
 
 	.data
-	.global	intr_count
-	.global endistack
+	.global	_gint_count
+	.global	endistack
 	.global	istack
 	.extern	current
 	.extern	previous
 
-
-#ifdef CONFIG_BLK_DEV_BIOS
 bios_call_cnt:                  // call BIOS IRQ 0 handler every 5th interrupt
-	.word	5		// must be disabled if using direct floppy
-#endif
+	.word	5
 org_irq0:			// original BIOS IRQ 0 vector
 	.long	0
-#ifdef CHECK_SCHED
-intr_count:			// Hardware interrupts count
-	.word	0
-#endif
 _gint_count:			// General interrupts count. Start with 1
 	.word	1		// because init_task() is in kernel mode
 #ifdef CHECK_SS
@@ -431,6 +411,6 @@ pmsg:	.ascii "Running unknown code"
 #endif
 	.p2align 1
 endistack:
-	.skip ISTACK_BYTES,0		// interrupt stack
+	.skip ISTACK_BYTES,0	// interrupt stack
 istack:
 
