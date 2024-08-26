@@ -24,6 +24,7 @@
 #include <linuxmt/debug.h>
 #include <linuxmt/netstat.h>
 #include <linuxmt/heap.h>
+#include <linuxmt/kernel.h>
 #include "eth-msgs.h"
 
 // Shared declarations between low and high parts
@@ -546,8 +547,7 @@ void INITPROC ne2k_drv_init(void)
 
 	j = k = 0;
 
-#define PRINT_EPROM
-#ifdef PRINT_EPROM
+#if 0
 	for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
 	printk("\n");
 #endif
@@ -567,7 +567,10 @@ void INITPROC ne2k_drv_init(void)
 		for (i = 0; i < 16; i++) cprom[i] = (char)prom[i]&0xff;
 		ne2k_flags = 0;
 	}
-	if (!k && j) netif_stat.if_status |= NETIF_IS_QEMU;
+	if (!k && j) {
+		netif_stat.if_status |= NETIF_IS_QEMU;
+		running_qemu = 1;
+	}
 	//for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
 	//printk("\n");
 
