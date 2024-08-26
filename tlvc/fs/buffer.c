@@ -534,7 +534,7 @@ struct buffer_head *readbuf(struct buffer_head *bh)
 	    if (check_disk_change(bh->b_dev))
 		printk("readbuf: media eject detected\n");
 	    else
-		printk("readbuf err %04x/%04x;", bh, bh->b_dev);
+		printk("readbuf err %04x/%04x;", bh, ebh->b_dev);
 	    brelse(bh);
 	    bh = NULL;
 	}

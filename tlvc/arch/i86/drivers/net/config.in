@@ -4,11 +4,14 @@
 
 mainmenu_option next_comment
 	comment 'Network device drivers'
+	comment 'Do not choose more than 3'
 	bool 'Ethernet device support' CONFIG_ETH y
 	if [ "$CONFIG_ETH" = "y" ]; then
 		bool 'NE2K'			CONFIG_ETH_NE2K y
 		bool 'WD/SMC8003'	CONFIG_ETH_WD y
 		bool '3C509'		CONFIG_ETH_EL3 y
 		bool 'Intel EtherExpress 16'		CONFIG_ETH_EE16 y
+		bool 'Lance/79C760'     CONFIG_ETH_LANCE y
+
 	fi
 endmenu
