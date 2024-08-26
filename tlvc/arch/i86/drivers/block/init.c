@@ -42,7 +42,7 @@
 
 int boot_rootdev;	/* set by /bootopts options if configured*/
 extern int boot_partition;
-int running_qemu = 0;	/* for directhd/fd */
+char running_qemu;	/* for directhd/fd */
 
 void INITPROC device_init(void)
 {

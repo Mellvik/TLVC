@@ -79,8 +79,6 @@ struct drive_infot {            /* CHS per drive*/
 };
 extern struct drive_infot *last_drive;	/* set to last drivep-> used in read/write */
 					/* used to handle QEMU bugs and quirks */
-extern int running_qemu;	/* for directhd.c and directfd.c */
-
 #ifdef CONFIG_BLK_DEV_BHD
 extern unsigned char hd_drive_map[];
 #define MAX_BIOS_DRIVES 2
