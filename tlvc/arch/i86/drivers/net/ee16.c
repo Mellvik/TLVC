@@ -371,9 +371,9 @@ static int INITPROC ee16_hw_probe(void)
 			hw_addr[2],hw_addr[1],hw_addr[0]);
 		return -ENODEV;
 	}
-	printk("|%04x%04x%04x|", hw_addr[2], hw_addr[1], hw_addr[0]);
 #endif
-	if (!(hw_addr[0]+hw_addr[1]+hw_addr[2]))
+	//printk("|%04x%04x%04x|", hw_addr[2], hw_addr[1], hw_addr[0]);
+	if (!hw_addr[0] || hw_addr[0] == 0xffff)
 		return -ENODEV;
 	/*
 	 * Calculate the EEPROM checksum.  Carry on anyway if it's bad,
