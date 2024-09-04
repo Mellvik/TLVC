@@ -371,9 +371,13 @@ static int INITPROC ee16_hw_probe(void)
 			hw_addr[2],hw_addr[1],hw_addr[0]);
 		return -ENODEV;
 	}
-	printk("|%04x%04x%04x|", hw_addr[2], hw_addr[1], hw_addr[0]);
 #endif
-	if (!(hw_addr[0]+hw_addr[1]+hw_addr[2]))
+	//printk("|%04x%04x%04x|", hw_addr[2], hw_addr[1], hw_addr[0]);
+	/* When there is nothing there, the address returned is typically all zeroes or all ones.
+	 * Thus checking the address is a safe test-for-presence. MAC addresses starting
+	 * with 00:00 are perfectly legal, but extremely unlikely to be an ee16 (not from Intel
+	 * or HP or any other OEM I could find). */
+	if (!hw_addr[0] || hw_addr[0] == 0xffff)
 		return -ENODEV;
 	/*
 	 * Calculate the EEPROM checksum.  Carry on anyway if it's bad,
