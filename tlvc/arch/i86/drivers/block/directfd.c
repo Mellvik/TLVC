@@ -1787,7 +1787,6 @@ void INITPROC floppy_init(void)
 #endif
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
-    config_types();
     err = request_irq(FLOPPY_IRQ, floppy_interrupt, INT_GENERIC);
     if (err) {
 	printk("Unable to grab IRQ%d for the floppy driver\n", FLOPPY_IRQ);
@@ -1812,7 +1811,7 @@ void INITPROC floppy_init(void)
 #else
     fdc_version = FDC_TYPE_STD;	/* force std fdc type; can't test other. */
 #endif
-    printk("%s: Direct floppy driver, FDC (%s) @ irq %d, DMA %d", DEVICE_NAME, 
+    printk("%s: Direct floppy driver, FDC %s @ irq %d, DMA %d", DEVICE_NAME, 
 	    fdc_version == 0x80 ? "8272A" : "82077", FLOPPY_IRQ, FLOPPY_DMA);
     configure_fdc_mode();
 #ifdef USE_DIR_REG
@@ -1831,6 +1830,7 @@ void INITPROC floppy_init(void)
 	reset_floppy();
     }
 #endif
+    config_types();
 }
 
 #if 0
