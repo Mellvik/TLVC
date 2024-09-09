@@ -27,13 +27,11 @@
 #define ENV		1		/* allow environ variables as bootopts */
 #define DEBUG		0		/* display parsing at boot */
 
-#define MAX_INIT_ARGS	8
-#define MAX_INIT_ENVS	8
 #define MAX_INIT_ARGS	6	/* max # arguments to /bin/init or init= program */
 #define MAX_INIT_ENVS	12	/* max # environ variables passed to /bin/init */
 #define MAX_INIT_SLEN	80	/* max # words of args + environ passed to /bin/init */
 
-#define	__STRING(x)	"x"	/* TODO: move these to header files later */
+#define	__STRING(x)	#x	/* TODO: move these to header file */
 #define STR(x)          __STRING(x)
 
 /* bootopts error message are duplicated below so static here for space savings */
@@ -63,7 +61,6 @@ unsigned sys_dly_base;
 #ifdef CONFIG_PREC_TIMER
 void calibrate_delay(void);
 void u10delay(unsigned);
-unsigned int hptimer;
 void testloop(unsigned);
 #endif
 
@@ -72,6 +69,7 @@ void testloop(unsigned);
 int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
 
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
+int xt_floppy[2];	/* XT floppy types, needed if XT has 720k drive(s) */
 static int boot_console;
 static seg_t membase, memend;
 static char bininit[] = "/bin/init";
@@ -91,9 +89,13 @@ static int args = 2;	/* room for argc and av[0] */
 static int envs;
 static int argv_slen;
 /* argv_init doubles as sptr data for sys_execv later */
-static char *argv_init[80] = { NULL, bininit, NULL };
+#ifdef CONFIG_SYS_NO_BININIT
+static char *argv_init[MAX_INIT_SLEN] = { NULL, binshell, NULL };
+#else
+static char *argv_init[MAX_INIT_SLEN] = { NULL, bininit, NULL };
+#endif
 #if ENV
-static char *envp_init[MAX_INIT_ENVS+1];
+static char *envp_init[MAX_INIT_ENVS];
 #endif
 static unsigned char options[OPTSEGSZ];
 
@@ -144,6 +146,11 @@ static void INITPROC early_kernel_init(void)
     setup_arch(&membase, &memend);  /* initializes kernel heap */
     mm_init(membase, memend);       /* parse_options may call seg_add */
     tty_init();                     /* parse_options may call rs_setbaud */
+
+/*** Expermiental: Testing the upper 1k of memory for BIOS modifications ****/
+    byte_t __far *upper = _MK_FP(0x9fc0, 0); 
+    int i = 0;
+    while (i++ < 1024) upper[i] = i;
 
 #ifdef CONFIG_TIME_TZ
     tz_init(CONFIG_TIME_TZ);        /* parse_options may call tz_init */
@@ -198,13 +205,13 @@ void INITPROC kernel_init(void)
 #endif
 
     kernel_banner(membase, memend, s, e - s);
+#define CALIBRATE_DELAY
 #ifdef CALIBRATE_DELAY
     calibrate_delay();
 #endif
 #ifdef CONFIG_PREC_TIMER
-#ifdef TIMER_TEST
-    unsigned x = hptimer?hptimer:10000;
-    //timer_test();
+#if TIMER_TEST
+    unsigned x = 5000;
     testloop(x);
     testloop(x/10);
     testloop(x/100);
@@ -560,11 +567,10 @@ static int INITPROC parse_options(void)
 			parse_parms(2, line+8, netbufs, 10);
 			continue;
 		}
-#ifdef CONFIG_PREC_TIMER
-		if (!strncmp(line,"hptimer=",8)) {
-			hptimer = (unsigned int)simple_strtol(line+8, 10);
+		if (!strncmp(line, "xtflpy=", 7)) {
+			parse_parms(2, line+7, xt_floppy, 10);
+			continue;
 		}
-#endif
 		if (!strncmp(line,"TZ=",3)) {
 			tz_init(line+3);
 			/* fall through and add line to environment */
@@ -594,12 +600,11 @@ static void INITPROC finalize_options(void)
 	int i;
 
 	/* set ROOTDEV environment variable for fsck in /etc/mount.cfg */
-	if (envs < MAX_INIT_ENVS)
-		envp_init[envs++] = root_dev_name(ROOT_DEV);
-	if (running_qemu && envs < MAX_INIT_ENVS)
-		envp_init[envs++] = (char *)"QEMU=1";
-	if (envs >= MAX_INIT_ENVS)
+	if (envs + running_qemu >= MAX_INIT_ENVS)
 		panic(errmsg_initenvs);
+	envp_init[envs++] = root_dev_name(ROOT_DEV);
+	if (running_qemu)
+		envp_init[envs++] = (char *)"QEMU=1";
 
 #if DEBUG
 	printk("args: ");
@@ -669,7 +674,7 @@ static char * INITPROC option(char *s)
 }
 #endif /* CONFIG_BOOTOPTS*/
 
-#ifdef TIMER_TEST
+#if TIMER_TEST
 void testloop(unsigned timer) 
 {
 	unsigned long pticks;
@@ -679,7 +684,7 @@ void testloop(unsigned timer)
 	get_ptime();
 	while (x--) outb(x, 0x80);
 	pticks = get_ptime();
-	printk("hptimer %u: %lk (%lu)\n", timer, pticks, pticks);
+	printk("timer %u: %lk (%lu)\n", timer, pticks, pticks);
 #else
 	while (x--) {
 		outb(0, TIMER_CMDS_PORT);       /* latch timer value */
@@ -690,187 +695,128 @@ void testloop(unsigned timer)
 #endif
 
 #ifdef CALIBRATE_DELAY
+#define TEST_DELAY 1
 /* Create calibration constants for a system independent delay loop.
  * The delay function (arch/i86/lib/udelay.S) has 3 parts to be accounted for
  * when scaling:
  * 1) the call (entry/exit), which should be insignificant but isn't on slow
  *    systems
- * 2) the outer loop, which becomes significant for short delays on slow systems
- * 3) and the inner loop, which is timed separately and when run like 3 times, then
- *    averaged, is a pretty good indication of the speed of the system (keep in
+ * 2) the outer loop, which becomes significant for short delays on slow systems.
+ *    the outer loop may take 30ms (8MHz 8088) to 55ms (4.77MHz 8088) and thus
+ *    becomes an important damage-limiter for short loops on such systems. 
+ * 3) the inner loop, which is timed separately and when run 4 times and
+ *    averaged, becomes a pretty good indication of the speed of the system (keep in
  *    mind that the # of clock cycles required for this simple loop is varying
- *    wildly between systems. Also, on a 386 (and later) the processor cache speeds
+ *    wildly between systems). Also, on a 386 (and later) instruction caching speeds
  *    up this loop significantly.
- * Everything is measured using the precicion timer routines recently (per Aug 24)
+ * Everything is measured using the precision timer routines recently (per Aug 24)
  * added to the system.
+ *
  * Important notes:
- * - This calibration lives in a __far (INITPROC) routine which affects relative
- *   timings, thus the dummy XXX
+ * - On fast QEMU systems, the collected timings vary wildly and are useless
+ *   for any calibration, so we set som basic numbers manually and skip the 
+ *   calculations. Delays don't matter on QEMU anyway. 
  * The items used in the calibration are
- * adj - the time consumed by the precision timer routine
- * d0 - the call time, just call and return, no loops - probably insignificant
- * 	and short lived
+ * adj - the time consumed by the precision timer routine, to be subtracted from
+ *       all measurements
+ * d0 - the delay routine call time, just call and return, no loops.
  * d1 - call time + one outer loop, no inner loop
  * d2 - the difference between d1 and d0, the cost of the outer loop
  * l  - the loop time for the inner loop
- * p  - 1 ptick, 0.838 us
- * The chosen unit is 10us, the smallest that makes at least some sense on the
- * least powerful systems. In order to avoid MULs and DIVs, the inner loop
- * is the 10us counter - it loops for 10us less the 'cost' of one outer loop.
+ * p  - the scale, 1 ptick, 0.838 us
+ * The chosen unit is 10us, too small for the slowest systems, too big for 
+ * the fast ones, IOW a reasonable compromise.
+ * In order to avoid MULs and DIVs, we calculate (in sys_dly_ind) the # of
+ * inner loops to take, including one outer loop, to spend 10us.
+ * On very slow systems, the 'cost' of the call itself becomes significant, and 
+ * must be deducted from the loop count. This is the purpose of the sys_dly_base.
+ * For the XT@4.77MHz even this is useless as the call to the delay routine 
+ * takes close to 50us and the outer loop almost 10us. In this case the closest
+ * possible approximation is to set the _base to 5 and the index to 0.
+ * turn in the outer loop may exceed 70 pticks, or 59us.
  *
  * Again, in order to avoid conversions (MUL/DIV) at all cost, we use pticks
  * all the way and approximate 10us = 12 pticks.
  *
  * The inner loop formula then becomes
- * X = (12p - d2)/l where X is the number of loops per 10us. On a 4.77MHz XT,
- * this number becomes 0,7 (i.e. 0) which is rounded to 1 and delivers a 40%
- * scaling error right there. It would have made sense to skip the inner loop
- * entirely on such slow systems, but since it's using the loop instruction,
- * zero is not an option.
+ * X = (12p - d2)/l where X is the number of loops per 10us. 
  */
-void u2delay(unsigned count)
-{
-	while (count--) asm volatile ("sub $100,%bx");
-}
 
-// __attribute__((optimize(0)))
-//void __attribute__((optimize(0))) calibrate_delay(void)
 void calibrate_delay(void)
 {
 	unsigned d0, d1, rest, adj, i, l;
 	unsigned long temp = 0;
 
-	sys_dly_base = 0;
-	sys_dly_index = 1;
-#if 0
-	/* find processing time for the get_ptime tool, average over 3 runs */
+	//sys_dly_base = 1;
+	//sys_dly_index = 0;
+
+	/* find processing time for the get_ptime tool, average over 4 runs */
 	i = 0;
-	for (d0 = 0; d0 < 3; d0++) {
+	get_ptime();
+	for (d0 = 0; d0 < 4; d0++) {
 		get_ptime();
+		//asm volatile ("nop");
 		i += (unsigned)get_ptime();
 	}
-	//printk("l=%u (%k)\n", i, i);
-	adj = i/3;
-	printk("adj %u -- ", adj);
+	adj = i >> 2;
 
 	/* time the inner loop. This - compensated for (d1-d0) - 
 	 * becomes the machine speed index. 
 	 * l = # of pticks to loop 1000 times.
 	 */
-	i = 0;
-	for (d0 = 0; d0 < 3; d0++) {
+	d0 = d1 = l = 0;
+	for (i = 0; i < 4; i++) {
 		get_ptime();
 		asm volatile ("mov $1000,%cx");
 		//asm volatile ("1: nop; loop 1b");
 		asm volatile ("1:sub $1,%cx;ja 1b");
-		i += (unsigned)get_ptime();
+		l += (unsigned)get_ptime();
+		//get_ptime();		/* time the outer loop */
+		u10delay(0);
+		d0 += (unsigned)get_ptime();
+		u10delay(2);
+		d1 += (unsigned)get_ptime();
 	}
-	l = i/3;
-	printk("l=%u (%k)\n", l, l);
-	printk("Calibrate: ");
-	if (l <= adj) {	/* Running QEMU, results are nonsensical */
-			/* so we preset the variables */
-		sys_dly_base = 1;
-		sys_dly_index = 1200/l; 	/* experimental value */
+	l >>= 2;
+	d0 >>= 2;
+	d1 >>= 2;
+	printk("adj %u, l=%u (%k)", adj, l, l);
+	if (l <= adj) {	/* If running QEMU w/HW accel, results are nonsensical */
+		adj = l>>2;
+
+	}
+	l -= adj;
+	d0 -= adj;
+	d1 -= adj;
+	printk(" d0=%u (%k)", d0, d0);
+	printk(" d1=%u (%k)\n", d1, d1);
+	if (d1 < d0) d1 = d0;	/* for QEMU */
+	if (d0 >= 12) {		/* on an XT, the call itself takes more than 10us
+				 * and the best we can do is to set the index to
+				 * 0 and increase the base somewhat. Rough
+				 * approximation anyway */
+		sys_dly_index = 0;
+		sys_dly_base = d0/10;
 	} else {
-		l -= adj;
-		u10delay(0);
-		get_ptime();
-		u10delay(0);
-		d0 = (unsigned) get_ptime() - adj;
-		printk("d0=%u (%k)\n", d0, d0);
 
-#if 0
-		get_ptime();
-		u10delay(1);
-		d1 = (unsigned) get_ptime() - adj;
-		printk("d1=%u (%k)\n", d1, d1);
-#else
-		d1 = d0 + 1;
-#endif
-		sys_dly_index = (unsigned)((12UL-(d1-d0))*1000UL/(unsigned long)l);
-	    	   //((12UL-(d1-d0))*10000UL/l)/10U;	/* # of inner loops per 10us */
-						/* 12 is # of pticks per 10us */
-						/* subtract ptick cost of 1 outer loop */
-		rest = ((12 - (d1-d0))*1000U/l) - sys_dly_index*100U;
-		//rest = ((12 - (d1-d0))*10000UL/l)*10UL - sys_dly_index*100UL;
-		if (rest >= 5) sys_dly_index++;		/* round up */
-		sys_dly_base = d0*838/10000;	/* tare, the 'weight' of u10delay()
-						   * sans the inner loop. Notice the 
-						   * extra 0 to scale to 10us */
-		rest = d0*838U/10U - sys_dly_base*1000U;
-		if (rest/100 > 4) sys_dly_base++;	  /* round up if required */
-		printk("%u, %u, %u, %u, (%u), ", l, adj, d0, d1, rest);
+	sys_dly_index = (unsigned)((12UL-(d1-d0))*1000UL/(unsigned long)l);
+	    	  //((12UL-(d1-d0))*10000UL/l)/10U;	/* # of inner loops per 10us */
+					/* 12 is # of pticks per 10us */
+					/* subtract ptick cost of 1 outer loop */
+	//rest = ((12 - (d1-d0))*1000U/l) - sys_dly_index*100U;
+	//if (rest >= 5) sys_dly_index++;		/* round up */
+	sys_dly_base = d0*838/10000;	/* tare, the 'weight' of u10delay()
+					   * sans the inner loop. Notice the 
+					   * extra 0 to scale to 10us */
+	//rest = d0*838U/10U - sys_dly_base*1000U;
+	//if (rest/100 > 4) sys_dly_base++;	  /* round up if required */
+	printk("%u, %u, %u, %u, (%u), ", l, adj, d0, d1, rest);
 	}
-	printk("ind %u, base %u, %lu test5-5000: ", 
-		sys_dly_index, sys_dly_base, temp);
-#endif
-#if 0
-	{ /* div test */
-		int dd;
-		unsigned d5;
-		unsigned d6 = 33;
 
-		d5 = 50;
-		d1 = 10;
-		//temp = 3UL;
-		get_ptime();
-		//u10delay(64000);
-		//dd = get_ptime();
-		//get_ptime();
-		//temp = get_ptime();
-		d6 = (unsigned)get_ptime();
-		//d6 = 6261;
-		//temp = d6;
-		//d6 = temp;
-		//printk("Direct %lu $$", temp);
-		printk("Direct %u $$", d6);
-		//temp = 30UL;
-		//temp = 3UL;
-		//d6 = 5363;
-		//d5 = (unsigned)((unsigned long)d6*838UL/1000UL);
-		//d5 = d6*838UL/1000UL;	/* no diff betw this and above */
-		//d5 = d6*838/1000;	/* THIS ONE WORKS FINE */
-		d5 = (unsigned)((long)d6*838L/1000L);	/* this fails */
-		//unsigned long d7 = d5 * 10UL;
-		printk("YYY;");
-		//d6 = d5;
-		printk("2: Direct %u $$", d5); /* HANGS HERE */
-		//printk("2: Direct %lx $$", d7);
-		//unsigned long d7 = (unsigned long)d5*838UL/1000UL;
-		///unsigned long d7 = temp*838UL/1000UL;
-		///d6 = (unsigned) (temp*838UL/1000UL);
-		d6 = (temp*838UL/1000UL);
-		dd = (temp*838UL/1000UL);
-		printk("XXXX %lu\n", temp);
-		//printk("New (UL) dd=%lx $$", d7);
-		printk("New (UL) dd=%x $$", d6);
-		//dd = (int)((long)temp * 100L)/(long)d5;
-		//printk("New dd=%d $$", dd);
-	}
-#endif
-#if 1
-    { /* div test */
-        volatile unsigned d5;
-        volatile unsigned d6 = 33;
+	printk("Delay calibration index: %d, skew: %d\n", sys_dly_index, sys_dly_base);
 
-	//clr_irq();
-	d5 = 50;
-        get_ptime();
-        d6 = (unsigned)get_ptime();
-	//d6 = d5/(d5+d6-83); 	/* div by zero works as expected */
-        printk("Direct %u $$", d6);
-        d5 = (unsigned)((long)d6*838L/1000L);   /* this fails */
-	d6 = (unsigned)jiffies;
-        printk("YYY %d;", d6);
-        printk("2: Direct %u $$", d5); /* HANGS HERE */
-        d6 = (temp*838UL/1000UL);
-        printk("XXXX %lu\n", temp);
-        printk("New (UL) dd=%x $$", d6);
-    }
-#endif
+#if TEST_DELAY
 	/* verify */
-#if 0	/* this is the real code */
 	d1 = 5;				/* start off with 5*10us */
 	for (d0 = 0; d0 < 4; d0++) {
 		int diff, d;
@@ -878,12 +824,15 @@ void calibrate_delay(void)
 
 		get_ptime();
 		u10delay(d1);
-		temp = get_ptime() - adj;
-		if (temp <= 0) temp += adj;	/* QEMU weirdness */
-		printk("temp=%lu; ", temp);
-		if (temp < 74) 		/* kludge to get around QEMU problem, see #76 */
-		   t = (unsigned)temp*838/1000;
+		temp = get_ptime();
+		if (temp >= adj) 
+			temp -= adj;	/* QEMU weirdness */
 		else
+			temp -= 2;
+		printk("temp=%lu; ", temp);
+		//if (temp < 74) 		/* kludge to get around QEMU problem, see #76 */
+		   //t = (unsigned)temp*838/1000;
+		//else
 		   t = temp*838UL/1000UL;	/* convert to microseconds */
 		d1 *= 10;	/* scale to 10us - and increment for next loop */
 		diff = t - d1;	/* diff in us */

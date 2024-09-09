@@ -1,4 +1,4 @@
-## boot options max 511 bytes console=ttyS0,57600 debug
+## boot options max 511 bytes
 console=ttyS0,57600 debug net=ne0 3 # sercons, multiuser, net
 #root=df0
 #QEMU=1			# to use ftp/ftpd in qemu
@@ -15,6 +15,7 @@ bufs=24		# L2
 hdparms=306,4,17,128,614,4,17,-1
 netbufs=2,0
 tasks=17
-#sync=30		# autosync secs
+sync=30		# autosync secs
+#xdflpy=3,1
 #init=/bin/init 3 n	# multiuser serial no /etc/rc.sys
 #init=/bin/sh		# singleuser shell
