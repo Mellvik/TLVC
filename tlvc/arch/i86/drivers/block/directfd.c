@@ -53,7 +53,6 @@
  *
  * 2023/3/10 -- helge@skrivervik.com
  * Rewritten for TLVC to replace BIOS based IO from ELKS. 
- * DMA setup from Minix for simplicity and compactness. 
  */
 
 /*
@@ -63,7 +62,6 @@
  *   the odd case of using BIOS HD + DIRECT FD + XMS buffers + TRACK cache, 
  *   which really should not happen. IOW - use either BIOS block IO or DIRECT block IO,
  *   don't mix!!
- * - Update DMA code
  * - Clean up debug output
  * - The driver has many provisions for 4 floppy drives, but except for the oldest PCs
  *   (PC and XT) there is no physical support more than 2 drives except via a 2nd controller.
@@ -157,15 +155,15 @@ void (*DEVICE_INTR) () = NULL;
 #endif
 
 
-static int initial_reset_flag = 0;
+static int initial_reset_flag;
 static int need_configure = 1;	/* for 82077 */
-static int reset = 0;		/* something went wrong, reset FDC, start over */
-static int recalibrate = 0;	/* less dramatic than reset, like changed drive
+static int reset;		/* something went wrong, reset FDC, start over */
+static int recalibrate;		/* less dramatic than reset, like changed drive
 				 * parameters or seek errors. Will (eventually)
 				 * trigger a call to recalibrate_floppy() */
-static int recover = 0;		/* signal that we're recovering from a hang,
+static int recover;		/* signal that we're recovering from a hang,
 				 * awakened by the watchdog timer */
-static int seek = 0;		/* set if the current operation needs a track
+static int seek;		/* set if the current operation needs a track
 				 * change (seek) */
 static int nr_sectors;		/* # of sectors to r/w, 2 if block IO */
 static int raw;			/* set if raw/char IO	*/
@@ -231,7 +229,7 @@ static unsigned char reply_buffer[MAX_REPLIES];
 #define CMOS_2880k  5
 #define CMOS_MAX    5
 
-/* indices into minor_types[], used for floppy format probes */
+/* indices into floppy_type[], used for floppy format probes. Must match the table below */
 #define FT_360k_PC  1           /* 360kB PC diskettes */
 #define FT_1200k    2           /* 1.2 MB AT-diskettes */
 #define FT_720k     3           /* 3.5" 720kB diskette */
@@ -255,7 +253,7 @@ static struct floppy_struct floppy_type[] = {
 };
 
 /* floppy probes to try per CMOS floppy type */
-static unsigned char p360k[] =  { FT_360k_PC, FT_360k_PC, 0 };
+static unsigned char p360k[] =  { FT_360k_PC, FT_720k, 0 };
 static unsigned char p1200k[] = { FT_1200k,   FT_360k_AT, 0 };
 static unsigned char p720k[] =  { FT_720k,    FT_720k,    0 };
 static unsigned char p1440k[] = { FT_1440k,   FT_720k,    0 };
@@ -276,9 +274,14 @@ static unsigned char *base_type[4] = { NULL, NULL, NULL, NULL };
 /*
  * The driver is trying to determine the correct media format
  * while probing is set. rw_interrupt() clears it after a
- * successful access.
+ * successful access. This works when the formats are distinct,
+ * not when the format is the same and the # of sectors differ.
  */
 static int probing = 0;
+
+/* On an XT with a 720k drive, probing will not work because the first 9 sectors
+ * read correctly anyway, we need to fake the CMOS types via bootopts */
+extern int xt_floppy[];
 
 /* Prevent "aliased" accesses. */
 
@@ -1615,7 +1618,7 @@ static unsigned char * INITPROC find_base(int drive, int type)
     if (type > 0 && type <= CMOS_MAX) {
 	if (type == CMOS_2880k) type--;	/* force 2.88 to look like 1.44 */
 	base = probe_list[type - 1];
-	printk("df%d is %s (%d)%d", drive, floppy_type[*base].name, type, *base);
+	printk("df%d is %s (%d)", drive, floppy_type[*base].name, type);
 	return base;
     }
     printk("df%d is unknown type %d", drive, type);
@@ -1629,17 +1632,27 @@ static unsigned char * INITPROC find_base(int drive, int type)
 static void INITPROC config_types(void)
 {
     int at = sys_caps & CAP_PC_AT;
-    printk("Floppy drive(s) [%sCMOS]: ", at ? "" : "no ");
+    printk("Floppy drive(s)%s ", at ? " [CMOS]: " : "");
     if (at) {
 	base_type[0] = find_base(0, (CMOS_READ(0x10) >> 4) & 0xF);
 	if ((CMOS_READ(0x14) >> 6) & 1) {
 	    printk(", ");
 	    base_type[1] = find_base(1, CMOS_READ(0x10) & 0xF);
 	}
-    } else {	/* No CMOS, force 2 type 1 drives - for convenience. 
+    } else {
+	if (xt_floppy[0]) {	/* floppy types from bootopts */
+	    printk("[bootopts]: ");
+	    base_type[0] = find_base(0, xt_floppy[0]);
+	    if (xt_floppy[1]) {
+		printk(", ");
+		base_type[1] = find_base(1, xt_floppy[1]);
+	    }
+	} else {
+		/* No CMOS or bootopts, force 2 type 1 drives - for convenience.
 		 * Neither may exist, we have no way to find out. */
-	base_type[0] = base_type[1] = probe_list[FT_360k_PC - 1];
-	printk("df0, df1 set to 360k/PC (type 1)");
+	    base_type[0] = base_type[1] = probe_list[FT_360k_PC - 1];
+	    printk("df0, df1 set to 360k/PC (type 1)");
+	}
     }
     printk("\n");
 }
@@ -1774,7 +1787,6 @@ void INITPROC floppy_init(void)
 #endif
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
-    config_types();
     err = request_irq(FLOPPY_IRQ, floppy_interrupt, INT_GENERIC);
     if (err) {
 	printk("Unable to grab IRQ%d for the floppy driver\n", FLOPPY_IRQ);
@@ -1799,7 +1811,7 @@ void INITPROC floppy_init(void)
 #else
     fdc_version = FDC_TYPE_STD;	/* force std fdc type; can't test other. */
 #endif
-    printk("%s: Direct floppy driver, FDC (%s) @ irq %d, DMA %d", DEVICE_NAME, 
+    printk("%s: Direct floppy driver, FDC %s @ irq %d, DMA %d", DEVICE_NAME, 
 	    fdc_version == 0x80 ? "8272A" : "82077", FLOPPY_IRQ, FLOPPY_DMA);
     configure_fdc_mode();
 #ifdef USE_DIR_REG
@@ -1818,6 +1830,7 @@ void INITPROC floppy_init(void)
 	reset_floppy();
     }
 #endif
+    config_types();
 }
 
 #if 0
