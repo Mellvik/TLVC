@@ -69,7 +69,7 @@ void testloop(unsigned);
 int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
 
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
-int xt_floppy[2];	/* XT floppy types, needed if XT has 720k drive(s) */
+int xt_floppy[3];		/* XT floppy types, needed if XT has 720k drive(s) */
 static int boot_console;
 static seg_t membase, memend;
 static char bininit[] = "/bin/init";
@@ -261,6 +261,9 @@ static void INITPROC do_init_task(void)
 
     mount_root();
 
+#ifdef BOOT_TIMER	/* temporary, works with similar printout in getty */
+    printk("[%lu]", jiffies); 	/* for measuring startup time */
+#endif
 #ifdef CONFIG_SYS_NO_BININIT
     /* when no /bin/init, force initial process group on console to make signals work*/
     current->session = current->pgrp = 1;
@@ -568,7 +571,7 @@ static int INITPROC parse_options(void)
 			continue;
 		}
 		if (!strncmp(line, "xtflpy=", 7)) {
-			parse_parms(2, line+7, xt_floppy, 10);
+			parse_parms(3, line+7, xt_floppy, 10);
 			continue;
 		}
 		if (!strncmp(line,"TZ=",3)) {
@@ -767,7 +770,7 @@ void calibrate_delay(void)
 	d0 = d1 = l = 0;
 	for (i = 0; i < 4; i++) {
 		get_ptime();
-		asm volatile ("mov $1000,%cx");
+		asm volatile ("mov $500,%cx");
 		//asm volatile ("1: nop; loop 1b");
 		asm volatile ("1:sub $1,%cx;ja 1b");
 		l += (unsigned)get_ptime();
@@ -791,26 +794,26 @@ void calibrate_delay(void)
 	printk(" d0=%u (%k)", d0, d0);
 	printk(" d1=%u (%k)\n", d1, d1);
 	if (d1 < d0) d1 = d0;	/* for QEMU */
-	if (d0 >= 12) {		/* on an XT, the call itself takes more than 10us
+	if (d0 >= 12) {		/* on systems running at <10MHz XT, the call itself 
+				 * takes more than 10us
 				 * and the best we can do is to set the index to
 				 * 0 and increase the base somewhat. Rough
 				 * approximation anyway */
 		sys_dly_index = 0;
 		sys_dly_base = d0/10;
 	} else {
-
-	sys_dly_index = (unsigned)((12UL-(d1-d0))*1000UL/(unsigned long)l);
-	    	  //((12UL-(d1-d0))*10000UL/l)/10U;	/* # of inner loops per 10us */
+		d1 -= d0; 	/* d1 is (net) outer loop cost */
+		sys_dly_index = (unsigned)((12UL-d1)*1000UL/(unsigned long)l);
 					/* 12 is # of pticks per 10us */
 					/* subtract ptick cost of 1 outer loop */
-	//rest = ((12 - (d1-d0))*1000U/l) - sys_dly_index*100U;
-	//if (rest >= 5) sys_dly_index++;		/* round up */
-	sys_dly_base = d0*838/10000;	/* tare, the 'weight' of u10delay()
+		//rest = ((12 - d1)*1000U/l) - sys_dly_index*100U;
+		//if (rest >= 5) sys_dly_index++;		/* round up */
+		sys_dly_base = d0*838/10000;	/* tare, the 'weight' of u10delay()
 					   * sans the inner loop. Notice the 
 					   * extra 0 to scale to 10us */
-	//rest = d0*838U/10U - sys_dly_base*1000U;
-	//if (rest/100 > 4) sys_dly_base++;	  /* round up if required */
-	printk("%u, %u, %u, %u, (%u), ", l, adj, d0, d1, rest);
+		//rest = d0*838U/10U - sys_dly_base*1000U;
+		//if (rest/100 > 4) sys_dly_base++;	  /* round up if required */
+		printk("%u, %u, %u, %u, (%u), ", l, adj, d0, d1, rest);
 	}
 
 	printk("Delay calibration index: %d, skew: %d\n", sys_dly_index, sys_dly_base);
@@ -830,17 +833,10 @@ void calibrate_delay(void)
 		else
 			temp -= 2;
 		printk("temp=%lu; ", temp);
-		//if (temp < 74) 		/* kludge to get around QEMU problem, see #76 */
-		   //t = (unsigned)temp*838/1000;
-		//else
-		   t = temp*838UL/1000UL;	/* convert to microseconds */
+		t = (temp*838UL)/1000UL;	/* convert to microseconds */
 		d1 *= 10;	/* scale to 10us - and increment for next loop */
 		diff = t - d1;	/* diff in us */
-		//d = ((long)-diff * 100L)/(long)d1;
 		printk("\n%lk (%u) diff %d, d1=%ld;", temp, t, diff, (long)d1);
-		//d = ((unsigned long)diff * 100UL)/(unsigned long)d1;
-		//printk("d=%d, long d1=%ld|", d, (long)d1);
-		//printk("diff %ld d1 %lu;", (long)diff*100L, (long)d1);
 		d = -diff * 100/d1;
 		//if (d < 0) d = -d;
 		printk("\n%lk (%u) diff %d (%d%%);", temp, t, diff, d);
