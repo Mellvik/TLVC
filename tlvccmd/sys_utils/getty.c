@@ -47,6 +47,9 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <paths.h>
+#include <linuxmt/mem.h>	/* /dev/mem */
+#include <linuxmt/memory.h>	/* _MK_FP */
+#include <sys/ioctl.h>		/* for jiffies */
 
 #define DEBUG		0	/* set =1 for debug messages*/
 
@@ -56,7 +59,8 @@
 /* For those requiring a super-small getty, the following define cuts out
  * all of the extra functionality regarding the /etc/issue code sequences.
  */
-//#define SUPER_SMALL		/* Disable for super-small binary */
+#define SUPER_SMALL	0	/* Enable for super-small binary */
+#define BOOT_TIMER	0	/* Enable to print jiffies at startup */
 
 #if DEBUG
 #define debug		consolemsg
@@ -64,7 +68,7 @@
 #define debug(...)
 #endif
 
-char *	progname;
+char	*progname;
 char	Buffer[64];
 int	ch, col = 0;
 
@@ -86,28 +90,16 @@ void consolemsg(const char *str, ...)
 }
 
 
-#ifndef SUPER_SMALL
-char	Host[256], *Date = 0, *Time = 0;
+#if !SUPER_SMALL
+char	Host[20], *Date = 0, *Time = 0;
 
 void host(void) {
-    char *ptr;
-    int fp = open(_PATH_HOSTNAME,O_RDONLY), sz;
+    char *host = getenv("HOSTNAME");
 
-    if (fp) {
-	sz = read( fp, Host, 255);
-	if (sz >= 0)
-	    Host[sz] = '\0';
-	else
-	    *Host = '\0';
-	close(fp);
-    }
-    for (ptr = Host; isprint(*ptr); ptr++)
-	continue;
-    while (ptr >= &Host[1] && ptr[-1] == ' ')
-	ptr--;
-    *ptr = '\0';
-    if (!*Host)
-	strcpy( Host, "LocalHost" );
+    if (host == NULL)
+	strcpy(Host, "LocalHost");
+    else
+	strcpy(Host, host);
 }
 
 /*	Before  = "Sun Dec 25 12:34:56 7890"
@@ -148,6 +140,29 @@ void when(void) {
 	    Date++;
 	Time = Result + 12;
     }
+}
+
+#endif
+
+#if BOOT_TIMER
+unsigned long __far *jp;
+
+int timer_init(void)
+{
+    unsigned int kds, jaddr;
+    int fd = open("/dev/kmem", O_RDONLY);
+
+    if (fd < 0) {
+        perror("/dev/kmem");
+        return -1;
+    }
+    if ((ioctl(fd, MEM_GETDS, &kds) < 0) || (ioctl(fd, MEM_GETJIFFADDR, &jaddr)) < 0 )  {
+        perror("ktcp: ioctl error in /dev/kmem");
+        return -1;
+    }
+    jp = _MK_FP(kds, jaddr);
+    close(fd);
+    return 0;
 }
 #endif
 
@@ -229,6 +244,15 @@ int main(int argc, char **argv)
 	debug("startup args '%s' %ld\n", argv[1], baud);
     }
 
+#if BOOT_TIMER
+    {
+	char jiffies[10];
+
+	timer_init();
+	sprintf(jiffies, "[%lu]", *jp);
+	state(jiffies);
+    }
+#endif
     /* allow execution outside of init*/
     if (getppid() != 1) {
 	int tty = open(argv[1], O_RDWR);
@@ -271,7 +295,7 @@ int main(int argc, char **argv)
     fd = open(_PATH_ISSUE, O_RDONLY);
     if (fd >= 0) {
 	put('\n');
-#ifdef SUPER_SMALL
+#if SUPER_SMALL
 	while ((n=read(fd,Buffer,sizeof(Buffer))) > 0)
 	    write(1,Buffer,n);
 #else
@@ -348,7 +372,7 @@ int main(int argc, char **argv)
 			    state(ptr);
 			    break;
 			case 'S':			/* System */
-			    state("ELKS");
+			    state("TLVC");
 			    break;
 			case 'T':			/* Time */
 			    state(Time);
