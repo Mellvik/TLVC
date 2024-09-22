@@ -119,7 +119,7 @@ void (*DEVICE_INTR) () = NULL;
 
 /* Driver configuration */
 
-//#define dfd_debug	/* lots of debug output */
+#define dfd_debug	/* lots of debug output */
 //#define INCLUDE_FD_FORMATTING	/* Formatting code untested, don't waste the space */
 
 #ifndef CONFIG_HW_PCXT	/* some options are not meaningful on pre-AT systems */
@@ -133,9 +133,6 @@ void (*DEVICE_INTR) () = NULL;
 #else
 #undef CHECK_MEDIA_CHANGE /* Now defined in linuxmt/fs.h */
 #endif
-
-//#define ENABLE_CYLBUF	/* Allow small capacity floppies to read a full cylinder  */
-			/* into the (18 sector) track cache - NOT GOOD for root file systems */
 
 #ifdef dfd_debug
 #define DEBUG printk
@@ -168,7 +165,7 @@ static int seek;		/* set if the current operation needs a track
 				 * change (seek) */
 static int nr_sectors;		/* # of sectors to r/w, 2 if block IO */
 static unsigned char raw;	/* set if raw/char IO	*/
-static unsigned char raw_bounce;/* set if raw access uses bounce buffer */
+static unsigned char use_bounce;/* set if this transaction needs bounce buffer */
 
 static unsigned char current_DOR = 0x0C; /* default: DMA on, RESET off */
 
@@ -205,14 +202,6 @@ static unsigned char running = 0; /* keep track of motors already running */
  * Head Load Time [2ms], apparently not critical, we use the same for all drives.
  */
 #define HEAD_LOAD_TIME	6
-
-/*
- * The 8237 DMA controller cannot access data above 1MB on the origianl PC 
- * (4 bit page register). The AT is different, the page reg is 8 bits while the
- * 2nd DMA controller transfers words only, not bytes and thus up to 128k bytes
- * in one 'swoop'.
- */
-#define LAST_DMA_ADDR	(0x100000L - BLOCK_SIZE) /* Enforce the 1M limit */
 
 /*
  * globals used by 'result()'
@@ -259,7 +248,7 @@ static unsigned char reply_buffer[MAX_REPLIES];
  */
 static struct floppy_struct floppy_type[] = {
 	    {   0,  0, 0, 0, 0x00, 0x00, 0x00, 0x00, NULL},	  /* no testing */
-    /* 1 */ { 720,  9, 40, 0, 0x2A, R250, 0xCF, 0x50, "360k/PC"}, /* 360kB PC, SRT 6ms */
+    /* 1 */ { 720,  9, 40, 0, 0x2A, R250, 0xDF, 0x50, "360k/PC"}, /* 360kB PC, SRT 6ms */
     /* 2 */ {2400, 15, 80, 0, 0x1B, R500, 0xDF, 0x54, "1.2M"},	  /* 1.2MB AT, SRT 5ms */
     /* 3 */ {1440,  9, 80, 0, 0x2A, R250, 0xEF, 0x50, "720k"},	  /* 3.5" 720kB */
     /* 4 */ { 720,  9, 40, 1, 0x23, R300, 0xDF, 0x50, "360k/AT"}, /* 360kB in 1.2MB drive */
@@ -351,15 +340,6 @@ static struct format_descr format_req;
  * Spec2 is (HLD<<1 | ND), where HLD is head load time (1=2ms, 2=4 ms etc)
  * and ND is set means no DMA. Hardcoded to 6 (HLD=6ms, use DMA).
  */
-
-#if 0
-/*
- * The block buffer is used for all writes, for formatting and for reads
- * in case track buffering doesn't work or has been turned off.
- */
-#define WORD_ALIGNED    __attribute__((aligned(2)))
-static char tmp_floppy_area[BLOCK_SIZE] WORD_ALIGNED;
-#endif
 
 #ifdef CHECK_MEDIA_CHANGE
 #define buffer_dirty(b)	((b)->b_dirty)
@@ -685,14 +665,6 @@ int floppy_change(struct buffer_head *bh)
 }
 #endif
 
-/*
- * TODO: Clean up this mess when everything works right 
- * 	Like checking for the LAST_DMA_ADDR is nonsensical in block mode because
- *	we're either using kernel buffers or XMS buffers, in both cases we know 
- *	about it and handle it. In raw mode, we're transferring to/from application
- *	data space or - occasionally - using DMASEG as bounce buffer, always well
- *	within lower memory.
- */
 static void setup_DMA(void)
 {
     unsigned long dma_addr;
@@ -703,55 +675,41 @@ static void setup_DMA(void)
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
     use_xms = req->rq_seg >> 16;
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
+    dma_addr = _MK_LINADDR(DMASEG, 0);
 
-    raw_bounce = 0;
+    use_bounce = 0;
     count = nr_sectors<<9;
     if (use_xms || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
+	use_bounce++;
 	if (raw) {	/* raw access: must use track buffer as bounce buffer, split
 			 * transfer if too big */
-	    dma_addr = _MK_LINADDR(DMASEG, 0);
 	    if (nr_sectors > MAX_BUFFER_SECTORS) {
 		nr_sectors = MAX_BUFFER_SECTORS;
 		count = nr_sectors<<9;
 	    }
-	    raw_bounce++;
-	} else
-	    dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
+	}
     } else
-	dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+	if (!read_track) dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 
     DEBUG("setupDMA:");
     DEBUG("-%x:%x-", req->rq_seg, req->rq_buffer);
 
 #ifdef INCLUDE_FD_FORMATTING
     if (command == FD_FORMAT) {
-	//dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area);
 	dma_addr = _MK_LINADDR(DMASEG, 0);
-	count = floppy->sect * 4;
+	count = floppy->sect * 4;	/* formatting data, 4 bytes per sector */
     }
 #endif
     if (read_track) {	/* mark track cache bad, in case all this fails.. */
 	cache_drive = cache_track = -1;
-#ifdef ENABLE_CYLBUF
-	if (floppy->sect <= MAX_BUFFER_SECTORS/2)
-		count = floppy->sect << 10;	/* cache cylinder, track * 2 */
-        else {
-#else
 	if (floppy->sect <= MAX_BUFFER_SECTORS) {
-#endif
 		count = floppy->sect << 9;	/* sects/trk (one side) times 512 */
 		if (floppy->sect & 1 && !head)
 	    		count += 512; /* add one if head=0 && sector count is odd */
 	}
-
-	dma_addr = _MK_LINADDR(DMASEG, 0);
-    } else if (dma_addr >= LAST_DMA_ADDR) {
-	dma_addr = _MK_LINADDR(DMASEG, 0); /* use bounce buffer */
-	//dma_addr = _MK_LINADDR(kernel_ds, tmp_floppy_area); /* use bounce buffer */
-	if (command == FD_WRITE)
+    } else if (use_bounce && command == FD_WRITE)
 	    xms_fmemcpyw(0, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
-	    //xms_fmemcpyw(tmp_floppy_area, kernel_ds, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
-    }
+
     DEBUG("%d/%lx/%x;", count, dma_addr, physaddr);
     clr_irq();
     disable_dma(FLOPPY_DMA);
@@ -991,6 +949,8 @@ static void rw_interrupt(void)
 			 * than the reporting threshold. NOTE: rq_errors is incremented in 
 			 * bad_flp_intr too!! */
 			/* FIXME: Need smarter retry/error reporting scheme */
+			/* FIXME: A track change may fix some of these errors
+			 * on old and worn drives */
 	}
 	if (bad)
 	    bad_flp_intr();
@@ -1011,6 +971,7 @@ static void rw_interrupt(void)
 
     struct request *req = CURRENT;
     int drive = (MINOR(req->rq_dev) >> MINOR_SHIFT) & 3;
+
     if (probing) {
 	printk("df%d: Auto-detected floppy type %s\n", drive, floppy->name);
 	current_type[drive] = floppy;
@@ -1019,35 +980,20 @@ static void rw_interrupt(void)
 #endif
 	probing = 0;
     }
-    if (raw_bounce) {	/* raw access had to use bounce buffer */
-	CURRENT->rq_nr_sectors = nr_sectors;
+    if (use_bounce) {	/* raw access had to use bounce buffer */
+	if (raw) CURRENT->rq_nr_sectors = nr_sectors;
 	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, DMASEG, nr_sectors << (9-1));
 									/* words ^ */
     } else {
 	if (read_track) {
 	    cache_drive = current_drive;
-#ifdef ENABLE_CYLBUF
-		if (floppy->sect <= MAX_BUFFER_SECTORS/2) {
-		buffer_area = (unsigned char *)(((floppy->sect * head) + sector) << 9);
-		cache_track = (seek_track << 1); 	/* full cylinder cache */
-	    } else
-#endif
-	    {
-		buffer_area = (unsigned char *)(sector << 9);
-		cache_track = (seek_track << 1) + head; /* track cache */
-	    }
+	    buffer_area = (unsigned char *)(sector << 9);
+	    cache_track = (seek_track << 1) + head; /* track cache */
 	    DEBUG("rd:%04x:%04x->%04lx:%04x;", DMASEG, buffer_area,
 		(unsigned long)req->rq_seg, req->rq_buffer);
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
-	} else if (command == FD_READ /* NOTE: Need to detect xms buffer use here, 
-					maybe a	usebounce flag */
-		//&& _MK_LINADDR(req->rq_seg, req->rq_buffer) >= LAST_DMA_ADDR) {
-    		&& (req->rq_seg >> 16)) {
-	/* If the dest buffer is out of reach for DMA (always the case if using XMS buffers)
-	 * or the buffer spans a 64k boundary, we do I/O via the track buffer */
+	} else if (command == FD_READ && (req->rq_seg >> 16)) {	/* XMS buffer */
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, DMASEG, BLOCK_SIZE/2);
-	    //printk("df%d: illegal buffer usage, rq_buffer %04x:%04x\n", drive,
-		//req->rq_seg, req->rq_buffer);
 	}
     }
     request_done(1);
@@ -1072,22 +1018,15 @@ static void rw_interrupt(void)
  */
 void setup_rw_floppy(void)
 {
-    unsigned char hd;
-
     DEBUG("setup_rw%d-",track);
     setup_DMA();
-#ifdef ENABLE_CYLBUF
-    hd = (read_track && (floppy->sect <= MAX_BUFFER_SECTORS/2)) ? 0 : head;
-#else
-    hd = head;
-#endif
     do_floppy = rw_interrupt;
     output_byte(command);
-    output_byte(hd << 2 | current_drive);
+    output_byte(head << 2 | current_drive);
 
     if (command != FD_FORMAT) {
 	output_byte(track);
-	output_byte(hd);
+	output_byte(head);
 	if (read_track)
 	    output_byte(1);	/* always start at 1 */
 	else
@@ -1131,11 +1070,10 @@ static void seek_interrupt(void)
  */
 static void transfer(void)
 {
-#if 1	/* debug, turn off or on track buffer */
     /* DEBUG - turns on/off track buffer via bootopts */
     read_track = xt_floppy[2] && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
 	(floppy->sect <= MAX_BUFFER_SECTORS);
-#endif
+
     DEBUG("trns%d-", read_track);
 
     configure_fdc_mode();	/* Make sure the controller is in the right mode,
@@ -1522,28 +1460,19 @@ static void redo_fd_request(void)
     del_timer(&fd_timeout);
     fd_timeout.tl_expires = jiffies + 3 * HZ;
     add_timer(&fd_timeout);
-#ifdef ENABLE_CYLBUF
-    int cyl_mask = (floppy->sect <= MAX_BUFFER_SECTORS/2) ? 0 : head; /* full cyl cache */
-#else
-#define cyl_mask head
-#endif
 
     DEBUG("prep %d|%d,%d|%d-", cache_track, seek_track, cache_drive, current_drive);
 
-    if (!raw && (((seek_track << 1) + cyl_mask) == cache_track) && (current_drive == cache_drive)) {
+    if (!raw && (((seek_track << 1) + head) == cache_track) && (current_drive == cache_drive)) {
+	unsigned char *buf_ptr;
+
 	/* Requested block is in the cache. If reading, go get it.
 	 * If the sector count is odd, we cache sectors+1 when head=0 to get 
 	 * full blocks. When head=1 we read the entire track
 	 * and ignore the first sector.
 	 */
-	DEBUG("bufrd chs %d/%d/%d\n", seek_track, head, sector);
-	unsigned char *buf_ptr;
-#ifdef ENABLE_CYLBUF
-	if (floppy->sect <= MAX_BUFFER_SECTORS/2) 
-		buf_ptr = (unsigned char *)(((floppy->sect * head) + sector) << 9);
-	else
-#endif
-		buf_ptr = (unsigned char *)(sector << 9);
+	buf_ptr = (unsigned char *)(sector << 9);
+	DEBUG("bufrd chs %d/%d/%d-%x\n", seek_track, head, sector, buf_ptr);
 
 	if (command == FD_READ) {	/* requested data is in cache */
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
