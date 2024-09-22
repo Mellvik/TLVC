@@ -24,9 +24,9 @@ struct request {
     ramdesc_t rq_seg;		/* L2 main/xms buffer segment */
     struct buffer_head *rq_bh;
     struct request *rq_next;
-    int rq_errors;		/* FIXME: direct floppy only, needs #ifdef */
-				/* actually, used in raw blk io too */
-    unsigned int rq_nr_sectors; /* needed for raw IO */
+    int rq_errors;		/* Used by the direct floppy driver 
+				 * and raw blkdev IO */
+    unsigned int rq_nr_sectors; /* needed for rawdev IO */
 #ifdef BLOAT_FS
 /* This may get used for dealing with waiting for requests later*/
     struct task_struct *rq_waiting;
@@ -118,7 +118,7 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 #endif
 
-extern struct wait_queue wait_for_request; /* testing, needed for ASYNC_IO */
+extern struct wait_queue wait_for_request; /* for ASYNC_IO */
 #ifdef FLOPPYDISK	/* direct floppy */
 #define ASYNC_IO
 
