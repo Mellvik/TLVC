@@ -18,12 +18,15 @@
 #define HEAP_TAG_CLEAR   0x40	/* return cleared memory*/
 #define HEAP_TAG_TYPE    0x0F
 #define HEAP_TAG_SEG     0x01
-#define HEAP_TAG_TASK    0x04
+#define HEAP_TAG_DRVR	 0x02
 #define HEAP_TAG_TTY     0x03
-#define HEAP_TAG_INTHAND 0x04
+#define HEAP_TAG_TASK    0x04
 #define HEAP_TAG_BUFHEAD 0x05
 #define HEAP_TAG_PIPE    0x06
 #define HEAP_TAG_NETWORK 0x07	/* packet buffer allocations */
+#define HEAP_TAG_INDOE	 0x08
+#define HEAP_TAG_CACHE	 0x09
+#define HEAP_TAG_FILE	 0x0A
 
 
 // TODO: move free list node from header to body
