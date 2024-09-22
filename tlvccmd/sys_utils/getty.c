@@ -91,15 +91,13 @@ void consolemsg(const char *str, ...)
 
 
 #if !SUPER_SMALL
-char	Host[20], *Date = 0, *Time = 0;
+char	Host[20] = "LocalHost", *Date = 0, *Time = 0;
 
 void host(void) {
     char *host = getenv("HOSTNAME");
 
-    if (host == NULL)
-	strcpy(Host, "LocalHost");
-    else
-	strcpy(Host, host);
+    if (host)
+	strncpy(Host, host, sizeof(Host)-1);
 }
 
 /*	Before  = "Sun Dec 25 12:34:56 7890"
@@ -130,7 +128,7 @@ void when(void) {
 
 	Result[2]  = Result[6]	 = '-';
 
-	for (n=20; n>12; n--)
+	for (n=20; n>11; n--)
 	    Result[n] = Result[n-1];
 
 	Result[11] = Result[20] = '\0';
