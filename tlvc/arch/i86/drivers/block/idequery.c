@@ -74,7 +74,7 @@ int INITPROC get_ide_data(int drive, struct drive_infot *drive_info) {
 	word_t port = io_ports[drive >> 1];
 	int retval = 0, i, timeout = 10000;
 
-	word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
+	word_t *ide_buffer = (word_t *)heap_alloc(512, HEAP_TAG_DRVR);
 
 	out_hd(drive, IDE_DRIVE_ID);
     	while (WAITING(port) && timeout--);

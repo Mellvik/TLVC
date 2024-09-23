@@ -50,13 +50,12 @@
 #include <linuxmt/string.h>
 #include <linuxmt/mm.h>
 #include <linuxmt/heap.h>
-#include <linuxmt/directhd.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/config.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
 
-#include <arch/hdreg.h>
+#include <arch/directhd.h>
 #include <arch/ports.h>
 #include <arch/io.h>
 #include <arch/segment.h>
@@ -86,7 +85,7 @@ __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
 //#define USE_LOCALBUF		/* For debugging: use local bounce buffer instead of */
 				/* direct buffer io via far pointers.
 				 * When XMS buffers are active, the same 1k buffer
-				 * is used for bouncing. Price: 1k bytes */
+				 * is used for bouncing. Price: 1k bytes from heap */
 #define MAJOR_NR ATHD_MAJOR
 #define MINOR_SHIFT	5
 #define ATDISK
@@ -122,9 +121,9 @@ static struct file_operations directhd_fops = {
 
 
 /* MAX_ATA_DRIVES is set in directhd.h - to save RAM, reduce to 2 */
-static int access_count[MAX_ATA_DRIVES] = { 0, };
+static int access_count[MAX_ATA_DRIVES];
 
-/* NEW(01/24): Support for XT/IDE or XT/CF-Lite cards with A0 disconnected (registers at
+/* NEW (01/24): Support for XT/IDE or XT/CF-Lite cards with A0 disconnected (registers at
  * even addresses only) and control port at base+1c. IO address at XTIDE_PORT,
  * usually 0x300, watch out for collissions with a NIC. The on-board BIOS may be
  * disabled. If so, boot from floppy. */
@@ -140,21 +139,21 @@ static int cmd_ports[2] = { HD1_CMD, HD2_CMD };
 #endif
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
-static byte_t localbuf[BLOCK_SIZE];	/* bounce buffer for debugging and
-					 * XMS buffers */
+static byte_t *localbuf;	/* bounce buffer for debugging and XMS buffers */
+static byte_t open_drv_count;	/* keep track of open drives for heap_free() */
 #endif
 
 #define PORT_IO	port_io
 void (*PORT_IO)() = NULL;
 
-static int directhd_initialized = 0;
-static struct drive_infot drive_info[MAX_ATA_DRIVES] = { 0, };
+static int directhd_initialized;
+static struct drive_infot drive_info[MAX_ATA_DRIVES];
 
 /* NOTE (FIXME): This is wasting a lot of memory, allocating 32 entries times MAX_ATA_DRIVES,
  * -> 128 entries while we may need 16, 32 at the most. Each entry = 8 bytes,
  * save potential > 768 bytes */
 static struct hd_struct hd[MAX_ATA_DRIVES << MINOR_SHIFT]; /* partition pointer {start_sect, num_sects} */
-static int  directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT] = { 0, };
+static int directhd_sizes[MAX_ATA_DRIVES << MINOR_SHIFT];
 
 static void directhd_geninit();
 static unsigned char reset_controller(int);
@@ -369,8 +368,8 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 
 	while(WAITING(port)) mdelay(1000);
 	if (STATUS(port) & ERR_STAT) {
-		printk("athd%d: feature not available: %x, %x\n", 
-			drive, cmd, ERROR(port));
+		printk("ath%dd%d: feature not available: %x, %x\n", 
+			drive/2, drive, cmd, ERROR(port));
 		err++;	/* 'Abort' is the only possible error condition here, */
 			/* which means 'command not implemented'. */
 	}
@@ -378,25 +377,13 @@ static int ata_set_feature(unsigned int drive, unsigned int cmd)
 }
 #endif
 
-#if 0	/* TO BE DELETED */
-/* Peek the error register, should be 0x1 (NO ERROR DETECTED) after reset */
-/* By no means a reliable probe, more like an indication of 
- * presence */
-static int INITPROC ide_probe(int port) 
-{
-	unsigned int i = inb_p(port);
-	if (i == 1) return 0;
-	return i;
-}
-#endif
-
 int INITPROC directhd_init(void)
 {
-    word_t *ide_buffer = (word_t *)heap_alloc(512, 0);
+    word_t *ide_buffer = (word_t *)heap_alloc(512, HEAP_TAG_DRVR);
     struct gendisk *ptr;
     int i, hdcount = 0, drive;
     unsigned int port;
-    char athd_msg[] = "ath%d: AT/IDE controller at 0x%x\n";
+    char athd_msg[] = "athd%d: AT/IDE controller at 0x%x\n";
 
     /* .. once for each drive */
     /* By default, MAX_ATA_DRIVES is 4. On some systems, this may break (hang)
@@ -410,9 +397,8 @@ int INITPROC directhd_init(void)
      * this logic faster and more reliable FIXME */ 
 
 #ifdef CONFIG_HW_PCXT
-    printk("ath: PC/XT-mode, 8bit bus transfers\n");
+    printk("athd: PC/XT-mode, 8bit bus transfers\n");
 #endif
-
     for (drive = 0; drive < MAX_ATA_DRIVES; drive++) {
 	struct drive_infot *dp = &drive_info[drive];
 
@@ -423,21 +409,13 @@ int INITPROC directhd_init(void)
 	cf_shift = 0;
 	if (port == XTIDE_PORT) {
 	    dp->ctl |= ATA_CFG_XTIDE;
-	    athd_msg[7] = 'X';
+	    athd_msg[8] = 'X';
 	    cf_shift = 1;
-	} else
-	    athd_msg[7] = 'A';
+	}
 #endif
 	if ((drive&1) == 0 ) {
-#if 0
-	    if ((i = ide_probe(port+(ATA_ERROR<<cf_shift)))) {
-		printk("ath%d: Controller not found (%x)\n", drive/2, i);
-		drive++; /* don't check for slave drive if controller not found */
-		continue;
-	    }
-#endif
 	    if ((i = reset_controller(drive/2))) {
-		//printk("ath%d: Controller not found at 0x%x (%x)\n", drive/2, port, i);
+		printk("athd%d: Controller not found at 0x%x (%x)\n", drive/2, port, i);
 		drive++; /* don't check for slave drive if controller not found */
 		continue;
 	    }
@@ -454,7 +432,7 @@ int INITPROC directhd_init(void)
 	i += ata_set_feature(drive, ATA_FEAT_NO_WCACHE);	/* disable write cache */
 
 	if (i) {
-	    printk("athd%d: Failed to set 8bit mode, drive disabled\n", drive);
+	    printk("athd%dd%d: Failed to set 8bit mode, drive disabled\n", drive/2, drive);
 	    continue;
 	}
 #endif
@@ -546,15 +524,16 @@ int INITPROC directhd_init(void)
 	    }
 
 	    hdcount++;
-	    printk("athd%d: IDE CHS: %d/%d/%d %sserial# %s\n", drive, dp->cylinders,
-		dp->heads, dp->sectors, hdparms[i] ? "(from /bootopts) " : "", &ide_buffer[10]);
+	    printk("athd%dd%d: IDE CHS: %d/%d/%d %s", drive/2, drive, dp->cylinders,
+		dp->heads, dp->sectors, hdparms[i] ? "(from /bootopts) " : "");
 
 	    /* Initialize settings. Some (old in particular) drives need this
 	     * and will default to some odd default values otherwise */
 	    /* NOTE: In older docs this cmd is known as 'Initialize Drive Parameters' */
 	    out_hd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
 	    while(WAITING(port)) mdelay(1000);
-	    if (STATUS(port) & ERR_STAT) printk("athd%d err in specify: %x;", ERROR(port)); /* DEBUG */
+	    if (STATUS(port) & ERR_STAT) printk("\nath%dd%d err in specify: %x;", 
+			drive/2, drive, ERROR(port)); /* DEBUG */
 
 #ifdef USE_MULTISECT_IO	
 	    if (dp->multio_max) {
@@ -562,39 +541,45 @@ int INITPROC directhd_init(void)
 		out_hd(drive, dp->multio_max, 0, 0, 0, ATA_SET_MULT);
 		while (WAITING(port));
 		if (!(STATUS(port) & ERR_STAT)) {
-		    printk("athd%d: Multisector I/O, max %d sects\n", drive, dp->multio_max);
+		    printk(", Multisector I/O, max %d sects", dp->multio_max);
 		} else {
-		    printk("athd%d: Multisector I/O failed (%x), turned off\n", ERROR(port));
+		    printk(", Multisector I/O failed (%x), turned off", ERROR(port));
 		    dp->multio_max = 0;
 		}
 	    }
 #endif	/* USE_MULTISECT_IO */
-
+	    printk("\n");
 	    //printk("athd%d: IDE data 47-49: %04x, %04x, %04x\n", drive, 
 		//ide_buffer[47], ide_buffer[48], ide_buffer[49]);
 	} else
-	    printk("athd%d: No valid drive ID\n", drive);
+	    printk("ath%dd%d: No valid drive ID\n", drive/2, drive);
     }
 
     heap_free(ide_buffer);
     if (!hdcount) {
-	printk("athd: no drives found\n");
+	printk("ath: no drives found\n");
 	return 0;
     }
 
     directhd_gendisk.nr_real = hdcount;
  
     if (register_blkdev(MAJOR_NR, DEVICE_NAME, &directhd_fops)) {
-	printk("athd: unable to register\n");
+	printk("ath: unable to register\n");
 	return -1;
     }
 
 #ifdef USE_INTERRUPTS	/* Experimental */
     /* FIXME: Need to move this into the main loop to accomodate the use of different IRQs
-     * for primary and 2ndary controller */
+     * for primary and 2ndary controller. AS is, the same IRQ is assigned to both controllers
+     * which will not work. Possibly configure only one controller if machine is XT */
+
+    /* REMEMBER: Many modern day XT_IDE controllers do not even have an IRQ line - use PIO only */
     /* TEST this on 8 bit bus machines! (irq 5) */
     /* On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
     int got_irq = HD1_AT_IRQ;
+#ifdef CONFIG_HW_PCXT
+    if (!(sys_caps & CAP_PC_AT)) got_irq = XTHD_IRQ;
+#endif
     printk("athd: Interrupt registration: ");
     if (request_irq(got_irq, do_directhd, INT_GENERIC)) {
 	got_irq = HD_IRQ;
@@ -623,8 +608,8 @@ int INITPROC directhd_init(void)
     for (i = 0; i < MAX_ATA_DRIVES; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
-	    printk("athd: /dev/dhd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
-		   (i + 'a'),
+	    printk("athd%dd%d: /dev/dhd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
+		   i/2, i, (i + 'a'),
 		   drive_info[i].heads,
 		   drive_info[i].cylinders, drive_info[i].sectors,
 		   (((__u32)drive_info[i].heads*(__u32)drive_info[i].cylinders*
@@ -680,14 +665,25 @@ int directhd_open(struct inode *inode, struct file *filp)
     if (((int) hd[minor].start_sect) == -1)	/* FIXME is this initialized */
 	return -ENXIO;
 
-    if (!S_ISCHR(inode->i_mode)) 	/* Don't count raw opens */
+#if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
+    if (!(localbuf = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR))) {
+	printk("athd: cannot allocate bounce buffer\n");
+            return -EBUSY;
+    }
+#endif
+    if (!S_ISCHR(inode->i_mode)) { 	/* Don't count raw opens */
 	access_count[target]++;
+#if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
+	open_drv_count++;
+#endif
+    }
 
     inode->i_size = (hd[minor].nr_sects) << 9;
     /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
-    debug_blkdrv("%cdhd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ', inode->i_rdev, inode->i_size);
+    debug_blkdrv("%cdhd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ',
+						inode->i_rdev, inode->i_size);
     return 0;
 }
 
@@ -696,12 +692,17 @@ void directhd_release(struct inode *inode, struct file *filp)
     int target = DEVICE_NR(inode->i_rdev);
     kdev_t dev = inode->i_rdev;
 
+    /* The raw driver never calls directhd_release, so we're fine with the counters */
     access_count[target]--;
     fsync_dev(dev);			/* cannot trust umount to do this */
     if (!access_count[target]) {
 	invalidate_buffers(dev);
 	invalidate_inodes(dev);
     }
+#if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
+    open_drv_count--;
+    if (!open_drv_count) heap_free(localbuf);
+#endif
 
     return;
 }
@@ -797,8 +798,8 @@ void do_directhd_request(void)
 
 #ifdef DEBUG
 	//printk("IOPa %x;", STATUS(port));
-	debug_blkdrv("athd%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %04x/%c\n",
-		 drive, cylinder, head, sector, start, count, buff, 
+	debug_blkdrv("athd%d%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %04x/%c\n",
+		 drive/2, drive, cylinder, head, sector, start, count, buff, 
 		(unsigned long)req->rq_seg, *(int *)buff, req->rq_cmd == READ? 'R' :'W');
 #endif
 
@@ -816,12 +817,11 @@ void do_directhd_request(void)
 
 	out_hd(drive, count, sector, head, cylinder, cmd);
 
-	//printk("IOP1 %x;", STATUS(port));
 	while (WAITING(port)) mdelay(delay);
 
 	if ((STATUS(port) & ERR_STAT) == ERR_STAT) { /* something went wrong */
-		printk("athd: IO status: 0x%x error: 0x%x CHS[%u/%u/%u]\n",
-			STATUS(port), ERROR(port), cylinder, head, SECTOR(port));
+		printk("athd%dd%d: IO status: 0x%x error: 0x%x CHS[%u/%u/%u]\n",
+			drive/2, drive, STATUS(port), ERROR(port), cylinder, head, SECTOR(port));
 		end_request(0);
 		return;
 	}
@@ -829,8 +829,8 @@ void do_directhd_request(void)
 	tmp = 0x00;
 	while ((tmp & DRQ_STAT) != DRQ_STAT) {
 		if ((tmp & ERR_STAT) == ERR_STAT) {
-		    printk("athd: RD DRQ status: 0x%x error: 0x%x\n",
-			       STATUS(port), ERROR(port));
+		    printk("athd%dd%d: RD DRQ status: 0x%x error: 0x%x\n",
+			       drive/2, drive, STATUS(port), ERROR(port));
 		    end_request(0);
 		    return;
 		} else {
@@ -859,8 +859,8 @@ void do_directhd_request(void)
 	    	//printk("gotIO %x/%04x;", STATUS(port), *(int *)buff);
 		if (STATUS(port) & ERR_STAT) {
 		    /* May want the full CHS here */
-		    printk("athd%d multisector R/W error %x sector %d\n", drive,
-		    	ERROR(port), SECTOR(port));
+		    printk("athd%dd%d multisector R/W error %x sector %d\n", drive/2,
+		    	drive, ERROR(port), SECTOR(port));
 		    /* Older drives may develop bad sectors,
 		     * and other problems - that's a hard error:
 		     * The drive has already retried a number of times. */
@@ -879,7 +879,8 @@ void do_directhd_request(void)
 }
 
 /*
- * Toggle the soft reset bit for the controller, return >0 if not found or error.
+ * Probe for controller existence and 
+ * toggle the soft reset bit for the controller, return 0 if all good.
  */
 static unsigned char reset_controller(int controller)
 {
@@ -891,6 +892,7 @@ static unsigned char reset_controller(int controller)
 	outb_p(0xC, cport);		/* reset controller */
 	err = STATUS(port);	/* if 0xFF -> nothing there */
 	/* if the busy bit doesn't get immediately set, there is nothing there */
+	/* Some controllers will only show if a drive was detected during POST */
 	if (err == 0xff || !(err & BUSY_STAT)) {
 	    err = 1;
 	} else {
@@ -902,11 +904,12 @@ static unsigned char reset_controller(int controller)
 	    outb_p(0xA, cport);		/* Clr reset, disable interrupts */
 #endif
 	    //printk("reset: cport %x, port %x\n", cport, port);
-	    if ((i = drive_busy(port))) {
-		printk("ath%d: still busy (%x)\n", controller, i);
+	    if ((i = drive_busy(port))) {	/* probably no controller or no drive */
+						/* don't clutter the console with these messages */
+		debug_blkdrv("athd%d: still busy (%x)\n", controller, i);
 		err = 1;
 	    } else if ((i = ERROR(port)) && i != 1) { /* i == 0 if controller found, but no drives */
-		printk("ath%d: Reset failed: %02x\n", controller, i);
+		printk("athd%d: Reset failed: %02x\n", controller, i);
 		err = 1;
 	    }
 	}
