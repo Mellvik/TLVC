@@ -7,57 +7,70 @@
  */
 
 /* DEVELOPER NOTES:
+ *
  * - We don't check for extreme transfer sizes (like > 32k) which will crash 
  *   the system because the RAM refresh is disturbed. This is safe because 
  *   TLVC cannot - without special programming - transfer more than 20k in a raw
  *   read/write operation anyway. Block mode operations are always 1k.
+ *
  * - Sectors - controller level - start at 0, not 1!!
+ *
  * - The 1st MFM controller is always at 0x320, IRQ5, DMA3. This is a commonly used 
  *   address on network interfaces and others. Collisions have interesting consequences,
  *   not necessarily easy to decipher. 
+ *
  * - Using a MFM controller on a AT or later machine may or may not work. 1st gen
  *   AT machines emulate MFM controllers @ 0x320 for compatibility, masking the fact that
  *   the disk(s) are IDE/ATA. Adding a physical mfm controller at that address
  *   may or may not work.
+ *
  * - There is no 'standard' MFM controller. All have the same basic command set, most
  *   have extensions and the behaviour of the 'state machine' governing the command
  *   phase varies. E.g. there is no standard way to determine disk drive data (CHS etc.).
  *   This is why the 'big' Linux MFM driver pokes into the controller ROM to find the 
- *   type and details. We don't have space for that, and assume the 
- *   default 10MB CHS values (304/4/17/128) unless /bootopts is used to define the size.
- *   The last value in the quadruple is the Write Precompensation track, aka WPCOM.
- *   The good thing is that since all drives in this category have (or emulate) 17
+ *   type and details. We don't have space for that, and assume the default 10MB CHS
+ *   values (304/4/17/128) unless /bootopts is used to define the size.
+ *   The last value in the bootopts parameter quadruple is the Write Precompensation
+ *   track, aka WPCOM, which seems to  be important only for the oldest drives.
+ *   A good thing n this mess is that since all drives in this category have (or emulate) 17
  *   sectors, there is no problem booting even if the real size of the drive is unknown
  *   at that point. After booting, TLVC can make its own assumptions about size.
  *   Note however, that the controller needs to be told the CHS values we plan to use
  *   in order to provide access to the entire drive w/o errors (see the xd_setparam()
- *   function()).
+ *   function).
+ *
  * - A drive 'works' only with the type of controller with which it was formatted. 
  *   IOW moving drives around is a no-go. Newer controllers (actually most except the 
  *   very first generation, pre 1985) have a formatter included in the firmware, to be
  *   started from MSDOS DEBUG, typically at C800:5. For the older controllers, other
  *   tricks are required.
- * - Pending the availability of a formatting utility for TLVC, a crude formatter is
+ *
+ * - Pending the availability of a MFM formatting utility for TLVC, a crude formatter is
  *   included in the driver. If compiled in (#define ALLOW_FORMATTING), set the /bootopts
  *   sector count for the drive to 0, and a drive format will be attempted.
  *   [Obviously, the sector count needs to be reset to normal before the next boot.]
- *   There is no safe way (at this point) to detect the completion of the format process,
- *   so keeping an eye on the activity LED is required. No LED activity means formatting
- *   take a look at the status code returned. It's important to set the correct
- *   CHSW parameters before the formatting. Also notice that the interleave is preset to 5,
- *   which is good for <8MHz machines, otherwise use 4.
+ *   There is no safe way (at this point) to detect the completion of the format process
+ *   other than keeping an eye on the activity LED. No LED activity means formatting has 
+ *   stopped - completed or failed. Check the status code returned to find out which. 
+ *   It's important to set the correct CHSW parameters before the formatting. Also notice
+ *   that the interleave is preset to 5, which is good for <8MHz machines, otherwise use 4.
  *   It is also worth noticing that neither the set drive parameter nor the format command 
  *   take a sector count parameter, it is apparently assumed that the sector count is always 17. 
- * - INTERLEAVE: The Hard Drive Bible dieagrees with the above (which comes from a WD document).
+ *
+ * - INTERLEAVE: The Hard Drive Bible disagrees with the above (which comes from a WD document).
  *   Their recipe is 4:1 @4.77MHz or less, 3:1 @ 5-10MHz, 2:1 @ 10-16 MHz, 1:1 for higher.
  *   Remember - this is all about old MFM/RLL drives.
+ *
  * - Beware that the sluggishness of 4.77MHz PCs may deliver surprisese, in 
  *   particular related to interrupts. Like the interrupt occuring before the request call
  *   has completed (see also comments in the code).
+ *
  * - If drive 0 is missing and drive 1 present, some BIOSes will seem to hang at boot time.
  *   Be patient, 15-20 seconds, and it continues - TLVC will boot fine. Such configuration 
  *   is not hard-disk bootable though (floppy OK).
+ *
  * - RESET: On some controllers, the drive parameters must be re-programmed after a reset.
+ *
  * - SOME CONTROLLERS CAN NEVER WORK: Some 3rd gen MFM controllers, like the Longshine LCS6210D,
  *   work only via the embedded BIOS. No API, no IOports, no IRQ lines, no DMA ACK lines etc.
  *   The driver will just not find such controllers. Use BIOS HD instead.
@@ -388,7 +401,7 @@ int xd_open(struct inode *inode, struct file *filp)
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
     debug_xd("%cxd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ', inode->i_rdev, inode->i_size);
     if (!bounce_buffer)		/* allocate bounce buffer space */
-	if (!(bounce_buffer = heap_alloc(BLOCK_SIZE, HEAP_TAG_BUFHEAD))) {
+	if (!(bounce_buffer = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR))) {
 	    printk("xd: cannot allocate buffer space\n");
 	    return -EBUSY;
 	}
