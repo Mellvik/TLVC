@@ -666,9 +666,10 @@ int directhd_open(struct inode *inode, struct file *filp)
 	return -ENXIO;
 
 #if defined(USE_LOCALBUF) || defined(CONFIG_FS_XMS_BUFFER)
-    if (!(localbuf = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR))) {
+    if (!open_drv_count)
+	if (!(localbuf = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR))) {
 	printk("athd: cannot allocate bounce buffer\n");
-            return -EBUSY;
+            return -ENOMEM;
     }
 #endif
     if (!S_ISCHR(inode->i_mode)) { 	/* Don't count raw opens */
