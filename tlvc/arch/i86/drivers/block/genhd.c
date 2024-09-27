@@ -24,7 +24,7 @@
 #include <linuxmt/major.h>
 #include <linuxmt/string.h>
 #include <linuxmt/memory.h>
-#include <linuxmt/directhd.h>
+#include <arch/directhd.h>
 
 #include <arch/system.h>
 

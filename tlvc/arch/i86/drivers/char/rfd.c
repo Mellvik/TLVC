@@ -39,7 +39,7 @@ size_t block_wr(struct inode *, struct file *, char *, size_t);
 size_t block_rd(struct inode *, struct file *, char *, size_t);
 
 /*
- * Let the blocK device open function do whatever is required - it will
+ * Let the block device open function do whatever is required - it will
  * recognize char device access and act accordingly.
  * There is (currently) no keeping track of opens/closes when doing raw access.
  */
