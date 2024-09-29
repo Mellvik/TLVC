@@ -24,8 +24,9 @@
 /*
  *	System variable setups
  */
-#define ENV		1		/* allow environ variables as bootopts */
-#define DEBUG		0		/* display parsing at boot */
+#define ENV		1	/* allow environ variables as bootopts */
+#define DEBUG		0	/* display parsing at boot. NOTE: Most debug
+				 * messages will go to the physical console */
 
 #define MAX_INIT_ARGS	6	/* max # arguments to /bin/init or init= program */
 #define MAX_INIT_ENVS	12	/* max # environ variables passed to /bin/init */
@@ -55,15 +56,13 @@ struct netif_parms netif_parms[MAX_ETHS] = {
 __u16 kernel_cs, kernel_ds;
 int tracing;
 int nr_mapbufs;
-unsigned sys_dly_index;	/* indicating the speed of the system - for delay loops */
-unsigned sys_dly_base;
 
 #ifdef CONFIG_PREC_TIMER
 void calibrate_delay(void);
-void u10delay(unsigned);
 void testloop(unsigned);
 #endif
 
+#define BOOT_TIMER
 #define CHS_DRIVES 2	/* # of drives to config in bootopts */
 #define CHS_ARR_SIZE	CHS_DRIVES * 4
 int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
@@ -205,8 +204,7 @@ void INITPROC kernel_init(void)
 #endif
 
     kernel_banner(membase, memend, s, e - s);
-#define CALIBRATE_DELAY
-#ifdef CALIBRATE_DELAY
+#ifdef CONFIG_CALIBRATE_DELAY
     calibrate_delay();
 #endif
 #ifdef CONFIG_PREC_TIMER
@@ -311,7 +309,7 @@ static struct dev_name_struct {
 	const char *name;
 	int num;
 } devices[] = {
-	/* the 4 partitionable drives must be first */
+	/* the 4 primary partitionable drives must be first */
 #ifdef CONFIG_BLK_DEV_HD
 	{ "dhda",    DEV_DHDA},
 	{ "dhdb",    DEV_DHDB },
@@ -328,10 +326,13 @@ static struct dev_name_struct {
 	{ "hdc",     DEV_HDC },
 	{ "hdd",     DEV_HDD },
 #endif
+#ifdef CONFIG_BLK_DEV_FD
 	{ "df0",     DEV_DF0 },
 	{ "df1",     DEV_DF1 },
+#else
 	{ "fd0",     DEV_FD0 },
 	{ "fd1",     DEV_FD1 },
+#endif
 	{ "ttyS0",   DEV_TTYS0 },
 	{ "ttyS1",   DEV_TTYS1 },
 	{ "tty1",    DEV_TTY1 },
@@ -343,6 +344,10 @@ static struct dev_name_struct {
 /*
  * Convert a root device number to name.
  * Device number could be bios device, not kdev_t.
+ * TODO: Expand the number of devices available as root devices.
+ * Since the introduction of the 'root=' directive in bootopts, making any
+ * device the root device has been easy and at times attractive.
+ * The cost of expansion is the size of the table above.
  */
 static char * INITPROC root_dev_name(int dev)
 {
@@ -350,7 +355,10 @@ static char * INITPROC root_dev_name(int dev)
 #define NAMEOFF	13
 	static char name[18] = "ROOTDEV=/dev/";
 
-	for (i=0; i<5; i++) {
+#if DEBUG
+	printk("root dev 0x%x; ", dev);
+#endif
+	for (i=0; i<6; i++) {
 		if (devices[i].num == (dev & 0xfff0)) {
 			strcpy(&name[NAMEOFF], devices[i].name);
 			offs = strlen(devices[i].name);
@@ -369,7 +377,7 @@ static char * INITPROC root_dev_name(int dev)
 /*
  * Convert a /dev/ name to device number.
  */
-static int INITPROC parse_dev(char * line)
+static int INITPROC parse_dev(char *line)
 {
 	int base = 0;
 	struct dev_name_struct *dev = devices;
@@ -617,7 +625,7 @@ static void INITPROC finalize_options(void)
 
 #if ENV
 	printk("envp: ");
-	for (i=0; i<envs; i++)
+	for (i=0; i<envs-1; i++)
 		printk("'%s'", envp_init[i]);
 	printk("\n");
 #endif
@@ -690,158 +698,9 @@ void testloop(unsigned timer)
 	printk("timer %u: %lk (%lu)\n", timer, pticks, pticks);
 #else
 	while (x--) {
-		outb(0, TIMER_CMDS_PORT);       /* latch timer value */
-		printk("%u; ", inb(TIMER_DATA_PORT) + (inb(TIMER_DATA_PORT) << 8));
+	    outb(0, TIMER_CMDS_PORT);       /* latch timer value */
+	    printk("%u; ", inb(TIMER_DATA_PORT) + (inb(TIMER_DATA_PORT) << 8));
 	}
 #endif
-}
-#endif
-
-#ifdef CALIBRATE_DELAY
-#define TEST_DELAY 1
-/* Create calibration constants for a system independent delay loop.
- * The delay function (arch/i86/lib/udelay.S) has 3 parts to be accounted for
- * when scaling:
- * 1) the call (entry/exit), which should be insignificant but isn't on slow
- *    systems
- * 2) the outer loop, which becomes significant for short delays on slow systems.
- *    the outer loop may take 30ms (8MHz 8088) to 55ms (4.77MHz 8088) and thus
- *    becomes an important damage-limiter for short loops on such systems. 
- * 3) the inner loop, which is timed separately and when run 4 times and
- *    averaged, becomes a pretty good indication of the speed of the system (keep in
- *    mind that the # of clock cycles required for this simple loop is varying
- *    wildly between systems). Also, on a 386 (and later) instruction caching speeds
- *    up this loop significantly.
- * Everything is measured using the precision timer routines recently (per Aug 24)
- * added to the system.
- *
- * Important notes:
- * - On fast QEMU systems, the collected timings vary wildly and are useless
- *   for any calibration, so we set som basic numbers manually and skip the 
- *   calculations. Delays don't matter on QEMU anyway. 
- * The items used in the calibration are
- * adj - the time consumed by the precision timer routine, to be subtracted from
- *       all measurements
- * d0 - the delay routine call time, just call and return, no loops.
- * d1 - call time + one outer loop, no inner loop
- * d2 - the difference between d1 and d0, the cost of the outer loop
- * l  - the loop time for the inner loop
- * p  - the scale, 1 ptick, 0.838 us
- * The chosen unit is 10us, too small for the slowest systems, too big for 
- * the fast ones, IOW a reasonable compromise.
- * In order to avoid MULs and DIVs, we calculate (in sys_dly_ind) the # of
- * inner loops to take, including one outer loop, to spend 10us.
- * On very slow systems, the 'cost' of the call itself becomes significant, and 
- * must be deducted from the loop count. This is the purpose of the sys_dly_base.
- * For the XT@4.77MHz even this is useless as the call to the delay routine 
- * takes close to 50us and the outer loop almost 10us. In this case the closest
- * possible approximation is to set the _base to 5 and the index to 0.
- * turn in the outer loop may exceed 70 pticks, or 59us.
- *
- * Again, in order to avoid conversions (MUL/DIV) at all cost, we use pticks
- * all the way and approximate 10us = 12 pticks.
- *
- * The inner loop formula then becomes
- * X = (12p - d2)/l where X is the number of loops per 10us. 
- */
-
-void calibrate_delay(void)
-{
-	unsigned d0, d1, rest, adj, i, l;
-	unsigned long temp = 0;
-
-	//sys_dly_base = 1;
-	//sys_dly_index = 0;
-
-	/* find processing time for the get_ptime tool, average over 4 runs */
-	i = 0;
-	get_ptime();
-	for (d0 = 0; d0 < 4; d0++) {
-		get_ptime();
-		//asm volatile ("nop");
-		i += (unsigned)get_ptime();
-	}
-	adj = i >> 2;
-
-	/* time the inner loop. This - compensated for (d1-d0) - 
-	 * becomes the machine speed index. 
-	 * l = # of pticks to loop 1000 times.
-	 */
-	d0 = d1 = l = 0;
-	for (i = 0; i < 4; i++) {
-		get_ptime();
-		asm volatile ("mov $500,%cx");
-		//asm volatile ("1: nop; loop 1b");
-		asm volatile ("1:sub $1,%cx;ja 1b");
-		l += (unsigned)get_ptime();
-		//get_ptime();		/* time the outer loop */
-		u10delay(0);
-		d0 += (unsigned)get_ptime();
-		u10delay(2);
-		d1 += (unsigned)get_ptime();
-	}
-	l >>= 2;
-	d0 >>= 2;
-	d1 >>= 2;
-	printk("adj %u, l=%u (%k)", adj, l, l);
-	if (l <= adj) {	/* If running QEMU w/HW accel, results are nonsensical */
-		adj = l>>2;
-
-	}
-	l -= adj;
-	d0 -= adj;
-	d1 -= adj;
-	printk(" d0=%u (%k)", d0, d0);
-	printk(" d1=%u (%k)\n", d1, d1);
-	if (d1 < d0) d1 = d0;	/* for QEMU */
-	if (d0 >= 12) {		/* on systems running at <10MHz XT, the call itself 
-				 * takes more than 10us
-				 * and the best we can do is to set the index to
-				 * 0 and increase the base somewhat. Rough
-				 * approximation anyway */
-		sys_dly_index = 0;
-		sys_dly_base = d0/10;
-	} else {
-		d1 -= d0; 	/* d1 is (net) outer loop cost */
-		sys_dly_index = (unsigned)((12UL-d1)*1000UL/(unsigned long)l);
-					/* 12 is # of pticks per 10us */
-					/* subtract ptick cost of 1 outer loop */
-		//rest = ((12 - d1)*1000U/l) - sys_dly_index*100U;
-		//if (rest >= 5) sys_dly_index++;		/* round up */
-		sys_dly_base = d0*838/10000;	/* tare, the 'weight' of u10delay()
-					   * sans the inner loop. Notice the 
-					   * extra 0 to scale to 10us */
-		//rest = d0*838U/10U - sys_dly_base*1000U;
-		//if (rest/100 > 4) sys_dly_base++;	  /* round up if required */
-		printk("%u, %u, %u, %u, (%u), ", l, adj, d0, d1, rest);
-	}
-
-	printk("Delay calibration index: %d, skew: %d\n", sys_dly_index, sys_dly_base);
-
-#if TEST_DELAY
-	/* verify */
-	d1 = 5;				/* start off with 5*10us */
-	for (d0 = 0; d0 < 4; d0++) {
-		int diff, d;
-		unsigned t;
-
-		get_ptime();
-		u10delay(d1);
-		temp = get_ptime();
-		if (temp >= adj) 
-			temp -= adj;	/* QEMU weirdness */
-		else
-			temp -= 2;
-		printk("temp=%lu; ", temp);
-		t = (temp*838UL)/1000UL;	/* convert to microseconds */
-		d1 *= 10;	/* scale to 10us - and increment for next loop */
-		diff = t - d1;	/* diff in us */
-		printk("\n%lk (%u) diff %d, d1=%ld;", temp, t, diff, (long)d1);
-		d = -diff * 100/d1;
-		//if (d < 0) d = -d;
-		printk("\n%lk (%u) diff %d (%d%%);", temp, t, diff, d);
-	}
-#endif
-	printk("\n");
 }
 #endif
