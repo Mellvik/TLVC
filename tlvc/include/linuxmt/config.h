@@ -11,6 +11,8 @@
 #ifdef CONFIG_ARCH_IBMPC
 #define MAX_SERIAL		4		/* max number of serial tty devices*/
 
+#define SETUP_MEM_KBYTES_ASM    640		/* EXPERIMENTAL - make use of the top
+						 * 1k reserved by the BIOS */
 /*
  * Setup data - normally queried by startup setup.S code, but can
  * be overridden for embedded systems with less overhead.
@@ -96,7 +98,7 @@
 #define DEF_SYSSIZE	0x2F00
 
 #ifdef CONFIG_ROMCODE
-#ifdef CONFIG_BLK_DEV_BIOS    /* BIOS disk driver*/
+#if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
 #define DMASEG		0x80  /* 0x400 bytes floppy sector buffer */
 #define DMASEGSZ	0x2400       /* SECTOR_SIZE * 18 (9216) */
 #define KERNEL_DATA	0x2C0 /* kernel data segment */
@@ -109,23 +111,24 @@
 
 #if (defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_8018X)) && !defined(CONFIG_ROMCODE)
 /* Define segment locations of low memory, must not overlap */
-#define DEF_OPTSEG	0x50  /* 0x200 bytes boot options*/
-#define OPTSEGSZ	0x200    /* max size of /bootopts file (1K max) */
-#define REL_INITSEG	0x70  /* 0x200 bytes setup data */
-#define DMASEG		0x90  /* 0x400 bytes floppy sector buffer */
-
-/* Note: DMASEG is used by the BIOS HD driver if XMS buffers are in use.
- * It's also used by the DIRECT FD driver for track buffering. So -
- * if we have CONFIG_FS_XMS_BUFFER *AND* CONFIG_BLK_DEV_FD (direct floppy driver)
- * *AND* use the bioshd driver, they WILL crash on concurrent DMASEG usage.
- * In order to avoid this, ifdef CONFIG_TRACK_BUFFER has been left in the
- * TLVC BIOS_HD driver. */
-
-#define DMASEGSZ	0x2400	      /* SECTOR_SIZE * 18 (9216) */
-#define REL_SYSSEG	0x2D0 /* kernel code segment */
-
+#define DEF_OPTSEG	0x50	/* 0x200 bytes boot options*/
+#define OPTSEGSZ	0x200	/* max size of /bootopts file (1K max) */
+#define REL_INITSEG	0x70	/* 0x200 bytes setup data */
+#define DMASEG		0x90	/* 0x400 bytes floppy sector buffer */
+#ifdef CONFIG_TRACK_CACHE	/* floppy track buffer in low mem */
+#ifdef CONFIG_HW_PCXT
+#define DMASEGSZ	0x1200	/* SECTOR_SIZE * 9 (4608), XT limit */
+#else
+#define DMASEGSZ	0x2400	/* SECTOR_SIZE * 18 (9216) */
+#endif
+//#define REL_SYSSEG     0x2D0	/* kernel code segment */
+#else
+#define DMASEGSZ 0x0400		/* BLOCK_SIZE (1024) */
+//#define REL_SYSSEG     0x0D0  /* kernel code segment */
+#endif
+#define REL_SYSSEG	0x90 + (DMASEGSZ>>4) /* kernel code segment */
 #define SETUP_DATA	REL_INITSEG
-#endif /* (CONFIG_ARCH_IBMPC || CONFIG_ARCH_8018X) && !CONFIG_ROMCODE */
+#endif 
 
 #if defined(CONFIG_ARCH_PC98) && !defined(CONFIG_ROMCODE)
 /* Define segment locations of low memory, must not overlap */

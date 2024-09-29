@@ -501,7 +501,11 @@ void mount_root(void)
     } while (*(++fs_type) && !retval);
 
 #if defined(CONFIG_BLK_DEV_BFD) || defined(CONFIG_BLK_DEV_FD)
-    if (ROOT_DEV == DEV_FD0 || ROOT_DEV == DEV_DF0) {
+#if defined(CONFIG_BLK_DEV_FD)
+    if (ROOT_DEV == DEV_DF0 || ROOT_DEV == DEV_DF1) {
+#else
+    if (ROOT_DEV == DEV_FD0 || ROOT_DEV == DEV_FD1) {
+#endif
 	close_filp(d_inode, filp);
 	printk("VFS: Insert root floppy and press ENTER\n");
 	wait_for_keypress();
