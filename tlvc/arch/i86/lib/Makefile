@@ -42,7 +42,7 @@ SRCS1 = \
 ifeq ($(CONFIG_ARCH_PC98), y)
 SRCS1 += bios1B.S bios-xms-pc98.S
 else
-SRCS1 += bios13.S bios15.S unreal.S
+SRCS1 += bios13.S bios15.S unreal.S udelay.S
 endif
 
 OBJS1 = $(SRCS1:.S=.o)
@@ -60,7 +60,7 @@ SRCS3 = \
 	# end of list
 
 ifeq ($(CONFIG_ARCH_IBMPC), y)
-SRCS3 += prectimer.c
+SRCS3 += prectimer.c delay.c
 endif
 
 OBJS3 = $(SRCS3:.c=.o)
