@@ -110,17 +110,22 @@
 
 
 #if (defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_8018X)) && !defined(CONFIG_ROMCODE)
+#if CONFIG_FLOPPY_CACHE > 9
+#define CONFIG_FLOPPY_CACHE 9
+#elif CONFIG_FLOPPY_CACHE < 1
+#define CONFIG_FLOPPY_CACHE 1
+#endif
 /* Define segment locations of low memory, must not overlap */
 #define DEF_OPTSEG	0x50	/* 0x200 bytes boot options*/
 #define OPTSEGSZ	0x200	/* max size of /bootopts file (1K max) */
 #define REL_INITSEG	0x70	/* 0x200 bytes setup data */
 #define DMASEG		0x90	/* 0x400 bytes floppy sector buffer */
-#ifdef CONFIG_TRACK_CACHE	/* floppy track buffer in low mem */
-#define DMASEGSZ	CONFIG_TRACK_CACHE_SZ * 1024
+#if CONFIG_FLOPPY_CACHE		/* floppy cache or bounce buffer in low mem */
+#define DMASEGSZ	CONFIG_FLOPPY_CACHE * 1024
 #else
-#define DMASEGSZ 0x0400		/* BLOCK_SIZE (1024) */
+#define DMASEGSZ	0x0400	/* 1 BLOCK (1024B) */
 #endif
-#define REL_SYSSEG	0x90 + (DMASEGSZ>>4) /* kernel code segment */
+#define REL_SYSSEG	DMASEG + (DMASEGSZ>>4) /* kernel code segment */
 #define SETUP_DATA	REL_INITSEG
 #endif 
 

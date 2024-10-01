@@ -34,11 +34,8 @@ mainmenu_option next_comment
     else
 	define_bool CONFIG_DMA n
     fi
-    bool 'Floppy drive sector cache'	CONFIG_TRACK_CACHE	y
-    if [ "$CONFIG_TRACK_CACHE" == "y" ]; then
-	int 'Size of sector cache (1-9)(KB)' \
-	    CONFIG_TRACK_CACHE_SZ 5
-    fi
+    int 'Floppy drive sector cache (1-9)(KB), 0 to disable' \
+	    CONFIG_FLOPPY_CACHE 5
 
     comment 'Additional block devices'
 	bool 'RAM disk support'			CONFIG_BLK_DEV_RAM	y
