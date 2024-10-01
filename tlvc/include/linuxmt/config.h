@@ -116,15 +116,9 @@
 #define REL_INITSEG	0x70	/* 0x200 bytes setup data */
 #define DMASEG		0x90	/* 0x400 bytes floppy sector buffer */
 #ifdef CONFIG_TRACK_CACHE	/* floppy track buffer in low mem */
-#ifdef CONFIG_HW_PCXT
-#define DMASEGSZ	0x1200	/* SECTOR_SIZE * 9 (4608), XT limit */
-#else
-#define DMASEGSZ	0x2400	/* SECTOR_SIZE * 18 (9216) */
-#endif
-//#define REL_SYSSEG     0x2D0	/* kernel code segment */
+#define DMASEGSZ	CONFIG_TRACK_CACHE_SZ * 1024
 #else
 #define DMASEGSZ 0x0400		/* BLOCK_SIZE (1024) */
-//#define REL_SYSSEG     0x0D0  /* kernel code segment */
 #endif
 #define REL_SYSSEG	0x90 + (DMASEGSZ>>4) /* kernel code segment */
 #define SETUP_DATA	REL_INITSEG
@@ -137,7 +131,7 @@
 #define REL_INITSEG	0x80  /* 0x200 bytes setup data */
 #define DMASEG		0xA0  /* 0x400 bytes floppy sector buffer */
 
-#define DMASEGSZ 0x2400	      /* SECTOR_SIZE * 18 (9216) > SECTOR_SIZE * 8 (8192) */
+#define DMASEGSZ 0x2400	      /* SECTOR_SIZE * 18 (9216) */
 #define REL_SYSSEG	0x2E0 /* kernel code segment */
 #define SETUP_DATA	REL_INITSEG
 #endif /* CONFIG_ARCH_PC98 && !CONFIG_ROMCODE */

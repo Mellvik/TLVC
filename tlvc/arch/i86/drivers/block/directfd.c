@@ -267,6 +267,7 @@ static int probing = 0;
 /* On an XT with a 720k drive, probing will not work because the first 9 sectors
  * read correctly anyway, we need to fake the CMOS types via bootopts */
 extern int xt_floppy[];
+extern int fdcache;	/* size of sector cache from bootopts */
 
 /* Prevent "aliased" accesses. */
 
@@ -707,7 +708,7 @@ static void setup_DMA(void)
 #endif
 #ifdef CONFIG_TRACK_CACHE
     if (use_cache) {
-	cache_drive = -1;	/* mark track cache bad, in case all this fails.. */
+	cache_drive = -1;	/* mark cache bad, in case all this fails.. */
 	cache_len = (floppy->sect<<1) - (sector + head*floppy->sect);
 	if (cache_len > cache_size) cache_len = cache_size;
 	count = cache_len << 9;
@@ -1076,7 +1077,7 @@ static void seek_interrupt(void)
 static void transfer(void)
 {
 #ifdef CONFIG_TRACK_CACHE
-    use_cache = (xt_floppy[2]>1) && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
+    use_cache = (fdcache>1) && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
 	(cache_size >= 4);
 
     DEBUG("trns%d-", use_cache);
@@ -1424,11 +1425,12 @@ static void redo_fd_request(void)
 	tmp = start / floppy->sect;
 	head = tmp % FLOPPY_HEADS;
 	track = tmp / FLOPPY_HEADS;
-	/* Ensure raw IO requests have valid # of sectors: Don't span track boundaries */
-	/* If running a 82077 which has implied seek, this exercise is not required */
+
+	/* Ensure raw IO requests have valid # of sectors: Don't span cyl boundaries */
+	/* If running a 82077 which has implied seek, enable that instead! */
 	if (raw && ((sector + (floppy->sect*head) + nr_sectors)) 
-			> (floppy->sect*FLOPPY_HEADS)) {
-		nr_sectors = (floppy->sect * FLOPPY_HEADS) - (sector + (floppy->sect * head));
+			> (floppy->sect<<1)) {		/* sect * 2 = cyl */
+		nr_sectors = (floppy->sect<<1) - (sector + (floppy->sect * head));
 		req->rq_nr_sectors = nr_sectors;	/* return updated # of sectors */
 	}
 	seek_track = track << floppy->stretch;
@@ -1818,11 +1820,11 @@ void INITPROC floppy_init(void)
     config_types();
 
     /* sector cache setup */
-    if (xt_floppy[2] > 1)		/* temporary */
-	cache_size = xt_floppy[2]<<1;
+    if (fdcache > 1)		/* temporary */
+	cache_size = fdcache<<1;
     else
 	cache_size = 2; 	/* minimal bounce buffer at DMASEG */
     if (cache_size > (DMASEGSZ>>9)) cache_size = DMASEGSZ>>9;
-    printk("Cache size %dk, available %dk\n", xt_floppy[2], DMASEGSZ>>10);
+    printk("Cache size %dk, available %dk\n", fdcache, DMASEGSZ>>10);
 	
 }
