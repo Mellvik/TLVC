@@ -3,68 +3,41 @@
 #
 mainmenu_option next_comment
     comment 'Block device drivers'
+    comment 'Choose either BIOS devices or Direct devices.'
+    Comment 'To choose one, deselect the other!'
 
-	bool 'BIOS block device support'	CONFIG_BLK_DEV_BIOS	n
-	if [ "$CONFIG_BLK_DEV_BIOS" == "y" ]; then
-	    bool '  BIOS hard drive support'	CONFIG_BLK_DEV_BHD	y
-	    bool '  IDE hard drive CHS probe'	CONFIG_IDE_PROBE	y
-	    bool '  BIOS floppy drive support'	CONFIG_BLK_DEV_BFD	y
-	    if [ "$CONFIG_BLK_DEV_BFD" == "y" ]; then
-		bool '    Pre-set floppy types'	CONFIG_BLK_DEV_BFD_HARD n
-		if [ "$CONFIG_BLK_DEV_BFD_HARD" == "y" ]; then
-		    comment 'Currently ignored and assumed to be 2880k for both drives.'
-		    choice '      Primary floppy drive type'	  \
-			   "None	CONFIG_BLK_DEV_BFD0_NONE  \
-			    360k	CONFIG_BLK_DEV_BFD0_360   \
-			    720k	CONFIG_BLK_DEV_BFD0_720   \
-			    1200k	CONFIG_BLK_DEV_BFD0_1200  \
-			    1440k	CONFIG_BLK_DEV_BFD0_1440  \
-			    2880k	CONFIG_BLK_DEV_BFD0_2880"	2880K
-		    choice '      Secondary floppy drive type'	  \
-			   "None	CONFIG_BLK_DEV_BFD1_NONE  \
-			    360k	CONFIG_BLK_DEV_BFD1_360   \
-			    720k	CONFIG_BLK_DEV_BFD1_720   \
-			    1200k	CONFIG_BLK_DEV_BFD1_1200  \
-			    1440k	CONFIG_BLK_DEV_BFD1_1440  \
-			    2880k	CONFIG_BLK_DEV_BFD1_2880"	None
-		fi
-	    else
-	    	bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	n
-	    fi
-	else
-	    comment 'Direct/native block devices, choose one HD type'
-	    bool '  DIRECT floppy disk support'	CONFIG_BLK_DEV_FD	y
-	    if [ "$CONFIG_HW_PCXT" == "y" ]; then
-	    	bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	n
-		if [ "$CONFIG_BLK_DEV_HD" == "y" ]; then
-		    bool '  XT/CF-lite is primary HD @0x300' CONFIG_HW_CFIDE0	n
-		else
-	    	    bool '  DIRECT XT/MFM disk support'	CONFIG_BLK_DEV_XD	n
-		fi
-		#if [ "$CONFIG_HW_CFIDE0" == "y" ]; then
-		#	define_bool CONFIG_HW_BLK_XD n
-		#fi
-		#if [ "$CONFIG_BLK_DEV_XD" == "y" ]; then
-		#	define_bool CONFIG_HW_BLK_CFIDE0 n
-		#fi
-	    else
-	    	bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
+    bool 'DIRECT drivers' CONFIG_BLK_DEV_DIRECT y
+    if [ "$CONFIG_BLK_DEV_DIRECT" == "y" ]; then
+	define_bool CONFIG_BLK_DEV_BIOS n
+	define_bool CONFIG_BLK_DEV_BFD n
+	define_bool CONFIG_BLK_DEV_BHD n
+	bool '  DIRECT floppy support'		CONFIG_BLK_DEV_FD	y
+	bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
+	if [ "$CONFIG_HW_PCXT" == "y" ]; then
+	    if [ "$CONFIG_BLK_DEV_HD" == "y" ]; then
+		bool '  XT/CF-lite is primary HD @0x300' CONFIG_HW_CFIDE0	n
 	    fi
 	    if [ "$CONFIG_HW_CFIDE0" == "y" ]; then
 		define_bool CONFIG_BLK_DEV_HD y
 	    fi
+	    bool '  DIRECT XT/MFM disk support'	CONFIG_BLK_DEV_XD	n
 	fi
-	if [ "$CONFIG_BLK_DEV_HD" == "y" -a "$CONFIG_BLK_DEV_XD" == "y" ]; then
-	   define_bool CONFIG_BLK_HD n
-	fi
+    fi
+    bool 'BIOS based drivers' CONFIG_BLK_DEV_BIOS n
+    if [ "$CONFIG_BLK_DEV_BIOS" == "y" ]; then
+	bool '  BIOS floppy support'	CONFIG_BLK_DEV_BFD	y
+	bool '  BIOS harddisk support'	CONFIG_BLK_DEV_BHD	n
+	bool '  IDE harddisk CHS probe'	CONFIG_IDE_PROBE	n
+    fi
+    if [ "$CONFIG_BLK_DEV_FD" == "y" -o "$CONFIG_BLK_DEV_XD" == "y" -o "$CONFIG_ETH_LANCE" == "y" ]; then
+	define_bool CONFIG_DMA y
+    else
+	define_bool CONFIG_DMA n
+    fi
+    int 'Floppy drive sector cache (1-9)(KB), 0 to disable' \
+	    CONFIG_FLOPPY_CACHE 5
 
-	if [ "$CONFIG_BLK_DEV_FD" == "y" -o "$CONFIG_BLK_DEV_XD" == "y" ]; then
-	    define_bool CONFIG_DMA y
-	else
-	    define_bool CONFIG_DMA n
-	fi
-
-	comment 'Additional block devices'
+    comment 'Additional block devices'
 	bool 'RAM disk support'			CONFIG_BLK_DEV_RAM	y
 	if [ "$CONFIG_BLK_DEV_RAM" == "y" ]; then
 		hex 'Preload RAM disk segment address' CONFIG_RAMDISK_SEGMENT 0

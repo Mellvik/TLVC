@@ -119,13 +119,13 @@ void (*DEVICE_INTR) () = NULL;
 
 /* Driver configuration */
 
-#define dfd_debug	/* lots of debug output */
+//#define dfd_debug	/* lots of debug output */
 //#define INCLUDE_FD_FORMATTING	/* Formatting code untested, don't waste the space */
 
 #ifndef CONFIG_HW_PCXT	/* some options are not meaningful on pre-AT systems */
 #define ENABLE_FDC_82077	/* Enable 82077 extras if present, REQUIRED to use 360k media */
 			/* in 1.2M drive on QEMU!! */
-#define USE_DIR_REG	/* Use the DIR register if available for media change detection */
+//#define USE_DIR_REG	/* Use the DIR register if available for media change detection */
 			/* Default is on, off is experimental */
 			/* Use off for PC/XT/8086/8088 8bit ISA systems (save RAM), 
 			 * on otherwise - to let the driver make wise (!) choices -
@@ -153,20 +153,6 @@ void (*DEVICE_INTR) () = NULL;
 #endif
 
 
-static int initial_reset_flag;
-static int need_configure = 1;	/* for 82077 */
-static int reset;		/* something went wrong, reset FDC, start over */
-static int recalibrate;		/* less dramatic than reset, like changed drive
-				 * parameters or seek errors. Will (eventually)
-				 * trigger a call to recalibrate_floppy() */
-static int recover;		/* signal that we're recovering from a hang,
-				 * awakened by the watchdog timer */
-static int seek;		/* set if the current operation needs a track
-				 * change (seek) */
-static int nr_sectors;		/* # of sectors to r/w, 2 if block IO */
-static unsigned char raw;	/* set if raw/char IO	*/
-static unsigned char use_bounce;/* set if this transaction needs bounce buffer */
-
 static unsigned char current_DOR = 0x0C; /* default: DMA on, RESET off */
 
 static unsigned char running = 0; /* keep track of motors already running */
@@ -186,12 +172,6 @@ static unsigned char running = 0; /* keep track of motors already running */
  * current disk size is unknown.
  */
 #define MAX_DISK_SIZE 1440	/* change to add support for 2880K */
-
-/*
- * Maximum number of sectors in a track cache. Track caching is disabled
- * if tracks are bigger.
- */
-#define MAX_BUFFER_SECTORS 18
 
 /*
  * All floppy drives have 2 heads!
@@ -287,6 +267,7 @@ static int probing = 0;
 /* On an XT with a 720k drive, probing will not work because the first 9 sectors
  * read correctly anyway, we need to fake the CMOS types via bootopts */
 extern int xt_floppy[];
+extern int fdcache;	/* size of sector cache from bootopts */
 
 /* Prevent "aliased" accesses. */
 
@@ -354,17 +335,33 @@ static void recal_interrupt(void);
 static void floppy_shutdown(void);
 static void motor_off_callback(int);
 
+#define NO_TRACK 255
+
 /*
  * These are global variables, as that's the easiest way to give
  * information to interrupts. They are the data used for the current
  * request.
  */
-#define NO_TRACK 255
 
-static int read_track;		/* set to read entire track 
-				 * (or cylinder, cache space allowing) */
-static int cache_track = -1;
+static int initial_reset_flag;
+static int need_configure = 1;	/* for 82077 */
+static int reset;		/* something went wrong, reset FDC, start over */
+static int recalibrate;		/* less dramatic than reset, like changed drive
+				 * parameters or seek errors. Will (eventually)
+				 * trigger a call to recalibrate_floppy() */
+static int recover;		/* signal that we're recovering from a hang,
+				 * awakened by the watchdog timer */
+static int seek;		/* set if the current operation needs a cylinder
+				 * change (seek) */
+static int nr_sectors;		/* # of sectors to r/w, 2 if block IO */
+static unsigned char raw;	/* set if raw/char IO	*/
+static unsigned char use_bounce;/* this transaction must use the  bounce buffer */
+static unsigned char use_cache;	
 static int cache_drive = -1;
+static int cache_start;		/* first cached sector */
+static int cache_len;		/* valid length of cache in sectors */
+static int cache_size;		/* # of sectors - min=2, max=DMASEGSZ>>9 */
+static unsigned int cache_hits;	/* For stats */
 static int cur_spec1 = -1;	/* HUT | SRT */
 static int cur_rate = -1;	/* datarate */
 static struct floppy_struct *floppy = floppy_type;
@@ -681,15 +678,24 @@ static void setup_DMA(void)
     count = nr_sectors<<9;
     if (use_xms || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
 	use_bounce++;
-	if (raw) {	/* raw access: must use track buffer as bounce buffer, split
-			 * transfer if too big */
-	    if (nr_sectors > MAX_BUFFER_SECTORS) {
-		nr_sectors = MAX_BUFFER_SECTORS;
-		count = nr_sectors<<9;
+	if (raw) {	/* The application buffer spans a 64k boundary, split it into
+			 * 2 or three parts, using the first k of the sector cache
+			 * as a bounce buffer */
+	    int sec_cnt = (0xffff - physaddr) >> 9;
+	    if (sec_cnt <= 1)	/* the single block with wrap problem */
+		nr_sectors = BLOCK_SIZE >> 9;	
+	    else {		/* get the sectors before the wrap */
+		nr_sectors = sec_cnt-1;
+	        dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+		use_bounce--;
 	    }
+	    count = nr_sectors<<9;
 	}
     } else
-	if (!read_track) dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+#ifdef CONFIG_TRACK_CACHE
+	if (!use_cache) 
+#endif
+	    dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 
     DEBUG("setupDMA:");
     DEBUG("-%x:%x-", req->rq_seg, req->rq_buffer);
@@ -697,18 +703,19 @@ static void setup_DMA(void)
 #ifdef INCLUDE_FD_FORMATTING
     if (command == FD_FORMAT) {
 	dma_addr = _MK_LINADDR(DMASEG, 0);
-	count = floppy->sect * 4;	/* formatting data, 4 bytes per sector */
+	count = floppy->sect << 2;	/* formatting data, 4 bytes per sector */
     }
 #endif
-    if (read_track) {	/* mark track cache bad, in case all this fails.. */
-	cache_drive = cache_track = -1;
-	if (floppy->sect <= MAX_BUFFER_SECTORS) {
-		count = floppy->sect << 9;	/* sects/trk (one side) times 512 */
-		if (floppy->sect & 1 && !head)
-	    		count += 512; /* add one if head=0 && sector count is odd */
-	}
-    } else if (use_bounce && command == FD_WRITE)
-	    xms_fmemcpyw(0, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+#ifdef CONFIG_TRACK_CACHE
+    if (use_cache) {
+	cache_drive = -1;	/* mark cache bad, in case all this fails.. */
+	cache_len = (floppy->sect<<1) - (sector + head*floppy->sect);
+	if (cache_len > cache_size) cache_len = cache_size;
+	count = cache_len << 9;
+    } else
+#endif
+    if (use_bounce && command == FD_WRITE)
+	xms_fmemcpyw(0, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
 
     DEBUG("%d/%lx/%x;", count, dma_addr, physaddr);
     clr_irq();
@@ -896,13 +903,10 @@ static void tell_sector(int nr)
  */
 static void rw_interrupt(void)
 {
-    unsigned char *buffer_area;
     int nr;
     char bad;
 
     nr = result();
-    /* NOTE: If read_track is active and sector count is uneven, ST0 will
-     * always show HD1 as selected at this point. */
     DEBUG("rwI%x|%x|%x-",ST0,ST1,ST2);
 
     /* check IC to find cause of interrupt */
@@ -985,14 +989,14 @@ static void rw_interrupt(void)
 	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, DMASEG, nr_sectors << (9-1));
 									/* words ^ */
     } else {
-	if (read_track) {
+	if (use_cache) {
+	    int start = CURRENT->rq_blocknr;
+
 	    cache_drive = current_drive;
-	    buffer_area = (unsigned char *)(sector << 9);
-	    cache_track = (seek_track << 1) + head; /* track cache */
-	    DEBUG("rd:%04x:%04x->%04lx:%04x;", DMASEG, buffer_area,
+	    cache_start = start;
+	    DEBUG("rd:%04x:0->%04lx:%04x;", DMASEG,
 		(unsigned long)req->rq_seg, req->rq_buffer);
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buffer_area, DMASEG, BLOCK_SIZE/2);
-	} else if (command == FD_READ && (req->rq_seg >> 16)) {	/* XMS buffer */
+	//} else if (command == FD_READ && (req->rq_seg >> 16)) {	/* XMS buffer */
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, DMASEG, BLOCK_SIZE/2);
 	}
     }
@@ -1024,24 +1028,26 @@ void setup_rw_floppy(void)
     output_byte(command);
     output_byte(head << 2 | current_drive);
 
+#ifdef INCLUDE_FD_FORMATTING
     if (command != FD_FORMAT) {
+#endif
 	output_byte(track);
 	output_byte(head);
-	if (read_track)
-	    output_byte(1);	/* always start at 1 */
-	else
-	    output_byte(sector+1); 
+	output_byte(sector+1); 
 
 	output_byte(2);		/* sector size = 512 */
 	output_byte(floppy->sect);
 	output_byte(floppy->gap);
 	output_byte(0xFF);	/* sector size, 0xff unless sector size==0 (128b) */
+
+#ifdef INCLUDE_FD_FORMATTING
     } else {
 	output_byte(2);		/* sector size = 512 */
 	output_byte(floppy->sect * 2); /* sectors per cyl */
 	output_byte(floppy->fmt_gap);
 	output_byte(FD_FILL_BYTE);
     }
+#endif
     DEBUG("S_OK;");
     if (reset)		/* If output_byte timed out */
 	redo_fd_request();
@@ -1070,11 +1076,14 @@ static void seek_interrupt(void)
  */
 static void transfer(void)
 {
-    /* DEBUG - turns on/off track buffer via bootopts */
-    read_track = xt_floppy[2] && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
-	(floppy->sect <= MAX_BUFFER_SECTORS);
+#ifdef CONFIG_TRACK_CACHE
+    use_cache = (fdcache>1) && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
+	(cache_size >= 4);
 
-    DEBUG("trns%d-", read_track);
+    DEBUG("trns%d-", use_cache);
+#else
+    DEBUG("trns-");
+#endif
 
     configure_fdc_mode();	/* Make sure the controller is in the right mode,
 				 * may change between every transaction when 
@@ -1097,7 +1106,7 @@ static void transfer(void)
     	output_byte((head << 2) | current_drive);
     	output_byte(seek_track);
     	if (reset)		/* If something happened in output_byte() */
-		redo_fd_request();
+	    redo_fd_request();
     } else { 			/* implied seek */
 	current_track = seek_track;
 	setup_rw_floppy();
@@ -1274,7 +1283,6 @@ static void floppy_ready(void)
     DEBUG("RDY0x%x,%d,%d-", MEDIA_CHANGED, reset, recalibrate);
 #ifdef USE_DIR_REG
     if (MEDIA_CHANGED) {
-	cache_track = -1;	/* MAYBE NOT */
         if (current_type[current_drive] && !(just_opened & mask)) {
             changed_floppies |= (1 << current_drive); /* this will discard any queued I/O */
             printk("df%d: Drive was opened, purge pending I/O\n", current_drive);
@@ -1417,11 +1425,12 @@ static void redo_fd_request(void)
 	tmp = start / floppy->sect;
 	head = tmp % FLOPPY_HEADS;
 	track = tmp / FLOPPY_HEADS;
-	/* Ensure raw IO requests have valid # of sectors: Don't span track boundaries */
-	/* If running a 82077 which has implied seek, this exercise is not required */
+
+	/* Ensure raw IO requests have valid # of sectors: Don't span cyl boundaries */
+	/* If running a 82077 which has implied seek, enable that instead! */
 	if (raw && ((sector + (floppy->sect*head) + nr_sectors)) 
-			> (floppy->sect*FLOPPY_HEADS)) {
-		nr_sectors = (floppy->sect * FLOPPY_HEADS) - (sector + (floppy->sect * head));
+			> (floppy->sect<<1)) {		/* sect * 2 = cyl */
+		nr_sectors = (floppy->sect<<1) - (sector + (floppy->sect * head));
 		req->rq_nr_sectors = nr_sectors;	/* return updated # of sectors */
 	}
 	seek_track = track << floppy->stretch;
@@ -1461,26 +1470,28 @@ static void redo_fd_request(void)
     fd_timeout.tl_expires = jiffies + 3 * HZ;
     add_timer(&fd_timeout);
 
-    DEBUG("prep %d|%d,%d|%d-", cache_track, seek_track, cache_drive, current_drive);
+    DEBUG("prep %d,%d|%d-", seek_track, cache_drive, current_drive);
 
-    if (!raw && (((seek_track << 1) + head) == cache_track) && (current_drive == cache_drive)) {
+#ifdef CONFIG_TRACK_CACHE
+    if (!raw && (current_drive == cache_drive) && start >= cache_start
+			&& start <= (cache_start + cache_len - nr_sectors + 1)) {
+
 	unsigned char *buf_ptr;
 
-	/* Requested block is in the cache. If reading, go get it.
-	 * If the sector count is odd, we cache sectors+1 when head=0 to get 
-	 * full blocks. When head=1 we read the entire track
-	 * and ignore the first sector.
-	 */
-	buf_ptr = (unsigned char *)(sector << 9);
+	/* Requested block is in the cache. If we're reading, go get it.
+	 * Otherwise, update it. */
+	buf_ptr = (unsigned char *)((start - cache_start) << 9);
 	DEBUG("bufrd chs %d/%d/%d-%x\n", seek_track, head, sector, buf_ptr);
 
 	if (command == FD_READ) {	/* requested data is in cache */
+	    cache_hits++;
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
 	    request_done(1);
 	    goto repeat;
     	} else if (command == FD_WRITE)	/* update track cache */
 	    xms_fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
     } 
+#endif
 
     if (seek_track != current_track)
 	seek = 1;
@@ -1648,7 +1659,7 @@ int floppy_open(struct inode *inode, struct file *filp)
     drive = MINOR(inode->i_rdev) >> MINOR_SHIFT;
     dev = drive & 3;
     fd_device[dev] = inode->i_rdev;
-    cache_drive = cache_track = -1;	
+    cache_drive = -1;	
 
     if (!israw) {			/* For block device access only */
 	old_dev = fd_device[dev];
@@ -1679,7 +1690,6 @@ int floppy_open(struct inode *inode, struct file *filp)
 	}
     }
     inode->i_size = ((sector_t)(floppy->size)) << 9;	/* NOTE: assumes sector size 512 */
-    printk("xt_floppy[2]=%d\n", xt_floppy[2]);
     DEBUG("df%d: open %s dev %04x, sz %lu, %s\n", drive, israw?"(raw)":"",
 		inode->i_rdev, inode->i_size, floppy->name);
 
@@ -1704,6 +1714,7 @@ void floppy_release(struct inode *inode, struct file *filp)
 //clear_raw:
 	changed_floppies &= ~(1 << drive);	/* clear media change flag */
 	current_type[drive] = NULL;	/* prevent next open from flagging media change */
+	printk("Cache hits: %u\n", cache_hits);
     }
 }
 
@@ -1807,4 +1818,13 @@ void INITPROC floppy_init(void)
     }
 #endif
     config_types();
+
+    /* sector cache setup */
+    if (fdcache > 1)		/* temporary */
+	cache_size = fdcache<<1;
+    else
+	cache_size = 2; 	/* minimal bounce buffer at DMASEG */
+    if (cache_size > (DMASEGSZ>>9)) cache_size = DMASEGSZ>>9;
+    printk("Cache size %dk, available %dk\n", fdcache, DMASEGSZ>>10);
+	
 }
