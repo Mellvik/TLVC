@@ -428,6 +428,9 @@ int main(int argc, char **argv)
 		} else {
 			if (*dev != 0) usage();
 			else strcpy(dev, argv[i]);
+			/* get rid of partitions */
+			while (isdigit(dev[strlen(dev)-1]))
+				dev[strlen(dev)-1] = '\0';
 		}
 	}
 
