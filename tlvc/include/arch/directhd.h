@@ -91,15 +91,17 @@ struct ide_controller {
 #define HDIO_SET_UNMASKINTR     0x0322  /* permit other irqs during I/O */
 #define HDIO_SET_NOWERR         0x0325  /* change ignore-write-error flag */
 
-/* xtide configuration data & flags, mostløy from bootopts. Note that CFLITE and
+/* xtide configuration data & flags, for bootopts. Note that CFLITE and
  * HISPEED are mutually exclusive, setting both will create havoc */
 #define XTIDE_CFG_CFLITE	1	/* Use the XT-CF Lite register addressing
-					 * scheme. Ctrl reg is base + 0x1c */
+					 * scheme - A0 = 0, registers at even
+					 * addresses only. Ctrl reg is base + 0x1c */
 #define XTIDE_CFG_HISPEED	2	/* For cards supporting 'high speed PIO' which
-					 * means that all command registers are 2 apart
-					 * (A0 is zero) in order to use word IO at the
-					 * base address */
-					/* If HISPEED is set, the address to the control
+					 * means that address lines A0 and A3 have
+					 * been swapped. This places the two data
+					 * registers (lo and hi byte) adjacent, 
+					 * and they may be accessed using word instructions.
+					 * If HISPEED is set, the address of the control
 					 * register block is base+16 instead of base + 8 */
 #define XTIDE_CFG_NO_INT	4	/* Use PIO mode only, interrupts not supported */
 					/* unused, set the irq value to zero instead */
