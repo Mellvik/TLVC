@@ -58,8 +58,6 @@
 #define ATA_CFG_SSD	0x04	/* drive is solid state */
 #define ATA_CFG_OLDIDE	0x10	/* Old IDE drive w/ limited cmd set */
 #define ATA_CFG_LBA	0x40	/* Drive has LBA support */
-#define ATA_CFG_XTIDE	0x80	/* XTIDE cards have odd addressing */
-				/* there are many variants, may need details */
 
 /* Per drive SET FEATURE commands */
 #define ATA_FEAT_8BIT	0x01	/* set 8 bit mode */
@@ -77,6 +75,13 @@ struct hd_geometry {
     unsigned long start;
 };
 
+struct ide_controller {
+    int io_port;
+    int ctl_port;
+    unsigned char irq;
+    unsigned char reg_type;
+};
+
 /* hd/ide ctl's that pass (arg) ptrs to user space are numbered 0x030n/0x031n */
 #define HDIO_GETGEO             0x0301  /* get device geometry */
 #define HDIO_GET_UNMASKINTR     0x0302  /* get current unmask setting */
@@ -86,4 +91,18 @@ struct hd_geometry {
 #define HDIO_SET_UNMASKINTR     0x0322  /* permit other irqs during I/O */
 #define HDIO_SET_NOWERR         0x0325  /* change ignore-write-error flag */
 
+/* xtide configuration data & flags, for bootopts. Note that CFLITE and
+ * HISPEED are mutually exclusive, setting both will create havoc */
+#define XTIDE_CFG_CFLITE	1	/* Use the XT-CF Lite register addressing
+					 * scheme - A0 = 0, registers at even
+					 * addresses only. Ctrl reg is base + 0x1c */
+#define XTIDE_CFG_HISPEED	2	/* For cards supporting 'high speed PIO' which
+					 * means that address lines A0 and A3 have
+					 * been swapped. This places the two data
+					 * registers (lo and hi byte) adjacent, 
+					 * and they may be accessed using word instructions.
+					 * If HISPEED is set, the address of the control
+					 * register block is base+16 instead of base + 8 */
+#define XTIDE_CFG_NO_INT	4	/* Use PIO mode only, interrupts not supported */
+					/* unused, set the irq value to zero instead */
 #endif

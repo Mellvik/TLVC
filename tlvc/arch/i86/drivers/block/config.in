@@ -13,19 +13,14 @@ mainmenu_option next_comment
 	define_bool CONFIG_BLK_DEV_BHD n
 	bool '  DIRECT floppy support'		CONFIG_BLK_DEV_FD	y
 	bool '  DIRECT IDE hardisk support'	CONFIG_BLK_DEV_HD	y
-	if [ "$CONFIG_HW_PCXT" == "y" ]; then
-	    if [ "$CONFIG_BLK_DEV_HD" == "y" ]; then
-		bool '  XT/CF-lite is primary HD @0x300' CONFIG_HW_CFIDE0	n
-	    fi
-	    if [ "$CONFIG_HW_CFIDE0" == "y" ]; then
-		define_bool CONFIG_BLK_DEV_HD y
-	    fi
-	    bool '  DIRECT XT/MFM disk support'	CONFIG_BLK_DEV_XD	n
+	if [ "$CONFIG_BLK_DEV_HD" == "y" ]; then
+	    bool '  Include XT-IDE/CF support'	CONFIG_IDE_XT		n
 	fi
+	bool '  DIRECT XT/MFM disk support'	CONFIG_BLK_DEV_XD	n
     fi
     bool 'BIOS based drivers' CONFIG_BLK_DEV_BIOS n
     if [ "$CONFIG_BLK_DEV_BIOS" == "y" ]; then
-	bool '  BIOS floppy support'	CONFIG_BLK_DEV_BFD	y
+	bool '  BIOS floppy support'	CONFIG_BLK_DEV_BFD	n
 	bool '  BIOS harddisk support'	CONFIG_BLK_DEV_BHD	n
 	bool '  IDE harddisk CHS probe'	CONFIG_IDE_PROBE	n
     fi
@@ -34,7 +29,7 @@ mainmenu_option next_comment
     else
 	define_bool CONFIG_DMA n
     fi
-    int 'Floppy drive sector cache (1-9)(KB), 0 to disable' \
+    int 'Floppy drive sector cache, 1-9KB, 0 to disable' \
 	    CONFIG_FLOPPY_CACHE 5
 
     comment 'Additional block devices'
