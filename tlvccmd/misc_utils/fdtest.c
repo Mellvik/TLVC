@@ -6,10 +6,15 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <linuxmt/bioshd.h>
 #include <linuxmt/biosparm.h>
 #include <linuxmt/memory.h>
 
+#define USE_DIRECTFD
+#ifndef USE_DIRECTFD
 struct biosparms bdt;
 
 /* Useful defines for accessing the above structure. */
@@ -23,14 +28,16 @@ struct biosparms bdt;
 #define BD_DI bdt.di
 #define BD_ES bdt.es
 #define BD_FL bdt.fl
+#endif
 
 #define MAX		30		/* max # of sectors per read */
 #define SECSIZE		512		/* sector size*/
 
-unsigned char kernel_buf[MAX * SECSIZE];
+unsigned char iobuf[MAX * SECSIZE];
 int verbose = 0;
 int out = 0;
 
+#ifndef USE_DIRECTFD
 int read_disk(unsigned short drive, unsigned short cylinder, unsigned short head,
 	unsigned short sector, unsigned short count)
 {
@@ -38,10 +45,10 @@ int read_disk(unsigned short drive, unsigned short cylinder, unsigned short head
 	if (verbose)
 		fprintf(stderr, "d %d c %d h %d s %d cnt %d\n", drive, cylinder, head, sector, count);
 
-	/* BIOS disk read into "kernel" buffer*/
+	/* BIOS disk read into buffer*/
 	BD_AX = BIOSHD_READ | count;
-	BD_BX = _FP_OFF(kernel_buf);	/* note: 64k DMA boundary ignored here*/
-	BD_ES = _FP_SEG(kernel_buf);
+	BD_BX = _FP_OFF(iobuf);	/* note: 64k DMA boundary ignored here*/
+	BD_ES = _FP_SEG(iobuf);
 	BD_CX = (unsigned short) (((cylinder&0xff) << 8) | ((cylinder&0x300) >> 2) | sector);
 	BD_DX = (head << 8) | drive;
 	if (call_bios(&bdt)) {
@@ -50,9 +57,10 @@ int read_disk(unsigned short drive, unsigned short cylinder, unsigned short head
 	}
 
 	if (out)
-		write(1, kernel_buf, count*512);
+		write(1, iobuf, count*512);
 	return(0);
 }
+#endif
 
 int main(int ac, char **av)
 {
@@ -62,6 +70,11 @@ int main(int ac, char **av)
 	int i, max, direct = 0;
 	unsigned short bs = 1;
 	time_t t, tt;
+#ifdef USE_DIRECTFD
+	long lba;
+	char *device = "/dev/rdf0";
+	int fd;
+#endif
 
 	/* setup starting CHS*/
 	drive = 0;		/* 0-1*/
@@ -74,7 +87,11 @@ int main(int ac, char **av)
 		av++;
 		switch ((*av)[1]) {
 		case 'd':	/* select drive, 0 or 1 */
+#ifdef USE_DIRECTHD
+			device[8] = *(++av);
+#else
 			drive = atoi(*(++av));
+#endif
 			ac--;
 			break;
 		case 'c':	/* select (starting) cylinder, 0 - 79 */
@@ -94,7 +111,7 @@ int main(int ac, char **av)
 			if (max > MAX) max = MAX;
 			ac--;
 			break;
-		case 'D':	/* Direct: Read entore disk from the given starting point */
+		case 'D':	/* Direct: Read entire disk from the given starting point */
 			direct++;
 			break;
 		case 'b':	/* blocksize, only in Direct Mode */
@@ -115,19 +132,29 @@ int main(int ac, char **av)
 			return(1);
 		}	
 	}
+#ifdef USE_DIRECTFD
+	lba = (cylinder<<1 + head)*max + (sector - 1);
+	if ((fd = open(device, O_RDONLY)) < 0) {
+		perror("Device open failure");
+		exit(1);
+	}
+	lseek(fd, lba*SECSIZE, SEEK_SET);
 
+#else
 	/* dma start/end pages must be equal to ensure I/O within 64k DMA boundary for INT 13h*/
 	if (verbose) {
-		start_dma_page = (_FP_SEG(kernel_buf) + ((__u16) kernel_buf >> 4)) >> 12;
-		end_dma_page = (_FP_SEG(kernel_buf) + ((__u16) (kernel_buf + max * 512 - 1) >> 4)) >> 12;
-		normalized_seg = (((__u32)_FP_SEG(kernel_buf) + (_FP_OFF(kernel_buf) >> 4)) << 16) +
-			(_FP_OFF(kernel_buf) & 15);
+		start_dma_page = (_FP_SEG(iobuf) + ((__u16) iobuf >> 4)) >> 12;
+		end_dma_page = (_FP_SEG(iobuf) + ((__u16) (iobuf + max * 512 - 1) >> 4)) >> 12;
+		normalized_seg = (((__u32)_FP_SEG(iobuf) + (_FP_OFF(iobuf) >> 4)) << 16) +
+			(_FP_OFF(iobuf) & 15);
 		fprintf(stderr, "dma start page %x, dma end page %x, buffer at %x:%x - ",
 			start_dma_page, end_dma_page, _FP_SEG(normalized_seg), _FP_OFF(normalized_seg));
 		fprintf(stderr, start_dma_page == end_dma_page? "OK\n": "ERROR\n");
 	}
 
 	signal(SIGINT, SIG_IGN);	/* any signal here will likely crash the system */
+#endif
+
 	if (direct) {
 		int  blocks = 0;
 
@@ -135,8 +162,10 @@ int main(int ac, char **av)
 		cylinder = 0;
 		t = time(NULL);
 
+#ifdef USE_DIRECTFD
+		while (read(fd, iobuf, bs*SECSIZE) > 0) {
+#else
 		while (read_disk(drive, cylinder, head, sector, bs) == 0) {
-			blocks++; 
 			if (sector + bs <= max) sector += bs;
 			else {
 				if (bs <= max) {
@@ -166,7 +195,9 @@ int main(int ac, char **av)
 					}
 				}
 			}
-			if (!verbose) fprintf(stderr, ".");
+#endif
+			blocks++; 
+			if (!verbose) write(2, ".", 1);
 		}
 		fprintf(stderr, "\nRead %d blocks in %ld seconds\n", blocks, time(NULL) - t);
 		return(0);
@@ -175,18 +206,31 @@ int main(int ac, char **av)
 	fprintf(stderr, "Reading %d sectors individually\n", max);
 	t = time(NULL);
 	for (i=0; i < max; i++)
+#ifdef USE_DIRECTFD
+		read(fd, iobuf, SECSIZE);
+#else
 		(void)read_disk(drive, cylinder, head, sector+i, 1);
+#endif
 	fprintf(stderr, "%ld secs\n", time(NULL) - t);
 	
 	fprintf(stderr, "Reading %d sectors as %d 1024-byte blocks\n", max, max/2);
 	t = time(NULL);
 	for (i=0; (sector+i) < max-1; i += 2)
+#ifdef USE_DIRECTFD
+		read(fd, iobuf, SECSIZE<<1);
+#else
 		(void)read_disk(drive, cylinder, head, sector+i, 2);
+#endif
 	fprintf(stderr, "%ld secs\n", time(NULL) - t);
 	
 	fprintf(stderr, "Reading %d sectors at once\n", max);
 	t = time(NULL);
+#ifdef USE_DIRECTFD
+	read(fd, iobuf, max*SECSIZE);
+	close(fd);
+#else
 	(void)read_disk(drive, cylinder, head, sector, max);
+#endif
 	tt = time(NULL);
 	fprintf(stderr, "%ld secs\n", tt-t);
 	
