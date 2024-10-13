@@ -100,7 +100,7 @@
 /* wd, wd.c*/
 #define WD_PORT		0x240
 #define WD_IRQ		2
-#define WD_RAM		0xCC00
+#define WD_RAM		0xC800
 #define WD_FLAGS	0x80
 
 /* el3/3C509, el3.c */
@@ -122,10 +122,9 @@
 /* IDE hard drive, directhd.c */
 #define HD1_PORT	0x1f0
 #define HD2_PORT	0x170
-#define XTIDE_PORT	0x300		/* 8bit XT/IDE or CF cards, usually w/BIOS */
+#define XTHD_IRQ	5		/* IDE controller on XT system (same as MFM) */
 #define HD1_AT_IRQ	14
 #define HD2_AT_IRQ	15
-#define HD_IRQ		HD1_AT_IRQ	/* DEPRECATED, to be delete (directhd.c) */
 
 /* direct (non-BIOS) floppy */
 #define FLOPPY_IRQ	6
