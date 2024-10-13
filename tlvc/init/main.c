@@ -69,7 +69,7 @@ int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
 
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
-int xtideparms[3];		/* config data for xtide controller if present */
+int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache;			/* currently selected size of floppy sector cache (KB) */
 static int boot_console;
 static seg_t membase, memend;
@@ -572,7 +572,7 @@ static int INITPROC parse_options(void)
 			continue;
 		}
 		if (!strncmp(line,"xtide=", 6)) {
-			parse_parms(3, line+6, xtideparms, 0);
+			parse_parms(6, line+6, xtideparms, 0);
 			continue;
 		}
 		if (!strncmp(line,"hdparms=", 8)) {
