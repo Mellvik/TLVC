@@ -250,17 +250,24 @@ void cmos_write_bcd(int addr, int value)
  * Then write 0 to status reg D, which is read only, and read it back.
  * Should always return 0x80. Bit 7 indicates RAM/TIME/battery OK, the 
  * other bits are always zero. Return true if found.
+ * [UPDATE] The probe above works fine on a running system, but fails if the 
+ * clock (ie. the Dallas chip) is uninitialized (new or battery replaced).
+ * In such case, the A, B and C regs all read 0, D reads 0x80 if the battery is OK.
+ * This means that A=0 is an OK probe - A will never be zero of the chip isn't there.
  *
  * [Alternative method: Read all 4 status regs. If they're all the same
- *  there's nothing there. For reference, on physical systems the readback is 0x48,
- *  on emulators 0xff]
+ *  there's nothing there. For reference, on physical systems the 'empty' 
+ *  readback is 0x48, on emulators 0xff]
  */
 int cmos_probe(void)
 {
+    unsigned char a;
+
     cmos_write(0xd, 0);
-    if (((cmos_read(0xa) & 0x7f) == 0x26) && cmos_read(0xd))
+    a = cmos_read(0xa);
+    if ((!a || (a & 0x7f) == 0x26) && cmos_read(0xd))
 	return 1;
-    //printf("CMOS status A %x, B %x, C %x, D %x\n", cmos_read(0xa), cmos_read(0xb),
+    //printf("CMOS status A %x, B %x, C %x, D %x\n", a, cmos_read(0xb),
 	     //cmos_read(0xc), cmos_read(0xd));
     return 0;
 }
@@ -638,10 +645,15 @@ void cmos_settime(struct tm *tmp)
 {
     unsigned char save_control, save_freq_select;
 
-    save_control = cmos_read(11);	/* tell the clock it's being set */
-    cmos_write(11, (save_control | 0x80));
-    save_freq_select = cmos_read(10);	/* stop and reset prescaler */
-    cmos_write(10, (save_freq_select | 0x70));
+    save_control = cmos_read(0xb);
+    save_freq_select = cmos_read(0xa);
+    if (!save_freq_select) {	/* un-initialized */
+	save_control = 2; 	/* set 24hr clock */
+	save_freq_select = 0x26;/* enable closk, set 1024kHz clock rate */
+	printf("Clock not running, initializing...\n");
+    }
+    cmos_write(0xb, (save_control | 0x80));	/* tell the clock it's being set */
+    cmos_write(0xa, (save_freq_select | 0x70));	/* stop and reset prescaler */
 
     cmos_write_bcd(0, tmp->tm_sec);
     cmos_write_bcd(2, tmp->tm_min);
@@ -651,8 +663,8 @@ void cmos_settime(struct tm *tmp)
     cmos_write_bcd(8, tmp->tm_mon + 1);
     cmos_write_bcd(9, tmp->tm_year);
 
-    cmos_write(10, save_freq_select);
-    cmos_write(11, save_control);
+    cmos_write(0xa, save_freq_select);
+    cmos_write(0xb, save_control);
 }
 
 #else 
