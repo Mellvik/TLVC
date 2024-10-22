@@ -110,14 +110,14 @@ endif
 # Direct floppy support
 ifeq ($(CONFIG_BLK_DEV_FD), y)
 	$(MKDEV) /dev/df0 b 2 0
-	#$(MKDEV) /dev/df0-1440 b 2 1
-	#$(MKDEV) /dev/df0-1200 b 2 2
-	$(MKDEV) /dev/df1 b 2 32
-	#$(MKDEV) /dev/df1-1440 b 2 33
-	#$(MKDEV) /dev/df1-1200 b 2 34
+	#$(MKDEV) /dev/df0-1440 b 2 24
+	#$(MKDEV) /dev/df0-1200 b 2 8
+	$(MKDEV) /dev/df1 b 2 1
+	#$(MKDEV) /dev/df1-1440 b 2 25
+	#$(MKDEV) /dev/df1-1200 b 2 9
 # Raw direct floppy
 	$(MKDEV) /dev/rdf0 c 2 0
-	$(MKDEV) /dev/rdf1 c 2 32
+	$(MKDEV) /dev/rdf1 c 2 1
 endif
 
 ##############################################################################
