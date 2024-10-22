@@ -152,11 +152,6 @@ int main(int ac, char **av)
 			sector = atoi(*(++av));
 			ac--;
 			break;
-		case 't':	/* set sectors per track */
-			max = atoi(*(++av));
-			if (max > MAX) max = MAX;
-			ac--;
-			break;
 		case 'D':	/* Direct: Read entire disk from the given starting point */
 			direct++;
 			break;
