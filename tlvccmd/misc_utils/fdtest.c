@@ -13,6 +13,7 @@
 #include <linuxmt/biosparm.h>
 #include <linuxmt/memory.h>
 #include <linuxmt/mem.h>
+#include <arch/hdreg.h>
 
 #define USE_DIRECTFD
 #ifndef USE_DIRECTFD
@@ -113,6 +114,7 @@ int main(int ac, char **av)
 #ifdef USE_DIRECTFD
 	long lba;
 	char *device = "/dev/rdf0";
+	struct hd_geometry fd_geo;
 	int fd;
 #endif
 
@@ -127,8 +129,8 @@ int main(int ac, char **av)
 		av++;
 		switch ((*av)[1]) {
 		case 'd':	/* select drive, 0 or 1 */
-#ifdef USE_DIRECTHD
-			device[8] = *(++av);
+#ifdef USE_DIRECTFD
+			device[8] = **(++av);
 #else
 			drive = atoi(*(++av));
 #endif
@@ -148,11 +150,6 @@ int main(int ac, char **av)
 			break;
 		case 's':	/* select staring sector, 1 to MAX or max */
 			sector = atoi(*(++av));
-			ac--;
-			break;
-		case 't':	/* set sectors per track */
-			max = atoi(*(++av));
-			if (max > MAX) max = MAX;
 			ac--;
 			break;
 		case 'D':	/* Direct: Read entire disk from the given starting point */
@@ -178,11 +175,24 @@ int main(int ac, char **av)
 	}
 	timer_init();
 #ifdef USE_DIRECTFD
-	lba = (cylinder<<1 + head)*max + (sector - 1);
 	if ((fd = open(device, O_RDONLY)) < 0) {
+		fprintf(stderr, "%s: ", device);
 		perror("Device open failure");
-		exit(1);
+		return(1);
 	}
+	if (read(fd, iobuf, 512) <= 0) {  /* read a sector to make sure
+					   * autoprobe is done and there is
+					   * a floppy in the drive */
+		fprintf(stderr, "Read error on %s, exiting\n", device);
+		return(1);
+	}
+	ioctl(fd, HDIO_GETGEO, &fd_geo);
+	/* sanity check */
+	max = fd_geo.sectors;
+	if (cylinder >= fd_geo.cylinders) 
+		cylinder = 0;
+	if (sector > max) sector = 1;
+	lba = (cylinder<<1 + head)*max + (sector - 1);
 	lseek(fd, lba*SECSIZE, SEEK_SET);
 	if (!bs) bs = max;
 
@@ -255,8 +265,9 @@ int main(int ac, char **av)
 		return(0);
 	}
 
-	fprintf(stderr, "%s: Using %d sectors per track, %d per cyl, start @ %d/%d/%d (lba %ld)\n\n", 
-		device, max, max<<1, cylinder, head, sector, lba);
+	fprintf(stderr, "%s: Size %dk, using %d sectors per track, %d per cyl, start @ %d/%d/%d (lba %ld)\n\n", 
+		device, (fd_geo.heads*fd_geo.cylinders*fd_geo.sectors)>>1, max, 
+		max<<1, cylinder, head, sector, lba);
 	start = *jp;
 	for (i=0; i < bs; i++) {
 #ifdef USE_DIRECTFD
