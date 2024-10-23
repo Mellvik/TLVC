@@ -128,7 +128,7 @@ static void floppy_off();	/*(unsigned int nr); */
 #define DEVICE_NAME "df"
 #define DEVICE_INTR do_floppy
 #define DEVICE_REQUEST do_fd_request
-#define DEVICE_NR(device) (MINOR(device) >> MINOR_SHIFT)
+#define DEVICE_NR(device) MINOR(device)
 #define DEVICE_ON(device) floppy_on(DEVICE_NR(device))
 #define DEVICE_OFF(device) floppy_off(DEVICE_NR(device))
 
@@ -215,11 +215,13 @@ static void end_request(int uptodate)
 
     mark_buffer_uptodate(bh, uptodate);
     mark_buffer_clean(bh);      /* EXPERIMENTAL: moved from ll_rw_blk  */
-    //debug_blkdrv("ER:%04x;", req);
-#if DEBUG_BUFFER
-    __far unsigned int *content;
-    content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer));
-    printk("ER%d|%04x|%04x|%04x;", uptodate, req, req->rq_dev, *content);
+#if DEBUG_ASYNC
+    if (debug_level == 1) printk("ER:%04x;", req);
+    if (debug_level > 3 {
+	__far unsigned int *content;
+	content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer));
+	printk("ER%d|%04x|%04x|%04x;", uptodate, req, req->rq_dev, *content);
+    }
 #endif
 
     unlock_buffer(bh);		/* will wake the waiting process */

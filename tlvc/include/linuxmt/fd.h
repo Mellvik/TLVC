@@ -26,7 +26,6 @@
 struct floppy_struct {
     unsigned int size,		/* nr of 512-byte sectors total */
 	sect,			/* sectors per track */
-	//head,			/* nr of heads */
 	track,			/* nr of tracks */
 	stretch;		/* !=0 means double track steps */
     unsigned char gap,		/* gap1 size */
@@ -34,6 +33,15 @@ struct floppy_struct {
 	spec1,			/* stepping rate, head unload time */
 	fmt_gap;		/* gap2 size */
     const char *name; 		/* used only for predefined formats */
+};
+
+struct fdev_s {			/* Per device data for active devices */
+    struct inode *inode;	/* this device's open inode */
+    struct floppy_struct 
+    		*current_type;	/* Currently set floppy type */
+    int fd_device;		/* i_rdev used when opening this device */
+    unsigned char fd_ref;	/* reference (open) counter */
+    unsigned char fd_probe;	/* density probe may be required */
 };
 
 struct format_descr {

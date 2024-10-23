@@ -56,11 +56,6 @@
 
 /*
  * TODO (HS 2023):
- * - When XMS buffers are active, the BIOS hd driver will use DMASEG as a bounce buffer
- *   thus colliding with our usage (i18 sector track buffer). This is a problem only in
- *   the odd case of using BIOS HD + DIRECT FD + XMS buffers + TRACK cache, 
- *   which really should not happen. IOW - use either BIOS block IO or DIRECT block IO,
- *   don't mix!!
  * - The driver has many provisions for 4 floppy drives, but except for the oldest PCs
  *   (PC and XT) there is no physical support more than 2 drives (needs a 2nd controller).
  *   Also, this driver uses CMOS settings to set the drive type which applies to drives 0 
@@ -70,7 +65,7 @@
  * - Repeated errors will cause an error message to appear twice: once when the MAXERRORS
  *   threshold is passed, once when giving up and exiting.
  * - Many errors (like sector not found) would benefit from a 'shake', step one track and
- *   back, to ensure we don't have a positioning error (old drive primarily) problem.
+ *   back, to ensure we don't have a positioning problem (old drives primarily).
  */
 
 #include <linuxmt/config.h>
@@ -97,7 +92,7 @@
 
 #define FLOPPYDISK
 #define MAJOR_NR FLOPPY_MAJOR
-#define MINOR_SHIFT	5	/* shift to get drive num */
+#define MAX_FLOPPIES	2	/* number of drives supported, 2 or 4 */
 
 #include "blk.h"
 
@@ -119,7 +114,6 @@ void (*DEVICE_INTR) () = NULL;
 
 /* Driver configuration */
 
-//#define dfd_debug	/* lots of debug output */
 //#define INCLUDE_FD_FORMATTING	/* Formatting code untested, don't waste the space */
 
 #ifndef CONFIG_HW_PCXT	/* some options are not meaningful on pre-AT systems */
@@ -134,8 +128,9 @@ void (*DEVICE_INTR) () = NULL;
 #undef CHECK_MEDIA_CHANGE /* Now defined in linuxmt/fs.h */
 #endif
 
-#ifdef dfd_debug
-#define DEBUG printk
+#define DEBUG_DIRECTFD 0
+#if DEBUG_DIRECTFD
+#define DEBUG if (debug_level == 1) printk
 #else
 #define DEBUG(...)
 #endif
@@ -206,6 +201,8 @@ static unsigned char reply_buffer[MAX_REPLIES];
 #define CMOS_MAX    5
 
 /* Indices into floppy_type[], used for floppy format probes. Must match the table below */
+/* Must also match the forced floppy type by minor dev num - see image/Make.devices */
+/* NOTICE that MINOR_SHIFT is now 0 (and gone)! for direct floppies */
 #define FT_360k_PC  1		/* 360kB PC diskettes */
 #define FT_1200k    2		/* 1.2 MB AT-diskettes */
 #define FT_720k     3		/* 3.5" 720kB diskette */
@@ -241,7 +238,7 @@ static struct floppy_struct floppy_type[] = {
 static unsigned char p360k[] =  { FT_360k_PC, FT_360k_PC, 0 };	/* DO NOT change */
 static unsigned char p1200k[] = { FT_1200k,   FT_360k_AT, 0 };
 static unsigned char p720k[] =  { FT_720k,    FT_720k,    0 };
-static unsigned char p1440k[] = { FT_1440k,   FT_720k,    0 };
+static unsigned char p1440k[] = { FT_1440k,   FT_720k,    0 };	/* add 2880 here if needed */
 
 /*
  * Auto-detection. Each drive type has a zero-terminated list of formats which
@@ -250,11 +247,8 @@ static unsigned char p1440k[] = { FT_1440k,   FT_720k,    0 };
  */
 static unsigned char *probe_list[CMOS_MAX] = { p360k, p1200k, p720k, p1440k, NULL };
 
-/* Auto-detection: Disk type used until the next media change occurs. */
-struct floppy_struct *current_type[4] = { NULL, NULL, NULL, NULL };
-
 /* This type is tried first. */
-static unsigned char *base_type[4] = { NULL, NULL, NULL, NULL };
+static unsigned char *base_type[MAX_FLOPPIES];
 
 /*
  * The driver is trying to determine the correct media format
@@ -262,29 +256,29 @@ static unsigned char *base_type[4] = { NULL, NULL, NULL, NULL };
  * successful access. This works when the formats are distinct,
  * not when the format is the same and the # of sectors differ.
  */
-static int probing = 0;
+static int probing;
+
+/*
+ * Keep per drive state and status to avoid race conditions in globals.
+ * Even though only one IO op may be active at any one time, _open, _release and
+ * _ioctl may operate on a different device and cannot touch globals.
+ */
+static struct fdev_s fdevice[MAX_FLOPPIES];
 
 /* On an XT with a 720k drive, probing will not work because the first 9 sectors
  * read correctly anyway, we need to fake the CMOS types via bootopts */
 extern int xt_floppy[];
 extern int fdcache;	/* size of sector cache from bootopts */
 
-/* Prevent "aliased" accesses. */
-
-static int fd_ref[4] = { 0, 0, 0, 0 };	  /* device reference counter */
-static int fd_device[4] = { 0, 0, 0, 0 }; /* has the i_rdev used in the last access,
-					   * used to detect multiple opens 
-					   * via different devices (minor numbers) */
-
 /* Synchronization of FDC access. */
 #ifdef INCLUDE_FD_FORMATTING
 static int format_status = FORMAT_NONE
 #endif
-static int fdc_busy = 0;
+static int fdc_busy;
 static struct wait_queue fdc_wait;
 
 /* bit vector set when media changed - causes I/O to be discarded until unset */
-static unsigned int changed_floppies;
+//static unsigned int changed_floppies;
 //static unsigned int just_opened;
 
 #ifdef INCLUDE_FD_FORMATTING
@@ -364,7 +358,7 @@ static int cache_size;		/* # of sectors - min=2, max=DMASEGSZ>>9 */
 static unsigned int cache_hits;	/* For stats */
 static int cur_spec1 = -1;	/* HUT | SRT */
 static int cur_rate = -1;	/* datarate */
-static struct floppy_struct *floppy = floppy_type;
+static struct floppy_struct *floppy;
 static unsigned char current_drive = 255;
 static unsigned char sector;
 static unsigned char head;
@@ -433,23 +427,27 @@ static void floppy_select(unsigned int nr)
 static void motor_on_callback(int nr)
 {
     DEBUG("mON,");
-    clr_irq();	// Experimental
+    clr_irq();
     running |= 0x10 << nr;
     set_irq();
     floppy_select(nr);
 }
 
-static struct timer_list motor_on_timer[4] = {
+static struct timer_list motor_on_timer[MAX_FLOPPIES] = {
     {NULL, 0, 0, motor_on_callback},
     {NULL, 0, 1, motor_on_callback},
+#if MAX_FLOPPIES == 4
     {NULL, 0, 2, motor_on_callback},
     {NULL, 0, 3, motor_on_callback}
+#endif
 };
-static struct timer_list motor_off_timer[4] = {
+static struct timer_list motor_off_timer[MAX_FLOPPIES] = {
     {NULL, 0, 0, motor_off_callback},
     {NULL, 0, 1, motor_off_callback},
+#if MAX_FLOPPIES == 4
     {NULL, 0, 2, motor_off_callback},
     {NULL, 0, 3, motor_off_callback}
+#endif
 };
 static struct timer_list fd_timeout = {NULL, 0, 0, floppy_shutdown};
 
@@ -624,7 +622,7 @@ static unsigned int changed_floppies = 0, fake_change = 0;
 
 int floppy_change(struct buffer_head *bh)
 {
-    unsigned int mask = 1 << ((bh->b_dev & 0x03) >> MINOR_SHIFT;
+    unsigned int mask = 1 << ((bh->b_dev & 0x03);
 
     if (MAJOR(bh->b_dev) != MAJOR_NR) {
 	printk("floppy_change: not a floppy\n");
@@ -689,16 +687,24 @@ static void setup_DMA(void)
 	        dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 		use_bounce--;
 	    }
-	    count = nr_sectors<<9;
+	    //count = nr_sectors<<9;
 	}
-    } else
-#ifdef CONFIG_TRACK_CACHE
+    } else {
+#ifdef CONFIG_FLOPPY_CACHE
 	if (!use_cache) 
 #endif
 	    dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
-
-    DEBUG("setupDMA:");
-    DEBUG("-%x:%x-", req->rq_seg, req->rq_buffer);
+    }
+    if (raw) {	/* ensure raw access doesn't span cylinders */
+	int rest = (floppy->sect<<1) - sector - head*floppy->sect;
+	if (rest < nr_sectors) {
+	    printk("tr %d, spt %d, s %d, h %d, rest %d, req %d; ", current_track,
+		floppy->sect, sector, head, rest, nr_sectors);
+	    nr_sectors = rest;
+	}
+    }
+    count = nr_sectors<<9;
+    DEBUG("setupDMA:-%x:%x-", req->rq_seg, req->rq_buffer);
 
 #ifdef INCLUDE_FD_FORMATTING
     if (command == FD_FORMAT) {
@@ -706,7 +712,7 @@ static void setup_DMA(void)
 	count = floppy->sect << 2;	/* formatting data, 4 bytes per sector */
     }
 #endif
-#ifdef CONFIG_TRACK_CACHE
+#ifdef CONFIG_FLOPPY_CACHE
     if (use_cache) {
 	cache_drive = -1;	/* mark cache bad, in case all this fails.. */
 	cache_len = (floppy->sect<<1) - (sector + head*floppy->sect);
@@ -779,19 +785,21 @@ static void bad_flp_intr(void)
 
     DEBUG("bad_flpI-");
     current_track = NO_TRACK;
+    if (!CURRENT) return;
+    if (probing) {
+	probing++;
+	return;
+    }
 #ifdef INCLUDE_FD_FORMATTING
     if (format_status == FORMAT_BUSY)
 	errors = ++format_errors;
     else 
 #endif
-    if (!CURRENT) {
-	printk("%s: no current request\n", DEVICE_NAME);
-	reset = recalibrate = 1;
-	return;
-    } else
-	errors = ++CURRENT->rq_errors;
+    errors = ++CURRENT->rq_errors;
     if (errors > MAX_ERRORS) {
+        printk("df%d: Max retries (%d) exceeded\n", CURRENT->rq_dev&3, errors);
 	request_done(0);
+	return;
     }
     if (errors > MAX_ERRORS / 2)
 	reset = 1;
@@ -974,29 +982,26 @@ static void rw_interrupt(void)
     }
 
     struct request *req = CURRENT;
-    int drive = (MINOR(req->rq_dev) >> MINOR_SHIFT) & 3;
+    int drive = MINOR(req->rq_dev) & 3;
 
     if (probing) {
-	printk("df%d: Auto-detected floppy type %s\n", drive, floppy->name);
-	current_type[drive] = floppy;
-#ifdef BDEV_SIZE_CHK
-	floppy_sizes[drive] = floppy->size >> 1;
-#endif
+	if (fdevice[drive].current_type != floppy) {
+	    fdevice[drive].current_type = floppy;
+	    printk("df%d: Auto-detected floppy type %s\n", drive, floppy->name);
+	}
+	fdevice[drive].inode->i_size = (sector_t)floppy->size << 9;
 	probing = 0;
     }
+    if (raw) CURRENT->rq_nr_sectors = nr_sectors;
     if (use_bounce) {	/* raw access had to use bounce buffer */
-	if (raw) CURRENT->rq_nr_sectors = nr_sectors;
 	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, DMASEG, nr_sectors << (9-1));
 									/* words ^ */
     } else {
 	if (use_cache) {
-	    int start = CURRENT->rq_blocknr;
-
 	    cache_drive = current_drive;
-	    cache_start = start;
+	    cache_start = CURRENT->rq_blocknr;
 	    DEBUG("rd:%04x:0->%04lx:%04x;", DMASEG,
 		(unsigned long)req->rq_seg, req->rq_buffer);
-	//} else if (command == FD_READ && (req->rq_seg >> 16)) {	/* XMS buffer */
 	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, DMASEG, BLOCK_SIZE/2);
 	}
     }
@@ -1006,15 +1011,16 @@ static void rw_interrupt(void)
 }
 
 /*
- * We read tracks - or  a full cylinder if possible (and configured on). 
- * If we get too many errors, we go back to
+ * We read multiple sectors if possible.  If we get too many errors, we go back to
  * reading just one sector at a time. This means we should be able to
  * read a sector even if there are other bad sectors on this track.
  *
- * The FDC will start read/write at the specified sector, then continues
+ * The FDC will start read/write at the specified sector and continue
  * until the DMA controller tells it to stop ... as long as we're on the same cyl.
- * Notably: If the # of sectors per track is odd, we read sectors + 1 if head = 0
- * to ensure we have full blocks in the cache.
+ * Notably: We always read (or write) at least a full block (2 sectors) except in raw mode.
+ * This means that if the sector count is odd, an IO op will sometimes span tracks to
+ * fill the block: Last sector on side 0, fist sector on side 1.
+ * In raw mode, we use the requested IO size - if possible. 
  *
  * From the Intel 8272A app note: "The 8272A always operates in a multi-sector 
  * transfer mode. It continues to transfer data until the TC input is active."
@@ -1076,9 +1082,8 @@ static void seek_interrupt(void)
  */
 static void transfer(void)
 {
-#ifdef CONFIG_TRACK_CACHE
-    use_cache = (fdcache>1) && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4) &&
-	(cache_size >= 4);
+#ifdef CONFIG_FLOPPY_CACHE
+    use_cache = (cache_size > 2) && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4);
 
     DEBUG("trns%d-", use_cache);
 #else
@@ -1283,13 +1288,10 @@ static void floppy_ready(void)
     DEBUG("RDY0x%x,%d,%d-", MEDIA_CHANGED, reset, recalibrate);
 #ifdef USE_DIR_REG
     if (MEDIA_CHANGED) {
-        if (current_type[current_drive] && !(just_opened & mask)) {
+        if (fdevice[current_drive].current_type && !(just_opened & mask)) {
             changed_floppies |= (1 << current_drive); /* this will discard any queued I/O */
             printk("df%d: Drive was opened, purge pending I/O\n", current_drive);
-            current_type[current_drive] = NULL;     /* comment out to keep last media format */
-#ifdef BDEV_SIZE_CHK
-	    floppy_sizes[current_drive] = MAX_DISK_SIZE;
-#endif
+            fdevice[current_drive].current_type = NULL;     /* comment out to keep last media format */
 	}
 
 	if (!reset && !recalibrate) {
@@ -1366,9 +1368,13 @@ static void redo_fd_request(void)
     }
     DEBUG("\nREDO:%04x;", req);
     seek = 0;
-    device = MINOR(req->rq_dev) >> MINOR_SHIFT;
-    probing = 0;
+    device = MINOR(req->rq_dev);
     drive = device & 3;
+    //probing = 0;		/*EXPERIMENTAL*/
+    if (fdevice[drive].fd_probe) {
+	probing = 1;
+	fdevice[drive].fd_probe = 0;
+    }
 
 #ifdef CHECK_MEDIA_CHANGE
     if (changed_floppies & (1 << drive)) {
@@ -1381,7 +1387,15 @@ static void redo_fd_request(void)
     if (device > 3)		/* get type from minor device # */
 	floppy = &floppy_type[device >> 2];
     else {			/* Auto-detection */
-	floppy = current_type[drive];
+	floppy = fdevice[drive].current_type;
+	if (probing > 1) {	/* the previous attempt (using current_type) failed, start
+				 * auto-detection */
+	    if (!base_type[drive][probing-1])	/* end of table? */
+		probing = 1;
+	    floppy = &floppy_type[base_type[drive][probing-1]];
+	    //printk("df%d: auto-probe #%d %s\n", drive, probing, floppy->name);
+	}
+#if 0
 	if (!floppy) {
 	    if (!base_type[drive]) {	/* Access to non-existent drive */
 		request_done(0);
@@ -1391,12 +1405,15 @@ static void redo_fd_request(void)
 	    need_configure = 1;	/* Maybe 'probing' can replace 'need_configure' */
 	    floppy = &floppy_type[base_type[drive][CURRENT_ERRORS & 1]];
 	}
+#endif
     }
 
-    DEBUG("[%u]redo-%c %d(%s) bl %u;", (unsigned int)jiffies, 
+#if DEBUG_DIRECTFD
+    if (debug_level == 1) printk("[%u]redo-%c %d(%s) bl %u;", (unsigned int)jiffies, 
 		req->rq_cmd == WRITE? 'W':'R', device, floppy->name, req->rq_blocknr);
-    debug_blkdrv("df[%04x]: %c blk %ld\n", req->rq_dev, req->rq_cmd==WRITE? 'W' : 'R',
-		req->rq_blocknr);
+    if (debug_level > 2) printk("df[%04x]: %c blk %ld(%d)\n", req->rq_dev, req->rq_cmd==WRITE? 'W' : 'R',
+		req->rq_blocknr, req->rq_nr_sectors);
+#endif
 #ifdef INCLUDE_FD_FORMATTING
     if (format_status != FORMAT_BUSY)
 #endif
@@ -1428,11 +1445,13 @@ static void redo_fd_request(void)
 
 	/* Ensure raw IO requests have valid # of sectors: Don't span cyl boundaries */
 	/* If running a 82077 which has implied seek, enable that instead! */
+#if 0
 	if (raw && ((sector + (floppy->sect*head) + nr_sectors)) 
 			> (floppy->sect<<1)) {		/* sect * 2 = cyl */
 		nr_sectors = (floppy->sect<<1) - (sector + (floppy->sect * head));
 		req->rq_nr_sectors = nr_sectors;	/* return updated # of sectors */
 	}
+#endif
 	seek_track = track << floppy->stretch;
 	DEBUG("%d:%d:%d:%d; ", start, sector, head, track);
 	if (req->rq_cmd == READ)
@@ -1465,14 +1484,9 @@ static void redo_fd_request(void)
     }
 #endif
 
-    /* restart timer for hung operations, 6 secs probably too long ... */
-    del_timer(&fd_timeout);
-    fd_timeout.tl_expires = jiffies + 3 * HZ;
-    add_timer(&fd_timeout);
-
     DEBUG("prep %d,%d|%d-", seek_track, cache_drive, current_drive);
 
-#ifdef CONFIG_TRACK_CACHE
+#ifdef CONFIG_FLOPPY_CACHE
     if (!raw && (current_drive == cache_drive) && start >= cache_start
 			&& start <= (cache_start + cache_len - nr_sectors + 1)) {
 
@@ -1492,6 +1506,11 @@ static void redo_fd_request(void)
 	    xms_fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
     } 
 #endif
+
+    /* restart timer for hung operations, 4 secs seems about right ... */
+    del_timer(&fd_timeout);
+    fd_timeout.tl_expires = jiffies + 4 * HZ;
+    add_timer(&fd_timeout);
 
     if (seek_track != current_track)
 	seek = 1;
@@ -1516,17 +1535,17 @@ int fd_ioctl(struct inode *inode,
 {
     struct floppy_struct *this_floppy;
     int device, drive, err = -EINVAL;
-    struct hd_geometry *loc = (struct hd_geometry *) param;
+    struct hd_geometry *loc = (struct hd_geometry *)param;
 
     if (!suser())	/* For now */
 	return -EPERM;
     if (!inode || !inode->i_rdev)
 	return -EINVAL;
-    device = MINOR(inode->i_rdev) >> MINOR_SHIFT;
+    device = MINOR(inode->i_rdev);
     drive = device & 3;
     if (device > 3)
 	this_floppy = &floppy_type[drive >> 2];
-    else if ((this_floppy = current_type[drive]) == NULL)
+    else if ((this_floppy = fdevice[drive].current_type) == NULL)
 	return -ENODEV;
 
     switch (cmd) {
@@ -1617,8 +1636,7 @@ static unsigned char * INITPROC find_base(int drive, int type)
  */
 static void INITPROC config_types(void)
 {
-    int at = sys_caps & CAP_PC_AT;
-    if (at) {
+    if (sys_caps & CAP_PC_AT) {
 	base_type[0] = find_base(0, (CMOS_READ(0x10) >> 4) & 0xF);
 	if ((CMOS_READ(0x14) >> 6) & 1) {
 	    printk(", ");
@@ -1626,7 +1644,7 @@ static void INITPROC config_types(void)
 	}
 	printk(" [CMOS]");
     } else {
-	if (xt_floppy[0]) {	/* floppy types from oootopts */
+	if (xt_floppy[0]) {	/* floppy types from bootopts */
 	    base_type[0] = find_base(0, xt_floppy[0]);
 	    if (xt_floppy[1]) {
 		printk(", ");
@@ -1648,28 +1666,28 @@ static void INITPROC config_types(void)
  * /dev/PS0 etc), and disallows simultaneous access to the same
  * drive with different device numbers.
  *
- * NOTE: floppy_open is called by the raw floppy driver.
  * FIXME: May want to reject raw access on an open block device.
  */
 int floppy_open(struct inode *inode, struct file *filp)
 {
     int drive, old_dev, dev;
     int israw = S_ISCHR(inode->i_mode);
+    struct fdev_s *fdev;
+    struct floppy_struct *this_floppy;
 
-    drive = MINOR(inode->i_rdev) >> MINOR_SHIFT;
-    dev = drive & 3;
-    fd_device[dev] = inode->i_rdev;
-    cache_drive = -1;	
+    dev = MINOR(inode->i_rdev);
+    drive = dev & 3;
+    fdev = &fdevice[drive];
+    old_dev = fdev->fd_device;
+    //cache_drive = -1;	
 
     if (!israw) {			/* For block device access only */
-	old_dev = fd_device[dev];
-    	if (old_dev && old_dev != inode->i_rdev)
-	    return -EBUSY;	/* no reopens using different minor */
-	fd_ref[dev]++;
+	if (fdev->fd_ref)
+    	    if (old_dev != inode->i_rdev)
+		return -EBUSY;		/* no reopens using different minor */
+	fdev->fd_ref++;
+	fdev->fd_device = inode->i_rdev;
 
-	/**/if (fd_ref[dev] == 1) invalidate_buffers(inode->i_rdev);	/* EXPERIMENTAL */
-					/* probably superfluous, done on prev close */
-	//just_opened |= (1 << dev);
 #ifdef CHECK_MEDIA_CHANGE_XXX
 	if (filp && filp->f_mode) {
 	    if (check_disk_change(inode->i_rdev))
@@ -1678,43 +1696,43 @@ int floppy_open(struct inode *inode, struct file *filp)
 #endif
     } 
 
-    if (drive > 3)		/* forced floppy type */
-	floppy = &floppy_type[drive >> 2];
+    if (dev > 3)		/* forced floppy type */
+	this_floppy = &floppy_type[dev >> 2];
     else {			/* Auto-detection */
-	floppy = current_type[dev];
-	if (!floppy) {
+	this_floppy = fdev->current_type;
+	if (!this_floppy) {
 	    if (!base_type[drive])
 		return -ENXIO;
-	    probing = 1;
-	    floppy = &floppy_type[base_type[drive][0]];
+	    this_floppy = &floppy_type[base_type[drive][0]];
+	    fdev->current_type = this_floppy;
 	}
+	if (sys_caps & CAP_PC_AT) fdev->fd_probe++;
     }
-    inode->i_size = ((sector_t)(floppy->size)) << 9;	/* NOTE: assumes sector size 512 */
+    fdev->inode = inode;
+    inode->i_size = ((sector_t)(this_floppy->size)) << 9;
     DEBUG("df%d: open %s dev %04x, sz %lu, %s\n", drive, israw?"(raw)":"",
-		inode->i_rdev, inode->i_size, floppy->name);
+		inode->i_rdev, inode->i_size, this_floppy->name);
 
     return 0;
 }
 
 void floppy_release(struct inode *inode, struct file *filp)
 {
-    kdev_t dev = inode->i_rdev;
-    int drive = (MINOR(dev) >> MINOR_SHIFT) & 3;
+    kdev_t rdev = inode->i_rdev;
+    int drive = MINOR(rdev) & 3;
 
-#if 0
-    /*DEBUG*/printk("df%d release (i=%04x)", drive, inode);
-    DEBUG("\n");
-#endif
     if (S_ISCHR(inode->i_mode)) return;/*goto clear_raw;*/ /* change if allowing simlutaneous raw
 						 * and block access! FIXME possibly superfluous */
-    if (--fd_ref[drive] == 0) {
-	fsync_dev(dev);
-	invalidate_buffers(dev);
-	invalidate_inodes(dev);
-//clear_raw:
+    if (--(fdevice[drive].fd_ref) == 0) {
+	fsync_dev(rdev);
+	invalidate_buffers(rdev);
+	invalidate_inodes(rdev);
+#if 0
+clear_raw:
 	changed_floppies &= ~(1 << drive);	/* clear media change flag */
-	current_type[drive] = NULL;	/* prevent next open from flagging media change */
+	fdevice[drive].current_type = NULL;	/* prevent next open from flagging media change */
 	printk("Cache hits: %u\n", cache_hits);
+#endif
     }
 }
 
@@ -1759,9 +1777,6 @@ static void floppy_interrupt(int unused, struct pt_regs *unused1)
 
 void INITPROC floppy_init(void)
 {
-#ifdef BDEV_SIZE_CHK
-    extern int *blk_size[];
-#endif
     int err;
 
     outb(current_DOR, FD_DOR);	/* all motors off, DMA, /RST  (0x0c) */
@@ -1769,9 +1784,6 @@ void INITPROC floppy_init(void)
 	printk("Unable to get major %d for floppy\n", MAJOR_NR);
 	return;
     }
-#ifdef BDEV_SIZE_CHK
-    blk_size[MAJOR_NR] = floppy_sizes;
-#endif
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
     err = request_irq(FLOPPY_IRQ, floppy_interrupt, INT_GENERIC);
@@ -1825,6 +1837,6 @@ void INITPROC floppy_init(void)
     else
 	cache_size = 2; 	/* minimal bounce buffer at DMASEG */
     if (cache_size > (DMASEGSZ>>9)) cache_size = DMASEGSZ>>9;
-    printk("Cache size %dk, available %dk\n", fdcache, DMASEGSZ>>10);
+    printk("Floppy cache size %dk, available %dk\n", fdcache, DMASEGSZ>>10);
 	
 }
