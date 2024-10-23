@@ -148,6 +148,7 @@ extern void  (*__fp_print)();
 /* use this macro to link in libc %e,%f,%g printf/sprintf support into user program */
 #define __STDIO_PRINT_FLOATS	void (*__fp_print)() = dtostr
 #endif
+void ptostr(unsigned long pticks, char *buf);
 
 #define stdio_pending(fp) ((fp)->bufread>(fp)->bufpos)
 

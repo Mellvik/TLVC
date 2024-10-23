@@ -6,6 +6,7 @@
 #define __STDLIB_H
 
 #include <malloc.h>
+#include <arch/divmod.h>
 
 /* Don't overwrite user definitions of NULL */
 #ifndef NULL

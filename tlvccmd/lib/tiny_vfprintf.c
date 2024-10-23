@@ -7,7 +7,7 @@
  *  printf, fprintf, sprintf
  *
  * Limitations:
- *	%s, %c, %d, %u, %x, %o, %ld, %lu, %lx, %lo only w/field width & precision
+ *      %s, %c, %d, %u, %x, %o, %ld, %lu, %lx, %lo only w/field width & precision
  *  Don't use with fopen (stdout, stderr only)
  *    Replaces stdout and stderr buffers with single buffer
  *
@@ -15,11 +15,9 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
 #include <fcntl.h>
-#include <sys/types.h>
+#include <string.h>
 
 static unsigned char bufout[80];
 
@@ -51,7 +49,7 @@ FILE  stderr[1] =
 
 static void __fflush(FILE *fp)
 {
-   int   len;
+   int len;
 
    /* Return if this is a fake FILE from sprintf */
    if (fp->fd < 0)
@@ -79,21 +77,28 @@ static void __fputc(int ch, FILE *fp)
  * the number of characters output.
  */
 static int
-prtfld(FILE *op, unsigned char *buf, int ljustf, char pad, int width, int preci)
+__fmt(FILE *op, unsigned char *buf, int ljustf, int width, int preci, char pad, char sign)
 {
    int cnt = 0, len;
    unsigned char ch;
 
    len = strlen((char *)buf);
 
-   if ((preci != -1) && (len > preci))  /* limit max data width */
+   if (*buf == '-')
+      sign = *buf++;
+   else if (sign)
+      len++;
+
+
+   if (preci != -1 && len > preci)  /* limit max data width */
       len = preci;
 
    if (width < len)             /* flexible field width or width overflow */
       width = len;
 
    /*
-    * at this point: width = total field width len   = actual data width
+    * at this point: width = total field width, len = actual data width
+    * (including possible sign character)
     */
    cnt = width;
    width -= len;
@@ -102,12 +107,21 @@ prtfld(FILE *op, unsigned char *buf, int ljustf, char pad, int width, int preci)
    {
       if (!ljustf && width)     /* left padding */
       {
+         if (len && sign && (pad == '0'))
+            goto showsign;
          ch = pad;
          --width;
       }
       else if (len)
       {
-         ch = *buf++;        /* main field */
+         if (sign)
+         {
+      showsign:
+            ch = sign;          /* sign */
+            sign = '\0';
+         }
+         else
+            ch = *buf++;        /* main field */
          --len;
       }
       else
@@ -121,100 +135,113 @@ prtfld(FILE *op, unsigned char *buf, int ljustf, char pad, int width, int preci)
    return cnt;
 }
 
-int vfprintf(FILE *op, const char *fmt, va_list ap)
+int
+vfprintf(FILE *op, const char *fmt, va_list ap)
 {
-   int cnt = 0;
-   int i, width, preci, radix;
-   int ljustf, lval, pad, dpoint;
-   char *ptmp;
-   char  tmp[64];
+   int i, cnt = 0, ljustf, lval;
+   int preci, width, radix;
+   unsigned int c;
+   unsigned long v;
+   char pad, dpoint;
+   char *p;
+   char sign;
+   char buf[64];
 
-   while (*fmt)
-   {
-      if (*fmt == '%')
-      {
-	 ljustf = 0;		/* left justify flag */
-	 dpoint = 0;		/* found decimal point */
-	 lval = 0;
-	 width = -1;		/* min field width */
-	 preci = -1;		/* max data width */
-	 pad = ' ';		/* justification padding char */
-	 radix = 10;		/* number base */
-	 ptmp = tmp;		/* pointer to area to print */
+   while (*fmt) {
+      if (*fmt == '%') {
+         ljustf = 0;            /* left justify flag */
+         dpoint = 0;            /* found decimal point */
+         sign = '\0';           /* sign char & status */
+         lval = 0;
+         pad = ' ';             /* justification padding char */
+         width = -1;            /* min field width */
+         preci = -1;            /* max data width */
+         radix = 10;            /* number base */
+         p = buf;               /* pointer to area to print */
        fmtnxt:
-	 i = 0;
-	 for(;;)
-	 {
-	    ++fmt;
-	    if(*fmt < '0' || *fmt > '9' ) break;
-	    i = (i * 10) + (*fmt - '0');
-	    if (dpoint)
-	       preci = i;
-	    else if (!i && (pad == ' '))
-	    {
-	       pad = '0';
-	       goto fmtnxt;
-	    }
-	    else
-	       width = i;
-	 }
+         i = 0;
+         for (;;) {
+            ++fmt;
+            if (*fmt < '0' || *fmt > '9')
+                break;
+            i = i * 10 + *fmt - '0';
+            if (dpoint)
+               preci = i;
+            else if (!i && pad == ' ') {
+               pad = '0';
+               goto fmtnxt;
+            }
+            else
+               width = i;
+         }
 
-	 switch (*fmt)
-	 {
-	 case '-':		/* left justification */
-	    ljustf = 1;
-	    goto fmtnxt;
+         switch (*fmt) {
+         case '-':              /* left justification */
+            ljustf = 1;
+            goto fmtnxt;
 
-	 case '.':		/* secondary width field */
-	    dpoint = 1;
-	    goto fmtnxt;
+         case '.':              /* secondary width field */
+            dpoint = 1;
+            goto fmtnxt;
 
-	 case 'l':		/* long data */
-	    lval = 1;
-	    goto fmtnxt;
+         case 'l':              /* long data */
+            lval = 1;
+         case 'h':              /* short data */
+            goto fmtnxt;
 
-	 case 'd':		/* Signed decimal */
-	    ptmp = ltostr((long) ((lval)
-			 ? va_arg(ap, long)
-			 : va_arg(ap, int)), 10);
-	    goto printit;
+         case 'o':              /* Unsigned octal */
+            radix = 8;
+            goto usproc;
 
-	 case 'o':		/* Unsigned octal */
-	    radix = 8;
-	    goto usproc;
+         case 'x':              /* Unsigned hexadecimal */
+            radix = 16;
+            goto usproc;
 
-	 case 'x':      /* Unsigned hexadecimal */
-	    radix = 16;
-	    /* fall thru */
+         case 'd':              /* Signed decimal */
+            v = lval? va_arg(ap, long) : (long)va_arg(ap, int);
+            if ((long)v < 0) {
+                v = -(long)v;
+                sign = '-';
+            }
+            goto convert;
 
-	 case 'u':		/* Unsigned decimal */
-	  usproc:
-	    ptmp = ultostr((unsigned long) ((lval)
-			? va_arg(ap, unsigned long)
-			: va_arg(ap, unsigned int)), radix);
-	    goto printit;
+         case 'u':              /* Unsigned decimal */
+          usproc:
+            v = lval? va_arg(ap, unsigned long) : (unsigned long)va_arg(ap, unsigned int);
+        convert:
+            p = buf + sizeof(buf) - 1;
+            *p = '\0';
+            do {
+                c = radix;
+                v = __divmod(v, &c);    /* remainder returned in c */
+                if (c > 9)
+                    *--p = 'A' - 10 + c;
+                else
+                    *--p = '0' + c;
+            } while (v != 0);
+            goto printit;
 
-	 case 'c':		/* Character */
-	    ptmp[0] = va_arg(ap, int);
-	    ptmp[1] = '\0';
-	    goto nopad;
+         case 'c':              /* Character */
+            p[0] = va_arg(ap, int);
+            p[1] = '\0';
+            goto nopad;
 
-	 case 's':		/* String */
-	    ptmp = va_arg(ap, char*);
-	  nopad:
-	  printit:
-	    cnt += prtfld(op, (unsigned char *)ptmp, ljustf, pad, width, preci);
-	    break;
+         case 's':              /* String */
+            p = va_arg(ap, char *);
+          nopad:
+            sign = '\0';
+            pad = ' ';
+          printit:
+            cnt += __fmt(op, (unsigned char *)p, ljustf, width, preci, pad, sign);
+            break;
 
-	 default:		/* unknown character */
-	    goto charout;
-	 }
-      }
-      else
-      {
+         default:               /* unknown character */
+            goto charout;
+         }
+      } else {
        charout:
-	 __fputc(*fmt, op);	/* normal char out */
-	 ++cnt;
+         __fputc(*fmt, op);     /* normal char out */
+         ++cnt;
       }
       ++fmt;
    }
