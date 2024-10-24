@@ -1,4 +1,4 @@
-# Makefile of TLVC C Library
+# ia16-elf-gcc Makefile for ELKS C Library
 
 ifndef TOPDIR
 $(error TOPDIR is not defined)
@@ -6,13 +6,14 @@ endif
 
 include $(TOPDIR)/Make.defs
 
-include Makefile.inc
+include ia16.inc
 
 # Defines
 
 SUBDIRS = \
 	asm \
 	ctype \
+	debug \
 	error \
 	gcc \
 	getent \
@@ -112,16 +113,22 @@ all: $(LIBC) $(CRT0)
 SUBDIRSINMULTILIB = $(SUBDIRS:%=$(TOPDIR)/libc/build-ml/$(MULTISUBDIR)/%)
 SUBLIBSINMULTILIB = $(SUBDIRSINMULTILIB:%=%/out.a)
 
+# `ia16-elf-ar -M' errors out if the path argument to `CREATE' contains any
+# weird characters such as `~'.  This caused problems when building elks-libc
+# pre-releases on launchpad.net.  To work around this, make all paths in the
+# `ia16-elf-ar -M' MRI script relative to $(TOPDIR).
 $(LIBC): $(SUBLIBSINMULTILIB)
 	mkdir -p $(@D)
+	$(RM) -r $@.tmp
 	set -e; \
+	cd $(TOPDIR); \
 	( \
-		echo CREATE $(LIBC).tmp; \
-		for s in $^; \
+		echo CREATE $(patsubst $(TOPDIR)/%,%,$(abspath $@.tmp)); \
+		for s in $(patsubst $(TOPDIR)/%,%,$(abspath $^)); \
 			do echo ADDLIB "$$s"; done; \
 		echo SAVE \
 	) | $(AR) -M
-	mv $(LIBC).tmp $(LIBC)
+	mv $@.tmp $@
 
 $(CRT0): crt0.S
 
