@@ -120,6 +120,12 @@ unsigned long get_ptime(void)
     }
     if (jdiff < 4286)               /* < ~42.86s */
         return jdiff * (unsigned long)MAX_PTICK + pticks;
+    if ((int)pticks < 0)            /* wrapped */
+        pticks += MAX_PTICK;        /* = MAX_PTICK - count + lastcount */
+    if (jdiff < 2)                  /* < 10ms: 1..11931 */
+        return pticks;
+    if (jdiff < 4286)               /* < ~42.86s */
+        return (jdiff - 1) * (unsigned long)MAX_PTICK + pticks;
 
     return 0;                       /* overflow displays 0s */
 }

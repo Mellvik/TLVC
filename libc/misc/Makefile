@@ -25,6 +25,7 @@ OBJS = \
 	lltostr.o \
 	mktemp.o \
 	popen.o \
+	ptostr.o \
 	putenv.o \
 	qsort.o \
 	rand.o \
