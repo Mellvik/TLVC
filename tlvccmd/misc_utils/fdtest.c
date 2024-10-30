@@ -141,7 +141,7 @@ int main(int ac, char **av)
 		return(1);
 	}
 	if (read(fd, iobuf, 512) <= 0) {  /* read a sector to make sure
-					   * autoprobe is done and there is
+					   * autoprobe is finished and there is
 					   * a floppy in the drive */
 		fprintf(stderr, "Read error on %s, exiting\n", device);
 		return(1);
@@ -152,12 +152,16 @@ int main(int ac, char **av)
 	if (cylinder >= fd_geo.cylinders) 
 		cylinder = 0;
 	if (sector > spt) sector = 1;
+
+	/* set the default starting point */
 	lba = (cylinder<<1 + head)*spt + (sector - 1);
 	lseek(fd, lba*SECSIZE, SEEK_SET);
 	if (!bs) bs = spt;
 	if (step) step = fd_geo.cylinders;
 
-	/* dma start/end pages must be equal to ensure I/O within 64k DMA boundary for INT 13h*/
+	/* iobuffer start/end pages must be equal (in the same physical 64k page) 
+	 * to avoid IO operations to be split in order to accomodate the limitations
+	 * of the system DMA mechanism */
 	start_dma_page = (_FP_SEG(iobuf) + ((__u16) iobuf >> 4)) >> 12;
 	end_dma_page = (_FP_SEG(iobuf) + ((__u16) (iobuf + spt * 512 - 1) >> 4)) >> 12;
 	normalized_seg = (((__u32)_FP_SEG(iobuf) + (_FP_OFF(iobuf) >> 4)) << 16) +
@@ -173,16 +177,16 @@ int main(int ac, char **av)
 		   "Warning: Buffer spans 64k boundary, IO will be split, timing affected!\n");
 
 	if (direct) {
-		int  blocks = 0;
+		int blocks = 0;
 		unsigned int rem;
 		int tt, maxblock = (2 * fd_geo.cylinders * spt)/bs; 
 		unsigned long ms;
 		struct timeval m_start, m_end;
 
-		fprintf(stderr, "Reading %s from cyl %d, spt %d blocksize %d\n", 
+		fprintf(stderr, "Reading %s from cyl %d, spt %d, blocksize %d sectors\n", 
 				 device, cylinder, spt, bs);
-		gettimeofday(&m_start, NULL);
 
+		gettimeofday(&m_start, NULL);
 		while (read(fd, iobuf, bs*SECSIZE) > 0 && blocks < maxblock) {
 			blocks++; 
 			if (!verbose) write(2, ".", 1);
@@ -201,6 +205,8 @@ int main(int ac, char **av)
 	fprintf(stderr, "%s: Size %dk, %d sectors/track, %d cylinders, start @ %d/%d/%d (lba %ld)\n", 
 		device, (fd_geo.heads*fd_geo.cylinders*fd_geo.sectors)>>1, spt, 
 		fd_geo.cylinders, cylinder, head, sector, lba);
+
+	/* first do single sector reads of cponsecutive sectors */
 	get_ptime();
 	for (i=0; i < bs; i++) {
 		j = read(fd, iobuf, SECSIZE);
@@ -210,6 +216,7 @@ int main(int ac, char **av)
 	pticks = get_ptime();
 	fprintf(stderr, "%2d sectors (1-by-1):\t%lk (%lk/sector)\n", bs, pticks, pticks/bs);
 	
+	/* repeat, this time with 2 sectors/1k per operation */
 	lseek(fd, lba*SECSIZE, SEEK_SET);
 	get_ptime();
 	for (i=0; i <= bs; i++) {	/* double the read size, keep the number of
@@ -223,9 +230,11 @@ int main(int ac, char **av)
 	pticks = get_ptime();
 	fprintf(stderr, "%2d 1k blocks:\t\t%lk (%lk/block)\n", bs, pticks, pticks/bs);
 
+	/* finally, read everything in one op (if possible). there are may ways
+	 * to screw up this by manipulating the command line parameters, some times
+	 * useful, never disastrous */
 	lseek(fd, lba*SECSIZE, SEEK_SET);
 	get_ptime();
-
 	j = read(fd, iobuf, bs*SECSIZE);
 	if (j != bs*SECSIZE)
 	    fprintf(stderr, "short read, expected %d, got %d\n",
@@ -234,6 +243,7 @@ int main(int ac, char **av)
 	fprintf(stderr, "%2d sectors in 1 op:\t%#lk\n", bs, pticks);
 
 	/*
+	 * Do the step rate test.
 	 * Should have an ioctl for stepping the drive (seek) to get this right
 	 */
 	if (step) {
