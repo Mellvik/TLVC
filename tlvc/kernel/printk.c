@@ -46,8 +46,6 @@
 #include <arch/divmod.h>
 #include <stdarg.h>
 
-#define CONFIG_PREC_TIMER   1   /* =1 to include %k precision timer printk format */
-
 dev_t dev_console;
 
 #ifdef CONFIG_CONSOLE_SERIAL
@@ -88,7 +86,6 @@ static void kputs(const char *buf)
 /* convert 1/1193182s get_ptime() pticks (0.838usec through 42.85sec) for display */
 static unsigned long conv_ptick(unsigned long v, int *pDecimal, int *pSuffix)
 {
-#ifdef CONFIG_PREC_TIMER
     unsigned int c;
     int Suffix = 0;
 
@@ -110,7 +107,6 @@ static unsigned long conv_ptick(unsigned long v, int *pDecimal, int *pSuffix)
     if (Suffix == 0)      *pSuffix = ('s' << 8) | 'u';
     else if (Suffix == 1) *pSuffix = ('s' << 8) | 'm';
     else                  *pSuffix = 's';
-#endif
     return v;
 }
 

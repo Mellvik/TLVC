@@ -57,9 +57,8 @@ __u16 kernel_cs, kernel_ds;
 int tracing;
 int nr_mapbufs;
 
-#ifdef CONFIG_PREC_TIMER
+#ifdef CONFIG_CALIBRATE_DELAY
 void calibrate_delay(void);
-void testloop(unsigned);
 #endif
 
 #define BOOT_TIMER
@@ -208,14 +207,6 @@ void INITPROC kernel_init(void)
     kernel_banner(membase, memend, s, e - s);
 #ifdef CONFIG_CALIBRATE_DELAY
     calibrate_delay();
-#endif
-#ifdef CONFIG_PREC_TIMER
-#if TIMER_TEST
-    unsigned x = 5000;
-    testloop(x);
-    testloop(x/10);
-    testloop(x/100);
-#endif
 #endif
 }
 
@@ -518,8 +509,8 @@ static int INITPROC parse_options(void)
 			root_mountflags &= ~MS_RDONLY;
 			continue;
 		}
-		if (!strcmp(line,"debug")) {
-			dprintk_on = 1;
+		if (!strncmp(line,"debug=", 6)) {
+			debug_level = (int)simple_strtol(line+6, 10);
 			continue;
 		}
 		if (!strncmp(line,"init=", 5)) {
@@ -694,22 +685,3 @@ static char * INITPROC option(char *s)
 }
 #endif /* CONFIG_BOOTOPTS*/
 
-#if TIMER_TEST
-void testloop(unsigned timer) 
-{
-	unsigned long pticks;
-	unsigned x = timer;
-
-#if 1
-	get_ptime();
-	while (x--) outb(x, 0x80);
-	pticks = get_ptime();
-	printk("timer %u: %lk (%lu)\n", timer, pticks, pticks);
-#else
-	while (x--) {
-	    outb(0, TIMER_CMDS_PORT);       /* latch timer value */
-	    printk("%u; ", inb(TIMER_DATA_PORT) + (inb(TIMER_DATA_PORT) << 8));
-	}
-#endif
-}
-#endif
