@@ -50,7 +50,7 @@ static unsigned long av_sec_time(int fd, int spt)
 		get_ptime();
 		if (read(fd, iobuf, SECSIZE) <= 0) return 0;
 		if (debug) {
-			sec_arr[i] = next;
+			sec_arr[i] = next+1;
 			time_arr[i] = get_ptime();
 		} else
 			a += get_ptime();
@@ -58,13 +58,13 @@ static unsigned long av_sec_time(int fd, int spt)
 	}
 	if (debug) {
 		for (i = 0; i < 16; i++) {
-			fprintf(stderr, "%d (%d): %lk %lu\n", i, sec_arr[i], 
+			fprintf(stderr, "%d (%d):\t%lk\t%lu\n", i, sec_arr[i], 
 				time_arr[i], time_arr[i]);
 			a += time_arr[i];
 		}
 		fprintf(stderr,
-			"Average sector read time (%d repetitions): %#lk (%lupt)\n", 
-			16, a>>4, a>>4);
+			"Average sector read time (%d repetitions): %#lk\n", 
+			16, a>>4);
 		return a>>4;
 	} else {
 		a >>= 4;
@@ -115,7 +115,7 @@ int main(int ac, char **av)
 		case 'D':	/* Direct: Read entire disk from the given starting point */
 			direct++;
 			break;
-		case 'b':	/* blocksize, only in Direct Mode */
+		case 'b':	/* cluser-size in # of sectors, defaault is spt */
 			bs = atoi(*(++av));
 			ac--;
 			if (bs < 1 || bs > MAXSPT) bs = 1;
@@ -128,7 +128,7 @@ int main(int ac, char **av)
 			break;
 		case 'u':
 		default:
-			fprintf(stderr, "usage: fdtest [-D] [-S] [-v] [-V] [-d drive] [-c cylinder] [-h head]\n[-s sector] [-t sectors per track] [-b blocksize]\n");
+			fprintf(stderr, "usage: fdtest [-D] [-S] [-v] [-V] [-d drive] [-c cylinder] [-h head]\n[-s sector] [-b clustersize (#sectors)]\n");
 			fprintf(stderr, "-D: Read entire device, -v: verbose, -S find steprate\n-V: Very verbose (display individual sector timings when creating the sector average)\n");
 			return(1);
 		}	
@@ -151,10 +151,12 @@ int main(int ac, char **av)
 	spt = fd_geo.sectors;
 	if (cylinder >= fd_geo.cylinders) 
 		cylinder = 0;
-	if (sector > spt) sector = 1;
+	if (sector > spt || sector < 1) sector = 1;
 
 	/* set the default starting point */
 	lba = (cylinder<<1 + head)*spt + (sector - 1);
+	lseek(fd, lba*SECSIZE, SEEK_SET);
+	read(fd, iobuf, SECSIZE);	/* Start the drive, load the heads */
 	lseek(fd, lba*SECSIZE, SEEK_SET);
 	if (!bs) bs = spt;
 	if (step) step = fd_geo.cylinders;
@@ -179,11 +181,11 @@ int main(int ac, char **av)
 	if (direct) {
 		int blocks = 0;
 		unsigned int rem;
-		int tt, maxblock = (2 * fd_geo.cylinders * spt)/bs; 
+		unsigned int tt, maxblock = (2 * fd_geo.cylinders * spt)/bs; 
 		unsigned long ms;
 		struct timeval m_start, m_end;
 
-		fprintf(stderr, "Reading %s from cyl %d, spt %d, blocksize %d sectors\n", 
+		fprintf(stderr, "Reading %s from cyl %d, spt %d, clustersize %d sectors\n", 
 				 device, cylinder, spt, bs);
 
 		gettimeofday(&m_start, NULL);
@@ -197,14 +199,14 @@ int main(int ac, char **av)
 		tt = (int)ms/blocks;
 		rem = 1000;
 		ms = __divmod(ms, &rem);
-	        fprintf(stderr, "\nRead %d blocks in %lu.%ds (%d.%ds per block)\n",
+	        fprintf(stderr, "\nRead %d clusters in %lu.%us (%u.%us per cluster)\n",
 			blocks, ms, rem, tt/1000, tt%1000);
 		return(0);
 	}
 
-	fprintf(stderr, "%s: Size %dk, %d sectors/track, %d cylinders, start @ %d/%d/%d (lba %ld)\n", 
+	fprintf(stderr, "%s: Size %dk, %d sects/trk, %d cyls, clustersize %d sects,\n\t   start: %d/%d/%d (lba %ld)\n", 
 		device, (fd_geo.heads*fd_geo.cylinders*fd_geo.sectors)>>1, spt, 
-		fd_geo.cylinders, cylinder, head, sector, lba);
+		fd_geo.cylinders, bs, cylinder, head, sector, lba);
 
 	/* first do single sector reads of cponsecutive sectors */
 	get_ptime();
