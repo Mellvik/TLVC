@@ -273,9 +273,9 @@ extern int fdcache;	/* size of sector cache from bootopts */
 /* Synchronization of FDC access. */
 #ifdef INCLUDE_FD_FORMATTING
 static int format_status = FORMAT_NONE
-#endif
 static int fdc_busy;
 static struct wait_queue fdc_wait;
+#endif
 
 /* bit vector set when media changed - causes I/O to be discarded until unset */
 //static unsigned int changed_floppies;
@@ -1357,10 +1357,12 @@ static void redo_fd_request(void)
 #endif
     {
 	if (!req) {
+#ifdef INCLUDE_FD_FORMATTING
 	    if (fdc_busy) {
 		fdc_busy = 0;
 		wake_up(&fdc_wait);
 	    }
+#endif
 	    CLEAR_INTR;
 	    return;
 	}
@@ -1522,11 +1524,13 @@ void do_fd_request(void)
 {
     DEBUG("fdrq:");
     if (CURRENT) CURRENT->rq_errors = 0;	// EXPERIMENTAL
+#ifdef INCLUDE_FD_FORMATTING
     while (fdc_busy) {
 	printk("df: request while fdc busy\n");
 	sleep_on(&fdc_wait);
     }
     fdc_busy = 1;
+#endif
     redo_fd_request();
 }
 
@@ -1831,12 +1835,15 @@ void INITPROC floppy_init(void)
 #endif
     config_types();
 
-    /* sector cache setup */
-    if (fdcache > 1)		/* temporary */
-	cache_size = fdcache<<1;
-    else
-	cache_size = 2; 	/* minimal bounce buffer at DMASEG */
+    /* sector cache setup - /bootopts fdcache= has preference, otherwise autoconfig */
+    if (fdcache > 1)
+	cache_size = fdcache<<1;	/* cache size is sectors, fdcache is k bytes */
+    else if (SETUP_CPU_TYPE == 7)
+	cache_size = 2; 		/* minimal 1 k bounce buffer at DMASEG */
+    else cache_size = DMASEGSZ>>9;	/* use menuconfig value */
+
     if (cache_size > (DMASEGSZ>>9)) cache_size = DMASEGSZ>>9;
-    printk("Floppy cache size %dk, available %dk\n", fdcache, DMASEGSZ>>10);
+    printk("Floppy cache %dk (%s), available %dk\n", cache_size>>1,
+		(fdcache > 1) ? "bootopts":"autoconf",  DMASEGSZ>>10);
 	
 }

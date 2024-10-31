@@ -69,7 +69,7 @@ void INITPROC setup_arch(seg_t *start, seg_t *end)
 	sys_caps = SYS_CAPS;	/* custom system capabilities */
 #else
 	byte_t arch_cpu = SETUP_CPU_TYPE;
-	if (arch_cpu > 5)		/* IBM PC/AT capabilities */
+	if (arch_cpu > 5)       /* 80286+ IBM PC/AT capabilities or Unknown CPU */
 		sys_caps = CAP_ALL;
 #endif
 }
@@ -90,9 +90,9 @@ void hard_reset_now(void)
 }
 
 /*
- *	Use Advanced Power Management to power off system
- *	For details on how this code works, see
- *	http://wiki.osdev.org/APM
+ * Use Advanced Power Management to power off system
+ * For details on how this code works, see
+ * http://wiki.osdev.org/APM
  */
 void apm_shutdown_now(void)
 {
