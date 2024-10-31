@@ -842,7 +842,7 @@ hex4sp: call hex4
 	ret
 
 hello_mess:
-	.ascii "\r\nELKS Setup \0"
+	.ascii "\r\nTLVC Setup \0"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Architecture specific routines for IBM PC
