@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
@@ -16,9 +17,9 @@
 
 #define MAXSPT		18*2		/* max # of sectors per operation */
 #define SECSIZE		512L		/* sector size*/
+//#define HDTEST		/* allow device to be specified on the command line */
 
 unsigned char iobuf[MAXSPT * SECSIZE];
-unsigned long __far *jp;
 int verbose = 0, debug = 0;
 
 /*
@@ -82,21 +83,41 @@ int main(int ac, char **av)
 	int i, j, spt, fd, direct = 0;
 	unsigned short bs = 0;
 	long ave, pticks, lba;
-	char *device = "/dev/rdf0";
+	char device[20] = "/dev/rdf0";
 	struct hd_geometry fd_geo;
 
-	/* setup starting CHS*/
+	/* setup starting CHS */
 	cylinder = 3;		/* 0-79 */
 	head = 0;		/* 0-1 */
 	sector = 1;		/* 1-18, 18 on 1.44M floppies */
 
 	while (--ac) {
-		av++;
+#ifdef HDTEST
+	/* Allow a raw device to be provided as the last argument on the
+	 * command line - if progname is 'hdtest'
+	 */
+		char *progname = *av;
+		char *pn = strrchr(progname, '/');
+		if (pn) progname = pn+1;
+		if (ac == 1 && **av != '-' && !strcmp(progname, "hdtest")) {
+			strncpy(device, *(++av), 19);
+			/* sanity check, '/dev/' is mandatory */
+			if (strncmp(device, "/dev/", 5) ||
+			   (*(strrchr(device, '/') + 1) != 'r')) {
+				fprintf(stderr, "%s: %s - bad device\n",
+					pn, device);
+				return 1;
+			}
+			break;
+		}
+#endif
 		switch ((*av)[1]) {
+#ifdef HDTEST
 		case 'd':	/* select drive, 0 or 1 */
 			device[8] = (char)(**(++av));
 			ac--;
 			break;
+#endif
 		case 'c':	/* select (starting) cylinder, 0 - 79 */
 			cylinder = atoi(*(++av));
 			ac--;
@@ -115,10 +136,9 @@ int main(int ac, char **av)
 		case 'D':	/* Direct: Read entire disk from the given starting point */
 			direct++;
 			break;
-		case 'b':	/* cluser-size in # of sectors, defaault is spt */
+		case 'b':	/* clusersize in # of sectors, defaault is spt */
 			bs = atoi(*(++av));
 			ac--;
-			if (bs < 1 || bs > MAXSPT) bs = 1;
 			break;
 		case 'v':	/* verbose, show debug messages */
 			verbose++;
@@ -234,8 +254,9 @@ int main(int ac, char **av)
 
 	/* finally, read everything in one op (if possible). there are may ways
 	 * to screw up this by manipulating the command line parameters, some times
-	 * useful, never disastrous */
+	 * useful, never disastrous, often meaningless */
 	lseek(fd, lba*SECSIZE, SEEK_SET);
+	bs = (bs <= MAXSPT ? bs : MAXSPT);
 	get_ptime();
 	j = read(fd, iobuf, bs*SECSIZE);
 	if (j != bs*SECSIZE)
