@@ -43,7 +43,7 @@
 !	10:	mono/color, video memory size, 2 bytes 
 !	14:	screen_lines, 1 byte
 !	15:	VGA present, 1 byte
-!	0x20:	cpu_type	byte Processor type UNUSED
+!	0x20:	cpu_type	byte Processor type
 !			0  = 8088
 !			1  = 8086
 !			2  = NEC V20
@@ -52,37 +52,39 @@
 !			5  = 80186
 !			6  = 80286
 !			7  = 80386
-!			8  = 80486
-!			9  = Pentium
-!			10 = Pentium PRO
-!			255 = VM86 mode
+!			8  = 80486 UNUSED
+!			9  = Pentium UNUSED
+!			10 = Pentium PRO UNUSED
+!			255 = Unknown
 !	...
 !	0x2a:	mem_kbytes	word	size of base memory in kbytes
 !	0x30:	proc_name	byte[16] processor name string UNUSED
 !	0x50:	cpu_id		byte[13] cpuid string UNUSED
 !	...
 !	0x1e2:	part_offset	long Sector offset of booted MBR partition
-!	0x1e6:	elks_magic	long "ELKS"
+!	0x1e6:	elks_magic	long "ELKS", written by build tool
 !	0x1ea-0x1ee:		5 bytes UNUSED
 !	0x1ef:	SETUPSEG	word UNUSED
 !	0x1f1:	setup_sects	byte in 512-byte sectors, written by build tool
 !	0x1f2:	ROOTFLAGS	word UNUSED
-!	0x1f4:	syssize		word in paragraphs, written by build tool
-!	0x1f6:	elks_flags	byte EF_xxx
+!	0x1f4:	syssize		word kernel size in paragraphs, written by build tool
+!	0x1f6:	elks_flags	byte EF_AS_BLOB|EF_BIOS_DEV_NUM
 !	0x1f7:			byte UNUSED
 !	0x1f8:	RAMDISK		word UNUSED
 !	0x1fa:	SVGA_MODE	word UNUSED
 !	0x1fc:	root_dev	word Either BIOS boot device or actual kdev_t ROOT_DEV
-!	0x1fe:	boot_flag	word = 0xAA55
-!
-! NOTE! These had better be the same as in bootsect.s!
+!	0x1fe:	boot_flag	word UNUSED (0xAA55 in real boot sector)
 */
 
 #include <linuxmt/config.h>
+#include <linuxmt/devnum.h>
 #include <linuxmt/boot.h>
 
 // Relocating loader debug option
-#define DEBUG_LOADER	0
+debug_output    =       0       // display various register values during execution
+serial_output   =       0       // use INT 14 serial instead of INT 10 console out
+debug_loader    =       0       // display relocations
+
 
 // Signature words to ensure LILO loaded us right
 #define SIG1	0xAA55
@@ -92,8 +94,8 @@
 #define KERNEL_MAGICNUMBER MINIX_SPLITID_LOW
 
 #ifndef CONFIG_ROMCODE
-  INITSEG  = DEF_INITSEG	// initial setup data seg, we move boot here - out of the way
-  SYSSEG   = DEF_SYSSEG 	// first kernel blob load point before relocation
+  INITSEG  = DEF_INITSEG	// initial setup data seg and initial Image load address
+  SYSSEG   = DEF_SYSSEG 	// first kernel blob copy load point before relocation
   SETUPSEG = DEF_SETUPSEG	// this is the current code segment
 #else
   INITSEG  = CONFIG_ROM_SETUP_DATA
@@ -104,6 +106,27 @@
 	.arch i8086, nojumps
 	.code16
 	.text
+	.section .text
+	.section .text.const
+	.section .text
+
+	.macro	.hex4sp	reg,msg
+	.if	debug_output
+	push	%ax
+	.ifnb	\msg
+	.section .text.const
+1:	.ascii	"\msg","\0"
+	.section .text
+	push	%ax		// in case reg is AX
+	mov	$1b,%ax
+	call	csputs
+	pop	%ax
+	.endif
+	mov	\reg,%ax
+	call	hex4sp
+	pop	%ax
+	.endif
+	.endm
 
 	.global _start
 _start:
@@ -129,7 +152,16 @@ _start:
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Entry point for kernels loaded from DISK
 
+	.hex4sp	%ss,"\nSETUP boot SS:"
+	.hex4sp	%sp,"SP:"
+	.hex4sp	$INITSEG,"\nDEF_INITSEG:"
+	.hex4sp	$REL_INITSEG,"-> REL_INITSEG:"
+	.hex4sp	$SETUPSEG,"DEF_SETUPSEG:"
+	.hex4sp	$SYSSEG,"\nDEF_SYSSEG: "
+	.hex4sp	$REL_SYSSEG,"-> REL_SYSSEG: "
+
 // Check signature at end of setup
+	cli
 	mov	$SETUPSEG,%ax	// DS = setup CS
 	mov	%ax,%ds
 	cmpw	$SIG1,setup_sig1
@@ -142,8 +174,7 @@ no_sig:	lea	no_sig_mess,%si
 1:                             // And halt
 	jmp	1b
 
-no_sig_mess:	.ascii	"No ELKS setup signature found ..."
-		.byte	0x00
+no_sig_mess:	.ascii	"No ELKS setup signature found ...\0"
 
 // If setup and kernel were loaded as a blob, we need to separate them out,
 // then move to our own stack
@@ -157,17 +188,21 @@ chk_blob:
 				// lower address to a higher one
 	mov	setup_sects,%al	// find start of a.out kernel
 	xor	%ah,%ah
+	.hex4sp	%ax,"\nSetup sectors "
 	mov	$5,%cl
 	shl	%cl,%ax
 	add	$SETUPSEG,%ax
 	mov	syssize,%bp
+	.hex4sp	%bp,"System paras "
+	.hex4sp	%ax,"a.out seg "
+
 	mov	%bp,%cx		// first move the last sub-64KiB piece in place
 	and	$0x0fff,%cx
-	xor	%cx,%bp
+	xor	%cx,%bp		// and $0xf000,%bp
 	mov	%ax,%dx
 	add	%bp,%dx
 	mov	%dx,%ds
-	lea	SYSSEG(%bp),%dx
+	lea	SYSSEG(%bp),%dx	// move %bp,dx; add $SYSSEG,%dx
 	mov	%dx,%es
 	jcxz	move_kernel_in_64ks
 	shl	%cx
@@ -177,6 +212,12 @@ chk_blob:
 	dec	%si
 	shl	%si
 	mov	%si,%di
+	.hex4sp	%ds,"\nCopy a.out to DEF_SYSSEG (last) DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+	.hex4sp	%cx,"CX:"
+
 	rep
 	movsw
 move_kernel_in_64ks:
@@ -191,6 +232,11 @@ move_kernel_in_64ks:
 	mov	$0x80,%ch
 	mov	$0xfffe,%si
 	mov	%si,%di
+	.hex4sp	%ds,"\nCopy a.out to DEF_SYSSEG (64K)  DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+
 	rep
 	movsw
 	jmp	move_kernel_in_64ks
@@ -199,7 +245,9 @@ done_move_kernel:
 	cld
 	mov	$INITSEG,%ax
 	mov	%ax,%ss
-	mov	$0x4000-12,%sp
+	mov	$0x1000,%sp	// 4k gives 7 setup sectors and 512 byte stack above
+	.hex4sp	%ss,"\nNew INIT SS:"
+	.hex4sp	%sp,"SP:"
 
 no_blob:
 #endif
@@ -241,9 +289,9 @@ start_os:
 // Check for correct a.out header
 
 #ifdef CONFIG_ROMFS_FS
-	movw $0x0600,root_dev	// ROMFS is device 6,0
+	movw $DEV_ROM,root_dev	// ROMFS
 #else
-	movw $0x0380,root_dev	// floppy is device 3,128
+	movw $DEV_FD0,root_dev	// floppy 0
 #endif
 	mov $CONFIG_ROM_KERNEL_CODE,%ax	// DS = ROM a.out image
    	mov %ax,%ds
@@ -269,13 +317,9 @@ err_loop:
 
 
 msg_aout_err:
-	.byte 13,10
-	.ascii "ERROR: Wrong kernel a.out format"
-	.byte 0
+	.ascii "\r\nERROR: Wrong kernel a.out format\0"
 msg_too_big:
-	.byte 13,10
-	.ascii "ERROR: kernel size > 64k"
-	.byte 0
+	.ascii "\r\nERROR: kernel size > 64k\0"
 
 aout_ok:
 	mov 10,%cx		// 10 = hiword hdr.a_text size
@@ -359,10 +403,15 @@ size_error:
 	mov $8,%cl     // to words
 	shl %cl,%ax
 	mov %ax,%cx
-
 	mov $512,%si   // skip raw sector
 	xor %di,%di
 	cld
+	.hex4sp	%ds,"\nCopy DEF_SETUPSEG code to high mem DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+	.hex4sp	%cx,"CX:"
+
 	rep
 	movsw
 
@@ -371,6 +420,8 @@ size_error:
 	mov %es,%ax
 	mov %ax,%ss   // automatic CLI for next instruction
 	xor %sp,%sp
+	.hex4sp	%ss,"\nNew HMEM SS:"
+	.hex4sp	%sp,"SP:"
 
 	push %ax
 	mov $_next1,%ax
@@ -389,6 +440,12 @@ _next1:
 	xor	%di,%di
 	mov	$256,%cx
 	cld
+	.hex4sp	%ds,"\nCopy DEF_INITSEG data to REL_INITSEG DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+	.hex4sp	%cx,"CX:"
+
 	rep
 	movsw
 
@@ -415,8 +472,7 @@ sys_hdr_bad:
 1:                       // halt
 	jmp 1b
 sys_hdr_msg:
-	.ascii "Bad system header!"
-	.byte 0
+	.ascii "Bad system header!\0"
 
 // System header is good
 
@@ -457,12 +513,20 @@ sys_hdr_good:
 	mov $REL_SYSSEG,%ax
 	mov %ax,%es
 	mov %ax,-18(%bp) // save .text segment
+	.ifeq debug_output
 	call hex4sp
+	.endif
 	add %dx,%ax      // add code paragraphs
 	mov %ax,-20(%bp) // save .data start in case no .fartext
 	xor %di,%di
 
 	mov -2(%bp),%cx  // code size in bytes
+	.hex4sp	%ds,"\nCopy DEF_SYSSEG .text to  REL_SYSSEG DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+	.hex4sp	%cx,"CX:"
+
 	cld
 	rep
 	movsb
@@ -499,7 +563,15 @@ sys_hdr_good:
 	mov %ax,%es
 	mov %ax,-20(%bp)  // save .fartext segment
 	xor %di,%di
+
+	.ifeq debug_output
 	call hex4sp
+	.endif
+	.hex4sp	%ds,"\nCopy DEF_SYSSEG .ftext to REL_SYSSEG DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+	.hex4sp	%cx,"CX:"
 
 	rep
 	movsb
@@ -531,9 +603,17 @@ sys_no_far_text:
 	mov %ax,%es
 	mov %ax,-22(%bp) // save .data segment
 	xor %di,%di
-	call hex4sp
-
 	mov -4(%bp),%cx  // data size
+
+	.ifeq debug_output
+	call hex4sp
+	.endif
+	.hex4sp	%ds,"\nCopy DEF_SYSSEG .data to  REL_SYSSEG DS:"
+	.hex4sp	%si,"SI:"
+	.hex4sp	%es,"ES:"
+	.hex4sp	%di,"DI:"
+	.hex4sp	%cx,"CX:"
+
 	rep
 	movsb
 
@@ -585,10 +665,10 @@ data_reloc:
 	jmp data_reloc
 3:
 
-	mov $'\r',%ax
-	call putc
-	mov $'\n',%ax
-	call putc
+//	mov $'\r',%ax
+//	call putc
+//	mov $'\n',%ax
+//	call putc
 
 // Load registers as kernel expects
 
@@ -606,7 +686,22 @@ data_reloc:
 	mov -18(%bp),%ax   // kernel .text segment
 	push %ax
 	push %cx
-	lret
+
+	.hex4sp	%ss,"\nDone SS:"
+	.hex4sp	%ds,"DS/ES:"
+	.hex4sp	%bx,".text size:"
+	.hex4sp	%di,".fartext size:"
+	.hex4sp	%si,".data size:"
+	.hex4sp	%ax,"\nJump CS:"
+	.hex4sp	%cx,"entry:"
+	.if debug_output
+	.ifeq serial_output // if not serial output
+	xor %ah,%ah         // read key press
+	int $0x16
+	.endif
+	.endif
+
+	lret               // jump to REL_SYSSEG:_start to start kernel
 
 // Relocate segment at ES: from relocation record at DS:SI
 relocat:
@@ -632,7 +727,9 @@ relocat:
 
 	mov -22(%bp),%ax   // kernel .data segment
 3:
-#if DEBUG_LOADER
+	mov %ax,%es:(%di)
+
+	.if debug_loader
 	push %ax           // display [seg:off=val]
 	mov $'[',%ax
 	call putc
@@ -650,8 +747,8 @@ relocat:
 	mov $']',%ax
 	call putc
 	pop %ax
-#endif
-	mov %ax,%es:(%di)
+	.endif
+
 	ret
 9:
 	jmp sys_hdr_bad
@@ -679,6 +776,29 @@ puts:	lodsb
 	test	%al,%al
 	jnz	1b
 	ret
+
+.if debug_output
+// Write AL to console, convert LF -> CR LF
+putcc:	cmp	$'\n',%al
+	jnz	1f
+	push	%ax
+	mov	$'\r',%al
+	call	putc
+	pop	%ax
+1:	jmp	putc
+
+// Write CS:AX asciiz string to console
+csputs:	push	%bx
+	mov	%ax,%bx
+1:	mov	%cs:(%bx),%al
+	test	%al,%al
+	jz	2f
+	call	putcc
+	inc	%bx
+	jmp	1b
+2:	pop	%bx
+	ret
+.endif
 
 // Output hex nibble, byte and word. All registers saved.
 hex1:	push %ax
@@ -722,8 +842,7 @@ hex4sp: call hex4
 	ret
 
 hello_mess:
-	.ascii "\r\nTLVC Setup "
-	.byte 0
+	.ascii "\r\nELKS Setup \0"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Architecture specific routines for IBM PC
@@ -795,18 +914,26 @@ novga:	mov	%al,14		// CGA 25 rows
 #endif
 	ret
 
-// Write AL to console, save all other registers
-putc:	push %bx
+// Write AL to console, save all registers
+putc:	push %ax
+	push %bx
 	push %cx
 	push %dx
-	push %bp        // some BIOS may destroy BP
+	push %bp        	// some BIOS may destroy BP
+	.if serial_output
+	mov $1,%ah
+	xor %dx,%dx		// COM1
+	int $0x14		// serial out
+	.else
 	mov $0x0E,%ah
-	mov $7,%bx      // page 0
-	int $0x10
+	mov $7,%bx		// page 0
+	int $0x10		// console out
+	.endif
 	pop %bp
 	pop %dx
 	pop %cx
 	pop %bx
+	pop %ax
 	ret
 
 // include code to determine early CPU types
@@ -867,11 +994,11 @@ bootopts:
 	mov	$512,%bx
 	test	$0x10,%al		// Check Floppy Disk or Hard Disk
 	jz	pc98_int1b
-#if defined(CONFIG_IMG_FD1232)
+#ifdef CONFIG_IMG_FD1232
 	mov	$1024,%bx
 	mov	$0x03,%ch		// 1024 Bytes per sector
 	inc	%dl				// sector number for PC_98 Floppy Disk
-#elif defined(CONFIG_IMG_FD1440)
+#else
 	mov	$0x02,%ch		// 512 Bytes per sector
 	inc	%dl				// sector number for PC_98 Floppy Disk
 #endif
@@ -1081,7 +1208,24 @@ putc:	push %bx
 
 // Return total memory in Kbytes
 arch_get_mem:
-	mov $SETUP_MEM_KBYTES,%ax
+#if SETUP_MEM_KBYTES_ASM
+	mov $SETUP_MEM_KBYTES_ASM,%ax  // force available memory (usually for testing)
+#else
+	push %es
+	push %cx
+	push %bx
+	xor %ax,%ax
+	mov %ax,%es
+	mov $0x501,%bx
+	mov %es:(%bx),%cl
+	and $7,%cl
+	inc %cl
+	mov $128,%al
+	mul %cl
+	pop %bx
+	pop %cx
+	pop %es
+#endif
 	ret
 
 // Set INITSEG values for PC98 architecture
