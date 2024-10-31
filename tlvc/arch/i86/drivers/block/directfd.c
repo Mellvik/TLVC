@@ -1837,12 +1837,13 @@ void INITPROC floppy_init(void)
 
     /* sector cache setup - /bootopts fdcache= has preference, otherwise autoconfig */
     if (fdcache > 1)
-	cache_size = fdcache<<1;
+	cache_size = fdcache<<1;	/* cache size is sectors, fdcache is k bytes */
     else if (SETUP_CPU_TYPE == 7)
-	cache_size = 2; 	/* minimal bounce buffer at DMASEG */
-    else cache_size = 6;	/* works well for most low end systems */
+	cache_size = 2; 		/* minimal 1 k bounce buffer at DMASEG */
+    else cache_size = DMASEGSZ>>9;	/* use menuconfig value */
+
     if (cache_size > (DMASEGSZ>>9)) cache_size = DMASEGSZ>>9;
-    printk("Floppy cache size %dk (%s), available %dk\n", cache_size>>1,
+    printk("Floppy cache %dk (%s), available %dk\n", cache_size>>1,
 		(fdcache > 1) ? "bootopts":"autoconf",  DMASEGSZ>>10);
 	
 }
