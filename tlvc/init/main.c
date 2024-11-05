@@ -55,7 +55,8 @@ struct netif_parms netif_parms[MAX_ETHS] = {
 };
 __u16 kernel_cs, kernel_ds;
 int tracing;
-int nr_mapbufs;
+int nr_map_bufs;
+int nr_ext_bufs;
 
 #ifdef CONFIG_CALIBRATE_DELAY
 void calibrate_delay(void);
@@ -69,7 +70,7 @@ int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
 int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
 int xtideparms[6];		/* config data for xtide controller if present */
-int fdcache;			/* currently selected size of floppy sector cache (KB) */
+int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
 static int boot_console;
 static seg_t membase, memend;
 static char bininit[] = "/bin/init";
@@ -100,7 +101,6 @@ static char *envp_init[MAX_INIT_ENVS];
 static unsigned char options[OPTSEGSZ];
 
 extern int boot_rootdev;
-extern int L2_bufs;
 extern int dprintk_on;
 static char * INITPROC root_dev_name(int dev);
 static int INITPROC parse_options(void);
@@ -148,9 +148,11 @@ static void INITPROC early_kernel_init(void)
     tty_init();                     /* parse_options may call rs_setbaud */
 
 /*** Expermiental: Testing the upper 1k of memory for BIOS modifications ****/
+#if 0
     byte_t __far *upper = _MK_FP(0x9fc0, 0); 
     int i = 0;
     while (i++ < 1024) upper[i] = i;
+#endif
 
 #ifdef CONFIG_TIME_TZ
     tz_init(CONFIG_TIME_TZ);        /* parse_options may call tz_init */
@@ -213,7 +215,7 @@ void INITPROC kernel_init(void)
 static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra)
 {
 #ifdef CONFIG_ARCH_IBMPC
-    printk("PC/%cT class machine (type %d), ", (sys_caps & CAP_PC_AT) ? 'A' : 'X',
+    printk("PC/%cT class machine (cpu %d), ", (sys_caps & CAP_PC_AT) ? 'A' : 'X',
 					       SETUP_CPU_TYPE);
 #endif
 
@@ -540,11 +542,11 @@ static int INITPROC parse_options(void)
 			continue;
 		}
 		if (!strncmp(line,"bufs=", 5)) {
-			L2_bufs = (int)simple_strtol(line+5, 10);
+			nr_ext_bufs = (int)simple_strtol(line+5, 10);
 			continue;
 		}
 		if (!strncmp(line,"cache=", 6)) {
-			nr_mapbufs = (int)simple_strtol(line+6, 10);
+			nr_map_bufs = (int)simple_strtol(line+6, 10);
 			continue;
 		}
 		if (!strncmp(line,"tasks=", 6)) {
