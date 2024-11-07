@@ -48,11 +48,6 @@ int permission(register struct inode *inode, int mask)
         !S_ISCHR(inode->i_mode) && !S_ISBLK(inode->i_mode)) /* allow writable devices*/
 	error = -EROFS;
 
-#ifdef BLOAT_FS
-    else if (inode->i_op && inode->i_op->permission)
-	error = inode->i_op->permission(inode, mask);
-#endif
-
 #ifdef HAVE_IMMUTABLE
     else if ((mask & S_IWOTH) && IS_IMMUTABLE(inode))
 	/* Nobody gets write access to an immutable file */
@@ -69,26 +64,6 @@ int permission(register struct inode *inode, int mask)
     }
     return error;
 }
-
-/*
- * get_write_access() gets write permission for a file.
- * put_write_access() releases this write permission.
- */
-
-#ifdef BLOAT_FS
-
-int get_write_access(struct inode *inode)
-{
-    inode->i_wcount++;
-    return 0;
-}
-
-void put_write_access(struct inode *inode)
-{
-    inode->i_wcount--;
-}
-
-#endif
 
 /*
  * lookup() looks up one part of a pathname, using the fs-dependent
@@ -370,20 +345,9 @@ int open_namei(const char *pathname, int flag, int mode,
 
 #ifdef USE_NOTIFY_CHANGE
 	    struct iattr newattrs;
-#endif
-
-#ifndef get_write_access
-	    if ((error = get_write_access(inode))) {
-		iput(inode);
-		return error;
-	    }
-#endif
-
-#ifdef USE_NOTIFY_CHANGE
 	    newattrs.ia_size = 0;
 	    newattrs.ia_valid = ATTR_SIZE;
 	    if ((error = notify_change(inode, &newattrs))) {
-		put_write_access(inode);
 		iput(inode);
 		return error;
 	    }
@@ -395,7 +359,6 @@ int open_namei(const char *pathname, int flag, int mode,
 	    if ((iop = inode->i_op) && iop->truncate) iop->truncate(inode);
 	    up(&inode->i_sem);
 	    inode->i_dirt = 1;
-	    put_write_access(inode);
 	}
 	*res_inode = inode;
     } else iput(inode);
@@ -407,9 +370,6 @@ int open_namei(const char *pathname, int flag, int mode,
 
 int do_mknod(char *pathname, int offst, int mode, dev_t dev)
 {
-#ifdef CONFIG_FS_RO
-    return -EROFS;
-#else
     register struct inode *dirp;
     register struct inode_operations *iop;
     struct inode *dir;
@@ -448,14 +408,10 @@ int do_mknod(char *pathname, int offst, int mode, dev_t dev)
 	iput(dirp);
     }
     return error;
-#endif
 }
 
 int sys_mknod(char *pathname, int mode, dev_t dev)
 {
-#ifdef CONFIG_FS_RO
-    return -EROFS;
-#else
     if (S_ISDIR(mode) || (!S_ISFIFO(mode) && !suser())) return -EPERM;
 
     switch (mode & S_IFMT) {
@@ -472,16 +428,11 @@ int sys_mknod(char *pathname, int mode, dev_t dev)
     }
 
     return do_mknod(pathname, offsetof(struct inode_operations,mknod), mode, dev);
-#endif
 }
 
 int sys_mkdir(char *pathname, int mode)
 {
-#ifdef CONFIG_FS_RO
-    return -EROFS;
-#else
     return do_mknod(pathname, offsetof(struct inode_operations,mkdir), (mode & 0777)|S_IFDIR, 0);
-#endif
 }
 
 int do_rmthing(char *pathname, size_t offst)
