@@ -79,7 +79,7 @@
 /*
  * TODO
  * - Add support for raw devices
- * - Add ioctl to manipulate drive parameters, such as automatic retries -
+ * - Add ioctl to manipulate runtime parameters, such as automatic retries -
  *   to be able to continue after hard errors and to support real performance 
  *   testing.
  * - Add format utility.
@@ -96,8 +96,8 @@
 #include <linuxmt/major.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
-//#include <linuxmt/heap.h>	/* for heap_alloc */
 #include <linuxmt/string.h>	/* for memset */
+#include <linuxmt/memory.h>
 
 #include <arch/dma.h>
 #include <arch/system.h>
@@ -106,7 +106,6 @@
 #include <arch/ports.h>
 #include <arch/hdreg.h>		/* for ioctl defines */
 
-#define BIOSHD_DRIVE_PARMS      0x0800	/* from linuxmt/bioshd.h */
 #define MFMDISK		/* for blk.h */
 #define ASYNC_IO
 #define MINOR_SHIFT 5
@@ -677,19 +676,6 @@ void INITPROC xd_init(void)
 	 * smart choice.
 	 * Note: Old BIOSes will happily respond to CHS queries for non-existent drives!
 	 */
-#ifdef NOTYET
-	struct biosparms bdt;
-
-	bdt.ax = BIOSHD_DRIVE_PARMS;
-	bdt.dx = drive + 0x80;
-	bdt.es = bdt.di = bdt.si = 0;
-	if (call_bios(&bdt) == 0) {
-	    chs_src = 0;
-	    dp->heads = (bdt.dx >>8) + 1;
-	    dp->sectors = bdt.cx & 0x3f;
-	    dp->cylinders = (((bdt.cx & 0xc0) << 2) | (bdt.cx >> 8)) + 1;
-	} else
-#endif
 	i = drive*4;
 	if (hdparms[i]) {
 	    chs_src = 1;
