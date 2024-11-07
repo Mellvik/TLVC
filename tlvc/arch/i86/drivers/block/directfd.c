@@ -117,20 +117,26 @@ void (*DEVICE_INTR) () = NULL;
 //#define INCLUDE_FD_FORMATTING	/* Formatting code untested, don't waste the space */
 
 #ifndef CONFIG_HW_PCXT	/* some options are not meaningful on pre-AT systems */
-#define ENABLE_FDC_82077	/* Enable 82077 extras if present, REQUIRED to use 360k media */
+//#define ENABLE_FDC_82077	/* Enable 82077 extras if present, REQUIRED to use 360k media */
 			/* in 1.2M drive on QEMU!! */
+			/* Unless you need 2880 floppy support there is minimal benefit in enabling
+			 * 82077 support. The FIFO is good but doesnt matter (we're not experiencing
+			 * over- or under-runs ever), the autoseek will not be used etc.
+			 */
 //#define USE_DIR_REG	/* Use the DIR register if available for media change detection */
-			/* Default is on, off is experimental */
-			/* Use off for PC/XT/8086/8088 8bit ISA systems (save RAM), 
-			 * on otherwise - to let the driver make wise (!) choices -
-			 * see developer notes for details. */
+			/* Default is off as the benefits of using it, even for triggering
+			 * autoprobes, is questionable. E.g. when I accidentally open the
+			 * drive door on a mounted floppy, I'd rather be able to just put
+			 * it back than pretending it's possible to save anything - detecting,
+			 * fluching, umounting etc. */
+			/* Always use off for PC/XT/8086/8088 8bit ISA systems */
 #else
 #undef CHECK_MEDIA_CHANGE /* Now defined in linuxmt/fs.h */
 #endif
 
 #define DEBUG_DIRECTFD 0
 #if DEBUG_DIRECTFD
-#define DEBUG if (debug_level == 1) printk
+#define DEBUG if (debug_level > 0) printk
 #else
 #define DEBUG(...)
 #endif
@@ -349,13 +355,17 @@ static int seek;		/* set if the current operation needs a cylinder
 				 * change (seek) */
 static int nr_sectors;		/* # of sectors to r/w, 2 if block IO */
 static unsigned char raw;	/* set if raw/char IO	*/
-static unsigned char use_bounce;/* this transaction must use the  bounce buffer */
+static unsigned char use_bounce;/* this transaction uses the bounce buffer */
+
+#if CONFIG_FLOPPY_CACHE
 static unsigned char use_cache;	
 static int cache_drive = -1;
 static int cache_start;		/* first cached sector */
 static int cache_len;		/* valid length of cache in sectors */
-static int cache_size;		/* # of sectors - min=2, max=DMASEGSZ>>9 */
-static unsigned int cache_hits;	/* For stats */
+static int cache_size;		/* # of sectors - min=0 (off), max=FD_CACHE_SEGSZ>>9 */
+//static unsigned int cache_hits;	/* For stats */
+#endif
+
 static int cur_spec1 = -1;	/* HUT | SRT */
 static int cur_rate = -1;	/* datarate */
 static struct floppy_struct *floppy;
@@ -664,36 +674,35 @@ static void setup_DMA(void)
 {
     unsigned long dma_addr;
     unsigned int count, physaddr;
-    int use_xms;
     struct request *req = CURRENT;
 
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
-    use_xms = req->rq_seg >> 16;
+    use_bounce = req->rq_seg >> 16;		/* XMS buffers active, always bounce */ 
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
-    dma_addr = _MK_LINADDR(DMASEG, 0);
+    dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 
-    use_bounce = 0;
     count = nr_sectors<<9;
-    if (use_xms || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
+    if (use_bounce || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
 	use_bounce++;
+	dma_addr = _MK_LINADDR(FD_BOUNCE_SEG, 0);
 	if (raw) {	/* The application buffer spans a 64k boundary, split it into
 			 * 2 or three parts, using the first k of the sector cache
 			 * as a bounce buffer */
 	    int sec_cnt = (0xffff - physaddr) >> 9;
-	    if (sec_cnt <= 1)	/* the single block with wrap problem */
+	    if (sec_cnt <= 1) {	/* the single block with wrap problem */
 		nr_sectors = BLOCK_SIZE >> 9;	
-	    else {		/* get the sectors before the wrap */
+	    } else {		/* get the sectors before the wrap */
 		nr_sectors = sec_cnt-1;
-	        dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
-		use_bounce--;
+		use_bounce = 0;
+		dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 	    }
 	    //count = nr_sectors<<9;
 	}
     } else {
-#ifdef CONFIG_FLOPPY_CACHE
-	if (!use_cache) 
+#if CONFIG_FLOPPY_CACHE
+	if (use_cache) 
+	    dma_addr = _MK_LINADDR(FD_CACHE_SEG, 0);
 #endif
-	    dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
     }
     if (raw) {	/* ensure raw access doesn't span cylinders */
 	int rest = (floppy->sect<<1) - sector - head*floppy->sect;
@@ -708,11 +717,11 @@ static void setup_DMA(void)
 
 #ifdef INCLUDE_FD_FORMATTING
     if (command == FD_FORMAT) {
-	dma_addr = _MK_LINADDR(DMASEG, 0);
+	dma_addr = _MK_LINADDR(FD_BOUNCE, 0);
 	count = floppy->sect << 2;	/* formatting data, 4 bytes per sector */
     }
 #endif
-#ifdef CONFIG_FLOPPY_CACHE
+#if CONFIG_FLOPPY_CACHE
     if (use_cache) {
 	cache_drive = -1;	/* mark cache bad, in case all this fails.. */
 	cache_len = (floppy->sect<<1) - (sector + head*floppy->sect);
@@ -721,7 +730,7 @@ static void setup_DMA(void)
     } else
 #endif
     if (use_bounce && command == FD_WRITE)
-	xms_fmemcpyw(0, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	xms_fmemcpyw(0, FD_BOUNCE_SEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
 
     DEBUG("%d/%lx/%x;", count, dma_addr, physaddr);
     clr_irq();
@@ -786,10 +795,7 @@ static void bad_flp_intr(void)
     DEBUG("bad_flpI-");
     current_track = NO_TRACK;
     if (!CURRENT) return;
-    if (probing) {
-	probing++;
-	return;
-    }
+    if (probing) probing++;
 #ifdef INCLUDE_FD_FORMATTING
     if (format_status == FORMAT_BUSY)
 	errors = ++format_errors;
@@ -801,6 +807,7 @@ static void bad_flp_intr(void)
 	request_done(0);
 	return;
     }
+    if (probing) return;
     if (errors > MAX_ERRORS / 2)
 	reset = 1;
     else
@@ -993,20 +1000,22 @@ static void rw_interrupt(void)
 	probing = 0;
     }
     if (raw) CURRENT->rq_nr_sectors = nr_sectors;
-    if (use_bounce) {	/* raw access had to use bounce buffer */
-	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, DMASEG, nr_sectors << (9-1));
-									/* words ^ */
+    if (use_bounce && command == FD_READ) {
+	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, FD_BOUNCE_SEG, nr_sectors << (9-1));
+									       /* words ^ */
     } else {
+#if CONFIG_FLOPPY_CACHE
 	if (use_cache) {
 	    cache_drive = current_drive;
 	    cache_start = CURRENT->rq_blocknr;
-	    DEBUG("rd:%04x:0->%04lx:%04x;", DMASEG,
+	    DEBUG("rd:%04x:0->%04lx:%04x;", FD_CACHE_SEG,
 		(unsigned long)req->rq_seg, req->rq_buffer);
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, DMASEG, BLOCK_SIZE/2);
+	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, FD_CACHE_SEG, BLOCK_SIZE/2);
 	}
+#endif
     }
     request_done(1);
-    //printk("RQOK;");
+    //DEBUG("RQOK;");
     redo_fd_request();	/* Continue with next request if any */
 }
 
@@ -1082,8 +1091,8 @@ static void seek_interrupt(void)
  */
 static void transfer(void)
 {
-#ifdef CONFIG_FLOPPY_CACHE
-    use_cache = (cache_size > 2) && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4);
+#if CONFIG_FLOPPY_CACHE
+    use_cache = cache_size && !raw && (command == FD_READ) && (CURRENT_ERRORS < 4);
 
     DEBUG("trns%d-", use_cache);
 #else
@@ -1372,7 +1381,6 @@ static void redo_fd_request(void)
     seek = 0;
     device = MINOR(req->rq_dev);
     drive = device & 3;
-    //probing = 0;		/*EXPERIMENTAL*/
     if (fdevice[drive].fd_probe) {
 	probing = 1;
 	fdevice[drive].fd_probe = 0;
@@ -1488,7 +1496,7 @@ static void redo_fd_request(void)
 
     DEBUG("prep %d,%d|%d-", seek_track, cache_drive, current_drive);
 
-#ifdef CONFIG_FLOPPY_CACHE
+#if CONFIG_FLOPPY_CACHE 
     if (!raw && (current_drive == cache_drive) && start >= cache_start
 			&& start <= (cache_start + cache_len - nr_sectors + 1)) {
 
@@ -1500,12 +1508,12 @@ static void redo_fd_request(void)
 	DEBUG("bufrd chs %d/%d/%d-%x\n", seek_track, head, sector, buf_ptr);
 
 	if (command == FD_READ) {	/* requested data is in cache */
-	    cache_hits++;
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, DMASEG, BLOCK_SIZE/2);
+//	    cache_hits++;
+	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, FD_CACHE_SEG, BLOCK_SIZE/2);
 	    request_done(1);
 	    goto repeat;
     	} else if (command == FD_WRITE)	/* update track cache */
-	    xms_fmemcpyw(buf_ptr, DMASEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	    xms_fmemcpyw(buf_ptr, FD_CACHE_SEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
     } 
 #endif
 
@@ -1835,15 +1843,16 @@ void INITPROC floppy_init(void)
 #endif
     config_types();
 
+#if CONFIG_FLOPPY_CACHE
     /* sector cache setup - /bootopts fdcache= has preference, otherwise autoconfig */
-    if (fdcache > 1)
+    if (fdcache != -1)			/* allow fdcache=0 in bootopts */
 	cache_size = fdcache<<1;	/* cache size is sectors, fdcache is k bytes */
     else if (SETUP_CPU_TYPE == 7)
-	cache_size = 2; 		/* minimal 1 k bounce buffer at DMASEG */
-    else cache_size = DMASEGSZ>>9;	/* use menuconfig value */
+	cache_size = 0; 		/* sector cache is slowing down fast systems */
+    else cache_size = FD_CACHE_SEGSZ>>9;	/* use menuconfig value */
 
-    if (cache_size > (DMASEGSZ>>9)) cache_size = DMASEGSZ>>9;
-    printk("Floppy cache %dk (%s), available %dk\n", cache_size>>1,
-		(fdcache > 1) ? "bootopts":"autoconf",  DMASEGSZ>>10);
+    if (cache_size > (FD_CACHE_SEGSZ>>9)) cache_size = FD_CACHE_SEGSZ>>9;
+    printk("Floppy cache %dk, available %dk\n", cache_size>>1, FD_CACHE_SEGSZ>>10);
 	
+#endif
 }

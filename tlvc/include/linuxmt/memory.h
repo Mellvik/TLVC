@@ -57,6 +57,7 @@ void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_
 		size_t count);
 void linear32_fmemcpyb(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 		size_t count);
+void linear32_fmemset(void *dst_off, addr_t dst_seg, byte_t val, size_t count);
 
 #else
 

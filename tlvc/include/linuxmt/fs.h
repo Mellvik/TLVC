@@ -126,7 +126,7 @@
 #endif
 
 struct buffer_head {
-    unsigned char		*b_data;	/* Address if in L1 buffer area, else 0 */
+    char		*b_data;	/* Address if in L1 buffer area, else 0 */
 #ifdef CONFIG_FAR_BUFHEADS
 };
 /* a little tricky here - buffer_head is split into near and far components */
@@ -486,7 +486,7 @@ extern void unmap_brelse(struct buffer_head *);
 extern void brelseL1(struct buffer_head *, int);
 extern void brelseL1_index(int, int);
 ramdesc_t buffer_seg(struct buffer_head *);
-extern unsigned char *buffer_data(struct buffer_head *);
+extern char *buffer_data(struct buffer_head *);
 #else
 #define map_buffer(bh)
 #define unmap_buffer(bh)
@@ -504,20 +504,10 @@ extern size_t block_write(struct inode *, struct file *, char *, size_t);
 extern size_t decompress(char *buf, seg_t seg, size_t orig_size, size_t compr_size, int safety);
 #endif
 
-//#define CHECK_MEDIA_CHANGE	/* enable media change handing in direct floppy driver */
-
 #if defined(CONFIG_BLK_DEV_FD) && defined(CHECK_MEDIA_CHANGE)
 extern int check_disk_change(kdev_t);
 #else
 #define check_disk_change(dev)      0
-#endif
-
-#ifdef BLOAT_FS
-extern int get_write_access(struct inode *);
-extern void put_write_access(struct inode *);
-#else
-#define get_write_access(_a)
-#define put_write_access(_a)
 #endif
 
 extern int _namei(const char *,struct inode *,int,struct inode **);

@@ -11,8 +11,10 @@
 #ifdef CONFIG_ARCH_IBMPC
 #define MAX_SERIAL		4		/* max number of serial tty devices*/
 
-#define SETUP_MEM_KBYTES_ASM    640		/* EXPERIMENTAL - make use of the top
-						 * 1k reserved by the BIOS */
+/* If SETUP_MEM_KBYTES_ASM is unset, the BIOS will be queried for the himem value */
+/* (in setup.S) */
+//#define SETUP_MEM_KBYTES_ASM    640		/* EXPERIMENTAL - make use of the top */
+						/* 1k reserved by the BIOS */
 /*
  * Setup data - normally queried by startup setup.S code, but can
  * be overridden for embedded systems with less overhead.
@@ -110,23 +112,47 @@
 
 
 #if (defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_8018X)) && !defined(CONFIG_ROMCODE)
-#if CONFIG_FLOPPY_CACHE > 9
-#define CONFIG_FLOPPY_CACHE 9
-#elif CONFIG_FLOPPY_CACHE < 1
-#define CONFIG_FLOPPY_CACHE 1
+
+/* Sanitize floppy cache size config - change to test larger caches */
+#if CONFIG_FLOPPY_CACHE > 7
+#undef CONFIG_FLOPPY_CACHE
+#define CONFIG_FLOPPY_CACHE 7
 #endif
+
 /* Define segment locations of low memory, must not overlap */
 #define DEF_OPTSEG	0x50	/* 0x200 bytes boot options*/
 #define OPTSEGSZ	0x200	/* max size of /bootopts file (1K max) */
 #define REL_INITSEG	0x70	/* 0x200 bytes setup data */
-#define DMASEG		0x90	/* 0x400 bytes floppy sector buffer */
-#if CONFIG_FLOPPY_CACHE		/* floppy cache or bounce buffer in low mem */
-#define DMASEGSZ	CONFIG_FLOPPY_CACHE * 1024
+#define DMASEG		0x90	/* Start of variable sized DMA/bounce segment */
+
+/* DMASEG is a bouncing buffer of 1K (= BLOCKSIZE)
+ * below the first 64K boundary (= 0x1000:0)
+ * for use with the old 8237 DMA controller.
+ * Also used for floppy sector cache if configured. */
+
+#if !defined (CONFIG_BLK_DEV_BFD)	/* BIOS floppy doesn't work with this setup */
+#define XD_BOUNCE_SEG		DMASEG	/* bounce buffer for XD and Lance drivers */
+#if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
+#define XD_BOUNCE_SEGSZ		0x400
 #else
-#define DMASEGSZ	0x0400	/* 1 BLOCK (1024B) */
+#define XD_BOUNCE_SEGSZ		0
 #endif
-#define REL_SYSSEG	DMASEG + (DMASEGSZ>>4) /* kernel code segment */
+
+/* Always present */
+#define FD_BOUNCE_SEG	XD_BOUNCE_SEG + (XD_BOUNCE_SEGSZ>>4)
+#define FD_BOUNCE_SEGSZ	0x400	/* 1k bounce buffer for floppy IO */
+
+#define FD_CACHE_SEG	FD_BOUNCE_SEG + (FD_BOUNCE_SEGSZ>>4)
+#define FD_CACHE_SEGSZ	(CONFIG_FLOPPY_CACHE*1024)	/* May be zero */
+
+#define REL_SYSSEG	FD_CACHE_SEG + (FD_CACHE_SEGSZ>>4) /* kernel code segment */
+#else
+#define DMASEGSZ 	0x2400	/* classic 18 sector track buffer for BIOS FD for now */
+#define REL_SYSSEG	DMASEG + (DMASEGSZ>>4)
+#endif  /* CONFIG_BLK_DEV_BFD */
+
 #define SETUP_DATA	REL_INITSEG
+
 #endif 
 
 #if defined(CONFIG_ARCH_PC98) && !defined(CONFIG_ROMCODE)
@@ -141,11 +167,6 @@
 #define SETUP_DATA	REL_INITSEG
 #endif /* CONFIG_ARCH_PC98 && !CONFIG_ROMCODE */
 
-
-// DMASEG is a bouncing buffer of 1K (= BLOCKSIZE)
-// below the first 64K boundary (= 0x1000:0)
-// for use with the old 8237 DMA controller
-// OR a floppy track buffer of 9K (18 512-byte sectors)
 
 /*
  * Defines for what uname() should return.
