@@ -20,7 +20,7 @@ struct request {
     unsigned char rq_cmd;	/* READ or WRITE */
     unsigned char rq_status;
     block32_t rq_blocknr;	/* Always sector nr! (unlike b_blocknr) */
-    unsigned char *rq_buffer;
+    char *rq_buffer;
     ramdesc_t rq_seg;		/* L2 main/xms buffer segment */
     struct buffer_head *rq_bh;
     struct request *rq_next;

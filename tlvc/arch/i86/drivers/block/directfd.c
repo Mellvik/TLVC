@@ -80,7 +80,7 @@
 #include <linuxmt/errno.h>
 #include <linuxmt/string.h>
 #include <linuxmt/debug.h>
-#include <linuxmt/memory.h>	/* for peek/poke */
+#include <linuxmt/memory.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
 
 #include <arch/dma.h>
@@ -109,8 +109,6 @@ void (*DEVICE_INTR) () = NULL;
 #else
 #define CLEAR_INTR
 #endif		/* DEVICE_INTR */
-
-#define _MK_LINADDR(seg, offs) ((unsigned long)((((unsigned long)(seg)) << 4) + (unsigned)(offs)))
 
 /* Driver configuration */
 
