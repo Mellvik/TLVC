@@ -20,7 +20,7 @@ struct request {
     unsigned char rq_cmd;	/* READ or WRITE */
     unsigned char rq_status;
     block32_t rq_blocknr;	/* Always sector nr! (unlike b_blocknr) */
-    unsigned char *rq_buffer;
+    char *rq_buffer;
     ramdesc_t rq_seg;		/* L2 main/xms buffer segment */
     struct buffer_head *rq_bh;
     struct request *rq_next;
@@ -213,11 +213,12 @@ static void end_request(int uptodate)
     bh->b_reqnext = NULL;
 #endif
 
-    mark_buffer_uptodate(bh, uptodate);
     mark_buffer_clean(bh);      /* EXPERIMENTAL: moved from ll_rw_blk  */
+    mark_buffer_uptodate(bh, uptodate);
 #if DEBUG_ASYNC
+    //printk("debug level: %d\n", debug_level);
     if (debug_level == 1) printk("ER:%04x;", req);
-    if (debug_level > 3 {
+    if (debug_level > 3 ) {
 	__far unsigned int *content;
 	content = _MK_FP(req->rq_seg, (unsigned int) (req->rq_buffer));
 	printk("ER%d|%04x|%04x|%04x;", uptodate, req, req->rq_dev, *content);
@@ -252,9 +253,7 @@ static void end_request(int uptodate)
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
     CURRENT = req->rq_next;
-#if defined(MULTI_BH) || defined(ASYNC_IO)
     wake_up(&wait_for_request);
-#endif
 }
 
 #endif /* MAJOR_NR */

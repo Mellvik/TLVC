@@ -28,15 +28,12 @@
  * Kernel debug options, set =1 to turn on. Works across multiple files.
  */
 #define DEBUG_EVENT	1		/* generate debug events on CTRLP*/
-#define DEBUG_STARTDEF	0		/* default startup debug display*/
-#define DEBUG_BLKDRV	0		/* Disk/floppy drivers */
-#define DEBUG_RAW	0		/* Raw disk/floppy I/O */
-#define DEBUG_BLK	0		/* (direct) block level i/o*/
-#define	DEBUG_BIOSIO	0		/* BIOS block IO */
+#define DEBUG_LEVEL	0		/* default startup debug level */
 #define DEBUG_ETH	0		/* ethernet*/
 #define DEBUG_FAT	0		/* FAT filesystem*/
 #define DEBUG_FILE	0		/* sys open and file i/o*/
 #define DEBUG_NET	0		/* networking*/
+#define DEBUG_MAP	0		/* L1 mapping */
 #define DEBUG_MM	0		/* mem char device*/
 #define DEBUG_SCHED	0		/* scheduler/wait*/
 #define DEBUG_SIG	0		/* signals*/
@@ -44,7 +41,10 @@
 #define DEBUG_TTY	0		/* tty driver*/
 #define DEBUG_TUNE	0		/* tunable debug statements*/
 #define DEBUG_WAIT	0		/* wait, exit*/
-#define DEBUG_BUFFER	0		/* low level buffer tracing */
+#define DEBUG_CACHE	0		/* Floppy sector cache */
+#define DEBUG_ASYNC	0		/* Async req's added/completed */
+#define DEBUG_BUFFER	0		/* Block IO L1/L2 cache/buffer */
+#define DEBUG_RAW	0		/* Raw/char IO wrapper for block drivers */
 
 #if DEBUG_EVENT
 void dprintk(const char *, ...);		/* printk when debugging on*/
@@ -58,22 +58,24 @@ void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*
 #define debug_event(...)
 #endif
 
-#if DEBUG_BLKDRV
-#define debug_blkdrv	PRINTK
-#else
-#define debug_blkdrv(...)
-#endif
-
-#if DEBUG_BIOSIO
-#define debug_biosio	PRINTK
-#else
-#define debug_biosio(...)
-#endif
-
-#if DEBUG_BLK
+#if DEBUG_BUFFER
 #define debug_blk	PRINTK
 #else
 #define debug_blk(...)
+#endif
+
+#if DEBUG_RAW
+#define debug_raw	PRINTK
+#else
+#define debug_raw(...)
+#endif
+
+#if DEBUG_CACHE
+#define debug_cache     PRINTK
+#define debug_cache2    if (debug_level > 1) PRINTK
+#else
+#define debug_cache(...)
+#define debug_cache2(...)
 #endif
 
 #if DEBUG_ETH
@@ -98,12 +100,6 @@ void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*
 #define debugmem	PRINTK
 #else
 #define debugmem(...)
-#endif
-
-#if DEBUG_RAW
-#define debug_raw	PRINTK
-#else
-#define debug_raw(...)
 #endif
 
 #if DEBUG_NET
@@ -140,6 +136,12 @@ void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*
 #define debug_tune	PRINTK
 #else
 #define debug_tune(...)
+#endif
+
+#if DEBUG_MAP
+#define debug_map	PRINTK
+#else
+#define	debug_map(...)
 #endif
 
 #if DEBUG_WAIT

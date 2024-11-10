@@ -4,7 +4,6 @@
 /* memory primitives */
 
 #include <linuxmt/types.h>
-#include <stddef.h>
 
 byte_t peekb (word_t off, seg_t seg);
 word_t peekw (word_t off, seg_t seg);
@@ -30,6 +29,7 @@ word_t fmemcmpw (void * dst_off, seg_t dst_seg, void * src_off, seg_t src_seg, s
 #define _FP_SEG(fp)     ((unsigned)((unsigned long)(void __far *)(fp) >> 16))
 #define _FP_OFF(fp)     ((unsigned)(unsigned long)(void __far *)(fp))
 #define _MK_FP(seg,off)	((void __far *)((((unsigned long)(seg)) << 16) | (off)))
+#define _MK_LINADDR(seg, offs) ((unsigned long)((((unsigned long)(seg)) << 4) + (unsigned)(offs)))
 
 /* unreal mode, A20 gate management */
 int check_unreal_mode(void);	/* check if unreal mode capable, returns > 0 on success */
@@ -57,6 +57,7 @@ void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_
 		size_t count);
 void linear32_fmemcpyb(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 		size_t count);
+void linear32_fmemset(void *dst_off, addr_t dst_seg, byte_t val, size_t count);
 
 #else
 

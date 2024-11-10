@@ -99,6 +99,8 @@ size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t cou
 	    if (!written) written = -ENOSPC;
 	    break;
 	}
+        if (/*bh->b_dev == 0x200 &&*/ EBH(bh)->b_blocknr >= 5)
+                debug_blk("block_write: have block %ld\n", EBH(bh)->b_blocknr);
 	/* Offset to block/offset */
 	offset = ((size_t)filp->f_pos) & (BLOCK_SIZE - 1);
 	chars = BLOCK_SIZE - offset;
@@ -172,9 +174,11 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	} else if (count < SECT_SIZE) /* partial trailing sector */
 		chars = count;
 
-	//printk("RAW pos %u, cnt %u/%u bl %lu:", (unsigned int) offset,
-		//(unsigned int) chars, (unsigned int) count,
-		//filp->f_pos >> SECT_SIZE_BITS);
+#if 0
+	printk("RAW pos %u, cnt %u/%u bl %lu:", (unsigned int) offset,
+		(unsigned int) chars, (unsigned int) count,
+		filp->f_pos >> SECT_SIZE_BITS);
+#endif
 
 	if (chars) {
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
@@ -210,7 +214,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	} else {	/* moving full sectors */
 		unsigned char *o_data;
 		seg_t o_seg;
-		int sec_cnt;
+		unsigned char sec_cnt;
 
 		chars = (count & 0xffff); /* try to transfer the whole thing -
 					 * up to 64k, which is more than the 
@@ -224,13 +228,15 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
 		chars &= ~(SECT_SIZE - 1);
 		sec_cnt = ebh->b_nr_sectors;
+		debug_raw("IO: blk %lu cnt %d\n", ebh->b_blocknr, (int)ebh->b_nr_sectors);
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
 		ebh->b_L2seg = o_seg;		/* restore */
 		bh->b_data = o_data;
 		if (sec_cnt != ebh->b_nr_sectors) {
-			//printk("partial raw IO: %d, got %d\n", sec_cnt, ebh->b_nr_sectors);
+			debug_raw("partial raw IO, requested %d, got %d\n",
+						sec_cnt, ebh->b_nr_sectors);
 			chars = (ebh->b_nr_sectors << SECT_SIZE_BITS);
 		}
     		if (!ebh->b_uptodate) {		/* IO error */
@@ -243,11 +249,12 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	filp->f_pos += chars;
 	io_count += chars;
 	count -= chars;
-	//printk("raw: chars %d, nxt blk %ld, bh %04x;", chars, filp->f_pos >> SECT_SIZE_BITS, bh);
+	debug_raw("raw: chars %d, nxt blk %ld, bh %04x;", 
+		chars, filp->f_pos >> SECT_SIZE_BITS, bh);
     }
     ebh->b_dev = NODEV;	/* Invalidate buffer */
     brelse(bh);
-    //printk("raw returning %d\n", io_count);
+    debug_raw("raw returning %d\n", io_count);
     return io_count;
 }
 

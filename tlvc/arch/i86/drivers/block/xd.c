@@ -79,7 +79,7 @@
 /*
  * TODO
  * - Add support for raw devices
- * - Add ioctl to manipulate drive parameters, such as automatic retries -
+ * - Add ioctl to manipulate runtime parameters, such as automatic retries -
  *   to be able to continue after hard errors and to support real performance 
  *   testing.
  * - Add format utility.
@@ -96,8 +96,8 @@
 #include <linuxmt/major.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
-#include <linuxmt/heap.h>	/* for heap_alloc */
 #include <linuxmt/string.h>	/* for memset */
+#include <linuxmt/memory.h>
 
 #include <arch/dma.h>
 #include <arch/system.h>
@@ -106,7 +106,6 @@
 #include <arch/ports.h>
 #include <arch/hdreg.h>		/* for ioctl defines */
 
-#define BIOSHD_DRIVE_PARMS      0x0800	/* from linuxmt/bioshd.h */
 #define MFMDISK		/* for blk.h */
 #define ASYNC_IO
 #define MINOR_SHIFT 5
@@ -205,15 +204,13 @@ extern int	hdparms[];	/* Get CHS values from /bootopts */
 static int	xd_busy;
 static struct	wait_queue xd_wait;
 static byte_t	xtnoerr;	/* set during tests to supress error messages */
-static byte_t	usebounce;	/* set when bounce buffer is in use */
+static byte_t	use_bounce;	/* set when bounce buffer is in use */
 
 
 static int access_count[MAX_XD_DRIVES] = {0, };
 static struct drive_infot drive_info[MAX_XD_DRIVES] = {0, };
 static struct hd_struct hd[MAX_XD_DRIVES << MINOR_SHIFT]; /* partition ptr {start_sect, num_sects} */
 static int xd_sizes[MAX_XD_DRIVES] = {0, };
-
-static char *bounce_buffer;
 
 /* local function prototypes */
 int xd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
@@ -400,11 +397,13 @@ int xd_open(struct inode *inode, struct file *filp)
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
     debug_xd("%cxd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ', inode->i_rdev, inode->i_size);
+#if 0
     if (!bounce_buffer)		/* allocate bounce buffer space */
 	if (!(bounce_buffer = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR))) {
 	    printk("xd: cannot allocate buffer space\n");
 	    return -EBUSY;
 	}
+#endif
     return 0;
 }
 
@@ -421,22 +420,36 @@ static void setup_DMA(int nr_sectors)
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
     use_xms = req->rq_seg >> 16;
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
+    dma_addr = _MK_LINADDR(XD_BOUNCE_SEG, 0);
 
+    use_bounce = 0;
     count = nr_sectors<<9;
-    if (use_xms || (physaddr + (unsigned int)count) < physaddr) /* 64k wrap test */
-	dma_addr = LAST_DMA_ADDR + 1;	/* force use of bounce buffer */
-    else
+    if (use_xms || (physaddr + (unsigned int)count) < physaddr) { /* 64k wrap test */
+	use_bounce++;
+#if RAW			/* not fully implemented yet */
+
+	if (raw) {      /* The application buffer spans a 64k boundary, split it into
+			 * 2 or three parts, using the first k of the sector cache
+			 * as a bounce buffer */
+	    int sec_cnt = (0xffff - physaddr) >> 9;
+	    if (sec_cnt <= 1)   /* the single block with wrap problem */
+	        nr_sectors = BLOCK_SIZE >> 9;   
+	    else {              /* get the sectors before the wrap */
+		nr_sectors = sec_cnt-1;
+		dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+		use_bounce--;
+	    }
+	}
+#endif
+    } else
 	dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 
+    count = nr_sectors<<9;
     debug_xd("setupDMA ");
 
-    if (dma_addr >= LAST_DMA_ADDR) {	/* xms or 64k wrap */
-	dma_addr = _MK_LINADDR(kernel_ds, bounce_buffer);
-	usebounce = 1;
-	if (req->rq_cmd == WRITE)
-	    xms_fmemcpyw(bounce_buffer, kernel_ds, req->rq_buffer,
-	    				req->rq_seg, BLOCK_SIZE/2);
-    }
+    if (use_bounce && req->rq_cmd == WRITE)
+	xms_fmemcpyw(0, XD_BOUNCE_SEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+
     debug_xd("%d/%lx;", count, dma_addr);
     clr_irq();
     disable_dma(MHD_DMA);
@@ -516,16 +529,16 @@ static void do_xdintr(int irq, struct pt_regs *regs)
 		/*
 		 * Finished with this transfer ?
 		 */
-		if (CURRENT->rq_cmd == READ && usebounce)
-			xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, bounce_buffer,
-					kernel_ds, BLOCK_SIZE/2);
+		if (CURRENT->rq_cmd == READ && use_bounce)
+			xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, 0,
+					XD_BOUNCE_SEG, BLOCK_SIZE/2);
 		i = 1;	/* iodone */
 			
 done:
 		end_request(i);
 	} else
 		printk("Spurious xd interrupt\n");
-	usebounce = 0;
+	use_bounce = 0;
 	redo_xd_request();
 }
 
@@ -539,8 +552,8 @@ void xd_release(struct inode *inode, struct file *filp)
     if (!access_count[target]) {
 	invalidate_buffers(dev);
 	invalidate_inodes(dev);
-	heap_free(bounce_buffer);
-	bounce_buffer = NULL;	/* need to fix this when raw is added */
+	//heap_free(bounce_buffer);
+	//bounce_buffer = NULL;	/* need to fix this when raw is added */
     }
     return;
 }
@@ -616,7 +629,6 @@ void INITPROC xd_init(void)
     struct gendisk *ptr;
 
     //bounce_buffer = NULL;	/* not allocated yet */
-    //xt_busy = 0;		/* probably not required */
     if (register_blkdev(MAJOR_NR, DEVICE_NAME, &xd_ops)) {
 	printk("Unable to get major %d for xd-disk\n", MAJOR_NR);
 	return;
@@ -664,19 +676,6 @@ void INITPROC xd_init(void)
 	 * smart choice.
 	 * Note: Old BIOSes will happily respond to CHS queries for non-existent drives!
 	 */
-#ifdef NOTYET
-	struct biosparms bdt;
-
-	bdt.ax = BIOSHD_DRIVE_PARMS;
-	bdt.dx = drive + 0x80;
-	bdt.es = bdt.di = bdt.si = 0;
-	if (call_bios(&bdt) == 0) {
-	    chs_src = 0;
-	    dp->heads = (bdt.dx >>8) + 1;
-	    dp->sectors = bdt.cx & 0x3f;
-	    dp->cylinders = (((bdt.cx & 0xc0) << 2) | (bdt.cx >> 8)) + 1;
-	} else
-#endif
 	i = drive*4;
 	if (hdparms[i]) {
 	    chs_src = 1;
