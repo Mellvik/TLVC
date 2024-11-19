@@ -23,10 +23,10 @@
 #define HEAP_TAG_TASK    0x04
 #define HEAP_TAG_BUFHEAD 0x05
 #define HEAP_TAG_PIPE    0x06
-#define HEAP_TAG_NETWORK 0x07	/* packet buffer allocations */
-#define HEAP_TAG_INDOE	 0x08
+#define HEAP_TAG_INODE	 0x07
+#define HEAP_TAG_FILE	 0x08
 #define HEAP_TAG_CACHE	 0x09
-#define HEAP_TAG_FILE	 0x0A
+#define HEAP_TAG_NETWORK 0x0A	/* packet buffer allocations */
 
 
 // TODO: move free list node from header to body
@@ -48,14 +48,14 @@ extern list_s _heap_all;
 
 // Heap functions
 
-void * heap_alloc (word_t size, byte_t tag);
-void heap_free (void * data);
+void *heap_alloc(word_t size, byte_t tag);
+void heap_free(void *data);
 
-void heap_add (void * data, word_t size);
-void heap_init ();
+void heap_add(void *data, word_t size);
+void heap_init();
 
 #ifdef HEAP_DEBUG
-void heap_iterate (void (* cb) (heap_s * h));
+void heap_iterate(void (*cb)(heap_s *h));
 #endif /* HEAP_DEBUG */
 
 #endif
