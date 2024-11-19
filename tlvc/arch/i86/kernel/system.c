@@ -8,75 +8,87 @@
 #include <linuxmt/memory.h>
 
 #include <arch/segment.h>
+#include <arch/system.h>
+#include <arch/io.h>
 
-
-byte_t sys_caps;		/* system capabilities bits */
+seg_t membase, memend;  /* start and end segment of available main memory */
 unsigned int heapsize;	/* max size of kernel near heap */
+byte_t sys_caps;	/* system capabilities bits */
+unsigned char arch_cpu; /* CPU type from cputype.S */
 
-void INITPROC setup_arch(seg_t *start, seg_t *end)
+unsigned int INITPROC setup_arch(void)
 {
+	unsigned int endbss, heapsegs;
+
 #ifdef CONFIG_HW_COMPAQFAST
 	outb_p(1,0xcf);	/* Switch COMPAQ Deskpro to high speed */
 #endif
 
 	/*
-	 * Extend kernel data segment to maximum of 64K to make room
-	 * for local heap.
+	 * Extend kernel data segment to maximum of 64K to make room for local heap.
 	 *
-	 * Set start to beginning of available main memory, which
+	 * Set membase to beginning of available main memory, which
 	 * is directly after end of the kernel data segment.
 	 *
-	 * Set end to end of available main memory.
-	 *
+	 * Set memend to end of available main memory.
 	 * If ramdisk configured, subtract space for it from end of memory.
+	 *
+	 * Calculate heapsize for near heap allocator.
+	 * Return start address for near heap allocator.
 	 */
 
-	/* Heap allocations at even addresses, important for performance */
-	unsigned int endbss = (unsigned int)(_endbss + 1) & ~1;
+	/* Heap allocations at even addresses */
+	endbss = (unsigned int)(_endbss + 1) & ~1;
 
-	/*
-	 * Calculate size of heap, which extends end of kernel data segment
-	 */
+	/* Calculate size of heap, which extends end of kernel data segment */
 
 #ifdef SETUP_HEAPSIZE
-	unsigned int heapsegs = (1 + ~endbss) >> 4;	/* max possible heap in segments*/
-	if ((SETUP_HEAPSIZE >> 4) < heapsegs)		/* allow if less than max*/
-		heapsegs = SETUP_HEAPSIZE >> 4;
-	*start = kernel_ds + heapsegs + (((unsigned int) (_endbss+15)) >> 4);
-	heapsize = heapsegs << 4;
-#else
-	*start = kernel_ds + 0x1000;
-	heapsize = 1 + ~endbss;
+	heapsize = SETUP_HEAPSIZE;          /* may also be set via heap= in /bootopts */
 #endif
+	if (heapsize) {
+            heapsegs = (1 + ~endbss) >> 4;  /* max possible heap in segments */
+            if ((heapsize >> 4) < heapsegs) /* allow if less than max */
+        	heapsegs = heapsize >> 4;
+            membase = kernel_ds + heapsegs + (((unsigned int) (_endbss+15)) >> 4);
+            heapsize = heapsegs << 4;
+	} else {
+           membase = kernel_ds + 0x1000;
+           heapsize = 1 + ~endbss;
+	}
+	//debug("endbss %x heap %x kdata size %x\n", endbss, heapsize, (membase-kernel_ds)<<4);
 
-	*end = (seg_t)SETUP_MEM_KBYTES << 6;
+	memend = SETUP_MEM_KBYTES << 6;
 
 #if defined(CONFIG_RAMDISK_SEGMENT) && (CONFIG_RAMDISK_SEGMENT > 0)
 	if (CONFIG_RAMDISK_SEGMENT <= *end) {
-		/* reduce top of memory by size of ram disk*/
-		*end -= CONFIG_RAMDISK_SECTORS << 5;
+		/* reduce top of memory by size of ram disk */
+		memend -= CONFIG_RAMDISK_SECTORS << 5;
 	}
 #endif
 
-	/* Now insert local heap at end of kernel data segment */
-	heap_init ();
-	heap_add ((void *)endbss, heapsize);
-
-	/* Misc */
-	ROOT_DEV = SETUP_ROOT_DEV;
-
+	arch_cpu = SETUP_CPU_TYPE;
 #ifdef SYS_CAPS
 	sys_caps = SYS_CAPS;	/* custom system capabilities */
 #else
-	byte_t arch_cpu = SETUP_CPU_TYPE;
 	if (arch_cpu > 5)       /* 80286+ IBM PC/AT capabilities or Unknown CPU */
 		sys_caps = CAP_ALL;
 #endif
+	return endbss;		/* used as start address in near heap init */
+
 }
 
 /*
  * The following routines may need porting on non-IBM PC architectures
  */
+
+/*
+ * This function gets called by the keyboard interrupt handler.
+ * As it's called within an interrupt, it may NOT sync.
+ */
+void ctrl_alt_del(void)
+{
+    hard_reset_now();
+}
 
 void hard_reset_now(void)
 {

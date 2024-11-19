@@ -1,5 +1,5 @@
 /*
- * ELKS implmentation of memory devices
+ * TLVC implmentation of memory devices
  * /dev/null, /dev/ports, /dev/zero, /dev/mem, /dev/kmem, etc...
  *
  * Heavily inspired by linux/drivers/char/mem.c
@@ -9,8 +9,6 @@
  * /dev/mem refers to physical memory
  * /dev/kmem refers to _virtual_ address space
  * /dev/port	refers to hardware ports <Marcin.Laszewski@gmail.com>
- * Currently these will be the same, but eventually, once ELKS has
- * EMS, etc, we'll want to change these.
  */
 
 #include <linuxmt/config.h>
@@ -38,12 +36,6 @@
 #define DEV_PORT_MINOR		4
 #define DEV_ZERO_MINOR		5
 
-#define DEV_FULL_MINOR		7
-#define DEV_RANDOM_MINOR	8
-#define DEV_URANDOM_MINOR	9
-
-//#define debugmem printk
-//#define DEBUG
 /*
  * generally useful code...
  */
@@ -62,12 +54,6 @@ int memory_lseek(struct inode *inode, register struct file *filp,
     }
     if (offset != filp->f_pos) {
 	filp->f_pos = offset;
-
-#ifdef BLOAT_FS
-	filp->f_reada = 0;
-	filp->f_version = ++event;
-#endif
-
     }
     return 0;
 }
@@ -269,7 +255,7 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
 	retword = kernel_ds;
 	break;
     case MEM_GETFARTEXT:
-        retword = (unsigned)((long)kernel_init >> 16);
+        retword = (unsigned)((long)buffer_init >> 16);
         break;
     case MEM_GETUSAGE:
 	mm_get_usage (&(mu.free_memory), &(mu.used_memory));
@@ -281,14 +267,17 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
     case MEM_GETHEAP:
 	retword = (unsigned short) &_heap_all;
 	break;
+    case MEM_GETJIFFADDR:
+	retword = (unsigned) &jiffies;
+	break;
+    case MEM_GETSEGALL:
+        retword = (unsigned short) &_seg_all;
+        break;
     case MEM_GETUPTIME:
 #ifdef CONFIG_CPU_USAGE
 	retword = (unsigned short) &uptime;
 	break;
 #endif
-    case MEM_GETJIFFADDR:
-	retword = (unsigned) &jiffies;
-	break;
     default:
 	return -EINVAL;
     }
