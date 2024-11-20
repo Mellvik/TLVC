@@ -7,9 +7,9 @@
 
 	.text
 
-	.global _syscall_signal
+	.global _signal_cbhandler
 
-_syscall_signal:
+_signal_cbhandler:
 	push %bp
 	mov %sp,%bp
 

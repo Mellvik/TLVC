@@ -1,0 +1,99 @@
+##############################################################################
+#                                                                            #
+# Standard rulesets for use when compiling TLVC applications.                #
+#                                                                            #
+# This file should be included in every Makefile below tlvccmd/ via e.g.:    #
+#   BASEDIR=..                                                               #
+#   include $(BASEDIR)/Makefile-rules                                        #
+#                                                                            #
+##############################################################################
+
+ifndef TOPDIR
+$(error TOPDIR is not defined)
+endif
+
+include $(TOPDIR)/Make.defs
+
+##############################################################################
+#
+# It is not normally necessary to make changes below this line.
+#
+# Specify directories.
+
+TLVC_DIR=$(TOPDIR)/tlvc
+TLVCCMD_DIR=$(TOPDIR)/tlvccmd
+
+INCLUDES=-I$(TOPDIR)/include -I$(TOPDIR)/libc/include -I$(TLVC_DIR)/include
+
+##############################################################################
+#
+# Determine the TLVC kernel version.
+
+T_V=$(shell if [ -f $(TLVC_DIR)/Makefile-rules ]; then \
+		grep -v '^\#' $(TLVC_DIR)/Makefile-rules \
+		    | fgrep = | head -4 | tr '\#' = | cut -d = -f 2 ;\
+	    else echo Version not known ; fi)
+
+TLVC_VSN=$(shell printf '%s.%s.%s%s' $(T_V))
+
+##############################################################################
+#
+# Compiler variables for programs to be compiled as host applications.
+HOSTCC = gcc
+HOSTCFLAGS = -O3
+
+##############################################################################
+#
+# Compiler variables for programs cross-compiled for ELKS.
+
+CLBASE =  -mcmodel=small -melks-libc -mtune=i8086 -Wall -Os
+CLBASE += -mno-segment-relocation-stuff
+CLBASE += -fno-inline -fno-builtin-printf -fno-builtin-fprintf
+#CLBASE += -mregparmcall
+ifeq ($(CONFIG_APPS_FTRACE), y)
+    CLBASE += -fno-omit-frame-pointer -fno-optimize-sibling-calls
+    CLBASE += -finstrument-functions-simple -maout-symtab
+endif
+
+# temporarily turn off typical non-K&R warnings for now
+WARNINGS = -Wno-implicit-int
+# temporarily turn off suggesting parenthesis around assignment used as truth value
+WARNINGS += -Wno-parentheses
+
+CC=ia16-elf-gcc
+AS=ia16-elf-as
+LD=ia16-elf-gcc
+
+CFLAGS =  $(CLBASE) $(WARNINGS) $(LOCALFLAGS) $(INCLUDES)
+CFLAGS += -Wextra -Wtype-limits -Wno-unused-parameter -Wno-sign-compare -Wno-empty-body
+CFLAGS += -D__ELKS__ -DTLVC_VERSION=\"$(TLVC_VSN)\"
+ASFLAGS = -mtune=i8086 --32-segelf
+LDFLAGS = $(CLBASE)
+
+
+###############################################################################
+#
+# Special libraries for some programs
+TINYPRINTF=$(TLVCCMD_DIR)/lib/tiny_vfprintf.o
+
+###############################################################################
+#
+# Standard compilation rules.
+
+.PHONY: all clean install
+
+.S.s:
+	$(CC) -E -traditional $(INCLUDES) $(CCDEFS) -o $*.s $<
+
+.S.o:
+	$(CC) -E -traditional $(INCLUDES) $(CCDEFS) -o $*.tmp $<
+	$(AS) $(ASFLAGS) -o $*.o $*.tmp
+	$(RM) $*.tmp
+
+.s.o:
+	$(AS) $(ASFLAGS) -o $*.o $<
+
+.c.o:
+	$(CC) $(CFLAGS) -c -o $*.o $<
+
+###############################################################################
