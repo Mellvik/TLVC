@@ -15,38 +15,31 @@ include $(BASEDIR)/Makefile-rules
 # All subdirectories to build & clean
 
 # TODO: broken command compilations: byacc m4 xvi
-# unused commands but working compilations: mtools nano prems
+# TLVC removed because of nonuse: busyelks, levee, nano-X, screen, tui
+# 				  test
 SUBDIRS =       \
 	lib         \
 	ash         \
 	basic       \
 	bc          \
-	busyelks    \
 	disk_utils  \
 	elvis	    \
 	file_utils  \
 	inet        \
 	ktcp        \
-	levee       \
 	minix1      \
 	minix2      \
 	minix3      \
 	misc_utils  \
-	nano-X      \
 	sash        \
-	screen      \
 	cron        \
 	sh_utils    \
 	sys_utils   \
-	tui         \
-	test        \
 	# EOL
 
 ###############################################################################
 #
 # Compile everything.
-
-include $(BASEDIR)/Make.rules
 
 all:
 	@if [ ! -e $(TOPDIR)/include/autoconf.h ]; \

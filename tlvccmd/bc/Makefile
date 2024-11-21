@@ -1,14 +1,8 @@
 # Makefile for bc
 #
-# A makefile for bc.  This is part of the bc/sbc distribution.
-#
-# $Id$
-###############################################################################
-#
-# Include standard packaging commands.
 
-BASEDIR 	= ..
-include $(BASEDIR)/Make.defs
+BASEDIR	= ..
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 #

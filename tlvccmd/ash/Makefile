@@ -1,20 +1,12 @@
-# Makefile for ash.
+# Makefile for ash
 #
-# 19980209 Claudio Matsuoka <claudio@conectiva.com>
-# Modified for ELKS and bcc
 
 BASEDIR = ..
-
-include $(BASEDIR)/Make.defs
 
 LOCALFLAGS = -DSHELL -I. -D_MINIX -D_POSIX_SOURCE -Dlint
 LOCALFLAGS += -Wno-implicit-int
 
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 

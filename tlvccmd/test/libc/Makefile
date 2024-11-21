@@ -1,8 +1,8 @@
 # Makefile for libc tests
 
-BASEDIR=../..
+BASEDIR=../../..
 
-include $(BASEDIR)/Make.defs
+include $(BASEDIR)/Makefile-rules
 
 PGM = test_libc
 
@@ -21,8 +21,6 @@ SRCS = \
 	time.c
 
 OBJS = $(SRCS:.c=.o)
-
-include $(BASEDIR)/Make.rules
 
 all: $(PGM)
 
