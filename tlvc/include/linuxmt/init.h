@@ -3,6 +3,7 @@
 
 /* Assorted initializers */
 
+#include <linuxmt/config.h>
 #include <linuxmt/types.h>
 
 #if defined(CONFIG_FARTEXT_KERNEL) && !defined(__STRICT_ANSI__)
@@ -19,10 +20,8 @@ struct gendisk;
 struct drive_infot;
 
 /* kernel init routines*/
-extern void INITPROC kernel_init(void);
 extern int  INITPROC buffer_init(void);
-extern void console_init(void);
-extern void INITPROC fs_init(void);
+extern void INITPROC console_init(void);
 extern void INITPROC inode_init(void);
 extern void INITPROC irq_init(void);
 extern void save_timer_irq(void);
@@ -37,13 +36,13 @@ extern void INITPROC tty_init(void);
 extern void INITPROC device_init(void);
 extern void INITPROC setup_dev(register struct gendisk *);
 
-extern void tz_init(const char *tzstr);
+extern void INITPROC tz_init(const char *tzstr);
 
 /* block device init routines*/
 extern void INITPROC blk_dev_init(void);
-extern int INITPROC bioshd_init(void);
-extern int INITPROC get_ide_data(int, struct drive_infot *);
-extern int INITPROC directhd_init(void);
+extern int  INITPROC bioshd_init(void);
+extern int  INITPROC get_ide_data(int, struct drive_infot *);
+extern int  INITPROC directhd_init(void);
 extern void INITPROC floppy_init(void);
 extern void INITPROC rd_init(void);
 extern void INITPROC ssd_init(void);

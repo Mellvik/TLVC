@@ -122,7 +122,7 @@ static int strcmp (const char * s, const char * d)
 
 static void load_super ()
 {
-	disk_read (2, 2, sb_block, seg_data ());
+	disk_read (2, 1, sb_block, seg_data());
 
 	/*
 	if (sb_data->s_log_zone_size) {

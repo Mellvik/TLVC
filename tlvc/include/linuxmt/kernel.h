@@ -2,10 +2,10 @@
 #define __LINUXMT_KERNEL_H
 
 #include <linuxmt/types.h>
-#include <stddef.h>
+#include <arch/cdefs.h>
 
 /*
- * 'kernel.h' contains some often-used function prototypes etc
+ * 'kernel.h' contains some often-used function prototypes and globals
  */
 
 #ifdef __KERNEL__
@@ -19,6 +19,8 @@
 #define structof(p,t,m) ((t *) ((char *) (p) - offsetof (t,m)))
 
 extern char running_qemu;
+extern unsigned char arch_cpu;
+extern dev_t dev_console;
 extern int debug_level;
 
 extern void do_exit(int);

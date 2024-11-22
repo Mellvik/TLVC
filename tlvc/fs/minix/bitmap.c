@@ -36,7 +36,7 @@ struct buffer_head *get_map_block(kdev_t dev, block_t block)
     return bh;
 }
 
-static unsigned short count_used(kdev_t dev, unsigned int map[],
+static unsigned int count_used(kdev_t dev, unsigned short *map,
 				 unsigned int numblocks, unsigned int numbits)
 {
     unsigned int i, j, end, sum = 0;

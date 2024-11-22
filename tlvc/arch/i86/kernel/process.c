@@ -48,30 +48,28 @@ int run_init_process_sptr(const char *cmd, char *sptr, int slen)
  */
 void stack_check(void)
 {
-    register __ptask currentp = current;
-    register char *end = (char *)currentp->t_endbrk;
+    segoff_t end = current->t_endbrk;
 
 #ifdef CONFIG_EXEC_LOW_STACK
-    if (currentp->t_begstack <= currentp->t_enddata) {	/* stack below heap?*/
-	if (currentp->t_regs.sp < (__u16)end)
+    if (current->t_begstack <= current->t_enddata) {	/* stack below heap?*/
+	if (current->t_regs.sp < (__u16)end)
 	    return;
 	end = 0;
     } else
 #endif
     {
 	/* optional: check stack over min stack*/
-	if (currentp->t_regs.sp < currentp->t_begstack - currentp->t_minstack) {
-	  if (currentp->t_minstack)	/* display if protected stack*/
-	    printk("(%d)STACK OVER MINSTACK by %u BYTES\n", currentp->pid,
-		currentp->t_begstack - currentp->t_minstack - currentp->t_regs.sp);
+	if (current->t_regs.sp < current->t_begstack - current->t_minstack) {
+	  if (current->t_minstack)	/* display if protected stack*/
+	    printk("(%d)STACK OVER MINSTACK by %u BYTES\n", current->pid,
+		current->t_begstack - current->t_minstack - current->t_regs.sp);
 	}
 
 	/* check stack overflow heap*/
-	if (currentp->t_regs.sp > (__u16)end)
+	if (current->t_regs.sp > end)
 	    return;
     }
-    printk("(%d)STACK OVERFLOW BY %u BYTES\n",
-	currentp->pid, (__u16)end - currentp->t_regs.sp);
+    printk("(%P)STACK OVERFLOW BY %u BYTES\n", end - current->t_regs.sp);
     do_exit(SIGSEGV);
 }
 

@@ -17,9 +17,9 @@
 
 #define idle_task task[0]
 
-__task *task;           /* dynamically allocated task array */
-__ptask current;
-__ptask previous;
+struct task_struct *task;           /* dynamically allocated task array */
+struct task_struct *current;
+struct task_struct *previous;
 int max_tasks = MAX_TASKS;
 
 extern int intr_count;
@@ -33,13 +33,13 @@ void add_to_runqueue(register struct task_struct *p)
 
 void del_from_runqueue(register struct task_struct *p)
 {
-#if 0       /* sanity tests */
+#if CHECK_SCHED       /* sanity tests */
     if (!p->next_run || !p->prev_run) {
-	printk("task %d not on run-queue (state=%d)\n", p->pid, p->state);
+	printk("del_fr_runq: %d not found (%d)\n", p->pid, p->state);
 	return;
     }
     if (p == &idle_task) {
-	//printk("idle task may not sleep\n");
+	printk("idle task cannot sleep\n");
 	return;
     }
 #endif
@@ -65,8 +65,8 @@ static void process_timeout(int __data)
 
 void schedule(void)
 {
-    register __ptask prev;
-    register __ptask next;
+    register struct task_struct *prev;
+    register struct task_struct *next;
     struct timer_list timer;
     jiff_t timeout = 0UL;
 
@@ -76,7 +76,7 @@ void schedule(void)
     if (_gint_count > 1) {      /* neither user nor idle task was running */
     /* Taking a timer IRQ during another IRQ or while in kernel space is
      * quite legal. We just dont switch then */
-	panic("schedule from interrupt\n");
+	panic("schedule from int");
     }
 #endif
 

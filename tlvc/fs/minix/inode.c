@@ -230,7 +230,7 @@ static unsigned short map_izone(register struct inode *inode, block_t block, int
 
     if (create && !(*i_zone)) {
 	if ((*i_zone = minix_new_block(inode->i_sb))) {
-	    inode->i_ctime = CURRENT_TIME;
+	    inode->i_ctime = current_time();;
 	    inode->i_dirt = 1;
 	}
     }
@@ -269,7 +269,7 @@ unsigned short _minix_bmap(register struct inode *inode, block_t block, int crea
  * check for overruns in the block num elsewhere.. FIXME
  */
     if (block > (7 + 512 + 512 * 512))
-	panic("_minix_bmap: block (%d) >big", block);
+	panic("minix_bmap: block %d >big", block);
 #endif
 
     if (block < 7)
@@ -449,8 +449,3 @@ struct file_system_type minix_fs_type = {
     minix_read_super,
 	FST_MINIX
 };
-
-int init_minix_fs(void)
-{
-    return 1;
-}

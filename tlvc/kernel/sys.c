@@ -18,12 +18,6 @@
 #include <arch/io.h>
 
 /*
- * Indicates whether you can reboot with ctrl-alt-del: the default is yes
- */
-
-static int C_A_D = 1;
-
-/*
  * Reboot system call: for obvious reasons only root may call it, and even
  * root needs to set up some magic numbers in the registers so that some
  * mistake won't make this reboot the whole machine.
@@ -38,45 +32,26 @@ int sys_reboot(unsigned int magic, unsigned int magic_too, int flag)
     if (!suser())
 	return -EPERM;
 
-    if (magic == 0x1D1E && magic_too == 0xC0DE) {
-	switch(flag) {
-	    case 0x4567:
-		flag = 1;
-		/* fall through*/
-	    case 0:
-		C_A_D = flag;
-		return 0;
-	    case 0x0123:		/* reboot*/
-		hard_reset_now();
-		printk("Reboot failed\n");
-		/* fall through*/
-	    case 0x6789:		/* shutdown*/
-		sys_kill(1, SIGKILL);
-		sys_kill(-1, SIGKILL);
-		printk("System halted\n");
-		do_exit(0);
-		/* no return*/
-	    case 0xDEAD:		/* poweroff*/
-		apm_shutdown_now();
-		printk("APM shutdown failed\n");
-	}
+    switch(flag) {
+    case RB_REBOOT:
+        hard_reset_now();
+        printk("Reboot failed\n");
+        /* fall through */
+
+    case RB_SHUTDOWN:
+shutdown:
+        sys_kill(1, SIGKILL);
+        sys_kill(-1, SIGKILL);
+        printk("System halted\n");
+        do_exit(0);
+        /* no return*/
+
+    case RB_POWEROFF:
+        apm_shutdown_now();
+        printk("Poweroff failed\n");
+        goto shutdown;
     }
-
     return -EINVAL;
-}
-
-/*
- * This function gets called by ctrl-alt-del - ie the keyboard interrupt.
- * As it's called within an interrupt, it may NOT sync: the only choice
- * is whether to reboot at once, or just ignore the ctrl-alt-del.
- */
-
-void ctrl_alt_del(void)
-{
-    if (C_A_D)
-	hard_reset_now();
-
-    kill_process(1, (sig_t) SIGINT, 1);
 }
 
 /*
@@ -94,12 +69,11 @@ int sys_uname(struct utsname *utsname)
 
 int sys_setgid(gid_t gid)
 {
-    register __ptask currentp = current;
 
     if (suser())
-	currentp->gid = currentp->egid = currentp->sgid = gid;
-    else if ((gid == currentp->gid) || (gid == currentp->sgid))
-	currentp->egid = gid;
+	current->gid = current->egid = current->sgid = gid;
+    else if ((gid == current->gid) || (gid == current->sgid))
+	current->egid = gid;
     else
 	return -EPERM;
     return 0;
@@ -129,11 +103,10 @@ pid_t sys_getpid(int *ppid)
 
 unsigned short int sys_umask(unsigned short int mask)
 {
-    register __ptask currentp = current;
     unsigned short int old;
 
-    old = currentp->fs.umask;
-    currentp->fs.umask = mask & ((unsigned short int) S_IRWXUGO);
+    old = current->fs.umask;
+    current->fs.umask = mask & ((unsigned short int) S_IRWXUGO);
     return old;
 }
 
@@ -151,12 +124,11 @@ unsigned short int sys_umask(unsigned short int mask)
 
 int sys_setuid(uid_t uid)
 {
-    register __ptask currentp = current;
 
     if (suser())
-	currentp->uid = currentp->euid = currentp->suid = uid;
-    else if ((uid == currentp->uid) || (uid == currentp->suid))
-	currentp->euid = uid;
+	current->uid = current->euid = current->suid = uid;
+    else if ((uid == current->uid) || (uid == current->suid))
+	current->euid = uid;
     else
 	return -EPERM;
     return 0;
@@ -277,15 +249,13 @@ int sys_getsid(pid_t pid)
 
 int sys_setsid(void)
 {
-    register __ptask currentp = current;
-
-    if (currentp->session == currentp->pid)
+    if (current->session == current->pid)
 	return -EPERM;
-    debug_tty("SETSID pgrp %d\n", currentp->pid);
-    currentp->session = currentp->pgrp = currentp->pid;
-    currentp->tty = NULL;
+    debug_tty("SETSID pgrp %d\n", current->pid);
+    current->session = current->pgrp = current->pid;
+    current->tty = NULL;
 
-    return currentp->pgrp;
+    return current->pgrp;
 }
 
 #ifdef CONFIG_SUPPLEMENTARY_GROUPS
@@ -352,15 +322,15 @@ int sys_setgroups(int gidsetsize, gid_t * grouplist)
 
 int in_group_p(gid_t grp)
 {
-    register char *p = (char *) current;
+    git_t *pg;
+    char *p;
 
-    if (grp != ((__ptask) p)->egid) {
-	register gid_t *pg = ((__ptask) p)->groups - 1;
-
+    if (grp != current->egid) {
+	pg = current->groups - 1;
 	p = (char *)(pg + NGROUPS);
 
 	do {
-	    if ((++pg > ((gid_t *) p)) || (*pg == NOGROUP)) {
+	    if ((++pg > ((gid_t *)p)) || (*pg == NOGROUP)) {
 		return 0;
 	    }
 	} while (*pg != grp);

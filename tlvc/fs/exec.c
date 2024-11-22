@@ -31,7 +31,7 @@
  *			the direct hd/fd drivers.
  */
 
-#include <linuxmt/types.h>
+#include <linuxmt/config.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/fcntl.h>
 #include <linuxmt/stat.h>
@@ -73,7 +73,7 @@
  * Read relocations for a particular segment and apply them
  * Only IA-16 segment relocations are accepted
  */
-static int relocate(seg_t place_base, lsize_t rsize, segment_s *seg_code,
+static int relocate(seg_t place_base, unsigned long rsize, segment_s *seg_code,
 	segment_s *seg_data, struct inode *inode, struct file *filp, size_t tseg)
 {
     int retval = 0;
@@ -128,14 +128,14 @@ static int relocate(seg_t place_base, lsize_t rsize, segment_s *seg_code,
 
 int sys_execve(const char *filename, char *sptr, size_t slen)
 {
-    register __ptask currentp;
+    register struct task_struct *currentp;
     struct inode *inode;
     struct file *filp;
     int retval;
     __u16 ds;
     seg_t base_data = 0;
-    segment_s * seg_code;
-    segment_s * seg_data;
+    segment_s *seg_code;
+    segment_s *seg_data;
     size_t len, min_len, heap, stack = 0;
     size_t bytes;
     segext_t paras;
@@ -146,7 +146,7 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
 #endif
 
     /* Open the image */
-    debug_file("EXEC: '%t' env %d\n", filename, slen);
+    debug_file("EXEC(%P): '%t' env %d\n", filename, slen);
 
     retval = open_namei(filename, 0, 0, &inode, NULL);
 
@@ -164,7 +164,7 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
     do {
 	if ((currentp->state <= TASK_STOPPED) && (currentp->t_inode == inode)) {
 	    debug("EXEC found copy\n");
-	    seg_code = currentp->mm.seg_code;
+	    seg_code = currentp->mm[SEG_CODE];
 	    break;
 	}
     } while (++currentp < &task[max_tasks]);
@@ -443,11 +443,11 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
 
     /* From this point, exec() will surely succeed */
 
-    currentp->t_endseg = (__pptr)len;	/* Needed for sys_brk() */
+    currentp->t_endseg = len;	/* Needed for sys_brk() */
 
     /* Copy the command line and environment */
     currentp->t_begstack = (base_data	/* Just above the top of stack */
-	? (__pptr)base_data
+	? base_data
 	: currentp->t_endseg) - slen;
     currentp->t_begstack &= ~1;		/* force even stack pointer and argv/envp*/
     currentp->t_regs.sp = (__u16)currentp->t_begstack;
@@ -457,14 +457,14 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
     /* From this point, the old code and data segments are not needed anymore */
 
     /* Flush the old binary out.  */
-    if (currentp->mm.seg_code) seg_put(currentp->mm.seg_code);
-    if (currentp->mm.seg_data) seg_put(currentp->mm.seg_data);
+    if (currentp->mm[SEG_CODE]) seg_put(currentp->mm[SEG_CODE]);
+    if (currentp->mm[SEG_DATA]) seg_put(currentp->mm[SEG_DATA]);
     debug("EXEC: old binary flushed.\n");
 
-    currentp->mm.seg_code = seg_code;
+    currentp->mm[SEG_CODE] = seg_code;
     currentp->t_xregs.cs = seg_code->base;
 
-    currentp->mm.seg_data = seg_data;
+    currentp->mm[SEG_DATA] = seg_data;
     currentp->t_regs.es = currentp->t_regs.ss = seg_data->base;
 
     /* Wipe the BSS */
@@ -513,7 +513,7 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
 	    currentp->egid = inode->i_gid;
     }
 
-    currentp->t_enddata = (__pptr) ((__u16)mh.dseg + (__u16)mh.bseg + base_data);
+    currentp->t_enddata = (size_t)mh.dseg + (size_t)mh.bseg + base_data;
     currentp->t_endbrk =  currentp->t_enddata;
 
 	/* ease libc memory allocations by setting even break address*/

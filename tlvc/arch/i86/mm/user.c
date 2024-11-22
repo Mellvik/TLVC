@@ -10,13 +10,11 @@
 
 int verfy_area(void *p, size_t len)
 {
-    register __ptask currentp = current;
-
     /*
-     *	Kernel tasks can always access
+     *	Kernel tasks can always access user process boundaries
      */
-    if ((kernel_ds == currentp->t_regs.ds) /* Kernel tasks can always access */
-	  || ((__pptr)((char *)p + len) <= currentp->t_endseg)) /* User process boundaries */
+    if ((kernel_ds == current->t_regs.ds) ||
+	  ((segoff_t)((char *)p + len) <= current->t_endseg))
 	return 0;
 
     return -EFAULT;

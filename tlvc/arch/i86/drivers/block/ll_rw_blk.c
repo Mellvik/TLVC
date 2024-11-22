@@ -45,8 +45,7 @@ static struct request *__get_request_wait(int, kdev_t);
  * take precedence.
  */
 
-#define NR_REQUEST	20
-//#define DEBUG_BUFFER	1
+//#define NR_REQUEST	20 /* Moved to limits.h */
 
 static struct request request_list[NR_REQUEST];
 
@@ -127,7 +126,8 @@ static struct request *get_request_wait(int n, kdev_t dev)
 #endif
 
 /*
- * add-request adds a request to the linked list.
+ * add_request passes a request on to the low level driver if the device 
+ * request queue is empty, otherwise adds a request to the linked list.
  * It disables interrupts so that it can muck with the
  * request-lists in peace.
  */
@@ -141,8 +141,8 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
     if (!(tmp = dev->current_request)) {	/* if queue empty, process ... */
 	dev->current_request = req;
 	set_irq();
-#if DEBUG_BUFFER
-	printk("AD%04x|", req);
+#if DEBUG_ASYNC
+	if (debug_level > 2) printk("AD%04x|", req);
 #endif
 	(dev->request_fn) ();
     } else {				/* otherwise just add to queue */
@@ -155,8 +155,8 @@ static void add_request(struct blk_dev_struct *dev, struct request *req)
 	req->rq_next = tmp->rq_next;
 	tmp->rq_next = req;
 	set_irq();
-#if DEBUG_BUFFER
-	printk("AQ%04x|", req);
+#if DEBUG_ASYNC
+	if (debug_level > 2) printk("AQ%04x|", req);
 #endif
     }
     //mark_buffer_clean(req->rq_bh);	/* EXPERIMENTAL: moved to end_request, blk.h */
@@ -168,8 +168,11 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
     int max_req;
     ext_buffer_head *ebh = EBH(bh);
 
-    debug_blk("BLK (%d) %lu %s %lx:%x\n", major, buffer_blocknr(bh), rw==READ? "read": "write",
+#if DEBUG_ASYNC
+    if (debug_level)
+	printk("BLK (%d) %lu %s %lx:%x\n", major, buffer_blocknr(bh), rw==READ? "read": "write",
 	(unsigned long)buffer_seg(bh), buffer_data(bh));
+#endif
 
 #ifdef BDEV_SIZE_CHK	/* NOTE: not updated for raw IO */
     sector_t count = BLOCK_SIZE / FIXED_SECTOR_SIZE;	/* FIXME must move to lower level*/
@@ -243,8 +246,8 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	req->rq_seg = buffer_seg(bh);
 	req->rq_buffer = buffer_data(bh);
     }
-#if DEBUG_BUFFER
-    printk("\n|seg%lx:%04x|%cblk%d|BH%04x|dev%04x;", (unsigned long)buffer_seg(bh),
+#if DEBUG_ASYNC
+    if (debug_level) printk("\n|seg%lx:%04x|%cblk%d|BH%04x|dev%04x;", (unsigned long)buffer_seg(bh),
 		buffer_data(bh), rw == READ ? 'R' : 'W',
 		(word_t)ebh->b_blocknr, (word_t)bh, (word_t)buffer_dev(bh));
 #endif
@@ -434,7 +437,7 @@ void INITPROC blk_dev_init(void)
 #endif
 
 #ifdef CONFIG_ROMFS_FS
-    romflash_init ();
+    romflash_init();
 #endif
 
 #ifdef CONFIG_BLK_DEV_XD
