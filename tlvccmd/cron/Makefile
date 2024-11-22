@@ -1,18 +1,10 @@
-##################################################################################
-
 # Makefile for cron
 
 BASEDIR=..
 
-include $(BASEDIR)/Make.defs
-
 LOCALFLAGS = -Wno-implicit-int -Wno-return-type $(OPTIONS)
 
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 

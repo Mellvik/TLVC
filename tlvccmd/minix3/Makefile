@@ -1,22 +1,10 @@
 BASEDIR=..
 
-LOCALFLAGS=
-
-include $(BASEDIR)/Make.defs
-
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 
 PRGS = file head sed sort tail tee cal diff find
-
-#
-# Rules
-#
 
 cal: cal.o $(TINYPRINTF)
 	$(LD) $(LDFLAGS) -o cal cal.o $(TINYPRINTF) $(LDLIBS)
@@ -36,9 +24,7 @@ head: head.o
 sed: sed.o
 	$(LD) $(LDFLAGS) -o sed sed.o $(LDLIBS)
 
-# For ELKS, sort needs more data segment space than the kernel-given default.
-# Use gcc-ia16's -maout-chmem= option so that the a.out header will ask the
-# kernel for more non-static memory.
+# For TLVC, sort needs more data segment space than the kernel-given default.
 sort: sort.o
 	$(LD) $(LDFLAGS) -maout-heap=0xb000 -o sort sort.o $(LDLIBS)
 
@@ -48,8 +34,6 @@ tail: tail.o
 tee: tee.o
 	$(LD) $(LDFLAGS) -o tee tee.o $(LDLIBS)
 
-
-include $(BASEDIR)/Make.rules
 
 all: $(PRGS)
 

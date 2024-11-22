@@ -1,16 +1,9 @@
 BASEDIR=..
 
-include $(BASEDIR)/Make.defs
-
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 
-# note: grep doesn't read stdin, replaced with minix1/grep
 # removed: l
 PRGS = ln ls mkdir mkfifo mknod more mv rm rmdir sync touch \
 	cat chgrp chmod chown cmp cp dd grep split

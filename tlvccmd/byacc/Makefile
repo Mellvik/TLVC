@@ -1,14 +1,8 @@
 # Makefile for Berkeley yacc.
 
 BASEDIR = ..
-    
-include ../Make.defs
 
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 

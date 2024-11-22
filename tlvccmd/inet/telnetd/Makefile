@@ -1,18 +1,12 @@
-# Makefile for telnet
+# Makefile for telnetd
 
 BASEDIR=../..
 
-include $(BASEDIR)/Make.defs
-
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 
-SRCS = telnetd.c telnet.c
+SRCS = telnetd.c
 OBJS = $(SRCS:.c=.o) 
 LDFLAGS += -maout-heap=1024 -maout-stack=1024
 

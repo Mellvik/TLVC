@@ -4,72 +4,86 @@
  * Reduces executable size when linked with app for programs requiring
  *  output to terminal only (stdout, stderr) and no file I/O.
  * Automatically usable with:
- *  printf, fprintf, sprintf
+ *  printf, fprintf, sprintf, fputc, fflush
  *
  * Limitations:
  *      %s, %c, %d, %u, %x, %o, %ld, %lu, %lx, %lo only w/field width & precision
  *  Don't use with fopen (stdout, stderr only)
- *    Replaces stdout and stderr buffers with single buffer
+ *  Always line buffered
  *
  * Mar 2020 Greg Haerr
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/rtinit.h>
 
 static unsigned char bufout[80];
+static unsigned char buferr[80];
 
 FILE  stdout[1] =
 {
    {
     bufout,
     bufout,
-    bufout,
+    bufout + sizeof(bufout),    /* putc is full buffered */
     bufout,
     bufout + sizeof(bufout),
     1,
-    _IOFBF | __MODE_WRITE | __MODE_IOTRAN
+    _IOLBF | __MODE_WRITE | __MODE_IOTRAN
    }
 };
 
 FILE  stderr[1] =
 {
    {
-    bufout,
-    bufout,
-    bufout,
-    bufout,
-    bufout + sizeof(bufout),
+    buferr,
+    buferr,
+    buferr + sizeof(buferr),    /* putc is full buffered */
+    buferr,
+    buferr + sizeof(buferr),
     2,
-    _IOFBF | __MODE_WRITE | __MODE_IOTRAN
+    _IOLBF | __MODE_WRITE | __MODE_IOTRAN
    }
 };
 
-static void __fflush(FILE *fp)
+/* name clash with stdio/init.c if __stdio_fini name used */
+#pragma GCC diagnostic ignored "-Wprio-ctor-dtor"
+DESTRUCTOR(__exit_flush, _INIT_PRI_STDIO);
+void __exit_flush(void)
+{
+   fflush(stdout);
+   fflush(stderr);
+}
+
+int fflush(FILE *fp)
 {
    int len;
 
-   /* Return if this is a fake FILE from sprintf */
-   if (fp->fd < 0)
-      return;
+   if (fp->fd < 0)              /* Return if this is a fake FILE from sprintf */
+      return EOF;
 
    len = fp->bufpos - fp->bufstart;
    if (len)
       write(fp->fd, fp->bufstart, len);
 
-   fp->bufwrite = fp->bufpos = fp->bufstart;
+   fp->bufpos = fp->bufstart;
+   return 0;
 }
 
-static void __fputc(int ch, FILE *fp)
+int fputc(int ch, FILE *fp)
 {
    if (fp->bufpos >= fp->bufend)
-     __fflush(fp);
+     fflush(fp);
 
    *(fp->bufpos++) = ch;
 
-   fp->bufwrite = fp->bufend;
+   if (ch == '\n')              /* fputc is always line buffered */
+     fflush(fp);
+    return ch;
 }
 
 /*
@@ -107,7 +121,7 @@ __fmt(FILE *op, unsigned char *buf, int ljustf, int width, int preci, char pad, 
    {
       if (!ljustf && width)     /* left padding */
       {
-         if (len && sign && (pad == '0'))
+         if (len && sign && pad == '0')
             goto showsign;
          ch = pad;
          --width;
@@ -129,7 +143,7 @@ __fmt(FILE *op, unsigned char *buf, int ljustf, int width, int preci, char pad, 
          ch = pad;              /* right padding */
          --width;
       }
-      __fputc(ch, op);
+      fputc(ch, op);
    }
 
    return cnt;
@@ -240,11 +254,10 @@ vfprintf(FILE *op, const char *fmt, va_list ap)
          }
       } else {
        charout:
-         __fputc(*fmt, op);     /* normal char out */
+         fputc(*fmt, op);     /* normal char out */
          ++cnt;
       }
       ++fmt;
    }
-   __fflush(op);
    return cnt;
 }

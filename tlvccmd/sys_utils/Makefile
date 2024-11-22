@@ -1,20 +1,12 @@
 BASEDIR=..
 
-include $(BASEDIR)/Make.defs
-
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 
 TLVC_LIB=$(TLVC_DIR)/arch/i86/lib
 
 # clock enabled and has direct I/O port access
-# knl, insmod removed as useless
-# exitemu disabled because it calls INT directly to DOSEMU
 PRGS = \
 	init \
 	getty \

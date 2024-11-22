@@ -435,6 +435,7 @@ static int ne2k_open(struct inode *inode, struct file *file)
 		ne2k_reset();
 		ne2k_init();
 #if NET_BUF_STRAT == HEAP_BUFS
+		/* allocate buffer control headers from the heap */
 		net_ibuf = (struct netbuf *)heap_alloc(sizeof(struct netbuf) * (netbufs[NET_RXBUFS] + 
 				netbufs[NET_TXBUFS]), HEAP_TAG_NETWORK);
 		net_obuf = net_ibuf + netbufs[NET_RXBUFS];

@@ -1,16 +1,8 @@
 BASEDIR=..
 
-include $(BASEDIR)/Make.defs
-
 ###############################################################################
-#
-# Include standard packaging commands.
 
-include $(BASEDIR)/Make.rules
-
-HOSTCC = gcc
-HOST_CFLAGS = -O2
-KERNEL_LIBS = $(TOPDIR)/tlvc/arch/i86/lib/lib86.a
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 

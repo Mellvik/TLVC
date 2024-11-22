@@ -1,6 +1,6 @@
 # Makefile for ktcp
 BASEDIR=..
-include $(BASEDIR)/Make.defs
+include $(BASEDIR)/Makefile-rules
 
 SHELL		= /bin/sh
 
@@ -15,13 +15,6 @@ all:	ktcp
 
 ktcp:	$(OBJS)
 	$(LD) $(LDFLAGS) -maout-heap=33772 -maout-stack=3072  -o ktcp $(OBJS) $(LDLIBS)
-
-lint:
-	@for FILE in *.c ; do \
-		echo '===>' "$${FILE}" ; \
-		splint -weak -D__KERNEL__ $(LOCALFLAGS) "$${FILE}" \
-			2>&1 > "$${FILE}.lint" ; \
-	done
 
 install: ktcp
 	$(INSTALL) ktcp $(DESTDIR)/bin

@@ -2,15 +2,9 @@
 
 BASEDIR=..
 
-include $(BASEDIR)/Make.defs
-
 LOCALFLAGS = -Wno-implicit-int
 
-###############################################################################
-#
-# Include standard packaging commands.
-
-include $(BASEDIR)/Make.rules
+include $(BASEDIR)/Makefile-rules
 
 ###############################################################################
 

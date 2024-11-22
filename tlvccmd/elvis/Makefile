@@ -3,8 +3,7 @@
 ###############################################################################
 
 BASEDIR = ..
-
-include $(BASEDIR)/Make.defs
+include $(BASEDIR)/Makefile-rules
 
 LOCALFLAGS=-O -DM_SYSV -DCRUNCH -DNO_MKEXRC -DNO_CURSORSHAPE -DNO_CHARATTR \
 	-DNO_SHOWMODE -DNO_MODELINE -DNO_OPTCOLS -DNO_DIGRAPH -DNO_ABBR \
