@@ -104,11 +104,11 @@ void do_exit(int status)
 
     /* Let go of the process */
     current->state = TASK_EXITING;
-    if (current->mm.seg_code)
-	seg_put(current->mm.seg_code);
-    if (current->mm.seg_data)
-	seg_put(current->mm.seg_data);
-    current->mm.seg_code = current->mm.seg_data = 0;
+    if (current->mm[SEG_CODE])
+	seg_put(current->mm[SEG_CODE]);
+    if (current->mm[SEG_DATA])
+	seg_put(current->mm[SEG_DATA]);
+    current->mm[SEG_CODE] = current->mm[SEG_DATA] = 0;
 
     /* free program allocated memory */
     seg_free_pid(current->pid);
