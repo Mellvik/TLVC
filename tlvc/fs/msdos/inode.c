@@ -34,11 +34,6 @@ struct msdos_devdir_entry devnods[DEVDIR_SIZE] = {
     { "hdb2",	S_IFBLK | 0644, MKDEV(3, 34)},
     { "hdb3",	S_IFBLK | 0644, MKDEV(3, 35)},
     { "hdb4",	S_IFBLK | 0644, MKDEV(3, 36)},
-    { "hdc",	S_IFBLK | 0644, MKDEV(3, 64)},
-    { "hdc1",	S_IFBLK | 0644, MKDEV(3, 65)},
-    { "hdc2",	S_IFBLK | 0644, MKDEV(3, 66)},
-    { "hdc3",	S_IFBLK | 0644, MKDEV(3, 67)},
-    { "hdc4",	S_IFBLK | 0644, MKDEV(3, 68)},
     { "df0",	S_IFBLK | 0644, MKDEV(2,  0)},
     { "df1",	S_IFBLK | 0644, MKDEV(2,  1)},
     { "fd0",	S_IFBLK | 0644, MKDEV(3,128)},
@@ -318,7 +313,7 @@ void msdos_read_inode(register struct inode *inode)
 		inode->i_mode = devnods[(int)inode->i_ino - DEVINO_BASE].mode;
 		inode->i_uid  = 0;
 		inode->i_size = 0;
-		inode->i_mtime= CURRENT_TIME;
+		inode->i_mtime= current_time();
 		inode->i_gid  = 0;
 		inode->i_nlink= 1;
 		inode->i_rdev = devnods[(int)inode->i_ino - DEVINO_BASE].rdev;
@@ -413,7 +408,3 @@ struct file_system_type msdos_fs_type = {
 	FST_MSDOS
 };
 
-int init_msdos_fs(void)
-{
-	return 1;
-}

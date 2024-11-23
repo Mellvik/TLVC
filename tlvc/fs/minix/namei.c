@@ -195,7 +195,7 @@ static int minix_add_entry(register struct inode *dir,
 	    return -EEXIST;
 	}
     }
-    dir->i_mtime = dir->i_ctime = CURRENT_TIME;
+    dir->i_mtime = dir->i_ctime = current_time();
     dir->i_dirt = 1;
     memcpy_fromfs(de->name, name, namelen);
     if (info->s_namelen > namelen)
@@ -421,7 +421,7 @@ int minix_rmdir(register struct inode *dir, char *name, size_t len)
 		mark_buffer_dirty(bh);
 		inode->i_nlink = 0;
 		inode->i_dirt = 1;
-		inode->i_ctime = dir->i_ctime = dir->i_mtime = CURRENT_TIME;
+		inode->i_ctime = dir->i_ctime = dir->i_mtime = current_time();
 		dir->i_nlink--;
 		dir->i_dirt = 1;
 		retval = 0;
@@ -471,7 +471,7 @@ int minix_unlink(register struct inode *dir, char *name, size_t len)
 #endif
 
     mark_buffer_dirty(bh);
-    dir->i_ctime = dir->i_mtime = CURRENT_TIME;
+    dir->i_ctime = dir->i_mtime = current_time();
     dir->i_dirt = 1;
     inode->i_nlink--;
     inode->i_ctime = dir->i_ctime;
@@ -542,7 +542,7 @@ int minix_link(register struct inode *dir, char *name, size_t len,
     }
     else if (!(error = minix_add_entry(dir, name, len, oldinode->i_ino))) {
 	oldinode->i_nlink++;
-	oldinode->i_ctime = CURRENT_TIME;
+	oldinode->i_ctime = current_time();
 	oldinode->i_dirt = 1;
     }
     iput(dir);

@@ -2,8 +2,8 @@
 #define __LINUXMT_SCHED_H
 
 #include <linuxmt/config.h>
-#include <linuxmt/types.h>
 #include <linuxmt/limits.h>
+#include <linuxmt/types.h>
 #include <linuxmt/fs.h>
 #include <linuxmt/time.h>
 #include <linuxmt/signal.h>
@@ -12,65 +12,64 @@
 #include <arch/param.h>
 
 struct file_struct {
-    fd_mask_t			close_on_exec;
-    struct file 		*fd[NR_OPEN];
+    fd_mask_t                   close_on_exec;
+    struct file                 *fd[NR_OPEN];
 };
 
 struct fs_struct {
-    unsigned short int		umask;
-    struct inode		*root;
-    struct inode		*pwd;
-};
-
-struct mm_struct {
-    struct segment		*seg_code;
-    struct segment		*seg_data;
+    unsigned short int          umask;
+    struct inode                *root;
+    struct inode                *pwd;
 };
 
 struct signal_struct {
-    __kern_sighandler_t		handler;
+    __kern_sighandler_t         handler;
     struct __kern_sigaction_struct action[NSIG];
 };
+
+/* Standard segment entry indices for a.out executables */
+#define SEG_CODE        0
+#define SEG_DATA        1
 
 struct task_struct {
 
 /* Executive stuff */
-    struct xregs		t_xregs;
-    __pptr			t_enddata;
-    __pptr			t_begstack;
-    __pptr			t_endbrk;
-    __pptr			t_endseg;
-    int				t_minstack;
+    struct xregs                t_xregs;    /* CS and kernel SP */
+    segoff_t                    t_enddata;  /* start of heap = end of data+bss */
+    segoff_t                    t_endbrk;   /* current break (end of heap) */
+    segoff_t                    t_begstack; /* start SP, argc/argv strings above */
+    segoff_t                    t_endseg;   /* end of data seg (data+bss+heap+stack) */
+    segoff_t                    t_minstack; /* min stack size */
 
 /* Kernel info */
-    pid_t			pid;
-    pid_t			ppid;
-    pid_t			pgrp;
-    pid_t			session;
-    uid_t			uid;
-    uid_t			euid;
-    uid_t			suid;
-    gid_t			gid;
-    gid_t			egid;
-    gid_t			sgid;
+    pid_t                       pid;
+    pid_t                       ppid;
+    pid_t                       pgrp;
+    pid_t                       session;
+    uid_t                       uid;
+    uid_t                       euid;
+    uid_t                       suid;
+    gid_t                       gid;
+    gid_t                       egid;
+    gid_t                       sgid;
 
 /* Scheduling + status variables */
-    unsigned char		state;
-    struct wait_queue		child_wait;
-    jiff_t			timeout;	/* for select() */
-    struct wait_queue		*waitpt;	/* Wait pointer */
-    struct wait_queue		*poll[POLL_MAX];  /* polled queues */
-    struct task_struct		*next_run;
-    struct task_struct		*prev_run;
-    struct file_struct		files;		/* File system structure */
-    struct fs_struct		fs;		/* File roots */
-    struct mm_struct		mm;		/* Memory blocks */
-    struct tty			*tty;
-    struct task_struct		*p_parent;
-    int				exit_status;	/* process exit status*/
-    struct inode		*t_inode;
-    sigset_t			signal;		/* Signal status */
-    struct signal_struct	sig;		/* Signal block */
+    unsigned char               state;
+    struct wait_queue           child_wait;
+    jiff_t                      timeout;        /* for select() */
+    struct wait_queue           *waitpt;        /* Wait pointer */
+    struct wait_queue           *poll[MAX_POLLFD]; /* polled queues */
+    struct task_struct          *next_run;
+    struct task_struct          *prev_run;
+    struct file_struct          files;          /* File system structure */
+    struct fs_struct            fs;             /* File roots */
+    struct segment              *mm[MAX_SEGS];  /* App code/data segments */
+    struct tty                  *tty;
+    struct task_struct          *p_parent;
+    int                         exit_status;    /* process exit status*/
+    struct inode                *t_inode;
+    sigset_t                    signal;         /* Signal status */
+    struct signal_struct        sig;            /* Signal block */
 
 #ifdef CONFIG_CPU_USAGE
     unsigned long               average;        /* fixed point CPU % usage */
@@ -78,7 +77,8 @@ struct task_struct {
 #endif
 
 #ifdef CONFIG_SUPPLEMENTARY_GROUPS
-    gid_t			groups[NGROUPS];
+#define NGROUPS     13
+    gid_t                       groups[NGROUPS];
 #endif
 
     /* next two words are only used by CONFIG_TRACE but left in to avoid
@@ -86,45 +86,43 @@ struct task_struct {
     int                         kstack_max;
     int                         kstack_prevmax;
 
-    __u16			kstack_magic;	/* To detect stack corruption */
-    __u16			t_kstack[KSTACK_BYTES/2];
-    struct pt_regs 		t_regs;
+    unsigned int                kstack_magic;   /* To detect stack corruption */
+    __u16                       t_kstack[KSTACK_BYTES/2];
+    struct pt_regs              t_regs;         /* registers on stack during syscall */
 };
 
 #define KSTACK_MAGIC 0x5476
 
 /* the order of these matter for signal handling*/
-#define TASK_RUNNING 		0
-#define TASK_INTERRUPTIBLE	1
-#define TASK_UNINTERRUPTIBLE 	2
-#define TASK_WAITING		3
-#define TASK_STOPPED		4
-#define TASK_ZOMBIE		5
-#define TASK_EXITING		6
-#define TASK_UNUSED		7
-
-/*@-namechecks@*/
+#define TASK_RUNNING            0
+#define TASK_INTERRUPTIBLE      1
+#define TASK_UNINTERRUPTIBLE    2
+#define TASK_WAITING            3
+#define TASK_STOPPED            4
+#define TASK_ZOMBIE             5
+#define TASK_EXITING            6
+#define TASK_UNUSED             7
 
 #define DEPRECATED
-//#define DEPRECATED	__attribute__ ((deprecated))
+//#define DEPRECATED    __attribute__ ((deprecated))
 
-/* We use typedefs to avoid using struct foobar (*) */
-typedef struct task_struct __task, *__ptask;
-
-extern __task *task;
-extern __task *next_task_slot;
+extern struct task_struct *task;
+extern struct task_struct *current;
+extern struct task_struct *next_task_slot;
 extern int max_tasks;
 extern int task_slots_unused;
 
-extern volatile jiff_t jiffies;	/* ticks updated by the timer interrupt*/
-extern __ptask current;
+extern volatile jiff_t jiffies; /* ticks updated by the timer interrupt*/
 extern pid_t last_pid;
 extern int _gint_count;
 
 extern struct timeval xtime;
 extern jiff_t xtime_jiffies;
 extern int tz_offset;
-#define CURRENT_TIME (xtime.tv_sec + (jiffies - xtime_jiffies)/HZ)
+extern time_t current_time(void);
+
+/* return true if time a is after time b */
+#define time_after(a,b)         (((long)(b) - (long)(a) < 0))
 
 #define for_each_task(p) \
         for (p = &task[0] ; p!=&task[max_tasks]; p++ )
@@ -151,11 +149,7 @@ void prepare_to_wait(struct wait_queue *p);
 void do_wait(void);
 void finish_wait(struct wait_queue *p);
 
-/*@-namechecks@*/
-
 extern void _wake_up(struct wait_queue *,int);
-
-/*@+namechecks@*/
 
 extern void down(sem_t *);
 extern void up(sem_t *);

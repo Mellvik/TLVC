@@ -1,5 +1,7 @@
 /*
  * fdtest - A program to test floppy disk I/O speed in user space
+ *	Originally by @ghaerr - for ELKS,
+ *	rewritten and expanded byt @mellvik for TLVC 2024
  */
 #include <stdio.h>
 #include <signal.h>

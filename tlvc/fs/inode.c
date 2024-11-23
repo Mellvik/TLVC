@@ -29,7 +29,7 @@ static int nr_free_inodes = NR_INODE;
 #define DCR_COUNT(i) if(!(--i->i_count))nr_free_inodes++
 #define INR_COUNT(i) if(!(i->i_count++))nr_free_inodes--
 #define CLR_COUNT(i) if(i->i_count)nr_free_inodes++
-#define SET_COUNT(i) if(--nr_free_inodes < 0) { panic("get_empty_inode: bad free count"); }
+#define SET_COUNT(i) if(--nr_free_inodes < 0) { panic("bad free count"); }
 #else
 #define DCR_COUNT(i) (i->i_count--)
 #define INR_COUNT(i) (i->i_count++)
@@ -301,7 +301,7 @@ struct inode *new_inode(register struct inode *dir, __u16 mode)
     if (S_ISLNK(mode)) mode |= 0777;
     else mode &= ~(current->fs.umask & 0777);
     inode->i_mode = mode;
-    inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
+    inode->i_mtime = inode->i_atime = inode->i_ctime = current_time();
 
 #ifdef BLOAT_FS
     inode->i_blocks = inode->i_blksize = 0;
@@ -316,7 +316,7 @@ struct inode *iget(struct super_block *sb, ino_t inr)
     register struct inode *inode;
     register struct inode *n_ino;
 
-    if (!sb) panic("iget sb 0");
+    if (!sb) panic("iget0");
     debug("iget dev %D ino %lu\n", sb->s_dev, (unsigned long)inr);
 
     n_ino = NULL;
@@ -473,7 +473,7 @@ int notify_change(register struct inode *inode, register struct iattr *attr)
 {
     int retval;
 
-    attr->ia_ctime = CURRENT_TIME;
+    attr->ia_ctime = current_time();
     if (attr->ia_valid & (ATTR_ATIME | ATTR_MTIME)) {
 	if (!(attr->ia_valid & ATTR_ATIME_SET)) attr->ia_atime = attr->ia_ctime;
 	if (!(attr->ia_valid & ATTR_MTIME_SET)) attr->ia_mtime = attr->ia_ctime;

@@ -389,6 +389,7 @@ struct buffer_head *get_free_buffer(void)
     ebh->b_count = 1;
     ebh->b_nr_sectors = 0;     /* non-zero indicate raw IO */
     SET_COUNT(ebh);
+    //debug_blk("GET_FREE_BUF %lx:%x; ", (unsigned long)buffer_seg(bh), buffer_data(bh)); 
     return bh;
 }
 
@@ -716,6 +717,7 @@ void map_buffer(struct buffer_head *bh)
         xms_fmemcpyw(bh->b_data, kernel_ds, 0, ebh->b_L2seg, BLOCK_SIZE/2);
     map_count++;
     debug_map("MAP:   L%02d block %ld\n", i+1, ebh->b_blocknr);
+    debug_map("data %04x L2s %lx kds 0%04x\n", bh->b_data, (unsigned long)ebh->b_L2seg, kernel_ds);
   end_map_buffer:
     ebh->b_mapcount++;
 }

@@ -89,7 +89,6 @@ struct tty *determine_tty(dev_t dev)
 {
     register struct tty *ttyp = &ttys[0];
     unsigned short minor = MINOR(dev);
-    extern dev_t dev_console;
 
     /* handle /dev/tty*/
     if (minor == 255 && current->pgrp && (current->pgrp == ttyp->pgrp))
@@ -144,13 +143,12 @@ void tty_freeq(struct tty *tty)
 int tty_open(struct inode *inode, struct file *file)
 {
     register struct tty *otty;
-    register __ptask currentp = current;
     int err;
 
     if (!(otty = determine_tty(inode->i_rdev)))
 	return -ENODEV;
 
-    debug_tty("TTY open pid %d\n", currentp->pid);
+    debug_tty("TTY open pid %d\n", current->pid);
 #if 0
     memcpy(&otty->termios, &def_vals, sizeof(struct termios));
 #endif
@@ -164,11 +162,11 @@ int tty_open(struct inode *inode, struct file *file)
 
     err = otty->ops->open(otty);
     if (!err) {
-	if (!(file->f_flags & O_NOCTTY) && currentp->session == currentp->pid
-		&& currentp->tty == NULL && otty->pgrp == 0) {
-	    debug_tty("TTY setting pgrp %d pid %d\n", currentp->pgrp, currentp->pid);
-	    otty->pgrp = currentp->pgrp;
-	    currentp->tty = otty;
+	if (!(file->f_flags & O_NOCTTY) && current->session == current->pid
+		&& current->tty == NULL && otty->pgrp == 0) {
+	    debug_tty("TTY setting pgrp %d pid %d\n", current->pgrp, current->pid);
+	    otty->pgrp = current->pgrp;
+	    current->tty = otty;
 	}
 	otty->flags |= TTY_OPEN;
     }

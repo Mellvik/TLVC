@@ -120,17 +120,16 @@
 #endif
 
 /* Define segment locations of low memory, must not overlap */
-#define DEF_OPTSEG	0x50	/* 0x200 bytes boot options*/
-#define OPTSEGSZ	0x200	/* max size of /bootopts file (1K max) */
-#define REL_INITSEG	0x70	/* 0x200 bytes setup data */
-#define DMASEG		0x90	/* Start of variable sized DMA/bounce segment */
+#define OPTSEGSZ        0x400	/* max size of /bootopts file (1024 bytes max) */
+#define DEF_OPTSEG	0x50	/* 0x400 bytes boot options*/
+#define REL_INITSEG	0x90	/* 0x200 bytes setup data */
+#define DMASEG		0xB0	/* Start of variable sized DMA/bounce segment */
 
 /* DMASEG is a bouncing buffer of 1K (= BLOCKSIZE)
  * below the first 64K boundary (= 0x1000:0)
  * for use with the old 8237 DMA controller.
  * Also used for floppy sector cache if configured. */
 
-#if !defined (CONFIG_BLK_DEV_BFD)	/* BIOS floppy doesn't work with this setup */
 #define XD_BOUNCE_SEG		DMASEG	/* bounce buffer for XD and Lance drivers */
 #if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
 #define XD_BOUNCE_SEGSZ		0x400
@@ -146,14 +145,9 @@
 #define FD_CACHE_SEGSZ	(CONFIG_FLOPPY_CACHE*1024)	/* May be zero */
 
 #define REL_SYSSEG	FD_CACHE_SEG + (FD_CACHE_SEGSZ>>4) /* kernel code segment */
-#else
-#define DMASEGSZ 	0x2400	/* classic 18 sector track buffer for BIOS FD for now */
-#define REL_SYSSEG	DMASEG + (DMASEGSZ>>4)
-#endif  /* CONFIG_BLK_DEV_BFD */
-
 #define SETUP_DATA	REL_INITSEG
 
-#endif 
+#endif 	/* ARCH_PC, ARCH_8016X, !ROM */
 
 #if defined(CONFIG_ARCH_PC98) && !defined(CONFIG_ROMCODE)
 /* Define segment locations of low memory, must not overlap */

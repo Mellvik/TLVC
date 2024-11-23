@@ -45,6 +45,7 @@ int root_mountflags = MS_RDONLY;
 #else
 int root_mountflags = 0;
 #endif
+
 struct netif_parms netif_parms[MAX_ETHS] = {
     /* NOTE:  The order must match the defines in netstat.h */
     { NE2K_IRQ, NE2K_PORT, 0, NE2K_FLAGS },
@@ -53,16 +54,18 @@ struct netif_parms netif_parms[MAX_ETHS] = {
     { EE16_IRQ, EE16_PORT, EE16_RAM, EE16_FLAGS },
     { LANCE_IRQ, LANCE_PORT, 0, LANCE_FLAGS },
 };
-__u16 kernel_cs, kernel_ds;
+seg_t kernel_cs, kernel_ds;
 int tracing;
-int nr_map_bufs;
-int nr_ext_bufs;
+int nr_map_bufs, nr_ext_bufs, nr_xms_bufs;
 
 #ifdef CONFIG_CALIBRATE_DELAY
 void calibrate_delay(void);
 #endif
 
-#define BOOT_TIMER
+#define BOOT_TIMER	/* display jiffies at system startup - for benchmarking */
+
+/* this needs fixing, hdparms[] should be the size of MAX_ATA_DRIVES */
+/* directhd.c depends on this size when initializing drive geometry */
 #define CHS_DRIVES 2	/* # of drives to config in bootopts */
 #define CHS_ARR_SIZE	CHS_DRIVES * 4
 int hdparms[CHS_ARR_SIZE];	/* cover 2 drives */
@@ -72,7 +75,6 @@ int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
 int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
 static int boot_console;
-static seg_t membase, memend;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
 #ifdef CONFIG_SYS_NO_BININIT
@@ -85,7 +87,7 @@ static char *init_command = bininit;
 /*
  * Parse /bootopts startup options
  */
-static char opts;
+static char hasopts;
 static int args = 2;	/* room for argc and av[0] */
 static int envs;
 static int argv_slen;
@@ -109,17 +111,21 @@ static char * INITPROC option(char *s);
 
 #endif
 
-static void init_task(void);
+static void INITPROC kernel_init(void);
 static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra);
 static void INITPROC early_kernel_init(void);
+static void init_task(void);
 
 /* this procedure is called using temp stack then switched, no local vars allowed */
 void start_kernel(void)
 {
+    //printk("START\n");
     early_kernel_init();        /* read bootopts using kernel interrupt stack */
     task = heap_alloc(max_tasks * sizeof(struct task_struct),
         HEAP_TAG_TASK|HEAP_TAG_CLEAR);
     if (!task) panic("No task mem");
+
+    sched_init();               /* set us (the current stack) to be idle task #0*/
     setsp(&task->t_regs.ax);    /* change to idle task stack */
     kernel_init();              /* continue init running on idle task stack */
 
@@ -143,36 +149,44 @@ void start_kernel(void)
 
 static void INITPROC early_kernel_init(void)
 {
-    setup_arch(&membase, &memend);  /* initializes kernel heap */
-    mm_init(membase, memend);       /* parse_options may call seg_add */
-    tty_init();                     /* parse_options may call rs_setbaud */
+    unsigned int endbss;
 
-/*** Expermiental: Testing the upper 1k of memory for BIOS modifications ****/
+    /* Note: no memory allocation available until after heap_init */
+    tty_init();                     /* parse_options may call rs_setbaud */
+#ifdef CONFIG_TIME_TZ
+    tz_init(CONFIG_TIME_TZ);        /* parse_options may call tz_init */
+#endif
+    ROOT_DEV = SETUP_ROOT_DEV;      /* default root device from boot loader */
+
+#ifdef CONFIG_BOOTOPTS
+    hasopts = parse_options();         /* parse options found in /bootops */
+#endif
+
+    /* create near heap at end of kernel bss */
+    heap_init();                    /* init near memory allocator */
+    endbss = setup_arch();          /* sets membase and memend globals */
+    heap_add((void *)endbss, heapsize);
+    mm_init(membase, memend);       /* init far/main memory allocator */
+
+/* Add UMB support here */
+
+/*** Experimental: Test the upper 1k of memory for BIOS modifications ****/
 #if 0
     byte_t __far *upper = _MK_FP(0x9fc0, 0); 
     int i = 0;
     while (i++ < 1024) upper[i] = i;
 #endif
+    printk("Early init ok\n");
 
-#ifdef CONFIG_TIME_TZ
-    tz_init(CONFIG_TIME_TZ);        /* parse_options may call tz_init */
-#endif
-#ifdef CONFIG_BOOTOPTS
-    opts = parse_options();         /* parse options found in /bootops */
-#endif
 }
 
 void INITPROC kernel_init(void)
 {
-    /* set us (the current stack) to be idle task #0 */
-    sched_init();
-    irq_init();
+    irq_init();		/* Install timer and DIV fault handlers */
 
     /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
-
-    /* init direct, bios or headless console */
-    console_init();
+    console_init();	/* init direct, bios or headless console */
 
 #ifdef CONFIG_CHAR_DEV_RS
     serial_init();
@@ -182,17 +196,21 @@ void INITPROC kernel_init(void)
     if (buffer_init())	/* also enables xms and unreal mode if configured and possible */
 	panic("No buf mem");
 
-    device_init();
+#ifdef CONFIG_ARCH_IBMPC
+    outw(0, 0x510);
+    if (inb(0x511) == 'Q' && inb(0x511) == 'E')
+        running_qemu = 1;
+#endif
 
 #ifdef CONFIG_SOCKET
     sock_init();
 #endif
 
-    fs_init();
+    device_init();
 
 #ifdef CONFIG_BOOTOPTS
     finalize_options();
-    if (!opts) printk("/bootopts not found or bad format/size\n");
+    if (!hasopts) printk("/bootopts not found or bad format/size\n");
 #endif
 
 #ifdef CONFIG_FARTEXT_KERNEL
@@ -215,8 +233,8 @@ void INITPROC kernel_init(void)
 static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra)
 {
 #ifdef CONFIG_ARCH_IBMPC
-    printk("PC/%cT class machine (cpu %d), ", (sys_caps & CAP_PC_AT) ? 'A' : 'X',
-					       SETUP_CPU_TYPE);
+    printk("PC/%cT class, cpu %d, ", (sys_caps & CAP_PC_AT) ? 'A' : 'X',
+					       (int) arch_cpu);
 #endif
 
 #ifdef CONFIG_ARCH_PC98
@@ -259,13 +277,13 @@ static void INITPROC do_init_task(void)
     printk("[%lu]", jiffies); 	/* for measuring startup time */
 #endif
 #ifdef CONFIG_SYS_NO_BININIT
-    /* when no /bin/init, force initial process group on console to make signals work*/
+    /* when no /bin/init, force initial process group on console to make signals work */
     current->session = current->pgrp = 1;
 #endif
 
-    /* Don't open /dev/console for /bin/init, 0-2 closed immediately and fragments heap*/
+    /* Don't open /dev/console for /bin/init, 0-2 closed immediately and fragments heap */
     //if (strcmp(init_command, bininit) != 0) {
-	/* Set stdin/stdout/stderr to /dev/console if not running /bin/init*/
+	/* Set stdin/stdout/stderr to /dev/console if not running /bin/init */
 	num = sys_open(s="/dev/console", O_RDWR, 0);
 	if (num < 0)
 	    printk("Unable to open %s (error %d)\n", s, num);
@@ -274,20 +292,24 @@ static void INITPROC do_init_task(void)
     //}
 
 #ifdef CONFIG_BOOTOPTS
+    /* Release /bootopts parsing buffers and the setup data segmnet */
+    heap_add(options, OPTSEGSZ);
+    seg_add(DEF_OPTSEG, DMASEG);	/* DEF_OPTSETG through REL_INITSEG */
+
     /* pass argc/argv/env array to init_command */
 
-    /* unset special sys_wait4() processing if pid 1 not /bin/init*/
+    /* unset special sys_wait4() processing if pid 1 not /bin/init */
     if (strcmp(init_command, bininit) != 0)
-        current->ppid = 1;      /* turns off auto-child reaping*/
+        current->ppid = 1;      /* turns off auto-child reaping */
 
-    /* run /bin/init or init= command, normally no return*/
+    /* run /bin/init or init= command, normally no return */
     run_init_process_sptr(init_command, (char *)argv_init, argv_slen);
 #else
     try_exec_process(init_command);
 #endif /* CONFIG_BOOTOPTS */
 
     printk("No init - running %s\n", binshell);
-    current->ppid = 1;			/* turns off auto-child reaping*/
+    current->ppid = 1;			/* turns off auto-child reaping */
     try_exec_process(binshell);
     try_exec_process("/bin/sash");
     panic("No init or sh found");
@@ -455,8 +477,8 @@ static int INITPROC parse_options(void)
 	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, sizeof(options));
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
-	/* check file starts with ## and max len 511 bytes */
-	if (*(unsigned short *)options != 0x2323 || options[OPTSEGSZ-1])
+	/* check file starts with ##, one or two sectors, max 1023 bytes */
+	if (*(unsigned short *)options != 0x2323 || (options[511] && options[OPTSEGSZ-1]))
 		return 0;
 
 #if DEBUG
@@ -547,6 +569,10 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"cache=", 6)) {
 			nr_map_bufs = (int)simple_strtol(line+6, 10);
+			continue;
+		}
+		if (!strncmp(line,"xmsbufs=", 8)) {
+			nr_xms_bufs = (int)simple_strtol(line+8, 10);
 			continue;
 		}
 		if (!strncmp(line,"tasks=", 6)) {

@@ -360,9 +360,9 @@ void INITPROC setup_dev(register struct gendisk *dev)
 #ifdef BDEV_SIZE_CHK
 	blk_size[dev->major] = NULL;
 #endif
-	//printk("setup_dev %04x/%d\n", dev, dev->major);
 	memset((void *)dev->part, 0, sizeof(struct hd_struct)*dev->max_nr*dev->max_p);
 	dev->init(dev);
+	printk("setup_dev %04x/%d(%d)\n", dev, dev->major,sizeof(struct hd_struct)*dev->max_nr*dev->max_p);
 
 /*
  * A system can have only one disk 'category' - BIOS, IDE/ATA or XD.
