@@ -9,12 +9,12 @@
 // plus enough space in body to be useful
 // (= size of the smallest allocation)
 
-#define HEAP_MIN_SIZE (sizeof (heap_s) + 16)
+#define HEAP_MIN_SIZE (sizeof(heap_s) + 16)
 #define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
 			/* end of the heap to reduce fragmentation */
+
 #define HEAP_CANARY	0xA5U	/* for header validation */
-//#define HEAPFREE_VALIDATE_1
-#define HEAPFREE_VALIDATE_2
+#define VALIDATE_HEAPFREE
 
 #define HEAP_DEBUG 0
 #if HEAP_DEBUG
@@ -155,29 +155,10 @@ void heap_free(void *data)
 	//     chance on next allocation of same size
 
 	list_s *i = &_heap_free;
-	list_s *n;
 	debug_heap("free 0x%x/%u; ", h, h->size);
 
-#ifdef HEAPFREE_VALIDATE_1
-	/* Sanity check */
-	heap_s *this;
-	n = _heap_all.prev;
-	while (n != &_heap_all) {
-		this = structof(n, heap_s, all);
-		//printk("this+1 %x data %x tag %x\n", this+1, data, this->tag);
-		if ((this->tag & HEAP_TAG_USED) && data == (this+1))
-			break;
-		n = n->prev;	/* going backwards is slightly faster */
-	}
-	if (n == &_heap_all) {
-		printk("WARNING: bogus heap_free");
-		return;
-	}
-#endif
-
-#ifdef  HEAPFREE_VALIDATE_2
-	//printk("Heap canary %x\n", *((char *)data - 1)&0xff);
-	if ((*((char *)data - 1)&0xff) != HEAP_CANARY) {
+#ifdef  VALIDATE_HEAPFREE
+	if (h->canary != HEAP_CANARY) {
 		printk("WARNING: bogus heap_free");
 		return;
 	}
@@ -200,7 +181,7 @@ void heap_free(void *data)
 
 	// Try to merge with next block if free
 
-	n = h->all.next;
+	list_s *n = h->all.next;
 	if (n != &_heap_all) {
 		heap_s *next = structof(n, heap_s, all);
 		if (next->tag == HEAP_TAG_FREE) {
