@@ -37,7 +37,7 @@ struct heap {
 	list_s free;
 	word_t size;
 	byte_t tag;
-	byte_t unused;
+	byte_t canary;
 };
 
 typedef struct heap heap_s;

@@ -12,6 +12,9 @@
 #define HEAP_MIN_SIZE (sizeof (heap_s) + 16)
 #define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
 			/* end of the heap to reduce fragmentation */
+#define HEAP_CANARY	0xA5U	/* for header validation */
+//#define HEAPFREE_VALIDATE_1
+#define HEAPFREE_VALIDATE_2
 
 #define HEAP_DEBUG 0
 #if HEAP_DEBUG
@@ -105,6 +108,7 @@ static heap_s *free_get(word_t size0, byte_t tag)
 			list_remove(&(best_h->free));
 		}
 		best_h->tag = HEAP_TAG_USED | tag;
+		best_h->canary = HEAP_CANARY;
 	}
 #ifdef HEAP_SEG_OPT
 	debug_heap("highfree: %x/%u, tag 0x%x\n", high_free, high_free->size, tag);
@@ -118,6 +122,7 @@ static heap_s *free_get(word_t size0, byte_t tag)
 static void heap_merge(heap_s *h1, heap_s *h2)
 {
 	h1->size = h1->size + sizeof(heap_s) + h2->size;
+	h2->canary = 0;
 	list_remove(&(h2->all));
 }
 
@@ -150,8 +155,34 @@ void heap_free(void *data)
 	//     chance on next allocation of same size
 
 	list_s *i = &_heap_free;
+	list_s *n;
 	debug_heap("free 0x%x/%u; ", h, h->size);
 
+#ifdef HEAPFREE_VALIDATE_1
+	/* Sanity check */
+	heap_s *this;
+	n = _heap_all.prev;
+	while (n != &_heap_all) {
+		this = structof(n, heap_s, all);
+		//printk("this+1 %x data %x tag %x\n", this+1, data, this->tag);
+		if ((this->tag & HEAP_TAG_USED) && data == (this+1))
+			break;
+		n = n->prev;	/* going backwards is slightly faster */
+	}
+	if (n == &_heap_all) {
+		printk("WARNING: bogus heap_free");
+		return;
+	}
+#endif
+
+#ifdef  HEAPFREE_VALIDATE_2
+	//printk("Heap canary %x\n", *((char *)data - 1)&0xff);
+	if ((*((char *)data - 1)&0xff) != HEAP_CANARY) {
+		printk("WARNING: bogus heap_free");
+		return;
+	}
+#endif
+		
 	// Try to merge with previous block if free
 
 	list_s *p = h->all.prev;
@@ -169,7 +200,7 @@ void heap_free(void *data)
 
 	// Try to merge with next block if free
 
-	list_s *n = h->all.next;
+	n = h->all.next;
 	if (n != &_heap_all) {
 		heap_s *next = structof(n, heap_s, all);
 		if (next->tag == HEAP_TAG_FREE) {
