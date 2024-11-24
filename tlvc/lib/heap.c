@@ -9,9 +9,12 @@
 // plus enough space in body to be useful
 // (= size of the smallest allocation)
 
-#define HEAP_MIN_SIZE (sizeof (heap_s) + 16)
+#define HEAP_MIN_SIZE (sizeof(heap_s) + 16)
 #define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
 			/* end of the heap to reduce fragmentation */
+
+#define HEAP_CANARY	0xA5U	/* for header validation */
+#define VALIDATE_HEAPFREE
 
 #define HEAP_DEBUG 0
 #if HEAP_DEBUG
@@ -105,6 +108,7 @@ static heap_s *free_get(word_t size0, byte_t tag)
 			list_remove(&(best_h->free));
 		}
 		best_h->tag = HEAP_TAG_USED | tag;
+		best_h->canary = HEAP_CANARY;
 	}
 #ifdef HEAP_SEG_OPT
 	debug_heap("highfree: %x/%u, tag 0x%x\n", high_free, high_free->size, tag);
@@ -118,6 +122,7 @@ static heap_s *free_get(word_t size0, byte_t tag)
 static void heap_merge(heap_s *h1, heap_s *h2)
 {
 	h1->size = h1->size + sizeof(heap_s) + h2->size;
+	h2->canary = 0;
 	list_remove(&(h2->all));
 }
 
@@ -152,6 +157,13 @@ void heap_free(void *data)
 	list_s *i = &_heap_free;
 	debug_heap("free 0x%x/%u; ", h, h->size);
 
+#ifdef  VALIDATE_HEAPFREE
+	if (h->canary != HEAP_CANARY) {
+		printk("WARNING: bogus heap_free");
+		return;
+	}
+#endif
+		
 	// Try to merge with previous block if free
 
 	list_s *p = h->all.prev;
