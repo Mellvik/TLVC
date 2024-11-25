@@ -213,7 +213,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		}
 	} else {	/* moving full sectors */
 		char *o_data;
-		seg_t o_seg;
+		ramdesc_t o_seg;
 		unsigned char sec_cnt;
 
 		chars = (count & 0xffff); /* try to transfer the whole thing -
