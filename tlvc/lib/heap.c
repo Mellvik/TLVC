@@ -11,7 +11,11 @@
 
 #define HEAP_MIN_SIZE (sizeof(heap_s) + 16)
 //#define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
-			/* end of the heap to reduce fragmentation */
+			/* end of the heap to reduce fragmentation. This is
+			 * not useful if small memory chuncks are added to 
+			 * the heap after the initial 'big heap' as small
+			 * allocations will gravitate towards the smaller
+			 * block atomagically and not contribute to fragmentation. */
 
 #define HEAP_CANARY	0xA5U	/* for header validation */
 #define VALIDATE_HEAPFREE
