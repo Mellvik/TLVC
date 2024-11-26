@@ -219,7 +219,6 @@ void heap_add(void *data, word_t size)
 		if (!high_free) high_free = h;	/* only when heap is created */
 					/* ie. ignore later additioons to the heap */
 		debug_heap("new hf @ %x size %u\n", h, size);
-		printk("new hf @ %x size %u\n", h, size);
 #endif
 	}
 }
