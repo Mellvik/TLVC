@@ -213,7 +213,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		}
 	} else {	/* moving full sectors */
 		char *o_data;
-		seg_t o_seg;
+		ramdesc_t o_seg;
 		unsigned char sec_cnt;
 
 		chars = (count & 0xffff); /* try to transfer the whole thing -
@@ -222,7 +222,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 		o_data = bh->b_data;		/* save the 'original' values */
-		o_seg = (seg_t)ebh->b_L2seg;	/* may be long (xms active) or int */
+		o_seg = ebh->b_L2seg;	/* may be long (xms active) or int */
 		ebh->b_L2seg = (ramdesc_t)current->t_regs.ds;
 		bh->b_data = buf;
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
@@ -232,7 +232,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
-		ebh->b_L2seg = (ramdesc_t)o_seg;		/* restore */
+		ebh->b_L2seg = o_seg;		/* restore */
 		bh->b_data = o_data;
 		if (sec_cnt != ebh->b_nr_sectors) {
 			debug_raw("partial raw IO, requested %d, got %d\n",
