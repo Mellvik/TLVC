@@ -10,7 +10,7 @@
 // (= size of the smallest allocation)
 
 #define HEAP_MIN_SIZE (sizeof(heap_s) + 16)
-#define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
+//#define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
 			/* end of the heap to reduce fragmentation */
 
 #define HEAP_CANARY	0xA5U	/* for header validation */
@@ -219,8 +219,8 @@ void heap_add(void *data, word_t size)
 		if (!high_free) high_free = h;	/* only when heap is created */
 					/* ie. ignore later additioons to the heap */
 		debug_heap("new hf @ %x size %u\n", h, size);
+		printk("new hf @ %x size %u\n", h, size);
 #endif
-
 	}
 }
 

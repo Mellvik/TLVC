@@ -28,7 +28,8 @@ int aflag;		/* show application memory*/
 int fflag;		/* show free memory*/
 int tflag;		/* show tty and driver memory*/
 int bflag;		/* show buffer memory*/
-int mflag;		/* show main memory */
+int mflag;		/* show application memory allocation */
+int Mflag;		/* show RAM allocation of heap and app memory */
 int sflag;		/* show system memory */
 int allflag;		/* show all memory*/
 
@@ -109,7 +110,7 @@ void display_seg(word_t mem)
     byte_t ref_count = getword(mem + offsetof(segment_s, ref_count), ds);
     struct task_struct *t;
 
-    printf("   %04x   %s %7ld %4d  ",
+    printf("\t%04x   %s %7ld %4d  ",
 	segbase, segtype[segflags], (long)segsize << 4, ref_count);
     if (segflags == SEG_FLAG_CSEG || segflags == SEG_FLAG_DSEG) {
 	if ((t = find_process(mem)) != NULL) {
@@ -119,17 +120,84 @@ void display_seg(word_t mem)
     total_segsize += (long)segsize << 4;
 }
 
+struct { seg_t base, end; } heap[5], segs[5]; /* lazy: this way it gets zeroed */
+
+void blk_scan(void)
+{
+	/*
+	 * REMINDER: The size of a heap block is in bytes (heap.size),
+	 * while size of a main memory segment is in paragraphs
+	 */
+        word_t mem, n = getword(heap_all + offsetof(list_s, next), ds);
+	int i = 0, curend;
+	seg_t segbase, oldbase = 0, oldend;
+
+	curend  = n + sizeof(heap_s) + getword(n + offsetof(heap_s, size), ds);
+	while (n != heap_all) {
+	    if (!oldbase) heap[i].base = n;	/* initial */
+	    if (n < oldbase) {
+		heap[i].end = curend-1;
+		heap[++i].base = n;
+	    }
+	    oldbase = n;
+	    curend = n + sizeof(heap_s) + getword(n + offsetof(heap_s, size), ds);
+            n = getword(n + offsetof(list_s, next), ds);
+	} 
+	heap[i].end = curend;
+
+	i = oldbase = 0;
+	n = getword(seg_all + offsetof(list_s, next), ds);
+	while (n != seg_all) {
+	    mem = n - offsetof(segment_s, all);
+	    segbase = getword(mem + offsetof(segment_s, base), ds);
+	    curend = segbase + getword(mem + offsetof(segment_s, size), ds);
+	    if (!oldbase) segs[i].base = segbase; 	/* initial */
+	    if (segbase < oldbase) {
+		segs[i].end  = oldend;
+		segs[++i].base = segbase;	
+	    }
+	    oldend = curend;
+	    oldbase = segbase;
+	    n = getword(n + offsetof(list_s, next), ds);
+	}
+	segs[i].end = curend;
+
+	printf("Heap:\n");
+	int tot = 0;
+	for (i = 0; heap[i].base; i++) {
+	    printf(" Block %d: %x - %x (%5u bytes)\n", i+1, heap[i].base,
+	    	    heap[i].end, heap[i].end - heap[i].base);
+	    tot += heap[i].end - heap[i].base;
+	}
+	printf(" Total:\t\t       %u bytes\nMain memory:\n", tot);
+	unsigned long s, s_tot = 0;
+	for (i = 0; segs[i].base; i++) {
+	    s = (unsigned long)(segs[i].end - segs[i].base) << 4;
+	    s_tot += s;
+	    printf(" Area %d: %04x - %04x (%6lu bytes)\n", i+1, segs[i].base,
+			segs[i].end, s);
+	}
+	printf(" Total:\t\t      %6lu bytes\n", s_tot);
+
+	return;
+}
+
+
 void dump_segs(void)
 {
-    word_t n, mem, arena = 2;
+    word_t n, mem, area = 1;
     seg_t segbase, oldbase = 0;
-    printf("    SEG   TYPE    SIZE  CNT  NAME\n");
+
+    printf("\n\tSEG   TYPE    SIZE  CNT  NAME\n");
+
     n = getword(seg_all + offsetof(list_s, next), ds);
     while (n != seg_all) {
 	mem = n - offsetof(segment_s, all);
 	segbase = getword(mem + offsetof(segment_s, base), ds);
-	if (segbase < oldbase) 
-            printf("[Arena %d]\n", arena++);
+
+	if (!oldbase || segbase < oldbase) {
+        	printf("Area %d", area++);
+	}
 	oldbase = segbase;
 	display_seg(mem);
 	printf("\n");
@@ -188,12 +256,15 @@ void dump_heap(void)
 		/* next in heap */
 		n = getword(n + offsetof(list_s, next), ds);
 	}
-	printf("  Heap/free   %5u/%u, Total mem %lu\n", total_size, total_free, total_segsize);
+	if (allflag)
+		printf("Heap/free   %5u/%u, Total mem %lu\n", total_size, total_free, total_segsize);
+	else
+		printf("Total size: %5u\n", total_size);
 }
 
 void usage(void)
 {
-	printf("usage: meminfo [-amftbsh]\n");
+	printf("usage: meminfo [-amMftbsh]\n");
 }
 
 int main(int argc, char **argv)
@@ -203,7 +274,7 @@ int main(int argc, char **argv)
 
 	if (argc < 2)
 		allflag = 1;
-	else while ((c = getopt(argc, argv, "aftbsmh")) != -1) {
+	else while ((c = getopt(argc, argv, "aftbsmMh")) != -1) {
 		switch (c) {
 			case 'a':
 				aflag = 1;
@@ -223,6 +294,9 @@ int main(int argc, char **argv)
 			case 'm':
 				mflag = 1;
 				break;
+			case 'M':
+				Mflag = 1;
+				break;
 			case 'h':
 				usage();
 				return 0;
@@ -241,18 +315,20 @@ int main(int argc, char **argv)
 	ioctl(fd, MEM_GETSEGALL, &seg_all) ||
         ioctl(fd, MEM_GETTASK, &taskoff) ||
         ioctl(fd, MEM_GETMAXTASKS, &maxtasks)) {
-	  perror("meminfo");
+	  perror(argv[0]);
 	  return 1;
     }
     if (!memread(taskoff, ds, &task_table, sizeof(task_table))) {
         perror("taskinfo");
     }
-	if (mflag) dump_segs();
+	if (Mflag) blk_scan();
+	else if (mflag) dump_segs();
 	else dump_heap();
 
 	if (!ioctl(fd, MEM_GETUSAGE, &mu)) {
-		/* note MEM_GETUSAGE amounts are floors, so total may display less by 1k than actual*/
-		printf("  Memory: %4dKB total, %4dKB used, %4dKB free\n",
+		/* note MEM_GETUSAGE amounts are floors, 
+		 * so total may display less by 1k than actual */
+		printf("Memory: %4dKB total, %4dKB used, %4dKB free\n\n",
 			mu.used_memory + mu.free_memory, mu.used_memory, mu.free_memory);
 	}
 
