@@ -120,7 +120,7 @@
 #endif
 
 /* Define segment locations of low memory, must not overlap */
-#define OPTSEGSZ        0x400	/* max size of /bootopts file (1024 bytes max) */
+#define OPTSEGSZ        0x400	
 #define DEF_OPTSEG	0x50	/* 0x400 bytes boot options*/
 #define REL_INITSEG	0x90	/* 0x200 bytes setup data */
 #define DMASEG		0xB0	/* Start of variable sized DMA/bounce segment */
@@ -152,7 +152,7 @@
 #if defined(CONFIG_ARCH_PC98) && !defined(CONFIG_ROMCODE)
 /* Define segment locations of low memory, must not overlap */
 #define DEF_OPTSEG	0x60  /* 0x200 bytes boot options*/
-#define OPTSEGSZ 0x200    /* max size of /bootopts file (1K max) */
+#define OPTSEGSZ 0x200    /* max size of /bootopts file */
 #define REL_INITSEG	0x80  /* 0x200 bytes setup data */
 #define DMASEG		0xA0  /* 0x400 bytes floppy sector buffer */
 
