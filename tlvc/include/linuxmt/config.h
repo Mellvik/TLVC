@@ -85,27 +85,27 @@
  * Normally, all capabilities will be set if arch_cpu > 5 (PC/AT),
  * except when SYS_CAPS is defined for custom installations or emulations.
  */
-#define CAP_PC_AT       (CAP_IRQ8TO15|CAP_IRQ2MAP9)      /* PC/AT capabilities */
-#define CAP_DRIVE_PARMS	0x02      /* has INT 13h fn 8 drive parms */
-#define CAP_KBD_LEDS    0x04      /* has keyboard LEDs */
-#define CAP_HD_IDE      0x08      /* can do hard drive IDE probes */
-#define CAP_IRQ8TO15    0x10      /* has IRQ 8 through 15 */
-#define CAP_IRQ2MAP9    0x20      /* map IRQ 2 to 9 */
-#define CAP_ALL         0xFF      /* all capabilities if PC/AT only */
+#define CAP_PC_AT	(CAP_IRQ8TO15|CAP_IRQ2MAP9)      /* PC/AT capabilities */
+#define CAP_DRIVE_PARMS	0x02		/* has INT 13h fn 8 drive parms */
+#define CAP_KBD_LEDS	0x04		/* has keyboard LEDs */
+#define CAP_HD_IDE	0x08		/* can do hard drive IDE probes */
+#define CAP_IRQ8TO15	0x10		/* has IRQ 8 through 15 */
+#define CAP_IRQ2MAP9	0x20		/* map IRQ 2 to 9 */
+#define CAP_ALL		0xFF		/* all capabilities if PC/AT only */
 
 /* Don't touch these, unless you really know what you are doing. */
-#define DEF_INITSEG	0x0100	/* initial Image load address by boot code */
-#define DEF_SYSSEG	0x1300	/* kernel copied here by setup.S code */
-#define DEF_SETUPSEG	DEF_INITSEG + 0x20
+#define DEF_INITSEG	0x0100		/* initial Image load address by boot code */
+#define DEF_SYSSEG	0x1300		/* kernel copied here by setup.S code */
+#define DEF_SETUPSEG	(DEF_INITSEG + 0x20)
 #define DEF_SYSSIZE	0x2F00
 
 #ifdef CONFIG_ROMCODE
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
-#define DMASEG		0x80  /* 0x400 bytes floppy sector buffer */
-#define DMASEGSZ	0x2400       /* SECTOR_SIZE * 18 (9216) */
-#define KERNEL_DATA	0x2C0 /* kernel data segment */
+#define DMASEG		0x80	/* 0x400 bytes floppy sector buffer */
+#define DMASEGSZ	0x2400	/* SECTOR_SIZE * 18 (9216) */
+#define KERNEL_DATA	0x2C0	/* kernel data segment */
 #else
-#define KERNEL_DATA     0x80  /* kernel data segment */
+#define KERNEL_DATA     0x80	/* kernel data segment */
 #endif	/* CONFIG_BLK_DEV_BIOS */
 #define SETUP_DATA	CONFIG_ROM_SETUP_DATA
 #endif /* CONFIG_ROMCODE */
@@ -119,17 +119,38 @@
 #define CONFIG_FLOPPY_CACHE 7
 #endif
 
-/* Define segment locations of low memory, must not overlap */
-#define OPTSEGSZ        0x400	
-#define DEF_OPTSEG	0x50	/* 0x400 bytes boot options*/
-#define REL_INITSEG	0x90	/* 0x200 bytes setup data */
-#define DMASEG		0xB0	/* Start of variable sized DMA/bounce segment */
+/* Define segment locations of low memory, must not overlap 
 
-/* DMASEG is a bouncing buffer of 1K (= BLOCKSIZE)
+ | kernel text    |
+ +----------------+ kernel CS = REL_SYSSEG
+ | Bounce buffers |
+ | & floppy cache |  variable size
+ +----------------+ DMASEG
+ | setup data     |   512B
+ +----------------+ REL_INITSEG
+ | bootopts buffer|  1k or 0 if not configured
+ +----------------+ DEF_OPTSEG = 0x50
+ | IRQ vectors/BDA|
+ +----------------+ 000
+
+*/
+#ifdef CONFIG_BOOTOPTS
+#define OPTSEGSZ        0x400	/* 0x400 bytes boot options*/
+#else
+#define OPTSEGSZ        0
+#endif
+
+#define DEF_OPTSEG	0x50	/* IRQ vectors/ BDA below this */
+#define REL_INITSEG	(DEF_OPTSEG + (OPTSEGSZ>>4))
+#define SETUP_DATA	REL_INITSEG			/* 0x200 bytes setup data */
+#define DMASEG		(REL_INITSEG + (0x200>>4))	/* Start of variable sized
+							 * DMA/bounce segment */
+
+/* DMASEG has one or more 1k bounce buffers 
  * below the first 64K boundary (= 0x1000:0)
  * for use with the old 8237 DMA controller.
- * Also used for floppy sector cache if configured. */
-
+ * Also used for floppy sector cache if configured.
+ */
 #define XD_BOUNCE_SEG		DMASEG	/* bounce buffer for XD and Lance drivers */
 #if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
 #define XD_BOUNCE_SEGSZ		0x400
@@ -137,27 +158,27 @@
 #define XD_BOUNCE_SEGSZ		0
 #endif
 
-/* Always present */
-#define FD_BOUNCE_SEG	XD_BOUNCE_SEG + (XD_BOUNCE_SEGSZ>>4)
-#define FD_BOUNCE_SEGSZ	0x400	/* 1k bounce buffer for floppy IO */
+/* Floppy bounce buffer always present - for DMA and XMS */
+#define FD_BOUNCE_SEG	(XD_BOUNCE_SEG + (XD_BOUNCE_SEGSZ>>4))
+#define FD_BOUNCE_SEGSZ	0x400
 
-#define FD_CACHE_SEG	FD_BOUNCE_SEG + (FD_BOUNCE_SEGSZ>>4)
+/* Floppy cache may be present on slow systems */
+#define FD_CACHE_SEG	(FD_BOUNCE_SEG + (FD_BOUNCE_SEGSZ>>4))
 #define FD_CACHE_SEGSZ	(CONFIG_FLOPPY_CACHE*1024)	/* May be zero */
 
-#define REL_SYSSEG	FD_CACHE_SEG + (FD_CACHE_SEGSZ>>4) /* kernel code segment */
-#define SETUP_DATA	REL_INITSEG
+#define REL_SYSSEG	(FD_CACHE_SEG + (FD_CACHE_SEGSZ>>4)) /* kernel code segment */
 
 #endif 	/* ARCH_PC, ARCH_8016X, !ROM */
 
 #if defined(CONFIG_ARCH_PC98) && !defined(CONFIG_ROMCODE)
 /* Define segment locations of low memory, must not overlap */
-#define DEF_OPTSEG	0x60  /* 0x200 bytes boot options*/
-#define OPTSEGSZ 0x200    /* max size of /bootopts file */
-#define REL_INITSEG	0x80  /* 0x200 bytes setup data */
-#define DMASEG		0xA0  /* 0x400 bytes floppy sector buffer */
+#define DEF_OPTSEG	0x60		/* 0x200 bytes boot options*/
+#define OPTSEGSZ	0x200		/* max size of /bootopts file */
+#define REL_INITSEG	0x80		/* 0x200 bytes setup data */
+#define DMASEG		0xA0		/* 0x400 bytes floppy sector buffer */
 
-#define DMASEGSZ 0x2400	      /* SECTOR_SIZE * 18 (9216) */
-#define REL_SYSSEG	0x2E0 /* kernel code segment */
+#define DMASEGSZ	0x2400		/* SECTOR_SIZE * 18 (9216) */
+#define REL_SYSSEG	0x2E0		/* kernel code segment */
 #define SETUP_DATA	REL_INITSEG
 #endif /* CONFIG_ARCH_PC98 && !CONFIG_ROMCODE */
 
