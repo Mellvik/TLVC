@@ -176,7 +176,6 @@ static void INITPROC early_kernel_init(void)
     int i = 0;
     while (i++ < 1024) upper[i] = i;
 #endif
-    printk("Early init ok\n");
 
 }
 
@@ -292,7 +291,7 @@ static void INITPROC do_init_task(void)
     //}
 
 #ifdef CONFIG_BOOTOPTS
-    /* Release /bootopts parsing buffers and the setup data segmnet */
+    /* Release /bootopts parsing buffers and the setup data segment */
     heap_add(options, OPTSEGSZ);
     seg_add(DEF_OPTSEG, DMASEG);	/* DEF_OPTSETG through REL_INITSEG */
 

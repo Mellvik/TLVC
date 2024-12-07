@@ -228,7 +228,7 @@ size_t kmem_write(struct inode *inode, register struct file *filp,
 
 #ifdef HEAP_DEBUG
 
-void heap_cb (heap_s * h)
+void heap_cb(heap_s * h)
 {
 	printk ("heap:%Xh:%u:%hxh\n",h, h->size, h->tag);
 }
@@ -254,6 +254,9 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
     case MEM_GETDS:
 	retword = kernel_ds;
 	break;
+    case MEM_GETBSS_SZ:
+	retword = (unsigned) _endbss - (unsigned) _enddata;
+	break;
     case MEM_GETFARTEXT:
         retword = (unsigned)((long)buffer_init >> 16);
         break;
@@ -261,17 +264,17 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
 	mm_get_usage (&(mu.free_memory), &(mu.used_memory));
 	memcpy_tofs(arg, &mu, sizeof(struct mem_usage));
 #ifdef HEAP_DEBUG
-	heap_iterate (heap_cb);
+	heap_iterate(heap_cb);
 #endif
 	return 0;
     case MEM_GETHEAP:
-	retword = (unsigned short) &_heap_all;
+	retword = (unsigned short)&_heap_all;
 	break;
     case MEM_GETJIFFADDR:
-	retword = (unsigned) &jiffies;
+	retword = (unsigned)&jiffies;
 	break;
     case MEM_GETSEGALL:
-        retword = (unsigned short) &_seg_all;
+        retword = (unsigned short)&_seg_all;
         break;
     case MEM_GETUPTIME:
 #ifdef CONFIG_CPU_USAGE

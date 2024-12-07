@@ -16,10 +16,12 @@
 #include <linuxmt/mem.h>
 #include <linuxmt/heap.h>
 #include <linuxmt/sched.h>
+#include <linuxmt/config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sys/ioctl.h>
 
 #define LINEARADDRESS(off, seg)		((off_t) (((off_t)seg << 4) + off))
@@ -28,17 +30,31 @@ int aflag;		/* show application memory*/
 int fflag;		/* show free memory*/
 int tflag;		/* show tty and driver memory*/
 int bflag;		/* show buffer memory*/
-int mflag;		/* show main memory */
+int mflag;		/* show application memory allocation */
+int Mflag;		/* show RAM allocation of heap and app memory */
+int Pflag;		/* Like M, but show processes too */
 int sflag;		/* show system memory */
 int allflag;		/* show all memory*/
 
 int fd;
-unsigned int ds;
+unsigned int ds, cs, ftext;
 unsigned int heap_all;
 unsigned int seg_all;
 unsigned int taskoff;
+unsigned int bss_size;
 int maxtasks;
+int segptr;
 struct task_struct task_table;
+struct proc_list_s {
+	seg_t seg;
+	int flag;
+	char proc[12];
+	unsigned int size;
+} *proc_list;
+
+static long_t total_segsize = 0;
+static char *segtype[] =
+    { "free", "CSEG", "DSEG", "DDAT", "FDAT", "BUF ", "RDSK", "BUFH" };
 
 
 int memread(word_t off, word_t seg, void *buf, int size)
@@ -61,10 +77,71 @@ word_t getword(word_t off, word_t seg)
 	return word;
 }
 
+void p_divider(unsigned int seg, char *suffix)
+{
+	printf("%04x:0 +--------------------+ %s\n", seg, suffix);
+}
+
+void p_subdiv(unsigned int seg, char *suffix, int flag)
+{
+	char *s = "%04x:0";
+
+	if (flag) 	/* value is offset */
+	    s = " +%04x";
+	printf(s, seg);
+	printf(" +- - - - - - - - - - + %s\n", suffix);
+}
+
+char *make_kb(char *n, long_t size)
+{
+	unsigned int r = 1024;
+	unsigned int t = __divmod(size, &r);
+
+	if (t > 9)
+		sprintf(n, "%-uK", t);
+	else
+		sprintf(n, "%-u.%1uK", t, r/102);
+	return n;
+}
+
+void p_empty(void)
+{
+	printf("       | %-19s|\n", "");
+}
+
+void pp_block(int start, int end)		/* box content with process names etc. */
+{
+	int i, count = end - start;
+	char p[16];
+
+	if (start >= segptr) return;		/* out of bounds */
+	if (count > 5) p_empty();
+	for (i = end; i >= start; i--) {
+	    printf("  %04x | %c %-17s| %s\n", proc_list[i].seg,
+	           *segtype[proc_list[i].flag], proc_list[i].proc,
+		   make_kb(p, (long_t)proc_list[i].size<<4));
+	}
+	if (count > 5) p_empty();
+}
+
+void p_block(int count, long_t size, char *txt, char *suffix)
+{
+	int i, mid=1;
+	char n[8];
+
+	mid = count/2;
+	for (i = 0; i < count; i++) {
+	    if (i == mid) 
+		printf("       | %-19s| %3s %s\n", txt, make_kb(n, size), suffix);
+	    else
+	    	p_empty();
+	}
+}
+
+char buf[80];
 void process_name(unsigned int off, unsigned int seg)
 {
     word_t argc, argv;
-    char buf[80];
 
     argc = getword(off, seg);
 
@@ -73,7 +150,7 @@ void process_name(unsigned int off, unsigned int seg)
         argv = getword(off, seg);
         if (!memread(argv, seg, buf, sizeof(buf)))
             return;
-        printf("%s ",buf);
+        if (!Pflag) printf("%s ",buf);
         break;      /* display only executable name for now */
     }
 }
@@ -97,10 +174,6 @@ struct task_struct *find_process(unsigned int seg)
     return NULL;
 }
 
-static long total_segsize = 0;
-static char *segtype[] =
-    { "free", "CSEG", "DSEG", "DDAT", "FDAT", "BUF ", "RDSK" };
-
 void display_seg(word_t mem)
 {
     seg_t segbase = getword(mem + offsetof(segment_s, base), ds);
@@ -109,30 +182,183 @@ void display_seg(word_t mem)
     byte_t ref_count = getword(mem + offsetof(segment_s, ref_count), ds);
     struct task_struct *t;
 
-    printf("   %04x   %s %7ld %4d  ",
-	segbase, segtype[segflags], (long)segsize << 4, ref_count);
+    if (!Pflag)
+	printf("%04x   %s %7ld %4d  ",
+	    segbase, segtype[segflags], (long_t)segsize << 4, ref_count);
     if (segflags == SEG_FLAG_CSEG || segflags == SEG_FLAG_DSEG) {
 	if ((t = find_process(mem)) != NULL) {
 	    process_name(t->t_begstack, t->t_regs.ss);
 	}
+	if (Pflag) {
+	    proc_list[segptr].seg = segbase;
+	    proc_list[segptr].flag = segflags;
+	    strncpy(proc_list[segptr].proc, buf,  11);
+	    proc_list[segptr].size = segsize;
+	    //printf("proc_list: %x %x %s %u\n", segbase, segflags, buf, segsize);
+	    segptr++;
+	}
     }
-    total_segsize += (long)segsize << 4;
+    total_segsize += (long_t)segsize << 4;
 }
+
+struct { seg_t base, end; } heap[5], segs[5]; /* lazy: this way it gets zeroed */
+
+void blk_scan(void)
+{
+	/*
+	 * REMINDER: The size of a heap block is in bytes (heap.size),
+	 * while size of a main memory segment is in paragraphs
+	 */
+        word_t mem, n = getword(heap_all + offsetof(list_s, next), ds);
+	seg_t segbase, oldbase = 0, oldend, curend;
+	int i = 0;
+	long_t s;
+	char nn[8];
+
+	curend  = n + sizeof(heap_s) + getword(n + offsetof(heap_s, size), ds);
+	while (n != heap_all) {
+	    if (!oldbase) heap[i].base = n;	/* initial */
+	    if (n < oldbase) {
+		heap[i].end = curend-1;
+		heap[++i].base = n;
+	    }
+	    oldbase = n;
+	    curend = n + sizeof(heap_s) + getword(n + offsetof(heap_s, size), ds);
+            n = getword(n + offsetof(list_s, next), ds);
+	} 
+	heap[i].end = curend;
+
+	i = oldbase = 0;
+	n = getword(seg_all + offsetof(list_s, next), ds);
+	while (n != seg_all) {
+	    mem = n - offsetof(segment_s, all);
+	    segbase = getword(mem + offsetof(segment_s, base), ds);
+	    curend = segbase + getword(mem + offsetof(segment_s, size), ds);
+	    if (!oldbase) segs[i].base = segbase; 	/* initial */
+	    if (segbase < oldbase) {
+		segs[i].end  = oldend;
+		segs[++i].base = segbase;	
+	    }
+	    oldend = curend;
+	    oldbase = segbase;
+	    n = getword(n + offsetof(list_s, next), ds);
+	}
+	segs[i].end = curend;
+	if (Pflag) return;
+
+	printf("Kernel heap (DS-base %x):\n\t   SEG   OFFS   SIZE\n", ds);
+	int tot = 0;
+	for (i = 0; heap[i].base; i++) {
+	    printf(" Block %d: %x   %x  %5u bytes\n", i+1, (heap[i].base>>4) + ds, heap[i].base,
+	    	     heap[i].end - heap[i].base);
+	    tot += heap[i].end - heap[i].base;
+	}
+	printf(" Kernel heap total:    %u bytes\n", tot);
+	printf("\nMain memory:\n");
+
+	for (i = 0; segs[i].base; i++) {
+	    s = (long_t)(segs[i].end - segs[i].base) << 4;
+	    printf(" Arena %d: %04x - %04x (%6lu bytes, %s)\n", i+1, segs[i].base,
+			segs[i].end, s, make_kb(nn, s));
+	}
+}
+/*
+ * Paint a graphic representaiton of conventional memory layout. 
+ * Uses data generated by blk_scan() above.
+ */
+void mem_map(void)
+{
+	int i, seg = 0, start;
+	seg_t text;
+
+	if (Pflag) {	/* get to the end of main memory arena (1) */
+	    seg = segptr-1;
+	    while (proc_list[seg].seg < proc_list[0].seg) seg--; 
+	}
+	printf("\n");
+	p_divider(segs[0].end, "Top of conv. memory");
+	i = 7;
+	if (Pflag) i = 1;
+	p_block(i, (long_t)(segs[0].end-(ds+0x1000))<<4, "Main memory", "Arena 1");
+	if (Pflag)
+	    pp_block(0, seg);			/* display processes populating the arena */
+	p_divider(ds+0x1000, "Kernel DS end");
+	p_block(3, (long_t)(heap[0].end-heap[0].base), "Main kernel heap", "");
+	p_subdiv(heap[0].base, "", 1);
+	if (heap[1].base) {		/* More heap found: the released bootopts buffer */
+	    p_block(2, (long_t)(heap[0].base-heap[1].end), "Kernel data (bss)", "");
+	    p_subdiv(heap[1].end, "BSS continues", 1);
+	    p_block(1, (long_t)(heap[1].end-heap[1].base), "[bootopts buffer]",
+			"Heap block 2");
+	    p_subdiv(heap[1].base, "", 1);
+	    p_block(1, (long_t)(heap[1].base - (heap[0].base - bss_size)), "", "");
+	} else
+	    p_block(2, (long_t)bss_size, "Kernel data (bss)", "");
+	p_subdiv(heap[0].base - bss_size, "BSS start", 1);
+	p_block(1, (long_t)heap[0].base - bss_size, "Kernel data", "");
+	p_divider(ds, "Kernel DS start");
+	i = 1; 					/* index into the segs[] array */
+	if (ftext) {		/* we have FARTEXT, then we also have INITPROC */
+	    p_block(1, (long_t)(segs[1].end-segs[1].base)<<4, "[INITPROC code]",
+			"Main memory arena 2");
+	    if (Pflag) {
+	    	start = ++seg;
+	        while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
+		if (seg >= start) pp_block(start, seg);
+	    }
+	    p_subdiv(segs[1].base, "", 0);
+	    p_block(2, (long_t)(segs[1].base - ftext)<<4, "Kernel fartext", "");
+	    p_divider(ftext, "");
+	    i++;
+	    text = ftext - cs;
+	} else
+	    text = ds - cs;
+	p_block(5, (long_t)text<<4, "Kernel text", "");
+	p_divider(cs, "");
+	p_block(1, (long_t)(cs-DMASEG)<<4, "DMASEG", "buffers/cache");
+	p_divider(DMASEG, "");
+	if (segs[i].base) {
+	    p_block(1, (long_t)(DMASEG-segs[i].base)<<4, "[OPTSEG/setup data]",
+		"Main memory, arena 3");
+	    if (Pflag) {
+		start = ++seg;
+		while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
+		if (seg >= start) pp_block(start, seg);
+	    }
+	    p_divider(segs[i].base, "");
+	} else {
+	    p_block(1, (long_t)(DMASEG-DEF_OPTSEG)<<4, "Setup data", "");
+	    p_divider(DEF_OPTSEG, "");
+	    segs[i].base = DEF_OPTSEG;		/* abusing segs[]! */
+	}
+	p_block(1, (long_t)segs[i].base<<4, "IRQ vectors/BDA", "");
+	p_divider(0, "\n");
+	
+	return;
+}
+
 
 void dump_segs(void)
 {
-    word_t n, mem, arena = 2;
+    word_t n, mem, area = 1;
     seg_t segbase, oldbase = 0;
-    printf("    SEG   TYPE    SIZE  CNT  NAME\n");
+
+    if (!Pflag) printf("\t SEG   TYPE    SIZE  CNT  NAME\n");
+
     n = getword(seg_all + offsetof(list_s, next), ds);
     while (n != seg_all) {
 	mem = n - offsetof(segment_s, all);
 	segbase = getword(mem + offsetof(segment_s, base), ds);
-	if (segbase < oldbase) 
-            printf("[Arena %d]\n", arena++);
+
+	if (!Pflag)
+	    if (!oldbase || segbase < oldbase)
+        	printf("Arena %d ", area++);
+	    else
+	    	printf("        ");
+
 	oldbase = segbase;
 	display_seg(mem);
-	printf("\n");
+	if (!Pflag) printf("\n");
 	/* next in list */
 	n = getword(n + offsetof(list_s, next), ds);
     }
@@ -172,7 +398,7 @@ void dump_heap(void)
 		if (allflag ||
 		   (fflag && free) || (aflag && app) || (tflag && tty) || (bflag && buffer) 
 				   || (sflag && system)) {
-			printf("  %04x   %s %5d", mem, heaptype[tag], size);
+			printf("  %04x   %s %5d   ", mem, heaptype[tag], size);
 			total_size += size + sizeof(heap_s);
 			if (tag == HEAP_TAG_FREE)
 				total_free += size;
@@ -188,12 +414,15 @@ void dump_heap(void)
 		/* next in heap */
 		n = getword(n + offsetof(list_s, next), ds);
 	}
-	printf("  Heap/free   %5u/%u, Total mem %lu\n", total_size, total_free, total_segsize);
+	if (allflag)
+		printf("Heap/free   %5u/%u, Total mem %lu\n", total_size, total_free, total_segsize);
+	else
+		printf("Total size: %5u\n", total_size);
 }
 
 void usage(void)
 {
-	printf("usage: meminfo [-amftbsh]\n");
+	printf("usage: meminfo [-amMPftbsh]\n");
 }
 
 int main(int argc, char **argv)
@@ -203,7 +432,7 @@ int main(int argc, char **argv)
 
 	if (argc < 2)
 		allflag = 1;
-	else while ((c = getopt(argc, argv, "aftbsmh")) != -1) {
+	else while ((c = getopt(argc, argv, "aftbsmMPh")) != -1) {
 		switch (c) {
 			case 'a':
 				aflag = 1;
@@ -223,6 +452,12 @@ int main(int argc, char **argv)
 			case 'm':
 				mflag = 1;
 				break;
+			case 'P':
+				Pflag = 1;
+				/* fall thru */
+			case 'M':
+				Mflag = 1;
+				break;
 			case 'h':
 				usage();
 				return 0;
@@ -237,24 +472,39 @@ int main(int argc, char **argv)
 		return 1;
 	}
     if (ioctl(fd, MEM_GETDS, &ds) ||
+        ioctl(fd, MEM_GETBSS_SZ, &bss_size) ||
         ioctl(fd, MEM_GETHEAP, &heap_all) ||
 	ioctl(fd, MEM_GETSEGALL, &seg_all) ||
         ioctl(fd, MEM_GETTASK, &taskoff) ||
+        ioctl(fd, MEM_GETFARTEXT, &ftext) ||
+        ioctl(fd, MEM_GETCS, &cs) ||
         ioctl(fd, MEM_GETMAXTASKS, &maxtasks)) {
-	  perror("meminfo");
-	  return 1;
+	    perror(argv[0]);
+	    return 1;
     }
-    if (!memread(taskoff, ds, &task_table, sizeof(task_table))) {
+    if (!memread(taskoff, ds, &task_table, sizeof(task_table)))
         perror("taskinfo");
-    }
-	if (mflag) dump_segs();
-	else dump_heap();
 
-	if (!ioctl(fd, MEM_GETUSAGE, &mu)) {
-		/* note MEM_GETUSAGE amounts are floors, so total may display less by 1k than actual*/
-		printf("  Memory: %4dKB total, %4dKB used, %4dKB free\n",
-			mu.used_memory + mu.free_memory, mu.used_memory, mu.free_memory);
+    if (Pflag)  {
+	if (!(proc_list = (struct proc_list_s *)malloc(sizeof(struct proc_list_s) * (maxtasks<<1)))) {
+	    printf("%s: malloc failed\n", argv[0]);
+	    return 2;
 	}
+	dump_segs(); 	/* silent dump to fill the proc_list array */
+    }
+    if (Mflag) {
+	blk_scan();
+	mem_map();
+    }
+    else if (mflag) dump_segs();
+    else dump_heap();
 
-	return 0;
+    if (!ioctl(fd, MEM_GETUSAGE, &mu)) {
+	    /* note MEM_GETUSAGE amounts are floors, 
+	     * so total may display less by 1k than actual */
+    	printf("Memory: %4dKB total, %4dKB used, %4dKB free\n\n",
+    		mu.used_memory + mu.free_memory, mu.used_memory, mu.free_memory);
+    }
+
+    return 0;
 }

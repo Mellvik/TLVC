@@ -35,7 +35,7 @@
 struct heap {
 	list_s all;
 	list_s free;
-	word_t size;
+	word_t size;	/* bytes */
 	byte_t tag;
 	byte_t canary;
 };

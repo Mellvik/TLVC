@@ -12,6 +12,7 @@
 #define MEM_GETMAXTASKS 10
 #define MEM_GETJIFFADDR 11
 #define MEM_GETSEGALL	12
+#define MEM_GETBSS_SZ	13
 
 struct mem_usage {
 	unsigned int free_memory;

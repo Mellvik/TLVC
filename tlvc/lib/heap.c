@@ -4,17 +4,25 @@
 #include <linuxmt/kernel.h>
 #include <linuxmt/heap.h>
 #include <linuxmt/string.h>
+#include <autoconf.h>
 
 // Minimal block size to hold heap header
 // plus enough space in body to be useful
 // (= size of the smallest allocation)
 
 #define HEAP_MIN_SIZE (sizeof(heap_s) + 16)
-#define HEAP_SEG_OPT	/* allocate small SEG descriptors from the upper */
-			/* end of the heap to reduce fragmentation */
+//#define HEAP_SEG_OPT	/* Allocate small SEG descriptors from the upper */
+			/* end of the heap to reduce fragmentation. 
+			 * Not useful if small memory chuncks are added to 
+			 * the heap after the initial 'big heap' as small
+			 * allocations will gravitate towards the smaller
+			 * block atomagically and not contribute to fragmentation. */
+#ifndef CONFIG_BOOTOPTS
+#define HEAP_SEG_OPT
+#endif
 
-#define HEAP_CANARY	0xA5U	/* for header validation */
 #define VALIDATE_HEAPFREE
+#define HEAP_CANARY	0xA5U	/* for header validation */
 
 #define HEAP_DEBUG 0
 #if HEAP_DEBUG
@@ -220,7 +228,6 @@ void heap_add(void *data, word_t size)
 					/* ie. ignore later additioons to the heap */
 		debug_heap("new hf @ %x size %u\n", h, size);
 #endif
-
 	}
 }
 

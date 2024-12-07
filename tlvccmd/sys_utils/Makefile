@@ -62,7 +62,7 @@ ps: ps.o $(TINYPRINTF)
 	$(LD) $(LDFLAGS) -maout-heap=1024 -maout-stack=2048 -o ps ps.o $(TINYPRINTF) $(LDLIBS)
 
 meminfo: meminfo.o $(TINYPRINTF)
-	$(LD) $(LDFLAGS) -maout-heap=1 -maout-stack=512 -o meminfo meminfo.o $(TINYPRINTF) $(LDLIBS)
+	$(LD) $(LDFLAGS) -maout-heap=1024 -maout-stack=512 -o meminfo meminfo.o $(TINYPRINTF) $(LDLIBS)
 
 who: who.o
 	$(LD) $(LDFLAGS) -o who who.o $(LDLIBS)
