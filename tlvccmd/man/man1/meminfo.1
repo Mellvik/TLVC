@@ -11,6 +11,7 @@ meminfo \- list system memory usage
 .RB [ \-s ]
 .RB [ \-h ]
 .RB [ \-M ]
+.RB [ \-P ]
 .br
 .SS OPTIONS
 Defaults to showing all memory (equivalent to -aftbs).
@@ -34,17 +35,21 @@ Show system buffer and pipe memory
 Show system task, inode and file memory
 .TP 5
 .B -M
-Show system RAM layout (heap and main memory)
+Show system RAM layout (heap and main memory) in ASCII 'graphics'
+.TP 5
+.B -P
+Like -M, but include active processes with code and data segments in the 'picture'
 .TP 5
 .B -h
 Show help
 .SH DESCRIPTION
 .B meminfo
+without options
 traverses the kernel local heap and displays a line for each in-use or free entry. 
 Since the local heap also manages the system memory outside of the kernel
 normally available for running application programs, the in-use or free
 segments of system memory outside the kernel
-(sometimes called external or simply main memory) will also be displayed.
+(sometimes called external, conventional or simply main memory) will also be displayed.
 .PP
 For every line, the local heap address, type and size are displayed.
 For main memory, the main memory segment, type, size and access count
@@ -99,6 +104,9 @@ DRVR
 Buffers allocated by various drivers, such as disk or floppy drivers for `bounce buffers', necessary
 when using XMS for block subsystem buffers.
 .TP 10
+CACH
+System level 1 buffer cache.
+.TP 10
 BUFH
 System buffer headers. The buffer data contents may be in main or XMS memory.
 .TP 10
@@ -126,7 +134,7 @@ DSEG
 Running application data segment.
 .TP 10
 BUF
-Block subsystem buffer data, 1024 bytes per buffer.
+Block subsystem (level 2) buffers, 1024 bytes per buffer.
 .TP 10
 RDSK
 Ramdisk data.
@@ -137,7 +145,8 @@ Unallocated main memory.
 .B meminfo -M
 displays the physical layout of the heap and the available application memory. When the system boots,
 initial allocations are made for application and heap memory respectively. After startup completes,
-some code and data are no longer needed and the memory they occupy is released to either the heap or 
+and depending on the kernel configuration, 
+some code and data may no longer be needed and the memory they occupy is released to either the heap or 
 main memory depending on its location. These additions will not be contiguous with the initially 
 allocated memory segments, but still represent useful resources. 
 .PP
@@ -147,14 +156,23 @@ option displays these memory blocks - their start and end addresses and size, as
 information provided by the default 
 .B meminfo 
 display and the
--B -m
+.B -m
 option display.
+.PP
+The
+.B -P
+options expands on the display created using 
+.B -M
+by including the running processes and their data and code segment addresses in the graphic 
+visualization. This provides a very useful and informative view of the status and operations
+of the system.
 .PP
 Note that in all cases, 
 .B meminfo
 displays addresses in units of 'paragraphs', the unit used by the Intel segmented memory architecture. 
- Each 'paragraph' is 16 bytes, so in order to get the linear address of a segment or block, add 
-a 0 to the left side of the heaxadecimal address, which is the same as multiplying by 16. 
+This is visualized using the format '12AB:0', the ':0' indicating it's an address. Offsets, typically 
+inside the kernel data segment, are prepended with a '+' sign. Sizes have a 'K' suffix
+indicating kilobytes, 1024 bytes
 
 .SH FILES
 .TP 10
@@ -162,5 +180,6 @@ a 0 to the left side of the heaxadecimal address, which is the same as multiplyi
 .SH BUGS
 .B meminfo
 does not yet display XMS memory usage.
-.SH AUTHOR
-Greg Haerr (greg@censoft.com)
+.SH AUTHORS
+Greg Haerr (greg@censoft.com),
+memory visualizations (-P, -M) by Helge Skrivervik
