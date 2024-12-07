@@ -44,6 +44,7 @@
 #define DEBUG_CACHE	0		/* Floppy sector cache */
 #define DEBUG_ASYNC	0		/* Async req's added/completed */
 #define DEBUG_BUFFER	0		/* Block IO L1/L2 cache/buffer */
+#define DEBUG_BLKDRV	0		/* Block driver level */
 #define DEBUG_RAW	0		/* Raw/char IO wrapper for block drivers */
 
 #if DEBUG_EVENT
@@ -62,6 +63,12 @@ void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*
 #define debug_blk	PRINTK
 #else
 #define debug_blk(...)
+#endif
+
+#if DEBUG_BLKDRV
+#define debug_blkdrv	PRINTK
+#else
+#define debug_blkdrv(...)
 #endif
 
 #if DEBUG_RAW
