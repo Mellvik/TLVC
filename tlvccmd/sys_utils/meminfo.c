@@ -100,7 +100,7 @@ char *make_kb(char *n, long_t size)
 	if (t > 9)
 		sprintf(n, "%-uK", t);
 	else
-		sprintf(n, "%-u.%1uK", t, r/100);
+		sprintf(n, "%-u.%1uK", t, r/102);
 	return n;
 }
 
@@ -210,10 +210,10 @@ void blk_scan(void)
 	 * while size of a main memory segment is in paragraphs
 	 */
         word_t mem, n = getword(heap_all + offsetof(list_s, next), ds);
+	seg_t segbase, oldbase = 0, oldend, curend;
 	int i = 0;
 	long_t s;
 	char nn[8];
-	seg_t segbase, oldbase = 0, oldend, curend;
 
 	curend  = n + sizeof(heap_s) + getword(n + offsetof(heap_s, size), ds);
 	while (n != heap_all) {
@@ -244,6 +244,7 @@ void blk_scan(void)
 	    n = getword(n + offsetof(list_s, next), ds);
 	}
 	segs[i].end = curend;
+	if (Pflag) return;
 
 	printf("Kernel heap (DS-base %x):\n\t   SEG   OFFS   SIZE\n", ds);
 	int tot = 0;
