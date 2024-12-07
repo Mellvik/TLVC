@@ -46,6 +46,7 @@
 #define DEBUG_BUFFER	0		/* Block IO L1/L2 cache/buffer */
 #define DEBUG_BLKDRV	0		/* Block driver level */
 #define DEBUG_RAW	0		/* Raw/char IO wrapper for block drivers */
+#define DEBUG_BIOSIO	0		/* BIOS low level block IO driver */
 
 #if DEBUG_EVENT
 void dprintk(const char *, ...);		/* printk when debugging on*/
@@ -63,6 +64,12 @@ void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*
 #define debug_blk	PRINTK
 #else
 #define debug_blk(...)
+#endif
+
+#if DEBUG_BIOSIO
+#define debug_biosio	PRINTK
+#else
+#define debug_biosio(...)
 #endif
 
 #if DEBUG_BLKDRV

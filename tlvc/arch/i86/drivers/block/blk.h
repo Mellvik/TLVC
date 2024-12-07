@@ -118,7 +118,6 @@ extern void resetup_one_dev(struct gendisk *dev, int drive);
 
 #endif
 
-extern struct wait_queue wait_for_request; /* for ASYNC_IO */
 #ifdef FLOPPYDISK	/* direct floppy */
 #define ASYNC_IO
 
@@ -179,6 +178,10 @@ static void floppy_off();	/*(unsigned int nr); */
 
 #define CURRENT		(blk_dev[MAJOR_NR].current_request)
 #define CURRENT_DEV	DEVICE_NR(CURRENT->rq_dev)
+
+#ifdef ASYNC_IO
+extern struct wait_queue wait_for_request;
+#endif
 
 static void (DEVICE_REQUEST) ();
 
@@ -253,7 +256,9 @@ static void end_request(int uptodate)
     req->rq_dev = -1U;
     req->rq_status = RQ_INACTIVE;
     CURRENT = req->rq_next;
+#ifdef ASYNC_IO
     wake_up(&wait_for_request);
+#endif
 }
 
 #endif /* MAJOR_NR */

@@ -269,8 +269,8 @@ static int probing;
  */
 static struct fdev_s fdevice[MAX_FLOPPIES];
 
-/* On an XT with a 720k drive, probing will not work because the first 9 sectors
- * read correctly anyway, we need to fake the CMOS types via bootopts */
+/* On an XT with a 720k drive, regular density probing will not work because the 
+ * first 9 sectors read correctly anyway, we need to fake the CMOS types via bootopts */
 extern int xt_floppy[];
 extern int fdcache;	/* size of sector cache from bootopts */
 
@@ -1492,9 +1492,8 @@ static void redo_fd_request(void)
     }
 #endif
 
-    DEBUG("prep %d,%d|%d-", seek_track, cache_drive, current_drive);
-
 #if CONFIG_FLOPPY_CACHE 
+    DEBUG("prep %d,%d|%d-", seek_track, cache_drive, current_drive);
     if (!raw && (current_drive == cache_drive) && start >= cache_start
 			&& start <= (cache_start + cache_len - nr_sectors + 1)) {
 
@@ -1845,7 +1844,7 @@ void INITPROC floppy_init(void)
     /* sector cache setup - /bootopts fdcache= has preference, otherwise autoconfig */
     if (fdcache != -1)			/* allow fdcache=0 in bootopts */
 	cache_size = fdcache<<1;	/* cache size is sectors, fdcache is k bytes */
-    else if (SETUP_CPU_TYPE == 7)
+    else if (arch_cpu == 7)
 	cache_size = 0; 		/* sector cache is slowing down fast systems */
     else cache_size = FD_CACHE_SEGSZ>>9;	/* use menuconfig value */
 

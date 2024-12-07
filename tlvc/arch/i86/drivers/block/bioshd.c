@@ -72,6 +72,7 @@
 
 #include "blk.h"
 
+#undef CONFIG_TRACK_CACHE	/* FIXME: corrently not working */
 #ifdef CONFIG_ARCH_IBMPC
 #define MAXDRIVES	2	/* max floppy drives*/
 #endif
@@ -544,7 +545,7 @@ static int read_sector(int drive, int cylinder, int sector)
     do {
 	set_irq();
 	set_ddpt(36);		/* set to large value to avoid BIOS issues*/
-	if (!bios_disk_rw(BIOSHD_READ, 1, drive, cylinder, 0, sector, DMASEG, 0))
+	if (!bios_disk_rw(BIOSHD_READ, 1, drive, cylinder, 0, sector, FD_BOUNCE_SEG, 0))
 	    return 0;		/* everything is OK */
 	reset_bioshd(drive);
     } while (--count > 0);
@@ -582,7 +583,7 @@ static void probe_floppy(int target, struct hd_struct *hdp)
 	 * If it exists, we can obtain the disk geometry from it.
 	 */
 	if (!read_sector(target, 0, 1)) {
-	    struct elks_disk_parms __far *parms = _MK_FP(DMASEG, drivep->sector_size -
+	    struct elks_disk_parms __far *parms = _MK_FP(FD_BOUNCE_SEG, drivep->sector_size -
 		2 - sizeof(struct elks_disk_parms));
 
 	    /* first check for ELKS parm block */
@@ -605,7 +606,7 @@ static void probe_floppy(int target, struct hd_struct *hdp)
 	    }
 
 	    /* second check for valid FAT BIOS parm block */
-	    unsigned char __far *boot = _MK_FP(DMASEG, 0);
+	    unsigned char __far *boot = _MK_FP(FD_BOUNCE_SEG, 0);
 	    if (
 		//(boot[510] == 0x55 && boot[511] == 0xAA) &&	/* bootable sig*/
 		((boot[3] == 'M' && boot[4] == 'S') ||		/* OEM 'MSDOS'*/
@@ -818,7 +819,7 @@ int INITPROC bioshd_init(void)
     }
 #else /* one line version */
 #ifdef CONFIG_BLK_DEV_BIOS
-    char *p_sep="";
+    char *p_sep = "";
     printk("bioshd: ");
 #ifdef CONFIG_BLK_DEV_BFD
     printk("%d floppy drive%s ", _fd_count, _fd_count == 1 ? "" : "s");
@@ -937,10 +938,10 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 			(unsigned int)seg, buf, physaddr, this_pass, usedmaseg);
 	    }
 	    if (usedmaseg) {
-		segment = DMASEG;		/* if xms buffer use DMASEG*/
+		segment = FD_BOUNCE_SEG;		/* if xms buffer use FD_BOUNCE_SEG */
 		offset = 0;
-		if (cmd == WRITE)	/* copy xms buffer down before write*/
-		    xms_fmemcpyw(0, DMASEG, buf, seg, this_pass*(drivep->sector_size >> 1));
+		if (cmd == WRITE)	/* copy xms buffer down before write */
+		    xms_fmemcpyw(0, FD_BOUNCE_SEG, buf, seg, this_pass*(drivep->sector_size >> 1));
 		set_cache_invalid();
 	    } else {
 		segment = (seg_t)seg;
@@ -968,7 +969,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 	if (error) return 0;
 	if (usedmaseg) {
 		if (cmd == READ)	/* copy DMASEG up to xms*/
-			xms_fmemcpyw(buf, seg, 0, DMASEG, this_pass*(drivep->sector_size >> 1));
+			xms_fmemcpyw(buf, seg, 0, FD_BOUNCE_SEG, this_pass*(drivep->sector_size >> 1));
 		set_cache_invalid();
 	}
 	return this_pass;
@@ -979,7 +980,8 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 static sector_t cache_startsector;
 static sector_t cache_endsector;
 
-/* read from start sector to end of track into DMASEG track buffer, no retries*/
+/* read from start sector to end of track into the FD_CACHE_SEG sector buffer in low memory,
+ * no retries*/
 static void bios_readtrack(struct drive_infot *drivep, sector_t start)
 {
 	unsigned int cylinder, head, sector, num_sectors;
