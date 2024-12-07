@@ -222,8 +222,8 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 
 		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 		o_data = bh->b_data;		/* save the 'original' values */
-		o_seg = ebh->b_L2seg;	/* may be long (xms active) or int */
-		ebh->b_L2seg = (ramdesc_t)current->t_regs.ds;
+		o_seg = ebh->b_L2seg;		/* may be long (xms active) or int */
+		ebh->b_L2seg = current->t_regs.ds;
 		bh->b_data = buf;
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
 		chars &= ~(SECT_SIZE - 1);
