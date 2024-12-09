@@ -360,7 +360,7 @@ static unsigned char use_cache;
 static int cache_drive = -1;
 static int cache_start;		/* first cached sector */
 static int cache_len;		/* valid length of cache in sectors */
-static int cache_size;		/* # of sectors - min=0 (off), max=FD_CACHE_SEGSZ>>9 */
+static int cache_size;		/* # of sectors - min=0 (off), max=FD_CACHESEGSZ>>9 */
 //static unsigned int cache_hits;	/* For stats */
 #endif
 
@@ -682,7 +682,7 @@ static void setup_DMA(void)
     count = nr_sectors<<9;
     if (use_bounce || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
 	use_bounce++;
-	dma_addr = _MK_LINADDR(FD_BOUNCE_SEG, 0);
+	dma_addr = _MK_LINADDR(FD_BOUNCESEG, 0);
 	if (raw) {	/* The application buffer spans a 64k boundary, split it into
 			 * 2 or three parts, using the first k of the sector cache
 			 * as a bounce buffer */
@@ -699,7 +699,7 @@ static void setup_DMA(void)
     } else {
 #if CONFIG_FLOPPY_CACHE
 	if (use_cache) 
-	    dma_addr = _MK_LINADDR(FD_CACHE_SEG, 0);
+	    dma_addr = _MK_LINADDR(FD_CACHESEG, 0);
 #endif
     }
     if (raw) {	/* ensure raw access doesn't span cylinders */
@@ -715,7 +715,7 @@ static void setup_DMA(void)
 
 #ifdef INCLUDE_FD_FORMATTING
     if (command == FD_FORMAT) {
-	dma_addr = _MK_LINADDR(FD_BOUNCE, 0);
+	dma_addr = _MK_LINADDR(FD_BOUNCESEG, 0);
 	count = floppy->sect << 2;	/* formatting data, 4 bytes per sector */
     }
 #endif
@@ -728,7 +728,7 @@ static void setup_DMA(void)
     } else
 #endif
     if (use_bounce && command == FD_WRITE)
-	xms_fmemcpyw(0, FD_BOUNCE_SEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	xms_fmemcpyw(0, FD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
 
     DEBUG("%d/%lx/%x;", count, dma_addr, physaddr);
     clr_irq();
@@ -999,16 +999,16 @@ static void rw_interrupt(void)
     }
     if (raw) CURRENT->rq_nr_sectors = nr_sectors;
     if (use_bounce && command == FD_READ) {
-	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, FD_BOUNCE_SEG, nr_sectors << (9-1));
+	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, FD_BOUNCESEG, nr_sectors << (9-1));
 									       /* words ^ */
     } else {
 #if CONFIG_FLOPPY_CACHE
 	if (use_cache) {
 	    cache_drive = current_drive;
 	    cache_start = CURRENT->rq_blocknr;
-	    DEBUG("rd:%04x:0->%04lx:%04x;", FD_CACHE_SEG,
+	    DEBUG("rd:%04x:0->%04lx:%04x;", FD_CACHESEG,
 		(unsigned long)req->rq_seg, req->rq_buffer);
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, FD_CACHE_SEG, BLOCK_SIZE/2);
+	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, FD_CACHESEG, BLOCK_SIZE/2);
 	}
 #endif
     }
@@ -1506,11 +1506,11 @@ static void redo_fd_request(void)
 
 	if (command == FD_READ) {	/* requested data is in cache */
 //	    cache_hits++;
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, FD_CACHE_SEG, BLOCK_SIZE/2);
+	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, FD_CACHESEG, BLOCK_SIZE/2);
 	    request_done(1);
 	    goto repeat;
     	} else if (command == FD_WRITE)	/* update track cache */
-	    xms_fmemcpyw(buf_ptr, FD_CACHE_SEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	    xms_fmemcpyw(buf_ptr, FD_CACHESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
     } 
 #endif
 
@@ -1846,10 +1846,10 @@ void INITPROC floppy_init(void)
 	cache_size = fdcache<<1;	/* cache size is sectors, fdcache is k bytes */
     else if (arch_cpu == 7)
 	cache_size = 0; 		/* sector cache is slowing down fast systems */
-    else cache_size = FD_CACHE_SEGSZ>>9;	/* use menuconfig value */
+    else cache_size = FD_CACHESEGSZ>>9;	/* use menuconfig value */
 
-    if (cache_size > (FD_CACHE_SEGSZ>>9)) cache_size = FD_CACHE_SEGSZ>>9;
-    printk("Floppy cache %dk, available %dk\n", cache_size>>1, FD_CACHE_SEGSZ>>10);
+    if (cache_size > (FD_CACHESEGSZ>>9)) cache_size = FD_CACHESEGSZ>>9;
+    printk("Floppy cache %dk, available %dk\n", cache_size>>1, FD_CACHESEGSZ>>10);
 	
 #endif
 }

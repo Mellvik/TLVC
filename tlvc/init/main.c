@@ -159,7 +159,9 @@ static void INITPROC early_kernel_init(void)
     ROOT_DEV = SETUP_ROOT_DEV;      /* default root device from boot loader */
 
 #ifdef CONFIG_BOOTOPTS
-    hasopts = parse_options();         /* parse options found in /bootops */
+    hasopts = parse_options();		/* parse options found in /bootops */
+#else
+    fdcache = CONFIG_FLOPPY_CACHE;	/* no bootopts -> use CONFIG */
 #endif
 
     /* create near heap at end of kernel bss */
@@ -289,11 +291,11 @@ static void INITPROC do_init_task(void)
 	sys_dup(num);		/* open stdout*/
 	sys_dup(num);		/* open stderr*/
     //}
+    seg_add(REL_INITSEG, fdcache>0?FD_CACHESEG:FD_BOUNCESEG);
 
 #ifdef CONFIG_BOOTOPTS
     /* Release /bootopts parsing buffers and the setup data segment */
     heap_add(options, OPTSEGSZ);
-    seg_add(DEF_OPTSEG, DMASEG);	/* DEF_OPTSETG through REL_INITSEG */
 
     /* pass argc/argv/env array to init_command */
 

@@ -269,7 +269,8 @@ void blk_scan(void)
 void mem_map(void)
 {
 	int i, seg = 0, start;
-	seg_t text;
+	seg_t s_size;
+	char main_msg[] = "Main memory arena x";
 
 	if (Pflag) {	/* get to the end of main memory arena (1) */
 	    seg = segptr-1;
@@ -299,8 +300,9 @@ void mem_map(void)
 	p_divider(ds, "Kernel DS start");
 	i = 1; 					/* index into the segs[] array */
 	if (ftext) {		/* we have FARTEXT, then we also have INITPROC */
+	    main_msg[strlen(main_msg)-1] = i + 1 + '0';
 	    p_block(1, (long_t)(segs[1].end-segs[1].base)<<4, "[INITPROC code]",
-			"Main memory arena 2");
+			main_msg);
 	    if (Pflag) {
 	    	start = ++seg;
 	        while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
@@ -310,16 +312,17 @@ void mem_map(void)
 	    p_block(2, (long_t)(segs[1].base - ftext)<<4, "Kernel fartext", "");
 	    p_divider(ftext, "");
 	    i++;
-	    text = ftext - cs;
+	    s_size = ftext - cs;
 	} else
-	    text = ds - cs;
-	p_block(5, (long_t)text<<4, "Kernel text", "");
+	    s_size = ds - cs;
+	p_block(5, (long_t)s_size<<4, "Kernel text", "");
 	p_divider(cs, "");
-	p_block(1, (long_t)(cs-DMASEG)<<4, "DMASEG", "buffers/cache");
-	p_divider(DMASEG, "");
 	if (segs[i].base) {
-	    p_block(1, (long_t)(DMASEG-segs[i].base)<<4, "[OPTSEG/setup data]",
-		"Main memory, arena 3");
+	    main_msg[strlen(main_msg)-1] = i + 1 + '0';
+	    p_block(1, (long_t)(cs-segs[i].end)<<4, "buffers/cache", "");
+	    p_divider(segs[i].end, "");
+	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[OPTSEG/setup data]",
+		main_msg);
 	    if (Pflag) {
 		start = ++seg;
 		while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
@@ -327,6 +330,8 @@ void mem_map(void)
 	    }
 	    p_divider(segs[i].base, "");
 	} else {
+	    p_block(1, (long_t)(cs-DMASEG)<<4, "buffers/cache", "");
+	    p_divider(DMASEG, "");
 	    p_block(1, (long_t)(DMASEG-DEF_OPTSEG)<<4, "Setup data", "");
 	    p_divider(DEF_OPTSEG, "");
 	    segs[i].base = DEF_OPTSEG;		/* abusing segs[]! */
@@ -486,10 +491,12 @@ int main(int argc, char **argv)
         perror("taskinfo");
 
     if (Pflag)  {
-	if (!(proc_list = (struct proc_list_s *)malloc(sizeof(struct proc_list_s) * (maxtasks<<1)))) {
+	int sz = sizeof(struct proc_list_s) * (maxtasks<<1);
+	if (!(proc_list = (struct proc_list_s *)malloc(sz))) {
 	    printf("%s: malloc failed\n", argv[0]);
 	    return 2;
 	}
+	memset(proc_list, 0, sz);	/* mandatory */
 	dump_segs(); 	/* silent dump to fill the proc_list array */
     }
     if (Mflag) {
