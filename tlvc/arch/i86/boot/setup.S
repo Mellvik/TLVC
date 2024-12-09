@@ -7,10 +7,9 @@
 ! both setup.s and system has been loaded by the bootblock.
 !
 ! This code asks the bios for memory/disk/other parameters, and
-! puts them in a "safe" place: INITSEG:0-INITSEG:01FF, ie where the
-! boot-block used to be. It is then up to the protected mode
-! system to read them from there before the area is overwritten
-! for buffer-blocks.
+! puts them in a "safe" place: REL_INITSEG:0-REL_INITSEG:01FF, ie where
+! the boot-block used to be. It is then up to the kernel to read them
+! from there before the area is released to the main memory allocator.
 !
 ! Move PS/2 aux init code to psaux.c
 ! (troyer@saifr00.cfsat.Honeywell.COM) 03Oct92
@@ -36,7 +35,7 @@
 !
 ! index
 !	...
-!	4:	display page
+!	4:	display page, 1 byte UNUSED
 !	6:	video mode, 1 byte
 !	7:	screen_cols, 1 byte
 !	8:	video data, 2 bytes
@@ -51,7 +50,7 @@
 !			4  = 80188
 !			5  = 80186
 !			6  = 80286
-!			7  = 80386
+!			7  = 32-bit CPU (80386+)
 !			8  = 80486 UNUSED
 !			9  = Pentium UNUSED
 !			10 = Pentium PRO UNUSED
@@ -174,7 +173,7 @@ no_sig:	lea	no_sig_mess,%si
 1:                             // And halt
 	jmp	1b
 
-no_sig_mess:	.ascii	"No ELKS setup signature found ...\0"
+no_sig_mess:	.ascii	"No TLVC setup signature found ...\0"
 
 // If setup and kernel were loaded as a blob, we need to separate them out,
 // then move to our own stack
@@ -899,7 +898,6 @@ novga:	mov	%al,14		// CGA 25 rows
 
 	mov	$0x0f,%ah
 	int	$0x10
-	mov	%bx,4		// bh = display page
 	mov	%ax,6		// al = video mode, ah = window width
 
 	call	getcpu		// implemented in cputype.S
@@ -948,8 +946,8 @@ putc:	push %ax
 //
 // load /bootopts file for FAT filesystem boot
 //      If size > 512 bytes, both sectors must be contiguous.
-//      This is currently guaranteed by using a 1K /bootopts in
-//      distribution images, as later edits will remain contiguous.
+//      This is currently guaranteed by providing a 1K /bootopts in
+//      distribution images, so later edits will remain contiguous.
 //
 // Uses previous boot sector's BPB contents for disk geometry
 // and previous boot sector's buffer which still holds root directory sector.
@@ -994,11 +992,10 @@ bootopts:
 
 	mov	root_dev,%al	// Physical Device Address
 	mov	$0xD6,%ah	// Read Data
-	mov	$1024,%bx	// 2 sectors, 1k
+	mov	$1024,%bx	// 1K bytes
 	test	$0x10,%al	// Check Floppy Disk or Hard Disk
 	jz	pc98_int1b
 #ifdef CONFIG_IMG_FD1232
-	mov	$1024,%bx
 	mov	$0x03,%ch	// 1024 Bytes per sector
 	inc	%dl		// sector number for PC_98 Floppy Disk
 #else
@@ -1016,7 +1013,7 @@ pc98_int1b:
 	mov	$DEF_OPTSEG,%ax	// ES:BX = DEF_OPTSEG:0
 	mov	%ax,%es
 	xor	%bx,%bx
-	mov	$0x0202,%ax	// BIOS read disk, 1 sector
+	mov	$0x0202,%ax	// BIOS read disk, 2 sectors
 	int	$0x13		// BIOS disk interrupt
 #endif
 
