@@ -120,18 +120,27 @@
 #endif
 
 /* Define segment locations of low memory, must not overlap 
+   Reorganized dec 2024: setup data + bootopts buffer +
+   floppy cache (if present) are now contiguous. If the
+   floppy cache is allocated but not used (bootopts fdcache=0)
+   the entire block may be released and made available as general memory.
+   The astructure is: Fixed segs first, then variable/configurable, 
+   then the kernel REL_SYSSEG.
 
- | kernel text    |
- +----------------+ kernel CS = REL_SYSSEG
- | Bounce buffers |
- | & floppy cache |  variable size
- +----------------+ DMASEG
- | setup data     |   512B
- +----------------+ REL_INITSEG
- | bootopts buffer|  1k or 0 if not configured
- +----------------+ DEF_OPTSEG = 0x50
- | IRQ vectors/BDA|
- +----------------+ 000
+ | kernel text     |
+ +-----------------+ Kernel CS = REL_SYSSEG = (XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
+ | Other bounce    |  Optional, 1k
+ +-----------------+ XD_BOUNCESEG = (FD_CACHESEG + (0x400>>4))
+ | Floppy bounce   |  1k
+ +-----------------+ FD_BOUNCESEG = (FD_CACHESEG + (CONFIG_FLOPPY_CACHE<<10))
+ | Floppy cache    |  Optional, max 7k
+ +-----------------+ FD_CACHESEG = (DEF_OPTSEG + (OPTSEGSZ>>4)) = DMASEG
+ | bootopts buffer |  Optional 1k
+ +-----------------+ 0x70 DEF_OPTSEG
+ | setup data      |  512B
+ +-----------------+ 0x50 REL_INITSEG 
+ | IRQ vectors/BDA |
+ +-----------------+ 000
 
 */
 #ifdef CONFIG_BOOTOPTS
@@ -140,33 +149,21 @@
 #define OPTSEGSZ        0
 #endif
 
-#define DEF_OPTSEG	0x50	/* IRQ vectors/ BDA below this */
-#define REL_INITSEG	(DEF_OPTSEG + (OPTSEGSZ>>4))
-#define SETUP_DATA	REL_INITSEG			/* 0x200 bytes setup data */
-#define DMASEG		(REL_INITSEG + (0x200>>4))	/* Start of variable sized
-							 * DMA/bounce segment */
-
-/* DMASEG has one or more 1k bounce buffers 
- * below the first 64K boundary (= 0x1000:0)
- * for use with the old 8237 DMA controller.
- * Also used for floppy sector cache if configured.
- */
-#define XD_BOUNCE_SEG		DMASEG	/* bounce buffer for XD and Lance drivers */
 #if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
-#define XD_BOUNCE_SEGSZ		0x400
+#define XD_BOUNCESEGSZ		0x400
 #else
-#define XD_BOUNCE_SEGSZ		0
+#define XD_BOUNCESEGSZ		0
 #endif
 
-/* Floppy bounce buffer always present - for DMA and XMS */
-#define FD_BOUNCE_SEG	(XD_BOUNCE_SEG + (XD_BOUNCE_SEGSZ>>4))
-#define FD_BOUNCE_SEGSZ	0x400
-
-/* Floppy cache may be present on slow systems */
-#define FD_CACHE_SEG	(FD_BOUNCE_SEG + (FD_BOUNCE_SEGSZ>>4))
-#define FD_CACHE_SEGSZ	(CONFIG_FLOPPY_CACHE*1024)	/* May be zero */
-
-#define REL_SYSSEG	(FD_CACHE_SEG + (FD_CACHE_SEGSZ>>4)) /* kernel code segment */
+#define REL_INITSEG	0x50	/* IRQ vectors/ BDA below this */
+#define SETUP_DATA	REL_INITSEG			/* 0x200 bytes setup data */
+#define DEF_OPTSEG	0x70
+#define FD_CACHESEG	(DEF_OPTSEG + (OPTSEGSZ>>4))
+#define DMASEG		FD_CACHESEG
+#define FD_CACHESEGSZ	(CONFIG_FLOPPY_CACHE<<10)	/* Bytes, may be zero */
+#define FD_BOUNCESEG	(FD_CACHESEG + (FD_CACHESEGSZ>>4))
+#define XD_BOUNCESEG	(FD_BOUNCESEG + (0x400>>4))
+#define REL_SYSSEG	(XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
 
 #endif 	/* ARCH_PC, ARCH_8016X, !ROM */
 

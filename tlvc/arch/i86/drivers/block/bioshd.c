@@ -969,7 +969,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 	if (error) return 0;
 	if (usedmaseg) {
 		if (cmd == READ)	/* copy DMASEG up to xms*/
-			xms_fmemcpyw(buf, seg, 0, FD_BOUNCE_SEG, this_pass*(drivep->sector_size >> 1));
+			xms_fmemcpyw(buf, seg, 0, FD_BOUNCESEG, this_pass*(drivep->sector_size >> 1));
 		set_cache_invalid();
 	}
 	return this_pass;
