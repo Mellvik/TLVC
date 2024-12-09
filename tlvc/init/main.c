@@ -159,7 +159,8 @@ static void INITPROC early_kernel_init(void)
     ROOT_DEV = SETUP_ROOT_DEV;      /* default root device from boot loader */
 
 #ifdef CONFIG_BOOTOPTS
-    hasopts = parse_options();		/* parse options found in /bootops */
+    if (!(hasopts = parse_options()))		/* parse options found in /bootops */
+        fdcache = CONFIG_FLOPPY_CACHE;
 #else
     fdcache = CONFIG_FLOPPY_CACHE;	/* no bootopts -> use CONFIG */
 #endif
