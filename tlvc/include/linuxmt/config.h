@@ -119,13 +119,15 @@
 #define CONFIG_FLOPPY_CACHE 7
 #endif
 
-/* Define segment locations of low memory, must not overlap 
+/* Define segment locations of low memory, must not overlap.
+
    Reorganized dec 2024: setup data + bootopts buffer +
    floppy cache (if present) are now contiguous. If the
    floppy cache is allocated but not used (bootopts fdcache=0)
    the entire block may be released and made available as general memory.
-   The astructure is: Fixed segs first, then variable/configurable, 
+   The structure is: Fixed segs first, then variable/configurable, 
    then the kernel REL_SYSSEG.
+   NOTE: The meminfo program makes assumptions about the order of these blocks!
 
  | kernel text     |
  +-----------------+ Kernel CS = REL_SYSSEG = (XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
