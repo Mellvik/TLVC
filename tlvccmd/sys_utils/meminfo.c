@@ -100,7 +100,7 @@ char *make_kb(char *n, long_t size)
 	if (t > 9)
 		sprintf(n, "%-uK", t);
 	else
-		sprintf(n, "%-u.%1uK", t, r/102);
+		sprintf(n, "%-u.%1uK", t, r/103);
 	return n;
 }
 
@@ -300,7 +300,7 @@ void mem_map(void)
 	p_divider(ds, "Kernel DS start");
 	i = 1; 					/* index into the segs[] array */
 	if (ftext) {		/* we have FARTEXT, then we also have INITPROC */
-	    main_msg[strlen(main_msg)-1] = i + 1 + '0';
+	    main_msg[strlen(main_msg)-1] = i + '1';
 	    p_block(1, (long_t)(segs[1].end-segs[1].base)<<4, "[INITPROC code]",
 			main_msg);
 	    if (Pflag) {
@@ -318,7 +318,7 @@ void mem_map(void)
 	p_block(5, (long_t)s_size<<4, "Kernel text", "");
 	p_divider(cs, "");
 	if (segs[i].base) {
-	    main_msg[strlen(main_msg)-1] = i + 1 + '0';
+	    main_msg[strlen(main_msg)-1] = i + '1';
 	    p_block(1, (long_t)(cs-segs[i].end)<<4, "buffers/cache", "");
 	    p_divider(segs[i].end, "");
 	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[OPTSEG/setup data]",
