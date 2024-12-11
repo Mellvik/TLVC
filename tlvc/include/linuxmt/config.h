@@ -121,9 +121,9 @@
 
 /* Define segment locations of low memory, must not overlap.
 
-   Reorganized dec 2024: setup data + bootopts buffer +
+   Reorganized dec 2024 (HS): setup data + bootopts buffer +
    floppy cache (if present) are now contiguous. If the
-   floppy cache is allocated but not used (bootopts fdcache=0)
+   floppy cache is allocated but not used (bootopts fdcache=0),
    the entire block may be released and made available as general memory.
    The structure is: Fixed segs first, then variable/configurable, 
    then the kernel REL_SYSSEG.
@@ -132,7 +132,7 @@
  | kernel text     |
  +-----------------+ Kernel CS = REL_SYSSEG = (XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
  | Other bounce    |  Optional, 1k
- +-----------------+ XD_BOUNCESEG = (FD_CACHESEG + (0x400>>4))
+ +-----------------+ XD_BOUNCESEG = (FD_BOUNCESEG + (0x400>>4))
  | Floppy bounce   |  1k
  +-----------------+ FD_BOUNCESEG = (FD_CACHESEG + (CONFIG_FLOPPY_CACHE<<10))
  | Floppy cache    |  Optional, max 7k
