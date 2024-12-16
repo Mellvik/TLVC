@@ -1841,14 +1841,7 @@ void INITPROC floppy_init(void)
     config_types();
 
 #if CONFIG_FLOPPY_CACHE
-    /* sector cache setup - /bootopts fdcache= has preference, otherwise autoconfig */
-    if (fdcache != -1)			/* allow fdcache=0 in bootopts */
-	cache_size = fdcache<<1;	/* cache size is sectors, fdcache is k bytes */
-    else if (arch_cpu == 7)
-	cache_size = 0; 		/* sector cache is slowing down fast systems */
-    else cache_size = FD_CACHESEGSZ>>9;	/* use menuconfig value */
-
-    if (cache_size > (FD_CACHESEGSZ>>9)) cache_size = FD_CACHESEGSZ>>9;
+    cache_size = fdcache<<1;	/* cache_size is sectors, fdcache is Kbytes */
     printk("Floppy cache %dk, available %dk\n", cache_size>>1, FD_CACHESEGSZ>>10);
 	
 #endif

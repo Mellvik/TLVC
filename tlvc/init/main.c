@@ -159,11 +159,13 @@ static void INITPROC early_kernel_init(void)
     ROOT_DEV = SETUP_ROOT_DEV;      /* default root device from boot loader */
 
 #ifdef CONFIG_BOOTOPTS
-    if (!(hasopts = parse_options()))		/* parse options found in /bootops */
-        fdcache = CONFIG_FLOPPY_CACHE;
-#else
-    fdcache = CONFIG_FLOPPY_CACHE;	/* no bootopts -> use CONFIG */
+    hasopts = parse_options();
 #endif
+    if (fdcache < 0 ||			/* not set in bootopts */
+	fdcache > CONFIG_FLOPPY_CACHE)	/* or too big */
+	fdcache = CONFIG_FLOPPY_CACHE; 	/* then default to CONFIG */
+    else if (arch_cpu == 7)
+	fdcache = 0;			/* disable fdcache for 386+ */
 
     /* create near heap at end of kernel bss */
     heap_init();                    /* init near memory allocator */
@@ -292,7 +294,7 @@ static void INITPROC do_init_task(void)
 	sys_dup(num);		/* open stdout*/
 	sys_dup(num);		/* open stderr*/
     //}
-    seg_add(REL_INITSEG, fdcache>0?FD_CACHESEG:FD_BOUNCESEG);
+    if (!fdcache) seg_add(REL_INITSEG, XD_BOUNCESEG);
 
 #ifdef CONFIG_BOOTOPTS
     /* Release /bootopts parsing buffers and the setup data segment */

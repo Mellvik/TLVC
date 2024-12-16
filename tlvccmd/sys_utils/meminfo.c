@@ -99,8 +99,10 @@ char *make_kb(char *n, long_t size)
 
 	if (t > 9)
 		sprintf(n, "%-uK", t);
-	else
-		sprintf(n, "%-u.%1uK", t, r/103);
+	else {
+		if (r > 1019) r = 1019;		/* avoid confusing rouding errors */
+		sprintf(n, "%-u.%1uK", t, r/102);
+	}
 	return n;
 }
 
@@ -317,26 +319,29 @@ void mem_map(void)
 	    s_size = ds - cs;
 	p_block(5, (long_t)s_size<<4, "Kernel text", "");
 	p_divider(cs, "");
-	if (segs[i].base) {
-	    main_msg[strlen(main_msg)-1] = i + '1';
-	    p_block(1, (long_t)(cs-segs[i].end)<<4, "buffers/cache", "");
-	    p_divider(segs[i].end, "");
-	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[OPTSEG/setup data]",
+	if (XD_BOUNCESEGSZ) {	/* bounce buffer for MFM/Lance configured, 1k */
+	    p_block(1, (long_t)XD_BOUNCESEGSZ, "XD/Lance bounce", "");
+	    start = cs - (XD_BOUNCESEGSZ>>4);
+	    p_divider(start, "");
+	} else
+	    start = cs;
+
+	main_msg[strlen(main_msg)-1] = i + '1';
+	if (segs[i].end == 0) {		/* we have an active FDcache */
+	    p_block(2, (long_t)(start - REL_INITSEG)<<4, "FD cache", "");
+	} else {	/* we have a released segment, figure out size and show */
+	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[setup_d/FD_CACHE]",
 		main_msg);
 	    if (Pflag) {
 		start = ++seg;
 		while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
 		if (seg >= start) pp_block(start, seg);
-	    }
-	    p_divider(segs[i].base, "");
-	} else {
-	    p_block(1, (long_t)(cs-DMASEG)<<4, "buffers/cache", "");
-	    p_divider(DMASEG, "");
-	    p_block(1, (long_t)(DMASEG-DEF_OPTSEG)<<4, "Setup data", "");
-	    p_divider(DEF_OPTSEG, "");
-	    segs[i].base = DEF_OPTSEG;		/* abusing segs[]! */
+	   }
 	}
-	p_block(1, (long_t)segs[i].base<<4, "IRQ vectors/BDA", "");
+	p_divider(REL_INITSEG, "");
+	p_block(1, (long_t)OPTSEGSZ, "OPTSEG/FD_BOUNCE", "");
+	p_divider(DEF_OPTSEG, "");
+	p_block(1, (long_t)DEF_OPTSEG<<4, "IRQ vectors/BDA", "");
 	p_divider(0, "\n");
 	
 	return;
