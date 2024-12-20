@@ -176,6 +176,8 @@ struct task_struct *find_process(unsigned int seg)
     return NULL;
 }
 
+struct { seg_t base, end; } heap[5], segs[5], extbuf; /* lazy: this way it gets zeroed */
+
 void display_seg(word_t mem)
 {
     seg_t segbase = getword(mem + offsetof(segment_s, base), ds);
@@ -203,15 +205,13 @@ void display_seg(word_t mem)
     total_segsize += (long_t)segsize << 4;
 }
 
-struct { seg_t base, end; } heap[5], segs[5]; /* lazy: this way it gets zeroed */
-
 void blk_scan(void)
 {
 	/*
 	 * REMINDER: The size of a heap block is in bytes (heap.size),
 	 * while size of a main memory segment is in paragraphs
 	 */
-        word_t mem, n = getword(heap_all + offsetof(list_s, next), ds);
+        word_t segflags, mem, n = getword(heap_all + offsetof(list_s, next), ds);
 	seg_t segbase, oldbase = 0, oldend, curend;
 	int i = 0;
 	long_t s;
@@ -235,8 +235,13 @@ void blk_scan(void)
 	while (n != seg_all) {
 	    mem = n - offsetof(segment_s, all);
 	    segbase = getword(mem + offsetof(segment_s, base), ds);
+	    segflags = getword(mem + offsetof(segment_s, flags), ds) & SEG_FLAG_TYPE;
 	    curend = segbase + getword(mem + offsetof(segment_s, size), ds);
 	    if (!oldbase) segs[i].base = segbase; 	/* initial */
+	    if (segflags == SEG_FLAG_EXTBUF) {
+		extbuf.base = segbase;
+		extbuf.end  = curend;
+	    }
 	    if (segbase < oldbase) {
 		segs[i].end  = oldend;
 		segs[++i].base = segbase;	
@@ -262,6 +267,11 @@ void blk_scan(void)
 	    s = (long_t)(segs[i].end - segs[i].base) << 4;
 	    printf(" Arena %d: %04x - %04x (%6lu bytes, %s)\n", i+1, segs[i].base,
 			segs[i].end, s, make_kb(nn, s));
+	}
+	if (extbuf.base) {
+	    s = (long_t)(extbuf.end - extbuf.base) << 4;
+	    printf(" Ext buf: %04x - %04x (%6lu bytes, %s)\n", extbuf.base, extbuf.end,
+		     s, make_kb(nn, s));
 	}
 }
 /*
@@ -303,15 +313,16 @@ void mem_map(void)
 	i = 1; 					/* index into the segs[] array */
 	if (ftext) {		/* we have FARTEXT, then we also have INITPROC */
 	    main_msg[strlen(main_msg)-1] = i + '1';
-	    p_block(1, (long_t)(segs[1].end-segs[1].base)<<4, "[INITPROC code]",
+	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[INITPROC code]",
 			main_msg);
 	    if (Pflag) {
 	    	start = ++seg;
-	        while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
+	        while (proc_list[seg+i].seg > proc_list[seg].seg) seg++; 
 		if (seg >= start) pp_block(start, seg);
 	    }
-	    p_subdiv(segs[1].base, "", 0);
-	    p_block(2, (long_t)(segs[1].base - ftext)<<4, "Kernel fartext", "");
+	    if (segs[i].base > ftext)	/* if fartext > INITPROC, sometimes it's not */
+		p_subdiv(segs[i].base, "", 0);
+	    p_block(1, (long_t)(segs[i].base - ftext)<<4, "Kernel fartext", "");
 	    p_divider(ftext, "");
 	    i++;
 	    s_size = ftext - cs;
@@ -327,16 +338,24 @@ void mem_map(void)
 	    start = cs;
 
 	main_msg[strlen(main_msg)-1] = i + '1';
-	if (segs[i].end == 0) {		/* we have an active FDcache */
-	    p_block(2, (long_t)(start - REL_INITSEG)<<4, "FD cache", "");
+	if (segs[i].end == 0) {		/* FDcache is filling the area */
+	    p_block(2, (long_t)(start - REL_INITSEG)<<4, "Floppy cache", "");
 	} else {	/* we have a released segment, figure out size and show */
-	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[setup_d/FD_CACHE]",
-		main_msg);
+	    char *type;
+	    if (start - segs[i].base <= 0x20)
+		type = "[ setup–data ]";
+	    else
+		type = "[Unused FDcache]";
+	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, type, main_msg);
 	    if (Pflag) {
 		start = ++seg;
 		while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
 		if (seg >= start) pp_block(start, seg);
-	   }
+	    }
+	    if (segs[i].base > REL_INITSEG) {
+		p_divider(segs[i].base, "");
+	        p_block(1, (long_t)(segs[i].base - REL_INITSEG)<<4, "Floppy cache", "in use");
+	    }
 	}
 	p_divider(REL_INITSEG, "");
 	p_block(1, (long_t)OPTSEGSZ, "OPTSEG/FD_BOUNCE", "");

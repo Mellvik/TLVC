@@ -8,7 +8,7 @@ struct segment {
 	list_s    all;
 	list_s    free;
 	seg_t     base;
-	segext_t  size;	/* paragraphs */
+	segext_t  size;		/* paragraphs */
 	byte_t    flags;
 	byte_t    ref_count;
 	word_t    pid;
