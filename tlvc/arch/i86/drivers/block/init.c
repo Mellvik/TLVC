@@ -33,11 +33,15 @@
 				/* or create a conv_drive function in directhd.c */
 
 #ifdef CONFIG_BLK_DEV_XD	/* choose MFM or IDE controller, */
-#define HD_MAJOR XD_MAJOR	/* they're mutually exclusive */
+#define HD_MAJOR XD_MAJOR
 #elif CONFIG_BLK_DEV_HD
 #define HD_MAJOR ATHD_MAJOR
 #else
 #define HD_MAJOR BIOSHD_MAJOR	/* Enables BIOSHD + DIRECTFD */
+#endif
+
+#ifdef CONFIG_BLK_DEV_HD
+extern int directhd_initialized;
 #endif
 
 int boot_rootdev;	/* set by /bootopts options if configured*/
@@ -48,15 +52,15 @@ void INITPROC device_init(void)
 {
     register struct gendisk *p;
     kdev_t rootdev;
+    int hd_major = HD_MAJOR;
 
     chr_dev_init();
     blk_dev_init();
-
     set_irq();
 
     for (p = gendisk_head; p; p = p->next)
 	setup_dev(p);
-    //printk("boot_rootdev 0x%x, ", boot_rootdev);
+	    printk("boot_rootdev 0x%x, ", boot_rootdev);
 
     /*
      * The bootloader may have passed us a ROOT_DEV which is actually a BIOS
@@ -65,17 +69,19 @@ void INITPROC device_init(void)
      */
     if (!boot_rootdev && (SETUP_ELKS_FLAGS & EF_BIOS_DEV_NUM) != 0) {
 
-#if defined(CONFIG_BLK_DEV_BIOS) && !defined(CONFIG_BLK_DEV_FD)
+#ifdef CONFIG_BLK_DEV_BIOS
 	extern kdev_t INITPROC bioshd_conv_bios_drive(unsigned int biosdrive);
 
 	rootdev = bioshd_conv_bios_drive((unsigned)ROOT_DEV);
 
-#else 	/* Direct HD/XD/FD */
-	/* Should work with BIOS hd + direct FD too */
-	/* Will NOT work with PC98 */
-
+#else 	/* Direct HD/XD/FD - will NOT work with PC98 */
+	/* If both directhd and xd are configured, choose the former if found
+	 * during init */
+#ifdef CONFIG_BLK_DEV_HD
+	if (directhd_initialized) hd_major = ATHD_MAJOR;
+#endif
 	if (ROOT_DEV & 0x80) 	/* hard drive: HD, XD, BIOSHD */
-		rootdev = MKDEV(HD_MAJOR, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
+		rootdev = MKDEV(hd_major, ((ROOT_DEV & 0x03) << MINOR_SHIFT) 
 						+ boot_partition);
 	else			/* floppy */
 		rootdev = MKDEV(FLOPPY_MAJOR, (ROOT_DEV & 0x03));

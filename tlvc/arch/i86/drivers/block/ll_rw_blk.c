@@ -247,7 +247,7 @@ static void make_request(unsigned short major, int rw, struct buffer_head *bh)
 	req->rq_buffer = buffer_data(bh);
     }
 #if DEBUG_ASYNC
-    if (debug_level) printk("\n|seg%lx:%04x|%cblk%d|BH%04x|dev%04x;", (unsigned long)buffer_seg(bh),
+    if (debug_level) printk("|seg%lx:%04x|%cblk%d|BH%04x|dev%04x;", (unsigned long)buffer_seg(bh),
 		buffer_data(bh), rw == READ ? 'R' : 'W',
 		(word_t)ebh->b_blocknr, (word_t)bh, (word_t)buffer_dev(bh));
 #endif
@@ -428,6 +428,10 @@ void INITPROC blk_dev_init(void)
     directhd_init();
 #endif
 
+#ifdef CONFIG_BLK_DEV_XD
+    xd_init();
+#endif
+
 #ifdef CONFIG_BLK_DEV_FD
     floppy_init();
 #endif
@@ -438,10 +442,6 @@ void INITPROC blk_dev_init(void)
 
 #ifdef CONFIG_ROMFS_FS
     romflash_init();
-#endif
-
-#ifdef CONFIG_BLK_DEV_XD
-    xd_init();
 #endif
 
 }
