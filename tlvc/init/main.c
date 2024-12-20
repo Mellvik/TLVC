@@ -62,7 +62,7 @@ int nr_map_bufs, nr_ext_bufs, nr_xms_bufs;
 void calibrate_delay(void);
 #endif
 
-#define BOOT_TIMER	/* display jiffies at system startup - for benchmarking */
+//#define BOOT_TIMER	/* display jiffies at system startup - for benchmarking */
 
 /* this needs fixing, hdparms[] should be the size of MAX_ATA_DRIVES */
 /* directhd.c depends on this size when initializing drive geometry */
@@ -159,17 +159,21 @@ static void INITPROC early_kernel_init(void)
     ROOT_DEV = SETUP_ROOT_DEV;      /* default root device from boot loader */
 
 #ifdef CONFIG_BOOTOPTS
-    if (!(hasopts = parse_options()))		/* parse options found in /bootops */
-        fdcache = CONFIG_FLOPPY_CACHE;
-#else
-    fdcache = CONFIG_FLOPPY_CACHE;	/* no bootopts -> use CONFIG */
+    hasopts = parse_options();
 #endif
 
     /* create near heap at end of kernel bss */
     heap_init();                    /* init near memory allocator */
-    endbss = setup_arch();          /* sets membase and memend globals */
+    endbss = setup_arch();          /* sets membase and memend globals, cpu type */
     heap_add((void *)endbss, heapsize);
     mm_init(membase, memend);       /* init far/main memory allocator */
+
+    if (fdcache < 0 ||			/* not set in bootopts */
+	fdcache > CONFIG_FLOPPY_CACHE)	/* or too big */
+	fdcache = CONFIG_FLOPPY_CACHE; 	/* then default to CONFIG */
+
+    if (arch_cpu == 7)
+	fdcache = 0;			/* disable fdcache for 386+ */
 
 /* Add UMB support here */
 
@@ -292,10 +296,15 @@ static void INITPROC do_init_task(void)
 	sys_dup(num);		/* open stdout*/
 	sys_dup(num);		/* open stderr*/
     //}
-    seg_add(REL_INITSEG, fdcache>0?FD_CACHESEG:FD_BOUNCESEG);
+
+    /* release the setup data segment and unused parts of the FDcache */
+    if (!fdcache)
+	seg_add(REL_INITSEG, XD_BOUNCESEG);
+    else if (fdcache < CONFIG_FLOPPY_CACHE)
+	seg_add(REL_INITSEG + (fdcache<<6), XD_BOUNCESEG);
 
 #ifdef CONFIG_BOOTOPTS
-    /* Release /bootopts parsing buffers and the setup data segment */
+    /* Release /bootopts parsing buffers */
     heap_add(options, OPTSEGSZ);
 
     /* pass argc/argv/env array to init_command */
@@ -376,7 +385,7 @@ static char * INITPROC root_dev_name(int dev)
 	static char name[18] = "ROOTDEV=/dev/";
 
 #if DEBUG
-	printk("root dev 0x%x; ", dev);
+	printk("ROOTDEV 0x%x; ", dev);
 #endif
 	for (i=0; i<6; i++) {
 		if (devices[i].num == (dev & 0xfff0)) {

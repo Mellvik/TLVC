@@ -121,35 +121,31 @@
 
 /* Define segment locations of low memory, must not overlap.
 
-   Reorganized dec 2024 (HS): setup data + bootopts buffer +
-   floppy cache (if present) are now contiguous. If the
-   floppy cache is allocated but not used (bootopts fdcache=0),
-   the entire block may be released and made available as general memory.
-   The structure is: Fixed segs first, then variable/configurable, 
-   then the kernel REL_SYSSEG.
+   Reorganized dec 2024 (HS): The bootopts buffer and the FD bounce buffer
+   are now the same (they're used at different stages), so there is no
+   OPTSEG to release after boot. Also, the setup-data seg (REL_INITSEG) now
+   overlaps with the FD_CACHE if present. If there is a FD_CACHE allocated
+   and not used, it will be released - including the detup-data seg.
+   If there is no FD_CACHE, the setup-data-seg may be released but its small
+   size may make less than useful.
+
    NOTE: The meminfo program makes assumptions about the order of these blocks!
 
  | kernel text     |
  +-----------------+ Kernel CS = REL_SYSSEG = (XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
  | Other bounce    |  Optional, 1k
- +-----------------+ XD_BOUNCESEG = (FD_BOUNCESEG + (0x400>>4))
+ | (MFM, Lance)    |
+ +-----------------+ XD_BOUNCESEG = REL_INITSEG + (HAS_FDCACHE ? (FD_CACHESEGSZ>>4):0x10)
+ | Floppy cache    |  Optional, variable, max 6.5 + 0.5k
+ | setup data      |  Mandatory, 512B
+ +-----------------+ 0x90 REL_INITSEG = FD_CACHESEG = DMASEG
  | Floppy bounce   |  1k
- +-----------------+ FD_BOUNCESEG = (FD_CACHESEG + (CONFIG_FLOPPY_CACHE<<10))
- | Floppy cache    |  Optional, max 7k
- +-----------------+ FD_CACHESEG = (DEF_OPTSEG + (OPTSEGSZ>>4)) = DMASEG
- | bootopts buffer |  Optional 1k
- +-----------------+ 0x70 DEF_OPTSEG
- | setup data      |  512B
- +-----------------+ 0x50 REL_INITSEG 
+ | bootopts buffer | 
+ +-----------------+ 0x50 DEF_OPTSEG FD_BOUNCESEG
  | IRQ vectors/BDA |
  +-----------------+ 000
 
 */
-#ifdef CONFIG_BOOTOPTS
-#define OPTSEGSZ        0x400	/* 0x400 bytes boot options*/
-#else
-#define OPTSEGSZ        0
-#endif
 
 #if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
 #define XD_BOUNCESEGSZ		0x400
@@ -157,14 +153,22 @@
 #define XD_BOUNCESEGSZ		0
 #endif
 
-#define REL_INITSEG	0x50	/* IRQ vectors/ BDA below this */
-#define SETUP_DATA	REL_INITSEG			/* 0x200 bytes setup data */
-#define DEF_OPTSEG	0x70
-#define FD_CACHESEG	(DEF_OPTSEG + (OPTSEGSZ>>4))
-#define DMASEG		FD_CACHESEG
 #define FD_CACHESEGSZ	(CONFIG_FLOPPY_CACHE<<10)	/* Bytes, may be zero */
-#define FD_BOUNCESEG	(FD_CACHESEG + (FD_CACHESEGSZ>>4))
-#define XD_BOUNCESEG	(FD_BOUNCESEG + (0x400>>4))
+#if CONFIG_FLOPPY_CACHE
+#define HAS_FDCACHE 1
+#else
+#define HAS_FDCACHE 0
+#endif
+
+#define DEF_OPTSEG	0x50
+#define OPTSEGSZ	0x400		/* max size of /bootopts file */
+#define FD_BOUNCESEG	DEF_OPTSEG	/* IRQ vectors/ BDA below this */
+#define DMASEG		FD_BOUNCESEG	/* used by bioshd driver only */
+#define REL_INITSEG	0x90
+#define SETUP_DATA	REL_INITSEG	/* 0x200 bytes setup data */
+#define FD_CACHESEG	SETUP_DATA	/* overlapping if present */
+#define XD_BOUNCESEG	(FD_CACHESEG + 0x20 + \
+			(FD_CACHESEGSZ>>4) - (HAS_FDCACHE*0x20))
 #define REL_SYSSEG	(XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
 
 #endif 	/* ARCH_PC, ARCH_8016X, !ROM */
