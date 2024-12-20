@@ -420,7 +420,7 @@ static void setup_DMA(int nr_sectors)
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
     use_xms = req->rq_seg >> 16;
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
-    dma_addr = _MK_LINADDR(XD_BOUNCE_SEG, 0);
+    dma_addr = _MK_LINADDR(XD_BOUNCESEG, 0);
 
     use_bounce = 0;
     count = nr_sectors<<9;
@@ -448,7 +448,7 @@ static void setup_DMA(int nr_sectors)
     debug_xd("setupDMA ");
 
     if (use_bounce && req->rq_cmd == WRITE)
-	xms_fmemcpyw(0, XD_BOUNCE_SEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	xms_fmemcpyw(0, XD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
 
     debug_xd("%d/%lx;", count, dma_addr);
     clr_irq();
@@ -531,7 +531,7 @@ static void do_xdintr(int irq, struct pt_regs *regs)
 		 */
 		if (CURRENT->rq_cmd == READ && use_bounce)
 			xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, 0,
-					XD_BOUNCE_SEG, BLOCK_SIZE/2);
+					XD_BOUNCESEG, BLOCK_SIZE/2);
 		i = 1;	/* iodone */
 			
 done:

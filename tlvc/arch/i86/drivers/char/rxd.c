@@ -77,7 +77,7 @@ void INITPROC rxd_init(void)
     /* Device initialization done by the block driver, nothing required */
     if (register_chrdev(RAW_XD_MAJOR, "rxd", &rxd_fops))
 	printk("RXD: Unable to get major %d for raw disk devices\n", RAW_XD_MAJOR);
-    printk("rxd: Raw access to block devices configured\n");
+    //printk("rxd: Raw access to block devices configured\n");
 }
 
 #endif
