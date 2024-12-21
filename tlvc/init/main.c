@@ -251,7 +251,8 @@ static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t ext
     printk("8018X machine, ");
 #endif
 
-    printk("syscaps 0x%x, %uK base ram, %d tasks.\n", sys_caps, SETUP_MEM_KBYTES, max_tasks);
+    printk("syscaps 0x%x, %uK base ram, %d tasks, %d files, %d inodes\n",
+	    sys_caps, SETUP_MEM_KBYTES, max_tasks, nr_files, nr_inodes);
     printk("TLVC %s (%u text, %u ftext, %u data, %u bss, %u heap)\n",
            system_utsname.release,
            (unsigned)_endtext, (unsigned)_endftext, (unsigned)_enddata,
@@ -588,6 +589,14 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"tasks=", 6)) {
 			max_tasks = (int)simple_strtol(line+6, 10);
+			continue;
+		}
+		if (!strncmp(line,"inodes=",7)) {
+			nr_inodes = (int)simple_strtol(line+7, 10);
+			continue;
+		}
+		if (!strncmp(line,"files=",6)) {
+			nr_files = (int)simple_strtol(line+6, 10);
 			continue;
 		}
 		if (!strncmp(line,"comirq=", 7)) {
