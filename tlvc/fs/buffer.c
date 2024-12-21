@@ -199,12 +199,11 @@ int INITPROC buffer_init(void)
 #endif
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
-#else
+#else	/* FIXME: remove the next line, CONFIG_FAR_BUFHEADS is always defined if
+	 * XMS_BUFFER is defined. */
     if (bufs_to_alloc > 256) bufs_to_alloc = 256; /* protect against high XMS value*/
 #endif
 
-    printk("%d %s buffers (%dK ram), %dK cache, %d req hdrs\n", bufs_to_alloc,
-        xms_enabled? "xms": "ext", bufs_to_alloc, nr_map_bufs, NR_REQUEST);
 #else
     int bufs_to_alloc = nr_map_bufs;
 #endif
@@ -230,6 +229,8 @@ int INITPROC buffer_init(void)
     bh_next = bh_lru = bh_llru = buffer_heads;
 
 #if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
+    ramdesc_t b_base = 0;
+    int abufs = bufs_to_alloc;
     do {
         int nbufs;
 
@@ -239,17 +240,21 @@ int INITPROC buffer_init(void)
         bufs_to_alloc -= nbufs;
 #ifdef CONFIG_FS_XMS_BUFFER
         if (xms_enabled) {
-            ramdesc_t xmsseg = xms_alloc((long_t)nbufs << BLOCK_SIZE_BITS);
-            add_buffers(nbufs, 0, xmsseg);
+	    ramdesc_t xmsseg = xms_alloc((long_t)nbufs << BLOCK_SIZE_BITS);
+	    add_buffers(nbufs, 0, xmsseg);
+	    if (!b_base) b_base = xmsseg;
         } else
 #endif
         {
-            segment_s *extseg = seg_alloc (nbufs << (BLOCK_SIZE_BITS - 4),
+            segment_s *extseg = seg_alloc(nbufs << (BLOCK_SIZE_BITS - 4),
                 SEG_FLAG_EXTBUF|SEG_FLAG_ALIGN1K);
             if (!extseg) return 2;
             add_buffers(nbufs, 0, extseg->base);
+	    b_base = extseg->base;
         }
     } while (bufs_to_alloc > 0);
+    printk("%d %s buffers (base @ 0x%lx), %dK L1-cache, %d req hdrs\n", abufs,
+        xms_enabled? "xms": "ext", (unsigned long)b_base, nr_map_bufs, NR_REQUEST);
 #else
     /* no EXT or XMS buffers, internal L1 only */
     add_buffers(nr_map_bufs, L1buf, kernel_ds);

@@ -25,8 +25,9 @@
 list_s _seg_all;
 static list_s _seg_free;
 
+#define ALLOW_TOPDWN_ALLOC
 
-// Split segment if enough large
+// Split segment if large enough
 
 static segment_s *seg_split(segment_s *s1, segext_t size0)
 {
@@ -34,8 +35,7 @@ static segment_s *seg_split(segment_s *s1, segext_t size0)
 
 	if (size2 >= SEG_MIN_SIZE) {
 
-		// TODO: use pool_alloc
-		segment_s * s2 = (segment_s *)heap_alloc (sizeof(segment_s), HEAP_TAG_SEG);
+		segment_s *s2 = (segment_s *)heap_alloc (sizeof(segment_s), HEAP_TAG_SEG);
 		if (!s2)
 			return 0;   // heap_alloc gives heap full message
 
@@ -45,8 +45,8 @@ static segment_s *seg_split(segment_s *s1, segext_t size0)
 		s2->ref_count = 0;
 		s2->pid = 0;
 
-		list_insert_after (&s1->all, &s2->all);
-		list_insert_after (&s1->free, &s2->free);
+		list_insert_after(&s1->all, &s2->all);
+		list_insert_after(&s1->free, &s2->free);
 
 		s1->size = size0;
 
@@ -63,37 +63,56 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 {
 	// First get the smallest suitable free segment
 
-	segment_s *best_seg = 0;
+	segment_s *seg, *best_seg = 0;
 	segext_t best_size = 0xFFFF;
-	list_s *n = _seg_free.next;
+	list_s *n;
 	segext_t size00 = size0, incr = 0;
 
-	while (n != &_seg_free) {
-		segment_s *seg = structof(n, segment_s, free);
+#ifdef ALLOW_TOPDWN_ALLOC
+	if (type & SEG_FLAG_ALIGN1K) {	/* allocate from the top, always 1kaligned */
+	    n = _seg_all.prev;
+	    while (n != &_seg_all) {
+		seg = structof(n, segment_s, all);
+		if (seg->flags == SEG_FLAG_FREE && seg->size >= size0) {
+		    best_seg = seg_split(seg, seg->size - size0);
+		    goto OK;	/* split the seg, use the upper */
+		}
+		n = seg->all.prev;
+	    }
+	} else
+#endif
+	{
+	    n = _seg_free.next;
+	    while (n != &_seg_free) {
+		seg = structof(n, segment_s, free);
 		segext_t size1 = seg->size;
 
+#ifndef ALLOW_TOPDWN_ALLOC
 		if (type & SEG_FLAG_ALIGN1K)
-			size00 = size0 + ((~seg->base + 1) & ((1024 >> 4) - 1));
-		if ((seg->flags == SEG_FLAG_FREE) && (size1 >= size00) && (size1 < best_size)) {
-			best_seg  = seg;
-			best_size = size1;
-			incr = size00 - size0;
-			if (size1 == size00) break;
+		    size00 = size0 + ((~seg->base + 1) & ((1024 >> 4) - 1));
+#endif
+		if (/*(seg->flags == SEG_FLAG_FREE) &&*/ (size1 >= size00) && (size1 < best_size)) {
+		    best_seg  = seg;
+		    best_size = size1;
+		    incr = size00 - size0;
+		    if (size1 == size00) break;
 		}
-
 		n = seg->free.next;
+	    }
 	}
 
 	// Then allocate that free segment
 
 	if (best_seg) {
-		seg_split(best_seg, size00);			// split off upper segment
-		if (incr)
-			best_seg = seg_split(best_seg, incr);	// split off lower segment
-
-		best_seg->flags = SEG_FLAG_USED | type;
-		best_seg->ref_count = 1;
-		list_remove (&(best_seg->free));
+	    seg_split(best_seg, size00);			// split off upper segment
+#ifndef ALLOW_TOPDWN_ALLOC
+	    if (incr)
+		best_seg = seg_split(best_seg, incr);	// split off lower segment
+#endif
+OK:
+	    best_seg->flags = SEG_FLAG_USED | type;
+	    best_seg->ref_count = 1;
+	    list_remove(&(best_seg->free));
 	}
 
 	return best_seg;
@@ -132,7 +151,7 @@ void seg_free(segment_s *seg)
 	//   - head if still alone to increase 'exact hit'
 	//     chance on next allocation of same size
 
-	list_s * i = &_seg_free;
+	list_s *i = &_seg_free;
 	seg->flags = SEG_FLAG_FREE;
 	seg->pid = 0;
 
