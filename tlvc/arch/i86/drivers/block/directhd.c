@@ -160,7 +160,7 @@ static byte_t *localbuf;	/* bounce buffer for debugging and XMS buffers */
 #define PORT_IO	port_io
 void (*PORT_IO)() = NULL;
 
-static int directhd_initialized;
+int directhd_initialized;	/* Used by block/init.c */
 static struct drive_infot drive_info[MAX_ATA_DRIVES];
 
 /* NOTE (FIXME): This is wasting a lot of memory, allocating 32 entries times MAX_ATA_DRIVES,

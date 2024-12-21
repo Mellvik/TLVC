@@ -1,4 +1,4 @@
-# ia16-elf-gcc Makefile for ELKS C Library
+# ia16-elf-gcc Makefile for TLVC C Library
 
 ifndef TOPDIR
 $(error TOPDIR is not defined)
@@ -67,11 +67,11 @@ SUBDIRS = \
 # For the first case, arrange to build elks-libc for the available elks-libc
 # multilib settings.  Furthermore, if $(DESTDIR) is defined, add an
 # `install' makefile rule which will install the elks-libc files under
-# $(DESTDIR), such that they can be used from outside the ELKS source tree;
+# $(DESTDIR), such that they can be used from outside the TLVC source tree;
 # and also add an `uninstall' rule to allow elks-libc to be cleaned away.
 #
 # For the second case, arrange to build elks-libc only for default compiler
-# settings.  Installing the libraries outside the ELKS tree is not supported
+# settings.  Installing the libraries outside the TLVC tree is not supported
 # in this case.
 #
 # $(MAINMULTISUBDIR) gives the multilib subdirectory containing the files we
