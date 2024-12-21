@@ -65,39 +65,38 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 
 	segment_s *seg, *best_seg = 0;
 	segext_t best_size = 0xFFFF;
-	list_s *n = _seg_free.next;
+	list_s *n;
 	segext_t size00 = size0, incr = 0;
-#ifdef ALLOW_TOPDWN_ALLOC
 
-	if (type & SEG_FLAG_ALIGN1K) {	/* allocate from the top end, always 1kaligned */
-	    list_s *p = _seg_all.prev;
-	    while (p != &_seg_all) {
-		seg = structof(p, segment_s, all);
-		if (seg->flags == SEG_FLAG_FREE && seg->size >= size00) {
-		    best_seg = seg_split(seg, seg->size-size00); /* allocate lower seg */
-						/* ... which creates a new upper seg */
-		    goto OK;
+#ifdef ALLOW_TOPDWN_ALLOC
+	if (type & SEG_FLAG_ALIGN1K) {	/* allocate from the top, always 1kaligned */
+	    n = _seg_all.prev;
+	    while (n != &_seg_all) {
+		seg = structof(n, segment_s, all);
+		if (seg->flags == SEG_FLAG_FREE && seg->size >= size0) {
+		    best_seg = seg_split(seg, seg->size - size0);
+		    goto OK;	/* split the seg, use the upper */
 		}
-		p = seg->all.prev;
+		n = seg->all.prev;
 	    }
 	} else
 #endif
 	{
+	    n = _seg_free.next;
 	    while (n != &_seg_free) {
 		seg = structof(n, segment_s, free);
 		segext_t size1 = seg->size;
 
 #ifndef ALLOW_TOPDWN_ALLOC
 		if (type & SEG_FLAG_ALIGN1K)
-			size00 = size0 + ((~seg->base + 1) & ((1024 >> 4) - 1));
+		    size00 = size0 + ((~seg->base + 1) & ((1024 >> 4) - 1));
 #endif
 		if (/*(seg->flags == SEG_FLAG_FREE) &&*/ (size1 >= size00) && (size1 < best_size)) {
-			best_seg  = seg;
-			best_size = size1;
-			incr = size00 - size0;
-			if (size1 == size00) break;
+		    best_seg  = seg;
+		    best_size = size1;
+		    incr = size00 - size0;
+		    if (size1 == size00) break;
 		}
-
 		n = seg->free.next;
 	    }
 	}
@@ -105,15 +104,15 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 	// Then allocate that free segment
 
 	if (best_seg) {
-		seg_split(best_seg, size00);			// split off upper segment
+	    seg_split(best_seg, size00);			// split off upper segment
 #ifndef ALLOW_TOPDWN_ALLOC
-		if (incr)
-			best_seg = seg_split(best_seg, incr);	// split off lower segment
+	    if (incr)
+		best_seg = seg_split(best_seg, incr);	// split off lower segment
 #endif
 OK:
-		best_seg->flags = SEG_FLAG_USED | type;
-		best_seg->ref_count = 1;
-		list_remove(&(best_seg->free));
+	    best_seg->flags = SEG_FLAG_USED | type;
+	    best_seg->ref_count = 1;
+	    list_remove(&(best_seg->free));
 	}
 
 	return best_seg;
