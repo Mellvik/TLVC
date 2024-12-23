@@ -14,11 +14,14 @@ ee0=11,0x360,,0x80
 comirq=,,7,10		# IRQ for com ports, up to 4
 cache=6			# L1 cache
 bufs=40			# L2 buffers
-xmsbufs=200		# if supported
-#files=64 inodes=96
+xmsbufs=0		# if supported
+heap=30			# set max heap (k bytes)
+memsize=640		# set system RAM size, k bytes
+#tasks=6 bufs=2 cache=12 files=20 inodes=24 heap=20 n # very compact
+files=64 inodes=96
 hdparms=306,4,17,128,614,4,17,-1 # CHSW values for 2 drives, overrides CMOS and drive values
 netbufs=2,0	# netw buffers, recv/trans, ne2k only
-tasks=14	# max tasks, default 16, max 20
+tasks=18	# max tasks, default 16, max 20
 sync=30		# autosync secs
 #xtflpy=3,1	# meaningful for XT systems w/720k drive(s) (type3)
 fdcache=5	# floppy sector cache, for slow systems <= 286

@@ -112,7 +112,7 @@ static char * INITPROC option(char *s);
 #endif
 
 static void INITPROC kernel_init(void);
-static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra);
+static void INITPROC kernel_banner(seg_t init, seg_t extra);
 static void INITPROC early_kernel_init(void);
 static void init_task(void);
 
@@ -120,7 +120,7 @@ static void init_task(void);
 void start_kernel(void)
 {
     //printk("START\n");
-    early_kernel_init();        /* read bootopts using kernel interrupt stack */
+    early_kernel_init();        /* read bootopts using kernel temp stack */
     task = heap_alloc(max_tasks * sizeof(struct task_struct),
         HEAP_TAG_TASK|HEAP_TAG_CLEAR);
     if (!task) panic("No task mem");
@@ -171,7 +171,6 @@ static void INITPROC early_kernel_init(void)
     if (fdcache < 0 ||			/* not set in bootopts */
 	fdcache > CONFIG_FLOPPY_CACHE)	/* or too big */
 	fdcache = CONFIG_FLOPPY_CACHE; 	/* then default to CONFIG */
-
     if (arch_cpu == 7)
 	fdcache = 0;			/* disable fdcache for 386+ */
 
@@ -230,13 +229,13 @@ void INITPROC kernel_init(void)
     seg_t s = 0, e = 0;
 #endif
 
-    kernel_banner(membase, memend, s, e - s);
+    kernel_banner(s, e - s);
 #ifdef CONFIG_CALIBRATE_DELAY
     calibrate_delay();
 #endif
 }
 
-static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t extra)
+static void INITPROC kernel_banner(seg_t init, seg_t extra)
 {
 #ifdef CONFIG_ARCH_IBMPC
     printk("PC/%cT class, cpu %d, ", (sys_caps & CAP_PC_AT) ? 'A' : 'X',
@@ -252,17 +251,17 @@ static void INITPROC kernel_banner(seg_t start, seg_t end, seg_t init, seg_t ext
 #endif
 
     printk("syscaps 0x%x, %uK base ram, %d tasks, %d files, %d inodes\n",
-	    sys_caps, SETUP_MEM_KBYTES, max_tasks, nr_files, nr_inodes);
+	    sys_caps, memend>>6, max_tasks, nr_files, nr_inodes);
     printk("TLVC %s (%u text, %u ftext, %u data, %u bss, %u heap)\n",
            system_utsname.release,
            (unsigned)_endtext, (unsigned)_endftext, (unsigned)_enddata,
            (unsigned)_endbss - (unsigned)_enddata, heapsize);
-    printk("Kernel text %x:0, ", kernel_cs);
+    printk("Kernel text 0x%x, ", kernel_cs);
 #ifdef CONFIG_FARTEXT_KERNEL
-    printk("ftext %x:0, init %x:0, ", (unsigned)((long)kernel_init >> 16), init);
+    printk("ftext 0x%x, init 0x%x, ", (unsigned)((long)kernel_init >> 16), init);
 #endif
-    printk("data %x:0, top %x:0, %uK free\n",
-           kernel_ds, end, (int) ((end - start + extra) >> 6));
+    printk("data 0x%x, top 0x%x, %uK free\n",
+           kernel_ds,  memend, (int)((memend - membase) >> 6));
 }
 
 static void INITPROC try_exec_process(const char *path)
@@ -339,17 +338,14 @@ static struct dev_name_struct {
 	const char *name;
 	int num;
 } devices[] = {
-	/* the 4 primary partitionable drives must be first */
-#ifdef CONFIG_BLK_DEV_HD
-	{ "dhda",    DEV_DHDA},
+	/* the 4 primary partitionable drives must be first [REALLY? Why?] */
+#if defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_XD)
+	{ "dhda",    DEV_DHDA },
 	{ "dhdb",    DEV_DHDB },
 	{ "dhdc",    DEV_DHDC },
 	{ "dhdd",    DEV_DHDD },
-#elif CONFIG_BLK_DEV_XD
-	{ "xda",     DEV_XDA},
+	{ "xda",     DEV_XDA },
 	{ "xdb",     DEV_XDB },
-	{ "hda",     DEV_HDA },
-	{ "hdb",     DEV_HDB },
 #else
 	{ "hda",     DEV_HDA },
 	{ "hdb",     DEV_HDB },
@@ -367,7 +363,6 @@ static struct dev_name_struct {
 	{ "ttyS1",   DEV_TTYS1 },
 	{ "tty1",    DEV_TTY1 },
 	{ "tty2",    DEV_TTY2 },
-	{ "tty3",    DEV_TTY3 },
 	{ NULL,           0 }
 };
 
@@ -585,6 +580,15 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"xmsbufs=", 8)) {
 			nr_xms_bufs = (int)simple_strtol(line+8, 10);
+			continue;
+		}
+		if (!strncmp(line,"heap=", 5)) {
+			heapsize = (int)simple_strtol(line+5, 10) << 10;
+			continue;
+		}
+		if (!strncmp(line,"memsize=", 8)) {
+			unsigned int m = (int)simple_strtol(line+8, 10);
+			if (m <= 640) memend = m << 6;
 			continue;
 		}
 		if (!strncmp(line,"tasks=", 6)) {

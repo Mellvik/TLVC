@@ -30,7 +30,8 @@ unsigned int INITPROC setup_arch(void)
 	 * Set membase to beginning of available main memory, which
 	 * is directly after end of the kernel data segment.
 	 *
-	 * Set memend to end of available main memory.
+	 * Set memend to end of available main memory - possibly overridden by 
+	 * a 'memsize=' setting in bootopts.
 	 * If ramdisk configured, subtract space for it from end of memory.
 	 *
 	 * Calculate heapsize for near heap allocator.
@@ -43,7 +44,8 @@ unsigned int INITPROC setup_arch(void)
 	/* Calculate size of heap, which extends end of kernel data segment */
 
 #ifdef SETUP_HEAPSIZE
-	heapsize = SETUP_HEAPSIZE;          /* may also be set via heap= in /bootopts */
+	if (!heapsize)          /* may also be set via heap= in /bootopts */
+	    heapsize = SETUP_HEAPSIZE;
 #endif
 	if (heapsize) {
             heapsegs = (1 + ~endbss) >> 4;  /* max possible heap in segments */
@@ -57,10 +59,12 @@ unsigned int INITPROC setup_arch(void)
 	}
 	//debug("endbss %x heap %x kdata size %x\n", endbss, heapsize, (membase-kernel_ds)<<4);
 
-	memend = SETUP_MEM_KBYTES << 6;
+	if (!memend) 				/* bootopts setting overrides */
+		memend = SETUP_MEM_KBYTES << 6;
+	if (memend > 0xa000) memend = 0xa000;	/* sanity check */
 
 #if defined(CONFIG_RAMDISK_SEGMENT) && (CONFIG_RAMDISK_SEGMENT > 0)
-	if (CONFIG_RAMDISK_SEGMENT <= *end) {
+	if (CONFIG_RAMDISK_SEGMENT <= *memend) {
 		/* reduce top of memory by size of ram disk */
 		memend -= CONFIG_RAMDISK_SECTORS << 5;
 	}
