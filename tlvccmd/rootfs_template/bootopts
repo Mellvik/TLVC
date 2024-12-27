@@ -12,15 +12,18 @@ wd0=2,0x280,0xCC00,0x80
 #3c0=11,0x330,,0x80
 ee0=11,0x360,,0x80
 comirq=,,7,10		# IRQ for com ports, up to 4
-cache=6			# L1 cache
-bufs=40			# L2 buffers
-xmsbufs=200		# if supported
+cache=6		# L1 cache
+bufs=40		# L2 buffers
+xmsbufs=0	# if supported
+#heap=30	# max heap (kB)
+#memsize=640	# system RAM (kB)
+files=64 inodes=96
 hdparms=306,4,17,128,614,4,17,-1 # CHSW values for 2 drives, overrides CMOS and drive values
-netbufs=2,0	# netw buffers, recv/trans, ne2k only
-tasks=12	# max tasks, default 16, max 20
+#netbufs=2,0	# netw buffers, recv/trans, ne2k only
+tasks=18	# max tasks, default 16, max 20
 sync=30		# autosync secs
-xtflpy=3,1	# meaningful for XT systems w/720k drive(s) (type3)
-fdcache=8	# floppy sector cache, for slow systems <= 286
-#xtide=0x300,,,,, # Set addr, IRQ, flgs for 2 XT-IDE drives
+#xtflpy=3,1	# meaningful for XT systems w/720k drive(s) (type3)
+fdcache=5	# floppy read cache for slow systems <= 286
+#xtide=0x300,,,,, # addr, IRQ, flgs for 2 XT-IDE drives
 #init=/bin/init 3 n	# multiuser serial no /etc/rc.sys
 #init=/bin/sh		# singleuser shell
