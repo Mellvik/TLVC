@@ -56,6 +56,7 @@
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
 
 #include <arch/directhd.h>
+#include <arch/hdio.h>
 #include <arch/ports.h>
 #include <arch/io.h>
 #include <arch/segment.h>

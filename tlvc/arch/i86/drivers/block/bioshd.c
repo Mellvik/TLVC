@@ -49,7 +49,7 @@
 #include <linuxmt/debug.h>
 #include <linuxmt/timer.h>
 
-#include <arch/hdreg.h>
+#include <arch/hdio.h>
 #include <arch/io.h>
 #include <arch/segment.h>
 #include <arch/system.h>

@@ -88,7 +88,7 @@
 #include <arch/io.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
-#include <arch/hdreg.h>		/* for ioctl GETGEO */
+#include <arch/hdio.h>		/* for ioctl GETGEO */
 
 #define FLOPPYDISK
 #define MAJOR_NR FLOPPY_MAJOR

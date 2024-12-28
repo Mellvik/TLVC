@@ -1,4 +1,5 @@
 /* directhd.h header for ELKS kernel - Copyright (C) 1998 Blaz Antonic
+ * Defines related to ATA/IDE controllers. Use hdio.h for ioctl defines.
  * Expanded for TLVC 2023 by Helge Skrivervik
  */
 
@@ -20,20 +21,20 @@
 #define ATA_DRIVE0 0xa0
 #define ATA_DRIVE1 0xb0
 
-/* interface cmd addresses */
-#define HD1_CMD			0x3f6
-#define HD2_CMD			0x376
+/* interface cmd ports */
+#define HD1_CMD		0x3f6
+#define HD2_CMD		0x376
 
 /* define drive commands */
-#define ATA_DRIVE_ID		0xec	/* Get drive id */
-#define ATA_SET_MULT		0xc6	/* Set cnt for mult. R/W */
-#define ATA_SET_FEAT		0xef	/* Set features */
-#define ATA_READ		0x20	/* read with retry */
-#define ATA_READM		0xc4	/* Read multiple */
-#define ATA_WRITE		0x30	/* write with retry */
-#define ATA_WRITEM		0xc5	/* Write multiple */
-#define ATA_RECAL		0x11	/* recalibrate/reset */
-#define ATA_SPECIFY		0x91	/* 'initialize drive parameters' */
+#define ATA_DRIVE_ID	0xec	/* Get drive id */
+#define ATA_SET_MULT	0xc6	/* Set cnt for mult. R/W */
+#define ATA_SET_FEAT	0xef	/* Set features */
+#define ATA_READ	0x20	/* read with retry */
+#define ATA_READM	0xc4	/* Read multiple */
+#define ATA_WRITE	0x30	/* write with retry */
+#define ATA_WRITEM	0xc5	/* Write multiple */
+#define ATA_RECAL	0x11	/* recalibrate/reset */
+#define ATA_SPECIFY	0x91	/* 'initialize drive parameters' */
 
 /* Bits of ATA_STATUS */
 #define ERR_STAT	0x01
@@ -67,13 +68,6 @@
 
 /* other definitions */
 #define MAX_ATA_DRIVES 4		/* 2 per i/o channel and 2 i/o channels */
-
-struct hd_geometry {
-    unsigned char heads;
-    unsigned char sectors;
-    unsigned short cylinders;
-    unsigned long start;
-};
 
 struct ide_controller {
     int io_port;
