@@ -314,6 +314,8 @@ static void INITPROC do_init_task(void)
         current->ppid = 1;      /* turns off auto-child reaping */
 
     /* run /bin/init or init= command, normally no return */
+    if (strchr(init_command, 'h')) 
+	argv_init[2] = NULL; 	/* don't confuse /bin/sh w/cmd line args! */
     run_init_process_sptr(init_command, (char *)argv_init, argv_slen);
 #else
     try_exec_process(init_command);
@@ -571,7 +573,8 @@ static int INITPROC parse_options(void)
 			continue;
 		}
 		if (!strncmp(line,"bufs=", 5)) {
-			nr_ext_bufs = (int)simple_strtol(line+5, 10);
+			int n = (int)simple_strtol(line+5, 10);
+			if (n) nr_ext_bufs = n;	/* keep default if 0 */
 			continue;
 		}
 		if (!strncmp(line,"cache=", 6)) {

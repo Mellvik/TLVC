@@ -123,8 +123,6 @@ static void INITPROC add_buffers(int nbufs, char *buf, ramdesc_t seg)
 {
     struct buffer_head *bh;
     int n = 0;
-    size_t offset;
-
     for (bh = bh_next; n < nbufs; n++, bh = ++bh_next) {
         ext_buffer_head *ebh = EBH(bh);
 
@@ -134,6 +132,8 @@ static void INITPROC add_buffers(int nbufs, char *buf, ramdesc_t seg)
         }
 
 #if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
+	size_t offset;
+
         /* segment adjusted to require no offset to buffer */
         offset = xms_enabled? ((n & 63) << BLOCK_SIZE_BITS) :
                               ((n & 63) << (BLOCK_SIZE_BITS - 4));
@@ -197,10 +197,15 @@ int INITPROC buffer_init(void)
     if (xms_enabled)
         bufs_to_alloc = nr_xms_bufs;
 #endif
+#if 0	/* Now handled in init/main.c */
+    if (!bufs_to_alloc) {
+	bufs_to_alloc = nr_map_bufs; 	/* avoid crash if bufs=0 */
+	printk("Warning: L2-buffers cannot be 0, set equal to cache size\n");
+    }
+#endif
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
-#else	/* FIXME: remove the next line, CONFIG_FAR_BUFHEADS is always defined if
-	 * XMS_BUFFER is defined. */
+#else
     if (bufs_to_alloc > 256) bufs_to_alloc = 256; /* protect against high XMS value*/
 #endif
 
@@ -258,6 +263,7 @@ int INITPROC buffer_init(void)
 #else
     /* no EXT or XMS buffers, internal L1 only */
     add_buffers(nr_map_bufs, L1buf, kernel_ds);
+    printk("L1 cache: %uK, no buffers\n", nr_map_bufs);
 #endif
     return 0;
 }
@@ -727,7 +733,7 @@ void map_buffer(struct buffer_head *bh)
     ebh->b_mapcount++;
 }
 
-/* unmap_buffer decreases bh->b_mapcount, and wakes up anyone waiting over
+/* unmap_buffer decreases bh->b_mapcount and wakes up anyone waiting over
  * in map_buffer if it's decremented to 0... this is a bit of a misnomer,
  * since the unmapping is actually done in map_buffer to prevent frivoulous
  * unmaps if possible.
