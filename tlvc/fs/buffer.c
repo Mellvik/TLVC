@@ -197,12 +197,6 @@ int INITPROC buffer_init(void)
     if (xms_enabled)
         bufs_to_alloc = nr_xms_bufs;
 #endif
-#if 0	/* Now handled in init/main.c */
-    if (!bufs_to_alloc) {
-	bufs_to_alloc = nr_map_bufs; 	/* avoid crash if bufs=0 */
-	printk("Warning: L2-buffers cannot be 0, set equal to cache size\n");
-    }
-#endif
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
 #else
