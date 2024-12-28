@@ -104,7 +104,7 @@
 #include <arch/io.h>
 #include <arch/segment.h>
 #include <arch/ports.h>
-#include <arch/hdreg.h>		/* for ioctl defines */
+#include <arch/hdio.h>		/* for ioctl defines */
 
 #define MFMDISK		/* for blk.h */
 #define ASYNC_IO
