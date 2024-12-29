@@ -687,8 +687,8 @@ static void INITPROC finalize_options(void)
 
 	/* convert argv array to stack array for sys_execv */
 	if (strchr(init_command, 'h')) /* quick check for any shell */
-	    while (args > 1) argv_init[args--] = NULL;
-	    //args = 1; 	/* delete args if not running init */
+	    while (args > 1)	/* delete args if not running init */
+		argv_init[args--] = NULL;
 	else
 	    args--;
 	argv_init[0] = (char *)args;		/* 0 = argc */
