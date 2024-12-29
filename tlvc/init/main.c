@@ -314,8 +314,6 @@ static void INITPROC do_init_task(void)
         current->ppid = 1;      /* turns off auto-child reaping */
 
     /* run /bin/init or init= command, normally no return */
-    if (strchr(init_command, 'h')) 
-	argv_init[2] = NULL; 	/* don't confuse /bin/sh w/cmd line args! */
     run_init_process_sptr(init_command, (char *)argv_init, argv_slen);
 #else
     try_exec_process(init_command);
@@ -490,7 +488,7 @@ static int INITPROC parse_options(void)
 	if (*(unsigned short *)options != 0x2323 || (options[511] && options[OPTSEGSZ-1]))
 		return 0;
 
-#if DEBUG
+#if DEBUG > 1
 	printk("/bootopts: %s", &options[3]);
 #endif
 	next = line;
@@ -687,18 +685,22 @@ static void INITPROC finalize_options(void)
 #endif
 #endif
 
-	/* convert argv array to stack array for sys_execv*/
-	args--;
-	argv_init[0] = (char *)args;		/* 0 = argc*/
+	/* convert argv array to stack array for sys_execv */
+	if (strchr(init_command, 'h')) /* quick check for any shell */
+	    while (args > 1) argv_init[args--] = NULL;
+	    //args = 1; 	/* delete args if not running init */
+	else
+	    args--;
+	argv_init[0] = (char *)args;		/* 0 = argc */
 	char *q = (char *)&argv_init[args+2+envs+1];
-	for (i=1; i<=args; i++) {		/* 1..argc = av*/
+	for (i=1; i<=args; i++) {		/* 1..argc = av */
 		char *p = argv_init[i];
 		char *savq = q;
 		while ((*q++ = *p++) != 0)
 			;
 		argv_init[i] = (char *)(savq - (char *)argv_init);
 	}
-	/*argv_init[args+1] = NULL;*/               /* argc+1 = 0*/
+	/*argv_init[args+1] = NULL; */               /* argc+1 = 0 */
 #if ENV
 	if (envs) {
 		for (i=0; i<envs; i++) {
