@@ -488,7 +488,7 @@ static int INITPROC parse_options(void)
 	if (*(unsigned short *)options != 0x2323 || (options[511] && options[OPTSEGSZ-1]))
 		return 0;
 
-#if DEBUG
+#if DEBUG > 1
 	printk("/bootopts: %s", &options[3]);
 #endif
 	next = line;
@@ -571,7 +571,8 @@ static int INITPROC parse_options(void)
 			continue;
 		}
 		if (!strncmp(line,"bufs=", 5)) {
-			nr_ext_bufs = (int)simple_strtol(line+5, 10);
+			int n = (int)simple_strtol(line+5, 10);
+			if (n) nr_ext_bufs = n;	/* keep default if 0 */
 			continue;
 		}
 		if (!strncmp(line,"cache=", 6)) {
@@ -684,18 +685,22 @@ static void INITPROC finalize_options(void)
 #endif
 #endif
 
-	/* convert argv array to stack array for sys_execv*/
-	args--;
-	argv_init[0] = (char *)args;		/* 0 = argc*/
+	/* convert argv array to stack array for sys_execv */
+	if (strchr(init_command, 'h')) /* quick check for any shell */
+	    while (args > 1)	/* delete args if not running init */
+		argv_init[args--] = NULL;
+	else
+	    args--;
+	argv_init[0] = (char *)args;		/* 0 = argc */
 	char *q = (char *)&argv_init[args+2+envs+1];
-	for (i=1; i<=args; i++) {		/* 1..argc = av*/
+	for (i=1; i<=args; i++) {		/* 1..argc = av */
 		char *p = argv_init[i];
 		char *savq = q;
 		while ((*q++ = *p++) != 0)
 			;
 		argv_init[i] = (char *)(savq - (char *)argv_init);
 	}
-	/*argv_init[args+1] = NULL;*/               /* argc+1 = 0*/
+	/*argv_init[args+1] = NULL; */               /* argc+1 = 0 */
 #if ENV
 	if (envs) {
 		for (i=0; i<envs; i++) {

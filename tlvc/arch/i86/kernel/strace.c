@@ -156,13 +156,12 @@ void trace_begin(void)
  */
 void trace_end(unsigned int retval)
 {
-    __ptask currentp = current;
     int n;
     static int max;
 
     /* Check for kernel stack overflow */
-    if (currentp->kstack_magic != KSTACK_MAGIC) {
-        printk("KSTACK(%d) KERNEL STACK OVERFLOW\n", current->pid);
+    if (current->kstack_magic != KSTACK_MAGIC) {
+        printk("KSTACK(%P) KERNEL STACK OVERFLOW\n");
         do_exit(SIGSEGV);
     }
 

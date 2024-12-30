@@ -15,6 +15,17 @@ all: .config include/autoconf.h
 	$(MAKE) -C tlvccmd all
 	$(MAKE) -C image all
 
+image:
+	$(MAKE) -C image
+
+images:
+	$(MAKE) -C image images
+
+kimage: kernel image
+
+kernel:
+	$(MAKE) -C tlvc
+
 kclean:
 	$(MAKE) -C tlvc kclean
 
