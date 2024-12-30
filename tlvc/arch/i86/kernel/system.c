@@ -41,13 +41,14 @@ unsigned int INITPROC setup_arch(void)
 	/* Heap allocations at even addresses */
 	endbss = (unsigned int)(_endbss + 1) & ~1;
 
-	/* Calculate size of heap, which extends end of kernel data segment */
+	/* Calculate or set size of heap which - unless set specifically,
+	 * extends to the end of end of the kernel DS */
 
-#ifdef SETUP_HEAPSIZE
-	if (!heapsize)          /* may also be set via heap= in /bootopts */
+#ifdef SETUP_HEAPSIZE		/* MK88 only */
+	if (!heapsize)
 	    heapsize = SETUP_HEAPSIZE;
 #endif
-	if (heapsize) {
+	if (heapsize) {			/* may be set via heap= in /bootopts */
             heapsegs = (1 + ~endbss) >> 4;  /* max possible heap in segments */
             if ((heapsize >> 4) < heapsegs) /* allow if less than max */
         	heapsegs = heapsize >> 4;
@@ -57,7 +58,7 @@ unsigned int INITPROC setup_arch(void)
            membase = kernel_ds + 0x1000;
            heapsize = 1 + ~endbss;
 	}
-	//debug("endbss %x heap %x kdata size %x\n", endbss, heapsize, (membase-kernel_ds)<<4);
+	//debug("endbss %x heap %x kdata size %lx\n", endbss, heapsize, (long_t)(membase-kernel_ds)<<4);
 
 	if (!memend) 				/* bootopts setting overrides */
 		memend = SETUP_MEM_KBYTES << 6;

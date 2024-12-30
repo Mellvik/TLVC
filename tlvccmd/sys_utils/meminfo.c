@@ -283,6 +283,7 @@ void mem_map(void)
 	int i, seg = 0, start;
 	seg_t s_size;
 	char main_msg[] = "Main memory arena x";
+	unsigned int membase = ds + (seg_t)(((long_t)heap[0].end + 0x8L)>>4);
 
 	if (Pflag) {	/* get to the end of main memory arena (1) */
 	    seg = segptr-1;
@@ -290,23 +291,29 @@ void mem_map(void)
 	}
 	printf("\n");
 	p_divider(segs[0].end, "Top of conv. memory");
-	i = 7;
+	i = 8;
 	if (Pflag) i = 1;
-	p_block(i, (long_t)(segs[0].end-(ds+0x1000))<<4, "Main memory", "Arena 1");
+	if (extbuf.base && !Pflag) {
+	    p_block(2, (long_t)(segs[0].end - extbuf.base)<<4, "Ext buffers", "");
+	    p_subdiv(extbuf.base, "", 1);
+	    i -= 2;
+	}
+	p_block(i, (long_t)(segs[0].end - membase)<<4, "Main memory", "Arena 1");
+	//p_block(i, (long_t)(segs[0].end-(ds+0x1000))<<4, "Main memory", "Arena 1");
 	if (Pflag)
 	    pp_block(0, seg);			/* display processes populating the arena */
-	p_divider(ds+0x1000, "Kernel DS end");
-	p_block(3, (long_t)(heap[0].end-heap[0].base), "Main kernel heap", "");
+	p_divider(membase, "Kernel DS end");
+	p_block(3, (long_t)(heap[0].end-heap[0].base+1), "Main kernel heap", "");
 	p_subdiv(heap[0].base, "", 1);
 	if (heap[1].base) {		/* More heap found: the released bootopts buffer */
-	    p_block(2, (long_t)(heap[0].base-heap[1].end), "Kernel data (bss)", "");
+	    p_block(1, (long_t)(heap[0].base-heap[1].end), "Kernel (bss)", "");
 	    p_subdiv(heap[1].end, "BSS continues", 1);
 	    p_block(1, (long_t)(heap[1].end-heap[1].base), "[bootopts buffer]",
 			"Heap block 2");
 	    p_subdiv(heap[1].base, "", 1);
-	    p_block(1, (long_t)(heap[1].base - (heap[0].base - bss_size)), "", "");
+	    p_block(1, (long_t)(heap[1].base - (heap[0].base - bss_size)), "Kernel bss", "");
 	} else
-	    p_block(2, (long_t)bss_size, "Kernel data (bss)", "");
+	    p_block(2, (long_t)bss_size, "Kernel bss", "");
 	p_subdiv(heap[0].base - bss_size, "BSS start", 1);
 	p_block(1, (long_t)heap[0].base - bss_size, "Kernel data", "");
 	p_divider(ds, "Kernel DS start");
@@ -342,8 +349,8 @@ void mem_map(void)
 	    p_block(2, (long_t)(start - REL_INITSEG)<<4, "Floppy cache", "");
 	} else {	/* we have a released segment, figure out size and show */
 	    char *type;
-	    if (start - segs[i].base <= 0x20)
-		type = "[ setup–data ]";
+	    if (start - segs[i].base <= 0x40)
+		type = "[setup data]";
 	    else
 		type = "[Unused FDcache]";
 	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, type, main_msg);
