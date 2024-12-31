@@ -16,7 +16,7 @@
 #include <sys/ioctl.h>
 
 #ifdef __ia16__
-#include <arch/hdreg.h>
+#include <arch/hdio.h>
 #endif
 
 struct partition
