@@ -350,7 +350,7 @@ void mem_map(void)
 	} else {	/* we have a released segment, figure out size and show */
 	    char *type;
 	    if (start - segs[i].base <= 0x40)
-		type = "[setup data]";
+		type = "[setup-data]";
 	    else
 		type = "[Unused FDcache]";
 	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, type, main_msg);
