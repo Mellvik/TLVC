@@ -28,7 +28,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
-#include <arch/hdreg.h>
+#include <arch/hdio.h>
 #include <linuxmt/minix_fs.h>
 #include <linuxmt/kdev_t.h>
 #include <linuxmt/major.h>

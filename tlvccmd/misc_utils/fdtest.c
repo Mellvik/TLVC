@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <linuxmt/memory.h>
-#include <arch/hdreg.h>
+#include <arch/hdio.h>
 #include <linuxmt/prectimer.h>
 
 #define MAXSPT		18*2		/* max # of sectors per operation */
