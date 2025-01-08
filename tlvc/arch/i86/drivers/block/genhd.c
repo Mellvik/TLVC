@@ -24,12 +24,14 @@
 #include <linuxmt/major.h>
 #include <linuxmt/string.h>
 #include <linuxmt/memory.h>
+#include <linuxmt/stat.h>
 #include <arch/directhd.h>
 
 #include <arch/system.h>
 
 #include "blk.h"
 
+#define MUST_OPEN_DEVICE		/* open the device before bread of blk 0 */
 #define NR_SECTS(p)		p->nr_sects
 #define START_SECT(p)		p->start_sect
 
@@ -224,7 +226,16 @@ static int INITPROC msdos_partition(struct gendisk *hd,
     register struct hd_struct *hdp;
 #endif
     unsigned short int i, minor = current_minor;
+#ifdef MUST_OPEN_DEVICE
+    struct inode inode;
 
+    inode.i_rdev = dev;
+    inode.i_mode = S_IFCHR;	/* Pretend it's a raw device: No _release needed */
+    if (blkdev_open(&inode, NULL)) {
+	printk(" device open failed\n");
+	return -1;
+    }
+#endif
     if (!(bh = bread(dev, (block_t) 0))) {
 	printk(" no MBR");
 	return 0;
