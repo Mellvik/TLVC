@@ -4,8 +4,8 @@ TLVC is a Linux-based OS for vintage 16bit PCs: A small (even floppy-based if de
 
 TLVC is a fork of ELKS 0.6.0 with a different focus: OS efficiency and speed more than wide compatibility and applications. A key difference from ELKS is BIOS independence. While TLVC - like any other PC operating system - uses the BIOS to boot, that's where BIOS dependency ends. Native (aka 'direct') block device drivers makes the system faster and more responsive. It also allows for experimentation with protected mode if you're so inclined and have a 286 or newer system. 
 
-Curious? Interested? Please check out the Wiki for more info:
-[About TLVC](https://github.com/Mellvik/TLVC/wiki/About-TLVC#tlvc---tiny-linux-for-vintage-computers) - Getting Started with TLVC - Configure and Build TLVC - TLVC Networking Guide - TLVC and Emulators
+Curious? Interested? Please check out the growing collection of really detailed and useful Wiki guides for more info:
+[About TLVC](https://github.com/Mellvik/TLVC/wiki/About-TLVC#tlvc---tiny-linux-for-vintage-computers) - Getting Started with TLVC - Configure and Build TLVC - TLVC Networking Guide - TLVC and Emulators - [TLVC Memory and Buffer subsystem](https://github.com/Mellvik/TLVC/wiki/TLVC-Memory-and-Buffer-subsystem)
 
 TLVC is ready to run. TCP/IP and many of your familiar Linux/Unix applications are included. The system is also in continuous development. Check it out, let us know what you think. You may not find the pre-configured binaries/images you'd like, so make a request. 
 
