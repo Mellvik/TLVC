@@ -108,7 +108,7 @@ struct passwd *getpwuid(uid_t uid)
  * Caveat: A device may have many names, we're using the first occurence in the directory
  *	   - with the 'tty' prefix.
  */
-char *devname(unsigned int minor)
+char *dev_name(unsigned int minor)
 {
 	struct dirent *d;
 	dev_t ttydev = MKDEV(TTY_MAJOR, minor);
@@ -158,7 +158,7 @@ char *tty_name(int fd, unsigned int off, unsigned int seg)
 	if (!memread(fd, off, seg, &tty, sizeof(tty)))
 		return "?";
 
-	return devname(tty.minor);
+	return dev_name(tty.minor);
 }
 
 int main(int argc, char **argv)

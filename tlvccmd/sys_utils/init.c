@@ -41,6 +41,9 @@
 
 /* debug and sysinit/respawn sh -e output goes here*/
 #define CONSOLE       "/dev/console"
+//#define TEST_UPPER_MEM 0	/* Goes with the initialization scheme in init/main.c */
+				/* Tests whether the upper 1k of regular RAM is being
+				 * used by BIOS routines or interrupt vectors */
 
 #if !DEBUG
 #define debug(...)
@@ -475,6 +478,23 @@ void spawnThisOne(const char **a)
 	}
 }
 
+#if TEST_UPPER_MEM
+#define _MK_FP(seg,off)	((void __far *)((((unsigned long)(seg)) << 16) | (off)))
+void test_umem(void)	/* EXPERIMENTAL - test contents of upper 1k memory */
+{
+	unsigned char __far *upper = _MK_FP(0x9fc0, 0);
+
+	int i;
+	for (i = 0; i < 1024; i++) {
+		if (upper[i] != (unsigned char)(i & 0xff)) {
+		    fprintf(stderr, "init: Top memory changed @ %d, content %x, reverted\n",
+			i, upper[i]);
+		    upper[i] = i;
+		}
+	}
+}
+#endif
+
 void handle_signal(int sig)
 {
 	int fd;
@@ -513,6 +533,9 @@ void handle_signal(int sig)
 		signal(SIGALRM, handle_signal);
 		debug("SYNC\r\n");
 		sync();
+#if TEST_UPPER_MEM
+		test_umem();	/* EXPERIMENTAL */
+#endif
 		alarm(sync_interval);
 		break;
 	}

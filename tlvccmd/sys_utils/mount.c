@@ -13,67 +13,15 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <linuxmt/fs.h>
 #include <linuxmt/limits.h>
-#include <autoconf.h>
 
 #define errmsg(str) write(STDERR_FILENO, str, sizeof(str) - 1)
 
 static char *fs_typename[] = {
 	0, "minix", "msdos", "romfs"
 };
-
-/* keep this stuff in sync with df */
-static struct dev_name_struct {
-        char *name;
-        dev_t num;
-} p_devices[] = {
-        { "hda",     0x0300 },
-        { "hdb",     0x0320 },
-        { "hdc",     0x0340 },
-        { "hdd",     0x0360 },
-        { "fd0",     0x0380 },
-        { "fd1",     0x03a0 },
-        { "ssd",     0x0700 },
-        { "rd",      0x0100 },
-        { "xda",     0x0600 },
-        { "xdb",     0x0620 },
-        { "dhda",    0x0500 },
-        { "dhdb",    0x0520 },
-        { "dhdc",    0x0540 },
-        { "dhdd",    0x0560 },
-        { "df0",     0x0200 },
-        { "df1",     0x0220 },
-        { NULL,           0 }
-};
-
-#define NAMEOFF 5
-static char *dev_name(dev_t dev)
-{
-	static char name[10] = "/dev/";
-	struct dev_name_struct *devices = p_devices;
-	char *rootdev = getenv("ROOTDEV");
-
-	if (!rootdev)
-		printf("df: Warning: Cannot get ROOTDEV from environment\n");
-
-	while (devices->num) {	
-		if (devices->num == (dev & 0xfff0)) {
-			int k;
-			strcpy(&name[NAMEOFF], devices->name);
-			k = strlen(name);
-			if (name[k-1] > '9') {	/* partitioned devices */
-				if (dev & 0x07) {
-					name[k] = '0' + (dev & 7);
-					name[k+1] = 0;
-				}
-			}
-			return name;
-		}
-		devices++;
-	}
-	return NULL;
-}
 
 static int show_mount(dev_t dev)
 {
@@ -84,11 +32,11 @@ static int show_mount(dev_t dev)
 
 	if (statfs.f_type < FST_MSDOS) 
 		printf("%-10s (%5s) blocks %6lu free %6lu mount %s\n",
-		dev_name(statfs.f_dev), fs_typename[statfs.f_type], statfs.f_blocks,
+		devname(statfs.f_dev, S_IFBLK), fs_typename[statfs.f_type], statfs.f_blocks,
 		statfs.f_bfree, statfs.f_mntonname);
 	else
 		printf("%-9s (%5s)                           mount %s\n",
-		dev_name(statfs.f_dev), fs_typename[statfs.f_type], statfs.f_mntonname);
+		devname(statfs.f_dev, S_IFBLK), fs_typename[statfs.f_type], statfs.f_mntonname);
 	return 0;
 }
 
@@ -102,7 +50,8 @@ static void show(void)
 
 static void usage(void)
 {
-	errmsg("usage: mount [-a][-q][-t type] [-o ro|remount,{rw|ro}] <device> <directory>\n");
+	errmsg("usage: mount [-a][-q][-t minix|fat] [-o ro|remount,{rw|ro}] <device> <directory>\n");
+	return 1;
 }
 
 int main(int argc, char **argv)
