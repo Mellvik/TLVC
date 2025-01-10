@@ -60,6 +60,7 @@ void exit (int status);
 int system(const char *command);
 void qsort(void *base, size_t nel, size_t width,
 	int (*compar)(/*const void *, const void * */));
+char *devname(dev_t dev, mode_t type);
 
 #ifndef __STRICT_ANSI__
 void breakpoint();

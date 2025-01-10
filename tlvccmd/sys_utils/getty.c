@@ -12,7 +12,7 @@
  *
  **************************************************************************
  *
- * This is a small version of getty for use in the ELKS project. It is not
+ * This is a small version of getty for use in the TLVC project. It is not
  * fully functional, and may not be the most efficient implementation for
  * larger systems. It minimises memory usage and code size.
  *
@@ -52,14 +52,7 @@
 #include <sys/ioctl.h>		/* for jiffies */
 
 #define DEBUG		0	/* set =1 for debug messages*/
-
-/* debug messages go here*/
 #define CONSOLE		_PATH_CONSOLE
-
-/* For those requiring a super-small getty, the following define cuts out
- * all of the extra functionality regarding the /etc/issue code sequences.
- */
-#define SUPER_SMALL	0	/* Enable for super-small binary */
 #define BOOT_TIMER	0	/* Enable to print jiffies at startup */
 
 #if DEBUG
@@ -90,7 +83,6 @@ void consolemsg(const char *str, ...)
 }
 
 
-#if !SUPER_SMALL
 char	Host[20] = "LocalHost", *Date = 0, *Time = 0;
 
 void host(void) {
@@ -140,29 +132,22 @@ void when(void) {
     }
 }
 
-#endif
-
-#if BOOT_TIMER
-unsigned long __far *jp;
-
-int timer_init(void)
+void show_startup(void)
 {
-    unsigned int kds, jaddr;
-    int fd = open("/dev/kmem", O_RDONLY);
+#if BOOT_TIMER
+    int fd;
+    unsigned offset, kds;
+    unsigned short __far *pjiffies;  /* only access low order jiffies word */
 
-    if (fd < 0) {
-        perror("/dev/kmem");
-        return -1;
+    fd = open("/dev/kmem", O_RDONLY);
+    if (fd >= 0 && !ioctl(fd, MEM_GETDS, &kds) && !ioctl(fd, MEM_GETJIFFADDR, &offset)) {
+	pjiffies = _MK_FP(kds, offset);
+	printf("[%u] ", *pjiffies);
+	fflush(stdout);
+	close(fd);
     }
-    if ((ioctl(fd, MEM_GETDS, &kds) < 0) || (ioctl(fd, MEM_GETJIFFADDR, &jaddr)) < 0 )  {
-        perror("ktcp: ioctl error in /dev/kmem");
-        return -1;
-    }
-    jp = _MK_FP(kds, jaddr);
-    close(fd);
-    return 0;
-}
 #endif
+}
 
 static void put(unsigned char ch)
 {
@@ -242,15 +227,6 @@ int main(int argc, char **argv)
 	debug("startup args '%s' %ld\n", argv[1], baud);
     }
 
-#if BOOT_TIMER
-    {
-	char jiffies[10];
-
-	timer_init();
-	sprintf(jiffies, "[%lu]", *jp);
-	state(jiffies);
-    }
-#endif
     /* allow execution outside of init*/
     if (getppid() != 1) {
 	int tty = open(argv[1], O_RDWR);
@@ -293,10 +269,6 @@ int main(int argc, char **argv)
     fd = open(_PATH_ISSUE, O_RDONLY);
     if (fd >= 0) {
 	put('\n');
-#if SUPER_SMALL
-	while ((n=read(fd,Buffer,sizeof(Buffer))) > 0)
-	    write(1,Buffer,n);
-#else
 	when();
 	host();
 	*Buffer = '\0';
@@ -380,9 +352,9 @@ int main(int argc, char **argv)
 			    state("1 user");
 			    break;
 #endif
-#ifdef ELKS_VERSION
+#ifdef TLVC_VERSION
 			case 'V':			/* Version */
-			    state(ELKS_VERSION);
+			    state(TLVC_VERSION);
 			    break;
 #endif
 			default:
@@ -397,11 +369,11 @@ int main(int argc, char **argv)
 	    }
 	    *Buffer = '\0';
 	}
-#endif
 	close(fd);
     }
 
 
+    show_startup();
     for (;;) {
 	state("login: ");
 	errno = 0;
