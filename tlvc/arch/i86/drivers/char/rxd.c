@@ -18,19 +18,7 @@
 #ifdef CONFIG_BLK_DEV_XD
 
 #include <linuxmt/kernel.h>
-#include <linuxmt/major.h>
-#include <linuxmt/fs.h>
-#include <linuxmt/errno.h>
-#include <linuxmt/mm.h>
 #include <linuxmt/sched.h>
-#include <linuxmt/debug.h>
-#include <linuxmt/mem.h>
-#include <linuxmt/heap.h>
-#include <linuxmt/timer.h>
-#include <linuxmt/init.h>
-
-#include <arch/io.h>
-#include <arch/segment.h>
 
 #define	SECSIZ		512	/* Fixed sector size for now */
 
