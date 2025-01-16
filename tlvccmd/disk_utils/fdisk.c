@@ -2,6 +2,7 @@
  *  fdisk.c  Disk partitioning program.
  *  Copyright (C) 1997  David Murn
  *	Updated by Greg Haerr March 2020
+ *	Updated for TLVC by Helge Skrivervik 2025
  *
  *  This program is distributed under the GNU General Public Licence, and
  *  as such, may be freely distributed.
@@ -14,6 +15,10 @@
 #include <ctype.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <linuxmt/kdev_t.h>
+#include <linuxmt/major.h>
 
 #ifdef __ia16__
 #include <arch/hdio.h>
@@ -57,7 +62,7 @@ struct geometry {
 #define MODE_SIZE 2
 #define CMDLEN 8
 
-int pFd;
+int pFd, initialize, is_file, quiet, chs[3];
 char dev[80];
 unsigned char MBR[512];
 
@@ -78,10 +83,12 @@ void write_out();
 void list_types();
 void set_boot();
 void set_type();
-void list_partition(char *dev);
+void list_partition(char *);
 void usage();
+int check_dev(char *);
 
 static char *progname;
+static struct stat sbuf;
 
 #define sects_per_cyl ((unsigned long)(geometry.heads * geometry.sectors))
 
@@ -287,14 +294,11 @@ void set_type()  /* FIXME - Should make this more flexible */
 	    break;
 	} else {
 	    switch (*buf) {
-
 		case 'l':
 		    list_types();
 		    break;
-
 		case 'q':
 		    return;
-
 		default:
 		    printf("Invalid: %c\n", *buf);
 		    break;
@@ -396,17 +400,107 @@ void list_partition(char *devname)
 	close(fd);
 }
 
-void set_default_dev(char *rdev) {
+void set_dev(char *rdev) {
 	char *rootdev = getenv("ROOTDEV");
+	int i;
 
-	if (!rootdev || strchr(rootdev, 'f')) {
+	if (!*rdev) {		/* no device on command line, use rootdev */
+	    if (!rootdev) {
 		printf("No default hard disk, device must be specified.\n");
 		usage();
-	} else {
-		if (isdigit(rootdev[strlen(rootdev)-1]))
-			rootdev[strlen(rootdev)-1] = '\0';
-		strcpy(rdev, rootdev);
+	    } else {
+		i = strrchr(rootdev, '/') - rootdev + 1;
+		strncpy(rdev, rootdev, i);
+		strcat(rdev, "r");
+		strcat(rdev, rootdev+i);
+	    }
 	}
+	if (stat(rdev, &sbuf)) {
+	    printf("Cannot stat %s\n", rdev);
+	    usage();
+	}
+	if (S_ISREG(sbuf.st_mode)) {
+	    if (!quiet) printf("Warning: Target is a regular file - size %uk\n",
+				(unsigned int)(sbuf.st_size>>9));
+	    is_file++;
+	    return;
+	}
+	if (initialize) {	/* -g not allowed if device */
+	    printf("Cannot set geometry for disks, use /bootopts\n");
+	    quit();
+	}
+#ifndef CONFIG_BLK_DEV_BIOS	/* Will not detect floppy if using BIOS IO */
+	if (MAJOR(sbuf.st_rdev) == RAW_FD_MAJOR) {
+	    printf("Cannot use fdisk on floppy device\n");
+	    usage();
+	}
+	if (S_ISBLK(sbuf.st_mode)) {
+	    printf("Raw device required.\n");
+	    usage();
+	}
+#endif 
+	/* chop off minor device num */
+	if (isdigit(rdev[strlen(rdev)-1]))
+	    rdev[strlen(rdev)-1] = '\0';
+}
+
+int check_dev(char *rdev)
+{
+	char buf[512];
+	int fd = open(rdev, O_RDWR);
+
+	if (fd == -1) {
+		printf("Error opening %s\n", rdev);
+		quit();
+	}
+	if (read(fd, buf, 512) != 512) {
+		printf("Read error on %s\n", rdev);
+		quit();
+	}
+	lseek(fd, 0, SEEK_SET);		/* back to start for later reads */
+	if (*(unsigned short *)(buf + 510) != 0xAA55) {
+		if (!initialize && !quiet) {
+			printf("Warning: Invalid or no MBR (%x)\n", *(unsigned short *)(buf+510));
+			if (is_file) {
+			    printf("\t Use the -g option.\n");
+			    quit();
+			}
+		}
+	}
+	return fd;
+} 
+
+void get_chs(char *chs_arg)
+{
+	if (!isdigit(*chs_arg) || sscanf(chs_arg,"%d/%d/%d", &chs[0], &chs[1], &chs[2]) != 3) {
+		printf("Wrong C/H/S format: %s\n", chs_arg);
+		usage();
+	}
+}
+
+/*
+ * Guess the CHS based on sector and head values in the partition table.
+ * Then use the size of the file to determine the number of cylinders.
+ * Not an exact science, but likely to deliver a sane geometry. 
+ */
+void find_chs(struct hd_geometry *geo)
+{
+	struct partition *p = (struct partition *)(MBR + PARTITION_START);
+	int i;
+
+	memset(geo, 0, sizeof(struct hd_geometry));
+	for (i = 0; i < 4; i++) {
+		if (p->end_head > geo->heads)
+			geo->heads = p->end_head;
+		if (p->end_sector > geo->sectors)
+			geo->sectors = p->end_sector;
+		p++;
+	}
+	if (geo->heads + geo->sectors) {
+		geo->heads++;
+		geo->cylinders = (sbuf.st_size >> 9)/(geo->heads * geo->sectors);
+		//printf("found CHS: %d/%d/%d\n", geo->cylinders, geo->heads, geo->sectors);
+	} 
 }
 
 int main(int argc, char **argv)
@@ -414,6 +508,9 @@ int main(int argc, char **argv)
 	int i;
 	int mode = MODE_EDIT;
 
+#if CONFIG_BLK_DEV_HD	/* DELETEME */
+	int no_use;
+#endif
 	dev[0] = 0;
 	progname = argv[0];
 	for (i = 1; i < argc; i++) {
@@ -422,90 +519,102 @@ int main(int argc, char **argv)
 			case 'l':
 				mode = MODE_LIST;
 				break;
+			case 'q':
+				quiet++;
+				break;
+			case 'g':			/* initialize file */
+				initialize++;
+				get_chs(argv[++i]);
+				break;
 			default:
 				usage();
 			}
 		} else {
 			if (*dev != 0) usage();
 			else strcpy(dev, argv[i]);
-			/* get rid of partitions */
-			while (isdigit(dev[strlen(dev)-1]))
-				dev[strlen(dev)-1] = '\0';
 		}
 	}
 
-	if (argc == 1) 
-		set_default_dev(dev);
+	set_dev(dev);
+	if (!(pFd = check_dev(dev))) quit();
 
-    if (mode == MODE_LIST) {
-	if (*dev == 0)
-	    set_default_dev(dev);
-	list_partition(dev);
-	exit(0);
-    }
-
-    if (mode == MODE_EDIT) {
-	char buf[CMDLEN];
-	Funcs *tmp;
-
-	if ((pFd = open(dev, O_RDWR)) == -1) {
-	    printf("Error opening %s (%d)\n", dev, -pFd);
-	    exit(1);
+	if (mode == MODE_LIST) {
+		list_partition(dev);
+		exit(0);
 	}
 
-	if ((i=read(pFd,MBR,512)) != 512) {
-	    printf("Unable to read boot sector from %s\n", dev);
-	    exit(1);
-	}
+	if (mode == MODE_EDIT) {
+		char buf[CMDLEN];
+		Funcs *tmp;
 
-	{
+		if ((i = read(pFd, MBR, 512)) != 512) {
+			printf("Unable to read boot sector from %s\n", dev);
+	    		quit();
+		}
+
+		{
 #ifdef __ia16__
-	struct hd_geometry hdgeometry;
-	if (ioctl(pFd, HDIO_GETGEO, &hdgeometry)) {
-	    printf("Error reading geometry for %s\n", dev);
-	    exit(1);
-	}
-	geometry.sectors = hdgeometry.sectors;
-	geometry.heads = hdgeometry.heads;
-	geometry.cylinders = hdgeometry.cylinders;
-	geometry.start = hdgeometry.start;
+		struct hd_geometry hdgeometry;
+		if (initialize) {
+			hdgeometry.sectors = chs[2];
+			hdgeometry.heads = chs[1];
+			hdgeometry.start = 1;
+			if ((unsigned int)(sbuf.st_size>>9) < chs[0]*chs[1]*chs[2]) {
+				chs[0] = (sbuf.st_size>>9)/(chs[1]*chs[2]);
+				printf("CHS exceeds capacity, truncating to %u cylinders\n", chs[0]);
+			}
+			hdgeometry.cylinders = chs[0];
+		} else {
+			if (is_file)
+			    find_chs(&hdgeometry);
+			else {
+			    if (ioctl(pFd, HDIO_GETGEO, &hdgeometry)) {
+				printf("Couldn't get gebnoetry from device\n");
+				quit();
+			    }
+			}
+		}
+		geometry.sectors = hdgeometry.sectors;
+		geometry.heads = hdgeometry.heads;
+		geometry.cylinders = hdgeometry.cylinders;
+		geometry.start = hdgeometry.start;
 #else
-	//FIXME read from FAT VBR or ELKS EPB
-	geometry.sectors = 63;
-	geometry.heads = 16;
-	geometry.cylinders = 63;
-	geometry.start = 1;			/* start sector*/
+		//FIXME read from FAT VBR or ELKS EPB
+		geometry.sectors = 63;
+		geometry.heads = 16;
+		geometry.cylinders = 63;
+		geometry.start = 1;			/* start sector*/
 #endif
-	}
+		}
 
-	printf("Geometry: %d cylinders, %d heads, %d sectors.\n",
-		geometry.cylinders,geometry.heads,geometry.sectors);
+		/* Don't proceed if any geometry component is bad */
+		if (geometry.heads == 0 || geometry.cylinders == 0
+					|| geometry.sectors == 0) {
+		    printf("Error: geometry is invalid, aborting.\n");
+		    exit(1);
+		}
 
-	/* Don't proceed if any geometry component is bad */
-	if (geometry.heads == 0 || geometry.cylinders == 0
-			|| geometry.sectors == 0) {
-	    printf("Error: geometry is invalid, aborting.\n");
-	    exit(1);
-	}
+		printf("[%s] Geometry: %d cylinders, %d heads, %d sectors.\n",
+			dev, geometry.cylinders,geometry.heads,geometry.sectors);
 
-	while (!feof(stdin)) {
-	    printf("Command (? for help): ");
-	    fflush(stdout);
-	    *buf = 0;
-	    if (fgets(buf,CMDLEN-1,stdin)) {
-		printf("\n");
-		for (tmp=funcs; tmp->cmd; tmp++)
-		    if (*buf==tmp->cmd) {
-			tmp->func();
-			break;
+		while (!feof(stdin)) {
+		    printf("Command (? for help): ");
+		    fflush(stdout);
+		    *buf = 0;
+		    if (fgets(buf,CMDLEN-1,stdin)) {
+			printf("\n");
+			for (tmp=funcs; tmp->cmd; tmp++)
+			    if (*buf==tmp->cmd) {
+				tmp->func();
+				break;
+			    }
 		    }
-	    }
-	}
-    }
-    exit(0);
+		}
+    	}
+	exit(0);
 }
 
 void usage(void) {
-    fprintf(stderr, "Usage: %s [-l] device_or_image\n", progname);
-    exit(1);
+	fprintf(stderr, "Usage: %s [-l] [-q] [-g c/h/s] raw_disk_device_or_image\n", progname);
+	exit(1);
 }

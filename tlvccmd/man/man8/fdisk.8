@@ -2,21 +2,56 @@
 .SH NAME
 fdisk \- create or update a partition table on a hard disk or SSD device
 .SH SYNOPSIS
-\fBfdisk\fR [\fB\-l\fR] [\fIfile\fR]
+\fBfdisk\fR [\fB\-l\fR] [\fB\-q\fR] [\fB\-g c/h/s\fR] [\fIfile\fR]
 .br
 .SH OPTIONS
 .TP 5
 .B \-l
 list the partition table and exit.
+.TP 5
+.B \-q
+quiet, don't print warnings.
+.TP 5
+.B -g c/h/s
+use this drive geometry (cyliders/heads/sectors). Useful only if 
+.B file
+is a plain image file, not a device. Geometry is automatically read off disk drives. Use the
+.I hdparm=
+setting in the 
+.I bootopts 
+file to manipulate the geometry of hard drives.
 .SH DESCRIPTION
 .PP
-When \fBfdisk\fR starts up, it reads in the partition table from 
+When \fBfdisk\fR starts up, it validates the 
+.B file
+argument if present, then reads in the partition table from 
 .BR file ,
 or - if no 
 .B file
-was specified, from the currently booted drive. If the boot drive is a floppy,
+was specified, from the currently booted drive. 
+.PP
+.B Fdisk
+will exit with an error message if 
+.B file
+or the booted drive is a floppy.
+.B File
+must be a raw (character) device unless it's a plain file. If 
+.B fdisk 
+uses the booted drive, it is converted to raw automatically before opening. The raw restriction
+does not apply if the program is compiled with the 
+.I CONFIG_BLK_DEV_BIOS
+define.
+.PP
+Image files are treated like devices, but should be accompanied by the 
+.B \-g
+c/h/s option to define the geomerty. If not present, the geometry will be guessed
+from the existing partiton table, which may or may not give correct results.
+If the partition table is empty or the MBR signature missing,
+the
+.B \-g
+option is mandatory, and 
 .B fdisk
-will fail and exit.
+will exit if it's missing.
 .PP
 Unless the 
 .B -l
@@ -48,10 +83,11 @@ command.
 .TP 10
 elks17# \fBfdisk\fP
 .nf
-Geometry: 7818 cylinders, 16 heads, 63 sectors.
+[/dev/rdhdb] Geometry: 7818 cylinders, 16 heads, 63 sectors.
 Command (? for help):
 .fi
-.R Fdisk 
+.LP
+.B Fdisk 
 enters interactive mode.
 .TP 10
 elks17# \fBfdisk -l\fP
@@ -64,7 +100,7 @@ Device      #:ID   Cyl Head Sect    Cyl Head Sect  Start   Size
 /dev/hda3   3:00     0    0    0      0    0    0      0      0
 /dev/hda4   4:80   332    0    1     432   15   63 7560000 101808
 .fi
-
+.LP
 .B Fdisk 
 lists the partition table, the asterisk in the ID-column indictating an active
 partition.
