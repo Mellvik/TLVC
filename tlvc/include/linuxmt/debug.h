@@ -15,15 +15,6 @@
  * Al Riddoch <ajr@ecs.soton.ac.uk> 14th Oct. 1997
  */
 
-/* This switches which version of the kstack-tracker gets used */
-
-/* Replaced by the 'true' kernel-strace */
-#ifdef DEBUG
-#define pstrace printk
-#else
-#define pstrace(_a)
-#endif
-
 /*
  * Kernel debug options, set =1 to turn on. Works across multiple files.
  */

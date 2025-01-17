@@ -45,7 +45,7 @@
 
 /* Use when strategy is STATIC_BUFS or HEAP_BUFS - in the latter case only 
  * if netbufs= is missing from /bootopts */
-#define NET_OBUFCNT 2
+#define NET_OBUFCNT 0
 #define NET_IBUFCNT 2
 
 #ifndef __ASSEMBLER__

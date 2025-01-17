@@ -195,7 +195,8 @@ static unsigned char reply_buffer[MAX_REPLIES];
 /* CMOS drive types, from CMOS location 0x10 */
 /* NOTE: Pre-AT machines have no CMOS, no DIR - should be configured from 
  * /bootopts, will default to 2 type 1 drives */
-/* Sep-24: Configured via bootopts (hs) */
+/* Sep-24: XT types may be set via bootopts xtflpy=n,n where n is the CMOS code for 
+ * the drive type, drives 0,1 (A,B) respecitvely (hs) */
 #define CMOS_NONE   0
 #define CMOS_360k   1
 #define CMOS_1200k  2

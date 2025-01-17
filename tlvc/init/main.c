@@ -174,10 +174,8 @@ static void INITPROC early_kernel_init(void)
     if (arch_cpu == 7)
 	fdcache = 0;			/* disable fdcache for 386+ */
 
-/* Add UMB support here */
-
-/*** Experimental: Test the upper 1k of memory for BIOS modifications ****/
-#if 0
+#ifdef TEST_UPPER_MEM
+/*** Works with /bin/init to test the upper 1k of memory for BIOS modifications ****/
     byte_t __far *upper = _MK_FP(0x9fc0, 0); 
     int i = 0;
     while (i++ < 1024) upper[i] = i;
@@ -279,8 +277,9 @@ static void INITPROC do_init_task(void)
 
     mount_root();
 
-#ifdef BOOT_TIMER	/* temporary, works with similar printout in getty */
-    printk("[%lu]", jiffies); 	/* for measuring startup time */
+#ifdef BOOT_TIMER	/* print boot-'time', works with similar print in getty */
+			/* to measure system startup time */
+    printk("[%lu] ", jiffies); 	/* for measuring startup time */
 #endif
 #ifdef CONFIG_SYS_NO_BININIT
     /* when no /bin/init, force initial process group on console to make signals work */
