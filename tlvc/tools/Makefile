@@ -35,6 +35,9 @@ all:
 	$(MAKE) -C elf2elks all
 	$(MAKE) -C elks-compress all
 	$(MAKE) -C eman all
+	$(MAKE) -C efdisk all
+	$(MAKE) -C emkfat all
+#	$(MAKE) -C emkfs all
 
 
 #########################################################################

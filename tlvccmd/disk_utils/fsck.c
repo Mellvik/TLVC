@@ -56,7 +56,7 @@
  *	-f force filesystem check even if filesystem marked as valid
  *
  * The device may be a block device or a image of one, but this isn't
- * enforced (but it's not much fun on a character device :-).
+ * enforced.
  */
 
 #include <stdio.h>
@@ -903,6 +903,7 @@ int main(int argc, char ** argv)
 	int count;
 	int retcode = 0;
 	struct termios termios,tmp;
+	struct stat sbuf;
 
 	if (argc && *argv)
 		program_name = *argv;
@@ -929,6 +930,14 @@ int main(int argc, char ** argv)
 	}
 	if (!device_name)
 		usage();
+	if (stat(device_name, &sbuf)) {
+		printf("Cannot stat %s\n", device_name);
+		usage();
+	}
+#ifndef CONFIG_BLK_DEV_BIOS
+	if (!S_ISREG(sbuf.st_mode) && !S_ISCHR(sbuf.st_mode)) 
+		die("Raw device or image file required");
+#endif
 	if (repair && !automatic) {
 		if (!isatty(0) || !isatty(1))
 			die("need terminal for interactive repairs");

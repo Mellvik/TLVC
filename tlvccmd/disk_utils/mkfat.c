@@ -1,5 +1,5 @@
 /*
- * mkfat - ELKS mkfs for FAT filesystems
+ * mkfat - TLVC mkfs for FAT filesystems
  *  Can also be compiled and used on host system
  *
  * Usage: mkfat [-fat32] device size-in-blocks
@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #define FAT_TYPE_12             1
 #define FAT_TYPE_16             2
@@ -588,6 +589,7 @@ int main(int ac, char **av)
 	int opt_fat32 = 0;
 	char *image;
 	uint32 blocks;
+	struct stat sbuf;
 
 	if (ac > 1 && !strcmp(av[1], "-fat32")) {
 		opt_fat32 = 1;
@@ -600,6 +602,17 @@ usage:
 		exit(1);
 	}
 	image = av[1];
+	if (stat(image, &sbuf)) {
+		printf("Cannot stat %s\n", image);
+		exit(1);
+	}
+#ifndef CONFIG_BLK_DEV_BIOS
+	/* allow image files and raw devices */
+	if (!S_ISREG(sbuf.st_mode) && !S_ISCHR(sbuf.st_mode)) {
+		printf("Must be image file or raw device");
+		exit(1);
+	}
+#endif	
 	blocks = atol(av[2]);
 	if (blocks == 0)
 		goto usage;
@@ -614,7 +627,7 @@ usage:
 		exit(1);
 	}
 
-	if (!fatfs_format(opt_fat32, blocks * 2, "ELKS")) {
+	if (!fatfs_format(opt_fat32, blocks * 2, "TLVC")) {
 		printf("Can't create FAT image on %s\n", image);
 		sync();
 		exit(1);

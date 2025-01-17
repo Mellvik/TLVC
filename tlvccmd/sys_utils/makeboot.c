@@ -326,6 +326,7 @@ int main(int ac, char **av)
 	int fat32 = 0;
 	dev_t rootdev, targetdev;
 	struct stat sbuf;
+	char rawroot[20] = "/dev/r";
 
 	if (ac < 2 || ac > 5) {
 usage:
@@ -368,13 +369,27 @@ usage:
 	}
 
 	rootdev = sbuf.st_dev;
+#ifdef CONFIG_BLK_DEV_BIOS
 	rootdevice = devname(rootdev, S_IFBLK);
+#else
+	rootdevice = strcat(rawroot, strrchr(devname(rootdev, S_IFBLK), '/'));
+#endif
 
 	if (opt_writebb == 1) {
 		get_bootblock(bootfile);
 		fstype = rootfstype;
 	}
-
+#ifndef CONFIG_BLK_DEV_BIOS
+	struct stat rsbuf;
+	if (stat(targetdevice, &rsbuf)) {
+		perror(targetdevice);
+		return -1;
+	}
+	if (!S_ISCHR(rsbuf.st_mode)) {
+		printf("Target must med a raw device: %s\n", targetdevice);
+		return -1;
+	}
+#endif
 	fd = open(targetdevice, O_RDWR);
 	if (fd < 0)
 		fatalmsg("Can't open target device %s\n", targetdevice);
