@@ -16,7 +16,6 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-//#include <linuxmt/kdev_t.h>
 #include <linuxmt/major.h>
 
 #ifdef __ia16__

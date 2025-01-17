@@ -744,10 +744,10 @@ void unmap_buffer(struct buffer_head *bh)
         } else
 #endif
         if (--ebh->b_mapcount == 0) {
-            debug("unmap: %d\n", buf_num(bh));
+            debug_map("unmap: %d\n", buf_num(bh));
             wake_up(&L1wait);
         } else
-            debug("unmap_buffer: %d mapcount %d\n", buf_num(bh), ebh->b_mapcount+1);
+            debug_map("unmap_buffer: %d mapcount %d\n", buf_num(bh), ebh->b_mapcount+1);
     }
 }
 
