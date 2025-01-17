@@ -15,14 +15,18 @@
 #include <ctype.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <linuxmt/kdev_t.h>
+//#include <linuxmt/kdev_t.h>
 #include <linuxmt/major.h>
 
 #ifdef __ia16__
 #include <arch/hdio.h>
 #endif
+
+#define SECT_SIZE	512
+/* from linuxmt/kdev_t.h */
+#define MINORBITS	8
+#define MAJOR(dev)	((unsigned short)((dev) >> MINORBITS))
 
 struct partition
 {
@@ -36,7 +40,7 @@ struct partition
     unsigned char end_cyl;	/* end cylinder */
     unsigned short start_sect;	/* starting sector counting from 0 */
     unsigned short start_sect_hi;
-    unsigned short nr_sects;		/* nr of sectors in partition */
+    unsigned short nr_sects;	/* nr of sectors in partition */
     unsigned short nr_sects_hi;
 };
 
@@ -64,7 +68,7 @@ struct geometry {
 
 int pFd, initialize, is_file, quiet, chs[3];
 char dev[80];
-unsigned char MBR[512];
+unsigned char MBR[SECT_SIZE];
 
 typedef struct {
   int cmd;
@@ -335,8 +339,8 @@ void write_out()
     else {
         MBR[510] = 0x55;
         MBR[511] = 0xAA;
-	if ((i=write(pFd,MBR,512))!=512) {
-	    printf("error: wrote %d of 512 bytes to the partition table.\n", i);
+	if ((i=write(pFd,MBR,SECT_SIZE))!=SECT_SIZE) {
+	    printf("error: wrote %d of %d bytes to the partition table.\n", i, SECT_SIZE);
 	} else
 	    printf("Partition table written to %s\n",dev);
     }
@@ -354,20 +358,20 @@ void help()
 void list_partition(char *devname)
 {
     int i, fd;
-    unsigned char table[512];
+    unsigned char table[SECT_SIZE];
 
     if (devname!=NULL) {
 	if ((fd=open(devname,O_RDONLY))==-1) {
 	    printf("Error opening %s\n",devname);
 	    exit(1);
 	}
-	if ((i=read(fd,table,512))!=512) {
-	    printf("Unable to read first 512 bytes from %s, only read %d bytes\n",
-		   devname,i);
+	if ((i=read(fd,table,SECT_SIZE))!=SECT_SIZE) {
+	    printf("Unable to read first %d bytes from %s, only read %d bytes\n",
+		   SECT_SIZE, devname, i);
 	    exit(1);
 	}
     } else
-	memcpy(table,MBR,512);
+	memcpy(table,MBR,SECT_SIZE);
     printf("                           START              END          SECTOR\n");
     printf("Device           #:ID    Cyl Head Sect     Cyl Head Sect  Start   Size\n\n");
     for (i=0; i<4; i++) {
@@ -446,14 +450,14 @@ void set_dev(char *rdev) {
 
 int check_dev(char *rdev)
 {
-	char buf[512];
+	char buf[SECT_SIZE];
 	int fd = open(rdev, O_RDWR);
 
 	if (fd == -1) {
 		printf("Error opening %s\n", rdev);
 		quit();
 	}
-	if (read(fd, buf, 512) != 512) {
+	if (read(fd, buf, SECT_SIZE) != SECT_SIZE) {
 		printf("Read error on %s\n", rdev);
 		quit();
 	}
@@ -483,12 +487,12 @@ void get_chs(char *chs_arg)
  * Then use the size of the file to determine the number of cylinders.
  * Not an exact science, but likely to deliver a sane geometry. 
  */
-void find_chs(struct hd_geometry *geo)
+void find_chs(struct geometry *geo)
 {
 	struct partition *p = (struct partition *)(MBR + PARTITION_START);
 	int i;
 
-	memset(geo, 0, sizeof(struct hd_geometry));
+	memset(geo, 0, sizeof(struct geometry));
 	for (i = 0; i < 4; i++) {
 		if (p->end_head > geo->heads)
 			geo->heads = p->end_head;
@@ -547,7 +551,7 @@ int main(int argc, char **argv)
 		char buf[CMDLEN];
 		Funcs *tmp;
 
-		if ((i = read(pFd, MBR, 512)) != 512) {
+		if ((i = read(pFd, MBR, SECT_SIZE)) != SECT_SIZE) {
 			printf("Unable to read boot sector from %s\n", dev);
 	    		quit();
 		}
@@ -566,7 +570,7 @@ int main(int argc, char **argv)
 			hdgeometry.cylinders = chs[0];
 		} else {
 			if (is_file)
-			    find_chs(&hdgeometry);
+			    find_chs((struct geometry *)&hdgeometry);
 			else {
 			    if (ioctl(pFd, HDIO_GETGEO, &hdgeometry)) {
 				printf("Couldn't get gebnoetry from device\n");
