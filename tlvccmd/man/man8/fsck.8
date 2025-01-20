@@ -2,7 +2,7 @@
 .SH NAME
 fsck \- perform filesystem consistency check
 .SH SYNOPSIS
-\fBfsck\fR [\fB\-aflrsvw\fR]\fR [\fIdevice\fR] ...\fR
+\fBfsck\fR [\fB\-aflrsvw\fR]\fR [\fIdevice\fR]
 .br
 .SH OPTIONS
 .TP 5
@@ -28,62 +28,82 @@ Turn on verbose mode
 Warn about inodes that can't be cleared
 .SH EXAMPLES
 .TP 25
-.B fsck /dev/hda1
-# Check filesystem on \fI/dev/hda1\fR
+.B fsck /dev/rdhda1
+# Check filesystem on \fI/dev/rdhda1\fR
 .TP 25
-.B fsck \-a /dev/fd1
-# Automatically fix errors on \fI/dev/fd1\fR
+.B fsck \-a /dev/rdf1
+# Automatically fix errors on \fI/dev/rdf1\fR
 .TP 25
-.B fsck \-l /dev/fd0
-# List the contents of \fI/dev/fd0\fR
+.B fsck \-l /dev/rdf0
+# List the contents of \fI/dev/rdf0\fR
 .TP 25
-.B fsck \-c 2 3 /dev/hda2
-# Check and list \fI/dev/hda2\fR i-nodes 2 & 3
+.B fsck \-avf /dev/rdf1
+# Force file system check, automatic repair and verbose output on \fI/dev/rdf0\fR
+.nf
+tlvc16# fsck -avf /dev/rdf1
+Forcing filesystem check on /dev/rdf1.
+
+   112 inodes used (88%)
+   322 zones used (89%)
+
+    49 regular files
+     8 directories
+    40 character device files
+    15 block device files
+     0 links
+     0 symbolic links
+------
+   112 files
+tlvc16#
+.fi
 .SH DESCRIPTION
 .PP
-\fIFsck\fR performs consistency checks on the filesystems which reside 
-on the specified devices. Without options,
+\fIFsck\fR performs consistency checks on the filesystem residing 
+on the specified device. Unless the system is using BIOS IO, the device 
+must be a character (raw) device.
+.PP
+Without options,
 .IR fsck
 checks and reports but makes noe changes.
 When either the \fB\-a\fR or \fB\-r\fR flags are given, the filesystem
-will be repaired if errors are found. In the absence of the \fB\-a\fR flag, the user will be prompted for
-every error found. Entering a newline (or a 'y') means 'yes', 'n' means 'no' and 'a' means 'activate automatic mode'
-and \fIfsck\fR will continue as if the \fB\-a\fR flag was present: Fix errors without asking. Responses
-are case-insensitive.
+will be repaired if errors are found. In the absence of the \fB\-a\fR flag, the
+user will be prompted for
+every error found. Entering a newline (or a 'y') means 'yes', 'n' means 'no' and 'a'
+means 'activate automatic mode'
+and \fIfsck\fR will continue as if the \fB\-a\fR flag was present: Fix errors without asking.
+Responses are case-insensitive.
 .PP
 When a filesystem is unmounted cleanly, its superblock is marked as such and 
 .IR fsck
-will simply report that the filesystem is clean and exit. 
+will simply exit siliently unless the \fB\-v\fR option is present.
 A complete check may still be performed by specifying the
 \fR\-f\fR option.
 .PP
 The normal case is for 
 .IR fsck
-to run silently. If no errors are found, it just exits. Adding the \fR\-v\fR option activates verbose mode 
-and 
+to run silently. If no errors are found, it just exits.
+Adding the \fR\-v\fR option activates verbose mode and 
 .IR fsck
-will report statisics about the filesystem.
+will report statistics about the filesystem if checked, otherwise that it was 
+clean and not check was required.
 .PP
-Before running \fIfsck\fR on a mounted filesystem, it must first be unmounted.
-Trying to repair a mounted filesystem is dangerous and should not be 
-attempted.
+.I Fsck
+should always be run on unmounted filesystems.
+Running it on a mounted filesystem is generally meaningless because the filesystem is likely
+to be modified while \fIfsck\fR runs. Modifying a mounted filsystem is outright dangerous and
+will likely cause filesystem damage and system crash. 
 .PP
 To repair the root filesystem (which cannot be unmounted), first 
 kill any and all processes. 
 Type \fIsync\fR to force any buffered changes to disk,
-run \fIfsck\fR on the root filesystem and immediately reboot the
-computer by typing \fIreboot\fR.
+run \fIfsck\fR with the appropriate options on the root filesystem and immediately reboot the
+computer via the \fIreboot\fR command.
 .PP
 It is necessary to kill all processes before repairing the root filesystem
 to prevent them from modifying any disk blocks while \fIfsck\fR is running.
 This is only necessary for the root filesystem, any other filesystem can
 simply be unmounted before it is checked.
 .SH BUGS
-.IR fsck
-needs significant amounts of memory to run and may fail with a 'no memory' error if the system is short on memory. It is advisable to run
-.IR fsck
-early in the system startupå process in order to avoid such problems.
-.PP
 .IR fsck
 works with minix version 1 filesystems only. The maximum supported filesystem size is 64MB.
 .SH "SEE ALSO"

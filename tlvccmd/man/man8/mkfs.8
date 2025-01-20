@@ -1,4 +1,4 @@
-.TH MKFS 9
+.TH MKFS 8
 .SH NAME
 mkfs \- make a MINIX file system
 .SH SYNOPSIS
@@ -6,11 +6,14 @@ mkfs \- make a MINIX file system
 .I device blocks
 .SH EXAMPLES
 .TP 20
-.B mkfs /dev/fd1 1440
-# Make a file system on \fI/dev/fd1\fR
+.B mkfs /dev/rdf1 1440
+# Make a file system on \fI/dev/rdf1\fR
 .TP 20
-.B mkfs /dev/fd1 360
+.B mkfs /dev/rdf1 360
 # Make empty 360 block file system
+.TP 20
+.B mkfs /dev/rdhda3 65535
+# Create a maximum size filesystem on the hard disk partition \fI/dev/rdhda3\fR.
 .SH DESCRIPTION
 .PP
 .I Mkfs
@@ -18,10 +21,11 @@ creates an empty MINIX version 1 file system, with a size in 1K-blocks
 .I blocks
 for use with
 .B mount.
-The native ELKS file system is MINIX.
+Unless the system is using BIOS IO, the device must be a raw (character) device as in the examples.
+The native TLVC file system is MINIX.
 .PP
 The maximum size of a file system is 65535 blocks, which is
-65 Mb.
+64 Mb or 67,107,840 bytes.
 .SH "SEE ALSO"
 .BR fsck (8),
 .BR mount (8).
