@@ -379,7 +379,8 @@ void list_partition(char *devname)
 	unsigned long nr_sects = p->nr_sects | ((unsigned long)p->nr_sects_hi << 16);
 	char device[32];
 	strcpy(device, devname? devname: dev);
-	if (device[0] == '/') {
+	if (is_file) device[0] = 0;		/* no device names if image file */
+	else if (device[0] == '/') {
 		char *p = &device[strlen(device)];
 		*p++ = '1' + i;
 		*p = 0;
