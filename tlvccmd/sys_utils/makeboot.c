@@ -2,8 +2,7 @@
  * makeboot - make a bootable image
  * Part of /bin/sys script for creating ELKS images from ELKS
  *
- * Usage: makeboot [-M][-F] /dev/{fd0,fd1,hda1,hda2,etc}
- *        makeboot [-M][-F] /dev/{df0,df1,dhda1,dhda2,etc}
+ * Usage: makeboot [-M][-F] /dev/{df0,df1,hda1,hda2,etc}
  *
  * Copies boot sector from root device to target device
  * Sets EPB and BPB parameters in boot sector
@@ -32,6 +31,7 @@
 #include <linuxmt/minix_fs.h>
 #include <linuxmt/kdev_t.h>
 #include <linuxmt/major.h>
+#include <linuxmt/config.h>
 #include "../../bootblocks/mbr_autogen.c"
 
 #define BUF_SIZE	1024 
@@ -326,11 +326,10 @@ int main(int ac, char **av)
 	int fat32 = 0;
 	dev_t rootdev, targetdev;
 	struct stat sbuf;
-	char rawroot[20] = "/dev/r";
 
 	if (ac < 2 || ac > 5) {
 usage:
-		fatalmsg("Usage: makeboot [-M][-F] [-f file] [-s] /dev/{fd0,fd1,hda1,hda2,etc}\n");
+		fatalmsg("Usage: makeboot [-M][-F] [-f file] [-s] /dev/{df0,df1,hda1,hda2,etc}\n");
 	}
 	if (ac == 2) opt_writebb++;
 	while (av[1] && av[1][0] == '-') {
@@ -372,6 +371,7 @@ usage:
 #ifdef CONFIG_BLK_DEV_BIOS
 	rootdevice = devname(rootdev, S_IFBLK);
 #else
+	char rawroot[20] = "/dev/r";
 	rootdevice = strcat(rawroot, strrchr(devname(rootdev, S_IFBLK), '/'));
 #endif
 

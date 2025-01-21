@@ -49,13 +49,13 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
-/*#include <ctype.h>*/
 #include <stdlib.h>
 #include <termios.h>
 #include <sys/stat.h>
 
 #include <linuxmt/fs.h>
 #include <linuxmt/minix_fs.h>
+#include <linuxmt/config.h>
 
 /* Check for gcc removed from here. */
 

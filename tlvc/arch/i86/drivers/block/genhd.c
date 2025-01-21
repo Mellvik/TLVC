@@ -12,6 +12,7 @@
  *  with information provided by OnTrack.  This now works for linux fdisk
  *  and LILO, as well as loadlin and bootln.  Note that disks other than
  *  /dev/hda *must* have a "DOS" type 0x51 partition in the first slot (hda1).
+ *  [This is no longer the case, kept to preserve history hs/2024]
  *
  *  More flexible handling of extended partitions - aeb, 950831
  */
@@ -25,6 +26,7 @@
 #include <linuxmt/string.h>
 #include <linuxmt/memory.h>
 #include <linuxmt/stat.h>
+#include <linuxmt/config.h>
 #include <arch/directhd.h>
 
 #include <arch/system.h>
@@ -226,7 +228,7 @@ static int INITPROC msdos_partition(struct gendisk *hd,
     register struct hd_struct *hdp;
 #endif
     unsigned short int i, minor = current_minor;
-#ifdef MUST_OPEN_DEVICE
+#if defined(MUST_OPEN_DEVICE) && !defined(CONFIG_BLK_DEV_BIOS)
     struct inode inode;
     struct file fp;
 

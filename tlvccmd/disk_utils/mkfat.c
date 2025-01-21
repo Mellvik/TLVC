@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <linuxmt/config.h>
 
 #define FAT_TYPE_12             1
 #define FAT_TYPE_16             2

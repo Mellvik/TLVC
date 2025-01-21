@@ -9,7 +9,7 @@
  * This is a small version of ps for use in the ELKS project.
  * Enhanced by Greg Haerr 17 Apr 2020
  * 
- * Optimized for TLVC by Helge Skirivervik, Aug 2023 - now has decent performance 
+ * Optimized for TLVC by Helge Skrivervik, Aug 2023 - now has decent performance 
  * with floppy disks and minimal buffers.
  */
 #define __KERNEL__
@@ -18,7 +18,6 @@
 
 #include <linuxmt/mm.h>
 #include <linuxmt/mem.h>
-#include <linuxmt/major.h>
 #include <linuxmt/sched.h>
 #include <linuxmt/fixedpt.h>
 #include <stdio.h>

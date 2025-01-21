@@ -133,7 +133,7 @@ struct drive_infot fd_types[] = {	/* AT/PS2 BIOS reported floppy formats*/
 
 #ifdef CONFIG_ARCH_PC98
 unsigned char hd_drive_map[NUM_DRIVES] = {/* BIOS drive mappings*/
-    0xA0, 0xA1, 0xA2, 0xA3,		/* hda, hdb */
+    0xA0, 0xA1, 0xA2, 0xA3,		/* bda, bdb */
 #ifdef CONFIG_IMG_FD1232
     0x90, 0x91, 0x92, 0x93		/* fd0, fd1 */
 #else
@@ -142,7 +142,7 @@ unsigned char hd_drive_map[NUM_DRIVES] = {/* BIOS drive mappings*/
 };
 #else
 unsigned char hd_drive_map[NUM_DRIVES] = {/* BIOS drive mappings*/
-    0x80, 0x81, 0x82, 0x83,		/* hda, hdb */
+    0x80, 0x81, 0x82, 0x83,		/* bda, bdb */
     0x00, 0x01, 0x02, 0x03		/* fd0, fd1 */
 };
 #endif
@@ -162,7 +162,7 @@ static void set_cache_invalid(void);
 
 static struct gendisk bioshd_gendisk = {
     MAJOR_NR,			/* Major number */
-    "hd",			/* Major name */
+    "bd",			/* Major name */
     MINOR_SHIFT,		/* Bits to shift to get real from partition */
     1 << MINOR_SHIFT,		/* Number of partitions per physical disk */
 				/* FIXME we don't support 32 partitions, wastes space */
@@ -545,7 +545,7 @@ static int read_sector(int drive, int cylinder, int sector)
     do {
 	set_irq();
 	set_ddpt(36);		/* set to large value to avoid BIOS issues*/
-	if (!bios_disk_rw(BIOSHD_READ, 1, drive, cylinder, 0, sector, FD_BOUNCE_SEG, 0))
+	if (!bios_disk_rw(BIOSHD_READ, 1, drive, cylinder, 0, sector, FD_BOUNCESEG, 0))
 	    return 0;		/* everything is OK */
 	reset_bioshd(drive);
     } while (--count > 0);
@@ -583,7 +583,7 @@ static void probe_floppy(int target, struct hd_struct *hdp)
 	 * If it exists, we can obtain the disk geometry from it.
 	 */
 	if (!read_sector(target, 0, 1)) {
-	    struct elks_disk_parms __far *parms = _MK_FP(FD_BOUNCE_SEG, drivep->sector_size -
+	    struct elks_disk_parms __far *parms = _MK_FP(FD_BOUNCESEG, drivep->sector_size -
 		2 - sizeof(struct elks_disk_parms));
 
 	    /* first check for ELKS parm block */
@@ -606,7 +606,7 @@ static void probe_floppy(int target, struct hd_struct *hdp)
 	    }
 
 	    /* second check for valid FAT BIOS parm block */
-	    unsigned char __far *boot = _MK_FP(FD_BOUNCE_SEG, 0);
+	    unsigned char __far *boot = _MK_FP(FD_BOUNCESEG, 0);
 	    if (
 		//(boot[510] == 0x55 && boot[511] == 0xAA) &&	/* bootable sig*/
 		((boot[3] == 'M' && boot[4] == 'S') ||		/* OEM 'MSDOS'*/
@@ -938,10 +938,10 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 			(unsigned int)seg, buf, physaddr, this_pass, usedmaseg);
 	    }
 	    if (usedmaseg) {
-		segment = FD_BOUNCE_SEG;		/* if xms buffer use FD_BOUNCE_SEG */
+		segment = FD_BOUNCESEG;		/* if xms buffer use FD_BOUNCESEG */
 		offset = 0;
 		if (cmd == WRITE)	/* copy xms buffer down before write */
-		    xms_fmemcpyw(0, FD_BOUNCE_SEG, buf, seg, this_pass*(drivep->sector_size >> 1));
+		    xms_fmemcpyw(0, FD_BOUNCESEG, buf, seg, this_pass*(drivep->sector_size >> 1));
 		set_cache_invalid();
 	    } else {
 		segment = (seg_t)seg;
@@ -980,7 +980,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 static sector_t cache_startsector;
 static sector_t cache_endsector;
 
-/* read from start sector to end of track into the FD_CACHE_SEG sector buffer in low memory,
+/* read from start sector to end of track into the FD_CACHESEG sector buffer in low memory,
  * no retries*/
 static void bios_readtrack(struct drive_infot *drivep, sector_t start)
 {

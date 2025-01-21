@@ -10,9 +10,6 @@ SPRGS=mkfs
 
 all: $(PRGS)
 
-install_sibo: all
-	$(INSTALL) $(SPRGS) $(DESTDIR)/bin
-
 install: all
 	$(INSTALL) $(PRGS) $(DESTDIR)/bin
 
