@@ -5,7 +5,7 @@
  * 17.04.2023 Rewritten for TLVC by helge@skrivervik.com (hs)
  * 01.07.2023 modified to handle any request size, support raw io & and multisector transfers (hs)
  * 31.12.2023 Support for 8 bit ISA and (some) XTIDE cards (hs)
- * 02.10.2024 Full XTIDE support, configure via the xtide= setting in bootopts
+ * 02.10.2024 Full XTIDE support, configure via the xtide= setting in bootopts (hs)
  */
 
 /*
@@ -242,7 +242,7 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF) /* use bounce buffer */
     if (!raw) {	
 	insw(port, (word_t *)localbuf, count);
-	debug_blk("insw %d %x:%04x %lx:%04x %04x;", count, kernel_ds, localbuf,
+	debug_blkdrv("insw %d %x:%04x %lx:%04x %04x;", count, kernel_ds, localbuf,
 		(unsigned long)seg, buffer, *(word_t *)localbuf);
 	xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
     } else
@@ -472,7 +472,7 @@ int INITPROC directhd_init(void)
 	    cf_shift = ct->reg_type;
 #endif
 	    if ((i = reset_controller(drive/2))) {
-		printk("athd%d: Controller not found at 0x%x (%x)\n", drive/2, port, ct->ctl_port);
+		debug_blkdrv("athd%d: Controller not found at 0x%x (%x)\n", drive/2, port, ct->ctl_port);
 		drive++; /* don't check for slave drive if controller not found */
 		continue;
 	    }
@@ -558,8 +558,6 @@ int INITPROC directhd_init(void)
 	//ide_buffer[53] = 0; /* force old ide behaviour for debugging */
 #endif
 	ide_buffer[20] = 0; /* String termination */
-	if (ide_buffer[10] == 0x4551)	/* Crude QEMU detection */
-		running_qemu = 1;
 	i = drive*4;
 	if ((ide_buffer[54] < 34096) && (*ide_buffer != 0)) {
 	    /* Physical CHS data @ (word) offsets: cyl@1, heads@3, sectors@6 */
@@ -642,8 +640,7 @@ int INITPROC directhd_init(void)
 
     /* NOTE: Many modern day XT_IDE controllers do not even have an IRQ line - set 
 	     xtide_irq bit in /bootopts to zero to tell the driver */
-    /* TEST this on 8 bit bus machines! (irq 5) */
-    /* TODO: On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
+    /* TODO: TEST this on 8 bit bus machines! (irq 5) */
     int got_irq;
 #ifdef CONFIG_IDE_XT
     if (is_xtide)
@@ -660,7 +657,7 @@ int INITPROC directhd_init(void)
 	else
     	   printk("failed\n");
     } else
-	printk("No IRQ; PIO only\n")
+	printk("No IRQ; PIO only\n");
 #endif
 
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
@@ -673,7 +670,7 @@ int INITPROC directhd_init(void)
 	directhd_gendisk.next = NULL;
     }
 
-    printk("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
+    debug_blkdrv("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
 
 #if NOTNEEDED
     /* print drive info */
@@ -745,7 +742,7 @@ int directhd_open(struct inode *inode, struct file *filp)
     /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
-    debug_blk("%cdhd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ',
+    debug_blkdrv("%cdhd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ',
 						inode->i_rdev, inode->i_size);
     return 0;
 }
@@ -833,7 +830,7 @@ void do_directhd_request(void)
 	start = req->rq_blocknr;
 	buff = req->rq_buffer;
 	/* safety check should be here */
-	debug_blk("dhd[%04x]: start: %lu nscts: %lu\n", req->rq_dev,
+	debug_blkdrv("dhd[%04x]: start: %lu nscts: %lu\n", req->rq_dev,
 			hd[minor].start_sect, hd[minor].nr_sects);
 
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {
@@ -895,7 +892,7 @@ void do_directhd_request(void)
 		    return;
 		} else {
 		    tmp = STATUS(port);
-		    debug_blk("athd%d: status 0x%x\n", drive, tmp);
+		    debug_blkdrv("athd%d: status 0x%x\n", drive, tmp);
 		}
 	}
 
@@ -949,27 +946,30 @@ static int reset_controller(int controller)
 	int	cport = ide_ct[controller].ctl_port;
 	int	port = ide_ct[controller].io_port;
 
-	outb_p(0xC, cport);		/* reset controller */
-	err = STATUS(port);		/* if 0xFF -> nothing there */
+	outb_p(0xc, cport);		/* reset controller  */
+	mdelay(1000);
+#ifdef USE_INTERRUPTS
+	outb_p(0x8, cport);		/* Clr reset, enable interrupts */
+#else
+	outb_p(0xA, cport);		/* Clr reset, disable interrupts */
+#endif
+	err = drive_busy(port, cf_shift);	/* should be 0x50 */
 
-	/* If the busy bit doesn't get immediately set, there is nothing there */
-	/* Some controllers will only respond if a drive was detected during POST */
-	/* QEMU sets, then clears the busy bit real fast, leaving 0x50 as the status */
-	/* This is a problem only when the XT-IDE support is active */
+	/* Some controllers will appear dead unless a drive was detected during POST. */
+	/* Status 0xff or 0x00 means 'nothing there' */
+	/* QEMU some times reports 0x00 even when a controller and a drive is present
+	 * (but not if there are two drives). */
 
-	if (err == 0xff || !(err & 0xd0)) {	/* should be !(err & BUSY_STAT) */
+	//printk("athd%d: got status 0x%x\n", controller, err);
+	if (err == 0xff || !(err & 0x50)) {	/* Check for DriveReady|SeekComplete */
+	    if (running_qemu && !controller)
+		return 0;	/* workaround for another qemu bug, pretend we're OK */
 	    err = 1;
 	} else {
 	    err = 0;
-	    mdelay(3000);
-#ifdef USE_INTERRUPTS
-	    outb_p(0x8, cport);		/* Clr reset, enable interrupts */
-#else
-	    outb_p(0xA, cport);		/* Clr reset, disable interrupts */
-#endif
-	    if ((i = drive_busy(port, cf_shift))) {	/* probably no controller or no drive */
+	    if (!(i = drive_busy(port, cf_shift))) {	/* probably no controller or no drive */
 						/* don't clutter the console with these messages */
-		debug_blk("athd%d: still busy (%x)\n", controller, i);
+		debug_blkdrv("athd%d: still busy (%x)\n", controller, i);
 		err = 1;
 	    } else if ((i = ERROR(port)) && i != 1) { /* i == 0 if controller found, but no drives */
 		printk("athd%d: Reset failed: %02x\n", controller, i);
@@ -1000,9 +1000,9 @@ static int drive_busy(int port, int cf_shift)
 		// FIXME: More bits to test here? Check other drivers.
 		c = STATUS(port); 
 		if ((c&(BUSY_STAT|READY_STAT)) == READY_STAT)
-			return 0;
+			return c;
 	}
-	return(c);
+	return 0;	/* Failure */
 }
 
 /* these delays are required for the oldest of drives only */

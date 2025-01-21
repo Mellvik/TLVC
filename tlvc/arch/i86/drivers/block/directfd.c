@@ -706,8 +706,8 @@ static void setup_DMA(void)
     if (raw) {	/* ensure raw access doesn't span cylinders */
 	int rest = (floppy->sect<<1) - sector - head*floppy->sect;
 	if (rest < nr_sectors) {
-	    printk("tr %d, spt %d, s %d, h %d, rest %d, req %d; ", current_track,
-		floppy->sect, sector, head, rest, nr_sectors);
+	    //printk("tr %d, spt %d, s %d, h %d, rest %d, req %d; ", current_track,
+		//floppy->sect, sector, head, rest, nr_sectors);
 	    nr_sectors = rest;
 	}
     }
