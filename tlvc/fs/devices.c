@@ -101,7 +101,7 @@ struct inode_operations blkdev_inode_operations = {
  * Called every time a character special file is opened.
  */
 
-static int chrdev_open(struct inode *inode, struct file *filp)
+int chrdev_open(struct inode *inode, struct file *filp)
 {
     register struct file_operations *fop;
     int i;

@@ -31,11 +31,11 @@
 
 #include "blk.h"
 
-#define MUST_OPEN_DEVICE		/* open the device before bread of blk 0 */
+#define MUST_OPEN_DEVICE	/* Properly open device before bread of blk 0 */
 #define NR_SECTS(p)		p->nr_sects
 #define START_SECT(p)		p->start_sect
 
-#ifdef CONFIG_ARCH_PC98
+#ifdef	CONFIG_ARCH_PC98
 #define NR_SECTS_PC98(p98)	END_SECT_PC98(p98) - START_SECT_PC98(p98) + 1
 #define START_SECT_PC98(p98)	(sector_t) (p98->cyl * last_drive->heads + p98->head) * last_drive->sectors + p98->sector
 #define END_SECT_PC98(p98)	(sector_t) (p98->end_cyl * last_drive->heads + p98->end_head) * last_drive->sectors + p98->end_sector
@@ -215,7 +215,7 @@ static void INITPROC extended_partition(register struct gendisk *hd, kdev_t dev)
 #endif
 
 static int INITPROC msdos_partition(struct gendisk *hd,
-			   kdev_t dev, sector_t first_sector)
+		    kdev_t dev, sector_t first_sector)
 {
     struct buffer_head *bh;
     register struct partition *p;
@@ -228,16 +228,17 @@ static int INITPROC msdos_partition(struct gendisk *hd,
     unsigned short int i, minor = current_minor;
 #ifdef MUST_OPEN_DEVICE
     struct inode inode;
+    struct file fp;
 
     inode.i_rdev = dev;
-    inode.i_mode = S_IFCHR;	/* Pretend it's a raw device: No _release needed */
-    if (blkdev_open(&inode, NULL)) {
+    inode.i_mode = S_IFCHR;	/* It's a raw device: no _release needed */
+    if (chrdev_open(&inode, &fp)) {
 	printk(" device open failed\n");
 	return -1;
     }
 #endif
     if (!(bh = bread(dev, (block_t) 0))) {
-	printk(" no MBR");
+	printk(" cannot read MBR");
 	return 0;
     }
     map_buffer(bh);
@@ -246,7 +247,7 @@ static int INITPROC msdos_partition(struct gendisk *hd,
      */
     if (*(int *) (bh->b_data + 0x1fe) != 0xAA55) {
 out:
-	printk("no mbr");
+	printk("no MBR");
 	unmap_brelse(bh);
 	return 0;
     }
