@@ -5,7 +5,7 @@
  * 17.04.2023 Rewritten for TLVC by helge@skrivervik.com (hs)
  * 01.07.2023 modified to handle any request size, support raw io & and multisector transfers (hs)
  * 31.12.2023 Support for 8 bit ISA and (some) XTIDE cards (hs)
- * 02.10.2024 Full XTIDE support, configure via the xtide= setting in bootopts
+ * 02.10.2024 Full XTIDE support, configure via the xtide= setting in bootopts (hs)
  */
 
 /*
@@ -640,8 +640,7 @@ int INITPROC directhd_init(void)
 
     /* NOTE: Many modern day XT_IDE controllers do not even have an IRQ line - set 
 	     xtide_irq bit in /bootopts to zero to tell the driver */
-    /* TEST this on 8 bit bus machines! (irq 5) */
-    /* TODO: On AT and higher, add irq reg for 2nd card if present - irq 15/HD2_AT_IRQ */
+    /* TODO: TEST this on 8 bit bus machines! (irq 5) */
     int got_irq;
 #ifdef CONFIG_IDE_XT
     if (is_xtide)
@@ -671,7 +670,7 @@ int INITPROC directhd_init(void)
 	directhd_gendisk.next = NULL;
     }
 
-    debug_blkdev("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
+    debug_blkdrv("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
 
 #if NOTNEEDED
     /* print drive info */
