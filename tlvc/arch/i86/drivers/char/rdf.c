@@ -18,8 +18,6 @@
 #include <linuxmt/kernel.h>
 #include <linuxmt/sched.h>
 
-#define	SECSIZ		512	/* Fixed sector size for now */
-
 int floppy_open(struct inode *, struct file *);
 int fd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
 void floppy_release(struct inode *, struct file *);
@@ -32,39 +30,38 @@ size_t block_rd(struct inode *, struct file *, char *, size_t);
  * There is (currently) no keeping track of opens/closes when doing raw access.
  */
 
-int rfd_open(register struct inode *inode, struct file *filp)
+int rdf_open(register struct inode *inode, struct file *filp)
 {
     //printk("rdf open\n");
     return(floppy_open(inode, filp));
 }
 
-void rfd_close(struct inode *inode, struct file *filp)
+void rdf_close(struct inode *inode, struct file *filp)
 {
     //printk("rdf close\n");
     return(floppy_release(inode, filp));
 }
 
-/* FIXME change ops struct to point directly to the block driver entries when appropriate */
-static struct file_operations rfd_fops = {
+static struct file_operations rdf_fops = {
     NULL,			/* lseek */
     block_rd,			/* read */
     block_wr,			/* write */
     NULL,			/* readdir */
     NULL,			/* select */
     fd_ioctl,		/* ioctl - FIXME: possibly useful when formatting */	
-    rfd_open,			/* open */
-    rfd_close			/* release */
+    rdf_open,			/* open */
+    rdf_close			/* release */
 };
 
 /*@+type@*/
 
-void INITPROC rfd_init(void)
+void INITPROC rdf_init(void)
 {
     /* Device initialization done by the block driver, nothing required */
 
-    if (register_chrdev(RAW_FD_MAJOR, "rfd", &rfd_fops))
-	printk("RFD: Unable to get major %d for raw floppy devices\n", RAW_FD_MAJOR);
-    //printk("rfd: Raw access to floppy devices configured\n");
+    if (register_chrdev(RAW_FD_MAJOR, "rdf", &rdf_fops))
+	printk("rdf: Unable to get major %d for raw floppy devices\n", RAW_FD_MAJOR);
+    //printk("rdf: Raw access to floppy devices configured\n");
 }
 
 #endif

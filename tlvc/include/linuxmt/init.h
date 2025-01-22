@@ -63,7 +63,7 @@ extern void INITPROC meta_init(void);
 extern void INITPROC pty_init(void);
 extern void INITPROC tcpdev_init(void);
 extern void INITPROC rhd_init(void);
-extern void INITPROC rfd_init(void);
+extern void INITPROC rdf_init(void);
 extern void INITPROC rxd_init(void);
 
 extern void kfork_proc(void (*addr)());

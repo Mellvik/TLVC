@@ -42,7 +42,7 @@ ifeq ($(CONFIG_ETH), y)
 endif
 
 ifeq ($(CONFIG_BLK_DEV_FD), y)
-    OBJS += rfd.o
+    OBJS += rdf.o
 endif
 
 ifeq ($(CONFIG_BLK_DEV_XD), y)

@@ -35,13 +35,13 @@ size_t block_rd(struct inode *, struct file *, char *, size_t);
 
 int rhd_open(register struct inode *inode, struct file *filp)
 {
-    //printk("rdh open\n");
+    //printk("rhd open\n");
     return(directhd_open(inode, filp));
 }
 
 void rhd_close(struct inode *inode, struct file *filp)
 {
-    //printk("rdh close\n");
+    //printk("rhd close\n");
     //return(directhd_release(inode, filp));
     return; 	/* Nothing to do */
 }
@@ -66,7 +66,7 @@ void INITPROC rhd_init(void)
 
     if (register_chrdev(RAW_HD_MAJOR, "rhd", &rhd_fops))
 	printk("RHD: Unable to get major %d for raw disk devices\n", RAW_HD_MAJOR);
-    //printk("rhd: Raw access to block devices configured\n");
+    //printk("rhd: Raw access to ATHD block devices configured\n");
 }
 
 #endif
