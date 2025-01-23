@@ -4,7 +4,7 @@
 
 usage()
 {
-	echo "Usage: sys [-3][-M][-F] /dev/{fd0,fd1,hda1,hda2,etc}"
+	echo "Usage: sys [-3][-M][-F] /dev/{df0,ffd1,hda1,hda2,etc}"
 	echo "	-3  Build minimal (360k) system"
 	echo "	-M  add MBR to target device"
 	echo "	-F  required for flat non-MBR /dev/hd[a-d]"
@@ -15,12 +15,12 @@ create_dev_dir()
 {
 	echo "Creating /dev entries..."
 	mkdir $MNT/dev
-	mknod $MNT/dev/dhda	b 5 0
-	mknod $MNT/dev/dhda1	b 5 1
-	mknod $MNT/dev/dhda2	b 5 2
-	mknod $MNT/dev/dhda3	b 5 3
-	mknod $MNT/dev/dhda4	b 5 4
-	mknod $MNT/dev/rdhda	c 5 0
+	mknod $MNT/dev/hda	b 5 0
+	mknod $MNT/dev/hda1	b 5 1
+	mknod $MNT/dev/hda2	b 5 2
+	mknod $MNT/dev/hda3	b 5 3
+	mknod $MNT/dev/hda4	b 5 4
+	mknod $MNT/dev/rhda	c 5 0
 	mknod $MNT/dev/xda	b 6 0
 	mknod $MNT/dev/xda1	b 6 1
 	mknod $MNT/dev/xda2	b 6 3
@@ -48,28 +48,28 @@ create_dev_dir()
 	chmod 0666 $MNT/dev/tty
 	if test "$small" = "1"; then return; fi
 
-	mknod $MNT/dev/dhdb	b 5 32
-	mknod $MNT/dev/dhdb1	b 5 33
-	mknod $MNT/dev/dhdb2	b 5 34
-	mknod $MNT/dev/dhdb3	b 5 35
-	mknod $MNT/dev/dhdb4	b 5 36
-	mknod $MNT/dev/dhdc	b 5 64
-	mknod $MNT/dev/dhdc1	b 5 65
-	mknod $MNT/dev/rdhdc	c 5 64
-	mknod $MNT/dev/rdhdc1	c 5 65
-	mknod $MNT/dev/dhdd	b 5 96
-	mknod $MNT/dev/dhdd1	b 5 67
-	mknod $MNT/dev/rdhdd	c 5 96
-	mknod $MNT/dev/rdhdd1	b 5 67
-	mknod $MNT/dev/rdhda1	c 5 1
-	mknod $MNT/dev/rdhda2	c 5 2
-	mknod $MNT/dev/rdhda3	c 5 3
-	mknod $MNT/dev/rdhda4	c 5 4
-	mknod $MNT/dev/rdhdb	c 5 32
-	mknod $MNT/dev/rdhdb1	c 5 33
-	mknod $MNT/dev/rdhdb2	c 5 34
-	mknod $MNT/dev/rdhdb3	c 5 35
-	mknod $MNT/dev/rdhdb4	c 5 36
+	mknod $MNT/dev/hdb	b 5 32
+	mknod $MNT/dev/hdb1	b 5 33
+	mknod $MNT/dev/hdb2	b 5 34
+	mknod $MNT/dev/hdb3	b 5 35
+	mknod $MNT/dev/hdb4	b 5 36
+	mknod $MNT/dev/hdc	b 5 64
+	mknod $MNT/dev/hdc1	b 5 65
+	mknod $MNT/dev/rhdc	c 5 64
+	mknod $MNT/dev/rhdc1	c 5 65
+	mknod $MNT/dev/hdd	b 5 96
+	mknod $MNT/dev/hdd1	b 5 67
+	mknod $MNT/dev/rhdd	c 5 96
+	mknod $MNT/dev/rhdd1	b 5 67
+	mknod $MNT/dev/rhda1	c 5 1
+	mknod $MNT/dev/rhda2	c 5 2
+	mknod $MNT/dev/rhda3	c 5 3
+	mknod $MNT/dev/rhda4	c 5 4
+	mknod $MNT/dev/rhdb	c 5 32
+	mknod $MNT/dev/rhdb1	c 5 33
+	mknod $MNT/dev/rhdb2	c 5 34
+	mknod $MNT/dev/rhdb3	c 5 35
+	mknod $MNT/dev/rhdb4	c 5 36
 	mknod $MNT/dev/rd0	b 2 0
 	mknod $MNT/dev/rd1	b 2 1
 	mknod $MNT/dev/tty2	c 4 1
