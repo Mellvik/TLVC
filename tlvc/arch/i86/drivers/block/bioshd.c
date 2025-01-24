@@ -48,6 +48,7 @@
 #include <linuxmt/config.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/timer.h>
+#include <linuxmt/stat.h>
 
 #include <arch/hdio.h>
 #include <arch/io.h>
@@ -72,7 +73,7 @@
 
 #include "blk.h"
 
-#undef CONFIG_TRACK_CACHE	/* FIXME: corrently not working */
+#undef CONFIG_FLOPPY_CACHE	/* FIXME: currently not working */
 #ifdef CONFIG_ARCH_IBMPC
 #define MAXDRIVES	2	/* max floppy drives*/
 #endif
@@ -147,16 +148,18 @@ unsigned char hd_drive_map[NUM_DRIVES] = {/* BIOS drive mappings*/
 };
 #endif
 
-static int _fd_count = 0;  		/* number of floppy disks */
-static int _hd_count = 0;  		/* number of hard disks */
+static int _fd_count;  		/* number of floppy disks */
+static int _hd_count;  		/* number of hard disks */
+
+extern int fdcache;		/* size (in KB) of floppy cache from bootopts */
 
 #define SPT		4	/* DDPT offset of sectors per track*/
 static unsigned char DDPT[14];	/* our copy of diskette drive parameter table*/
 unsigned long __far *vec1E = _MK_FP(0, 0x1E << 2);
 
-static int bioshd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
-static int bioshd_open(struct inode *, struct file *);
-static void bioshd_release(struct inode *, struct file *);
+int bioshd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
+int bioshd_open(struct inode *, struct file *);
+void bioshd_release(struct inode *, struct file *);
 static void bioshd_geninit(void);
 static void set_cache_invalid(void);
 
@@ -447,11 +450,12 @@ static unsigned short int INITPROC bioshd_getfdinfo(void)
 }
 #endif
 
-static void bioshd_release(struct inode *inode, struct file *filp)
+void bioshd_release(struct inode *inode, struct file *filp)
 {
     int target;
     kdev_t dev = inode->i_rdev;
 
+    if (S_ISCHR(inode->i_mode)) return;	
     sync_dev(dev);
     target = DEVICE_NR(dev);
     access_count[target]--;
@@ -730,7 +734,7 @@ got_geom:
 }
 #endif /* CONFIG_BLK_DEV_BFD*/
 
-static int bioshd_open(struct inode *inode, struct file *filp)
+int bioshd_open(struct inode *inode, struct file *filp)
 {
     unsigned int target = DEVICE_NR(inode->i_rdev);	/* >> MINOR_SHIFT */
     struct hd_struct *hdp = &hd[MINOR(inode->i_rdev)];
@@ -749,6 +753,7 @@ static int bioshd_open(struct inode *inode, struct file *filp)
     if (access_count[target] == 1)	/* probe only on initial open*/
 	probe_floppy(target, hdp);
 #endif
+    if (!S_ISCHR(inode->i_mode)) access_count[target]--; /* Don't count raw open */
 
     inode->i_size = hdp->nr_sects * drive_info[target].sector_size;
     /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
@@ -828,6 +833,10 @@ int INITPROC bioshd_init(void)
 #ifdef CONFIG_BLK_DEV_BHD
     printk("%s%d hard drive%s", p_sep, _hd_count, _hd_count == 1 ? "" : "s");
 #endif
+#if CONFIG_FLOPPY_CACHE
+    cache_size = fdcache<<1;    /* cache_size is sectors, fdcache is Kbytes */
+    printk("Floppy cache %dk, available %dk\n", cache_size>>1, FD_CACHESEGSZ>>10);
+#endif
     printk("\n");
 #endif
 
@@ -858,7 +867,7 @@ int INITPROC bioshd_init(void)
     return count;
 }
 
-static int bioshd_ioctl(struct inode *inode,
+int bioshd_ioctl(struct inode *inode,
 			struct file *file, unsigned int cmd, unsigned int arg)
 {
     register struct hd_geometry *loc = (struct hd_geometry *) arg;
@@ -901,13 +910,13 @@ static void get_chst(struct drive_infot *drivep, sector_t start_sec, unsigned in
 	tmp = start_sec / drivep->sectors;
 	*h = (unsigned int) (tmp % drivep->heads);
 	*c = (unsigned int) (tmp / drivep->heads);
-	*t = drivep->sectors - *s + 1;
+	*t = (drivep->heads == 2) ? (drivep->sectors<<*h) - *s + 1 : drivep->sectors - *s + 1;
 	debug_biosio("bioshd: lba %ld is CHS %d/%d/%d remaining sectors %d\n",
 		start_sec, *c, *h, *s, *t);
 }
 
 /* do bios I/O, return # sectors read/written */
-static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigned char *buf,
+static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *buf,
 	ramdesc_t seg, int cmd, unsigned int count)
 {
 	int drive, error, errs;
@@ -975,13 +984,15 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, unsigne
 	return this_pass;
 }
 
-#ifdef CONFIG_TRACK_CACHE		/* use track-sized sector cache */
+#ifdef CONFIG_FLOPPY_CACHE		/* use track-sized sector cache */
 
-static sector_t cache_startsector;
-static sector_t cache_endsector;
+static int cache_startsector;
+static int cache_endsector;
+status int cache_len;
 
-/* read from start sector to end of track into the FD_CACHESEG sector buffer in low memory,
+/* read from start sector to end of track or end of buffer into FD_CACHESEG in low memory,
  * no retries*/
+/* FIXME: This is non-functional at the moment */
 static void bios_readtrack(struct drive_infot *drivep, sector_t start)
 {
 	unsigned int cylinder, head, sector, num_sectors;
@@ -1061,7 +1072,7 @@ static void do_bioshd_request(void)
 	unsigned short minor;
 	sector_t start;
 	int drive, count;
-	unsigned char *buf;
+	char *buf;
 
 	spin_timer(1);
 	while (1) {
@@ -1087,12 +1098,16 @@ static void do_bioshd_request(void)
 		continue;
 	    }
 
-	    /* all block i/o requests are in units of 1K blocks*/
-	    count = BLOCK_SIZE / drivep->sector_size;
+	    if (!(count = req->rq_nr_sectors))		/* raw or block mode? */
+	    	count = BLOCK_SIZE / drivep->sector_size;
 	    start = req->rq_blocknr;	/* rq_blocknr is now sectors */
-
-	    if (hd[minor].start_sect == -1U || start + count > hd[minor].nr_sects) {
-	 	printk("bioshd: bad partition start=%ld sect=%ld nr_sects=%ld.\n",
+	    if (start + count > hd[minor].nr_sects) {
+		count = hd[minor].nr_sects - start; 
+		req->rq_nr_sectors = count;
+		//printk("bioshd: truncated read: %d block\n", count);
+	    }
+	    if (hd[minor].start_sect == -1U || count < 0) {	/* count=0 is OK, end of medium */
+	 	printk("bioshd: bad request, start=%ld sect=%ld nr_sects=%ld.\n",
 		   start, hd[minor].start_sect, hd[minor].nr_sects);
 		end_request(0);
 		continue;
@@ -1102,7 +1117,7 @@ static void do_bioshd_request(void)
 	    buf = req->rq_buffer;
 	    while (count > 0) {
 		int num_sectors;
-#ifdef CONFIG_TRACK_CACHE
+#ifdef CONFIG_FLOPPY_CACHE
 		/* first try reading track cache*/
 		num_sectors = do_cache_read(drivep, start, buf, req->rq_seg, req->rq_cmd);
 		if (!num_sectors)

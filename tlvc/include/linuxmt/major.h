@@ -25,7 +25,7 @@
  *  0 - unnamed                unnamed                minor 0 = true nodev
  *  1 - /dev/mem               /dev/rd[01]            block ramdisk
  *  2 - /dev/rdf*	       /dev/df*		      direct floppy
- *  3 - /dev/ttyp*             /dev/{fd*,bd*}         block BIOS fd/hd
+ *  3 - /dev/rbd*,rfd*         /dev/{fd*,bd*}         raw/block BIOS fd/hd
  *  4 - /dev/tty*,ttyp*,ttyS*                         char tty, pty slave, serial
  *  5 -	/dev/rhd*	       /dev/hd*		      direct HD
  *  6 - /dev/rxd*	       /dev/xd		      XT type MFM disk
@@ -45,8 +45,8 @@
 #define UNNAMED_MAJOR     0
 #define MEM_MAJOR         1
 #define RAW_FD_MAJOR	  2
-#define PTY_SLAVE_MAJOR   3
-#define TTY_MAJOR         4
+#define RAW_BIOS_MAJOR	  3
+#define TTY_MAJOR         4  /* tty and ttyp devices */
 #define RAW_HD_MAJOR	  5
 #define RAW_XD_MAJOR	  6  /* MFM type disk drive */
 #define UDD_MAJOR         7
@@ -58,11 +58,11 @@
 
 /* These are the block devices */
 
-#define RAM_MAJOR         1
-#define FLOPPY_MAJOR      2  /* Direct FD */
-#define BIOSHD_MAJOR      3
-#define MSCDEX_MAJOR      4  /* unused*/
-#define ATHD_MAJOR        5  /* Direct HD */
+#define RAM_MAJOR	  1
+#define FLOPPY_MAJOR	  2  /* Direct FD */
+#define BIOSHD_MAJOR	  3  /* BIOS hd and floppy */
+#define MSCDEX_MAJOR	  4  /* unused*/
+#define ATHD_MAJOR	  5  /* Direct HD */
 #define XD_MAJOR	  6  /* XT type MFM */
 #define SSD_MAJOR         7  /* Was 2 */
 #define ROMFLASH_MAJOR    8
