@@ -17,6 +17,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <linuxmt/major.h>
+#include <linuxmt/config.h>
 
 #ifdef __ia16__
 #include <arch/hdio.h>
@@ -53,8 +54,8 @@ struct geometry {
     unsigned long start;
 };
 
-#define DEFAULT_DIRECT_DEV		"/dev/dhda"
-#define DEFAULT_BIOS_DEV		"/dev/hda"
+#define DEFAULT_DIRECT_DEV		"/dev/hda"
+#define DEFAULT_BIOS_DEV		"/dev/bda"
 #define PARTITION_TYPE		0x80	/* ELKS, Old Minix*/
 
 #define PARTITION_START		0x01be	/* offset of partition table in MBR*/
@@ -619,6 +620,10 @@ int main(int argc, char **argv)
 }
 
 void usage(void) {
+#ifdef CONFIG_BLK_DEV_BIOS
+	fprintf(stderr, "Usage: %s [-l] [-q] [-g c/h/s] disk_device_or_image\n", progname);
+#else
 	fprintf(stderr, "Usage: %s [-l] [-q] [-g c/h/s] raw_disk_device_or_image\n", progname);
+#endif
 	exit(1);
 }

@@ -78,7 +78,6 @@
 
 /*
  * TODO
- * - Add support for raw devices
  * - Add ioctl to manipulate runtime parameters, such as automatic retries -
  *   to be able to continue after hard errors and to support real performance 
  *   testing.
@@ -205,12 +204,15 @@ static int	xd_busy;
 static struct	wait_queue xd_wait;
 static byte_t	xtnoerr;	/* set during tests to supress error messages */
 static byte_t	use_bounce;	/* set when bounce buffer is in use */
+static byte_t	raw;		/* set if the current request comes via the raw driver,
+				 * which means that the request may be any number of sectors
+				 * and not necessarily 64k aligned */
+static unsigned	nr_sectors;	/* Number of sectors in current request */
 
-
-static int access_count[MAX_XD_DRIVES] = {0, };
-static struct drive_infot drive_info[MAX_XD_DRIVES] = {0, };
+static int access_count[MAX_XD_DRIVES];
+static struct drive_infot drive_info[MAX_XD_DRIVES];
 static struct hd_struct hd[MAX_XD_DRIVES << MINOR_SHIFT]; /* partition ptr {start_sect, num_sects} */
-static int xd_sizes[MAX_XD_DRIVES] = {0, };
+static int xd_sizes[MAX_XD_DRIVES];
 
 /* local function prototypes */
 int xd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
@@ -218,7 +220,7 @@ int xd_open(struct inode *, struct file *);
 void xd_release(struct inode *, struct file *);
 static void xd_geninit();
 static void mdelay(int);
-static void setup_DMA(int);
+static void setup_DMA(void);
 static void deverror(int, byte_t *);
 //static int get_drive_type(int); 
 static void do_xdintr(int, struct pt_regs *);
@@ -261,10 +263,10 @@ static struct gendisk xd_gendisk = {
     MAX_XD_DRIVES,
     xd_geninit,			/* init */
     hd,				/* hd struct */
-    xd_sizes,			/* drive sizes */
-    0,
-    (void *) drive_info,
-    NULL
+    xd_sizes,			/* drive sizes (arr) */
+    0,				/* nr_real: real number of drives attached */
+    (void *) drive_info,	/* *real_devices */
+    NULL			/* pointer to next */
 };
 
 
@@ -311,8 +313,7 @@ static void do_xd_request(void)
 static void redo_xd_request(void)
 {
     sector_t start;
-    //unsigned raw_mode;
-    unsigned count, track, cyl;
+    unsigned track, cyl;
     byte_t head, sec, sense[4], cmd[6];
     struct drive_infot *dp;
     struct request *req;
@@ -343,11 +344,11 @@ static void redo_xd_request(void)
 
     dp = &drive_info[drive]; 
     if (req->rq_nr_sectors) {
-    	count = req->rq_nr_sectors;
-	//raw_mode = 1;
+    	nr_sectors = req->rq_nr_sectors;
+	raw = 1;
     } else {
-	count = BLOCK_SIZE / 512;
-    	//raw_mode = 0;
+	nr_sectors = BLOCK_SIZE / 512;
+	raw = 0;
     }
     start = req->rq_blocknr;
 
@@ -364,13 +365,13 @@ static void redo_xd_request(void)
     cyl   = track / dp->heads;
     sec   = start % dp->sectors;
     debug_xd("xd%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %c\n",
-		drive, cyl, head, sec, start, count, req->rq_buffer,
+		drive, cyl, head, sec, start, nr_sectors, req->rq_buffer,
 		(unsigned long)req->rq_seg, req->rq_cmd == READ? 'R' :'W');
     xd_build(cmd, req->rq_cmd == READ ? CMD_READ : CMD_WRITE, drive, head, 
-				cyl, sec, count&0xFF, XD_CNTF);
+				cyl, sec, nr_sectors&0xFF, XD_CNTF);
     //printk("xd%d: Command %x|%x|%x|%x|%x|%x\n", drive, cmd[0], cmd[1],
     //				cmd[2], cmd[3], cmd[4], cmd[5]);
-    setup_DMA(count);
+    setup_DMA();
     xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT);
     /* Don't attempt to do error processing when having requested DMA_MODE */
 }
@@ -381,11 +382,10 @@ int xd_open(struct inode *inode, struct file *filp)
     unsigned int minor = MINOR(inode->i_rdev);
     int target = DEVICE_NR(inode->i_rdev);
 
-    //printk("XD open: target %d, minor %d, start_sect %ld\n", target, minor, hd[minor].start_sect);
-    if (target >= MAX_XD_DRIVES)
-	return -ENXIO;
-
-    if (((int) hd[minor].start_sect) == -1)	/* FIXME is this initialized properly? */
+    //printk("XD open: target %d, device %x, start_sect %ld mode %x\n", target,
+    //		     inode->rdev, hd[minor].start_sect, inode->i_mode);
+    if (target >= MAX_XD_DRIVES || xd_gendisk.nr_real == 0 ||
+				   ((int) hd[minor].start_sect) == -1)
 	return -ENXIO;
 
     if (!S_ISCHR(inode->i_mode)) 	/* Don't count raw opens */
@@ -397,20 +397,13 @@ int xd_open(struct inode *inode, struct file *filp)
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
     debug_xd("%cxd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ', inode->i_rdev, inode->i_size);
-#if 0
-    if (!bounce_buffer)		/* allocate bounce buffer space */
-	if (!(bounce_buffer = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR))) {
-	    printk("xd: cannot allocate buffer space\n");
-	    return -EBUSY;
-	}
-#endif
     return 0;
 }
 
 /* Much of the DMA setup is superfluous on an XT type machine, 
- * but we try to make this work even on ATs
+ * (like xms support), but we try to make this work even on ATs
  */
-static void setup_DMA(int nr_sectors)
+static void setup_DMA(void)
 {
     unsigned long dma_addr;
     unsigned int count, physaddr;
@@ -423,14 +416,12 @@ static void setup_DMA(int nr_sectors)
     dma_addr = _MK_LINADDR(XD_BOUNCESEG, 0);
 
     use_bounce = 0;
-    count = nr_sectors<<9;
+    count = nr_sectors<<9;	/* bytes to transfer */
     if (use_xms || (physaddr + (unsigned int)count) < physaddr) { /* 64k wrap test */
 	use_bounce++;
-#if RAW			/* not fully implemented yet */
-
-	if (raw) {      /* The application buffer spans a 64k boundary, split it into
-			 * 2 or three parts, using the first k of the sector cache
-			 * as a bounce buffer */
+	if (raw) {      /* The application buffer spans a 64k boundary, split the transfer
+			 * into 2 or 3 parts, using the assigned low memory bounce buffer
+			 * (XD_BOUNCESEG) for the block that spans the boundary */
 	    int sec_cnt = (0xffff - physaddr) >> 9;
 	    if (sec_cnt <= 1)   /* the single block with wrap problem */
 	        nr_sectors = BLOCK_SIZE >> 9;   
@@ -440,7 +431,6 @@ static void setup_DMA(int nr_sectors)
 		use_bounce--;
 	    }
 	}
-#endif
     } else
 	dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 
@@ -526,10 +516,11 @@ static void do_xdintr(int irq, struct pt_regs *regs)
 				goto done;
 			}
 		}
+		if (raw) CURRENT->rq_nr_sectors = nr_sectors;
 		/*
 		 * Finished with this transfer ?
 		 */
-		if (CURRENT->rq_cmd == READ && use_bounce)
+		if (use_bounce && CURRENT->rq_cmd == READ)
 			xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, 0,
 					XD_BOUNCESEG, BLOCK_SIZE/2);
 		i = 1;	/* iodone */
@@ -552,8 +543,6 @@ void xd_release(struct inode *inode, struct file *filp)
     if (!access_count[target]) {
 	invalidate_buffers(dev);
 	invalidate_inodes(dev);
-	//heap_free(bounce_buffer);
-	//bounce_buffer = NULL;	/* need to fix this when raw is added */
     }
     return;
 }
@@ -630,7 +619,7 @@ void INITPROC xd_init(void)
 
     //bounce_buffer = NULL;	/* not allocated yet */
     if (register_blkdev(MAJOR_NR, DEVICE_NAME, &xd_ops)) {
-	printk("Unable to get major %d for xd-disk\n", MAJOR_NR);
+	printk("Unable to register major %d for xd-disk\n", MAJOR_NR);
 	return;
     }
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
@@ -651,7 +640,7 @@ void INITPROC xd_init(void)
 	printk(" not found\n");
 	return;
     }
-    printk("\n");
+    printk("\n");	/* controller found, are there any drives attached? */
 
     for (drive = 0; drive < MAX_XD_DRIVES; drive++) { /* initialize 1 until probe works */
     	struct drive_infot *dp = &drive_info[drive];

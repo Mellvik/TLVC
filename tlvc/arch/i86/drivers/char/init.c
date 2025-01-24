@@ -41,6 +41,6 @@ void INITPROC chr_dev_init(void)
 #endif
 
 #ifdef CONFIG_BLK_DEV_FD
-    rfd_init();
+    rdf_init();
 #endif
 }

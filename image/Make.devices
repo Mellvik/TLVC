@@ -44,19 +44,19 @@ endif
 # Limit to 4 primary partitions per disk (MBR).
 
 ifeq ($(CONFIG_BLK_DEV_BHD), y)
-	$(MKDEV) /dev/hda  b 3 0
-	$(MKDEV) /dev/hda1 b 3 1
-	$(MKDEV) /dev/hda2 b 3 2
-	$(MKDEV) /dev/hda3 b 3 3
-	$(MKDEV) /dev/hda4 b 3 4
-	$(MKDEV) /dev/hdb  b 3 32
-	$(MKDEV) /dev/hdb1 b 3 33
-	$(MKDEV) /dev/hdb2 b 3 34
-	$(MKDEV) /dev/hdb3 b 3 35
-	$(MKDEV) /dev/hdb4 b 3 36
-	$(MKDEV) /dev/hdc  b 3 64
-	$(MKDEV) /dev/hdc1 b 3 65
-	$(MKDEV) /dev/hdd  b 3 96
+	$(MKDEV) /dev/bda  b 3 0
+	$(MKDEV) /dev/bda1 b 3 1
+	$(MKDEV) /dev/bda2 b 3 2
+	$(MKDEV) /dev/bda3 b 3 3
+	$(MKDEV) /dev/bda4 b 3 4
+	$(MKDEV) /dev/bdb  b 3 32
+	$(MKDEV) /dev/bdb1 b 3 33
+	$(MKDEV) /dev/bdb2 b 3 34
+	$(MKDEV) /dev/bdb3 b 3 35
+	$(MKDEV) /dev/bdb4 b 3 36
+	$(MKDEV) /dev/bdc  b 3 64
+	$(MKDEV) /dev/bdc1 b 3 65
+	$(MKDEV) /dev/bdd  b 3 96
 	$(MKDEV) /dev/fd0  b 3 128
 	$(MKDEV) /dev/fd1  b 3 160
 endif
@@ -127,33 +127,33 @@ endif
 # Raw devices added 06/23 HS
 
 ifeq ($(CONFIG_BLK_DEV_HD), y)
-	$(MKDEV) /dev/dhda  b 5 0 
-	$(MKDEV) /dev/dhda1 b 5 1
-	$(MKDEV) /dev/dhda2 b 5 2
-	$(MKDEV) /dev/dhda3 b 5 3
-	$(MKDEV) /dev/dhda4 b 5 4
-#	$MKSET   0 8 $(MKDEV) /dev/dhda b 5	# Currently.
-	$(MKDEV) /dev/dhdb b 5 32
-	$(MKDEV) /dev/dhdb1 b 5 33
-	$(MKDEV) /dev/dhdb2 b 5 34
-	$(MKDEV) /dev/dhdb3 b 5 35
-	$(MKDEV) /dev/dhdb4 b 5 36
-#	$MKSET  32 8 $(MKDEV) /dev/dhdb b 5	# Currently.
+	$(MKDEV) /dev/hda  b 5 0 
+	$(MKDEV) /dev/hda1 b 5 1
+	$(MKDEV) /dev/hda2 b 5 2
+	$(MKDEV) /dev/hda3 b 5 3
+	$(MKDEV) /dev/hda4 b 5 4
+#	$MKSET   0 8 $(MKDEV) /dev/hda b 5	# Currently.
+	$(MKDEV) /dev/hdb b 5 32
+	$(MKDEV) /dev/hdb1 b 5 33
+	$(MKDEV) /dev/hdb2 b 5 34
+	$(MKDEV) /dev/hdb3 b 5 35
+	$(MKDEV) /dev/hdb4 b 5 36
+#	$MKSET  32 8 $(MKDEV) /dev/hdb b 5	# Currently.
 # Raw direct block devices
-	$(MKDEV) /dev/rdhda c 5 0
-	$(MKDEV) /dev/rdhda1 c 5 1
-	$(MKDEV) /dev/rdhda2 c 5 2
-	$(MKDEV) /dev/rdhda3 c 5 3
-	$(MKDEV) /dev/rdhda4 c 5 4
-	$(MKDEV) /dev/rdhdb c 5 32
-	$(MKDEV) /dev/rdhdb1 c 5 33
-	$(MKDEV) /dev/rdhdb2 c 5 34
-	$(MKDEV) /dev/rdhdb3 c 5 35
-	$(MKDEV) /dev/rdhdb4 c 5 36
+	$(MKDEV) /dev/rhda c 5 0
+	$(MKDEV) /dev/rhda1 c 5 1
+	$(MKDEV) /dev/rhda2 c 5 2
+	$(MKDEV) /dev/rhda3 c 5 3
+	$(MKDEV) /dev/rhda4 c 5 4
+	$(MKDEV) /dev/rhdb c 5 32
+	$(MKDEV) /dev/rhdb1 c 5 33
+	$(MKDEV) /dev/rhdb2 c 5 34
+	$(MKDEV) /dev/rhdb3 c 5 35
+	$(MKDEV) /dev/rhdb4 c 5 36
 endif
 
-#	$MKSET   0 63 $(MKDEV) /dev/dhda b 3	# Ought to be.
-#	$MKSET  64 63 $(MKDEV) /dev/dhdb b 3	# Ought to be.
+#	$MKSET   0 63 $(MKDEV) /dev/hda b 3	# Ought to be.
+#	$MKSET  64 63 $(MKDEV) /dev/hdb b 3	# Ought to be.
 
 ##############################################################################
 # Direct XT style MFM disk drives (added feb24 HS)

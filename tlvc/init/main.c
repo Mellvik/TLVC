@@ -171,8 +171,10 @@ static void INITPROC early_kernel_init(void)
     if (fdcache < 0 ||			/* not set in bootopts */
 	fdcache > CONFIG_FLOPPY_CACHE)	/* or too big */
 	fdcache = CONFIG_FLOPPY_CACHE; 	/* then default to CONFIG */
+#if 0	/* temporarily disabled */
     if (arch_cpu == 7)
 	fdcache = 0;			/* disable fdcache for 386+ */
+#endif
 
 #ifdef TEST_UPPER_MEM
 /*** Works with /bin/init to test the upper 1k of memory for BIOS modifications ****/
@@ -237,7 +239,7 @@ static void INITPROC kernel_banner(seg_t init, seg_t extra)
 {
 #ifdef CONFIG_ARCH_IBMPC
     printk("PC/%cT class, cpu %d, ", (sys_caps & CAP_PC_AT) ? 'A' : 'X',
-					       (int) arch_cpu);
+							(int) arch_cpu);
 #endif
 
 #ifdef CONFIG_ARCH_PC98
@@ -339,17 +341,17 @@ static struct dev_name_struct {
 } devices[] = {
 	/* the 4 primary partitionable drives must be first [REALLY? Why?] */
 #if defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_XD)
-	{ "dhda",    DEV_DHDA },
-	{ "dhdb",    DEV_DHDB },
-	{ "dhdc",    DEV_DHDC },
-	{ "dhdd",    DEV_DHDD },
-	{ "xda",     DEV_XDA },
-	{ "xdb",     DEV_XDB },
-#else
 	{ "hda",     DEV_HDA },
 	{ "hdb",     DEV_HDB },
 	{ "hdc",     DEV_HDC },
 	{ "hdd",     DEV_HDD },
+	{ "xda",     DEV_XDA },
+	{ "xdb",     DEV_XDB },
+#else
+	{ "bda",     DEV_BDA },
+	{ "bdb",     DEV_BDB },
+	{ "bdc",     DEV_BDC },
+	{ "bdd",     DEV_BDD },
 #endif
 #ifdef CONFIG_BLK_DEV_FD
 	{ "df0",     DEV_DF0 },

@@ -70,6 +70,7 @@
 
 #include <linuxmt/fs.h>
 #include <linuxmt/minix_fs.h>
+#include <linuxmt/config.h>
 
 #define printd(...)
 /*#define printd		printf*/

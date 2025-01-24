@@ -20,8 +20,6 @@
 #include <linuxmt/kernel.h>
 #include <linuxmt/sched.h>
 
-#define	SECSIZ		512	/* Fixed sector size for now */
-
 int xd_open(struct inode *, struct file *);
 int xd_ioctl(struct inode *, struct file *, unsigned int, unsigned int);
 void xd_release(struct inode *, struct file *);
