@@ -70,7 +70,6 @@
 
 #include <linuxmt/fs.h>
 #include <linuxmt/minix_fs.h>
-#include <linuxmt/config.h>
 
 #define printd(...)
 /*#define printd		printf*/
@@ -935,10 +934,8 @@ int main(int argc, char ** argv)
 		printf("Cannot stat %s\n", device_name);
 		usage();
 	}
-#ifndef CONFIG_BLK_DEV_BIOS
 	if (!S_ISREG(sbuf.st_mode) && !S_ISCHR(sbuf.st_mode)) 
 		die("Raw device or image file required");
-#endif
 	if (repair && !automatic) {
 		if (!isatty(0) || !isatty(1))
 			die("need terminal for interactive repairs");

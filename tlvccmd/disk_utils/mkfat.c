@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <linuxmt/config.h>
 
 #define FAT_TYPE_12             1
 #define FAT_TYPE_16             2
@@ -607,13 +606,11 @@ usage:
 		printf("Cannot stat %s\n", image);
 		exit(1);
 	}
-#ifndef CONFIG_BLK_DEV_BIOS
 	/* allow image files and raw devices */
 	if (!S_ISREG(sbuf.st_mode) && !S_ISCHR(sbuf.st_mode)) {
 		printf("Must be image file or raw device");
 		exit(1);
 	}
-#endif	
 	blocks = atol(av[2]);
 	if (blocks == 0)
 		goto usage;

@@ -37,15 +37,12 @@ or the booted drive is a floppy.
 .B File
 must be a raw (character) device unless it's a plain file. If 
 .B fdisk 
-uses the booted drive, it is converted to raw automatically before opening. The raw restriction
-does not apply if the program is compiled with the 
-.I CONFIG_BLK_DEV_BIOS
-define.
+uses the booted drive, it is converted to raw automatically before opening.
 .PP
 Image files are treated like devices, but should be accompanied by the 
 .B \-g
 c/h/s option to define the geomerty. If not present, the geometry will be guessed
-from the existing partiton table, which may or may not give correct results.
+from the existing partiton table, which is likely but not guaranteed to give correct results.
 If the partition table is empty or the MBR signature missing,
 the
 .B \-g
@@ -83,7 +80,7 @@ command.
 .TP 10
 elks17# \fBfdisk\fP
 .nf
-[/dev/rdhdb] Geometry: 7818 cylinders, 16 heads, 63 sectors.
+[/dev/rhdb] Geometry: 7818 cylinders, 16 heads, 63 sectors.
 Command (? for help):
 .fi
 .LP

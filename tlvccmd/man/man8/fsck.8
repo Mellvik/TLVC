@@ -28,8 +28,8 @@ Turn on verbose mode
 Warn about inodes that can't be cleared
 .SH EXAMPLES
 .TP 25
-.B fsck /dev/rdhda1
-# Check filesystem on \fI/dev/rdhda1\fR
+.B fsck /dev/rhda1
+# Check filesystem on \fI/dev/rhda1\fR
 .TP 25
 .B fsck \-a /dev/rdf1
 # Automatically fix errors on \fI/dev/rdf1\fR
@@ -59,8 +59,7 @@ tlvc16#
 .SH DESCRIPTION
 .PP
 \fIFsck\fR performs consistency checks on the filesystem residing 
-on the specified device. Unless the system is using BIOS IO, the device 
-must be a character (raw) device.
+on the specified device. The device must be a character (raw) device.
 .PP
 Without options,
 .IR fsck

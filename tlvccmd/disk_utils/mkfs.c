@@ -55,7 +55,6 @@
 
 #include <linuxmt/fs.h>
 #include <linuxmt/minix_fs.h>
-#include <linuxmt/config.h>
 
 /* Check for gcc removed from here. */
 
@@ -314,10 +313,8 @@ int main(int argc, char ** argv)
 		die("unable to open device");
 	if (fstat(DEV,&statbuf)<0)
 		die("unable to stat %s");
-#ifndef CONFIG_BLK_DEV_BIOS
 	if (!S_ISREG(statbuf.st_mode) && !S_ISCHR(statbuf.st_mode))
 		die("Image file or raw device required");
-#endif
 	if (!(buf = malloc(512))) 
 		die("Cannot malloc buffer memory"); 
 	if (((BLOCKS -1)<<10) > statbuf.st_size) {

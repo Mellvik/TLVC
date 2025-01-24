@@ -22,28 +22,28 @@ Copy system files from the current root to the target device.
 Copy the bootblock from the current root partition to \fB/dev/hda4\fP:
 .sp
 .nf
-# makeboot /dev/rdhda4
-System on /dev/rdhda1: Minix (CHS 7818/16/63 at offset 63)
-Target on /dev/rdhda4: Minix (CHS 7818/16/63 at offset 7560000)
+# makeboot /dev/rhda4
+System on /dev/rhda1: Minix (CHS 7818/16/63 at offset 63)
+Target on /dev/rhda4: Minix (CHS 7818/16/63 at offset 7560000)
 Bootblock written
 .fi
 .TP 5
 Write the TLVC MBR til the specified device:
 .sp
 .nf
-# makeboot \-M /dev/rdhda4
-Writing MBR on /dev/rdhda
+# makeboot \-M /dev/rhda4
+Writing MBR on /dev/rhda
 .fi
 .sp
-Notice that while a partition (/dev/rdhda4) is specified on the command line, 
+Notice that while a partition (/dev/rhda4) is specified on the command line, 
 .B makeboot
-changes that into a device (/dev/rdhda) since that's where the MBR goes.
+changes that into a device (/dev/rhda) since that's where the MBR goes.
 .TP 5
-Replace the bootblock on \fB/dev/rdhda4\fP with the one in \fB./minix.bin\fP and copy system files to the target partition.
+Replace the bootblock on \fB/dev/rhda4\fP with the one in \fB./minix.bin\fP and copy system files to the target partition.
 .sp
 .nf
 # makeboot \-s \-f ./minix.bin /dev/hda4
-Target on /dev/rdhda4: Minix (CHS 7818/16/63 at offset 7560000)
+Target on /dev/rhda4: Minix (CHS 7818/16/63 at offset 7560000)
 Bootblock written
 Copying /linux to /tmp/mnt/linux
 Copying /bootopts to /tmp/mnt/bootopts
