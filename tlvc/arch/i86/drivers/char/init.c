@@ -43,9 +43,4 @@ void INITPROC chr_dev_init(void)
 #ifdef CONFIG_BLK_DEV_FD
     rdf_init();
 #endif
-
-#ifdef CONFIG_BLK_DEV_BIOS
-    rbioshd_init();
-#endif
-
 }

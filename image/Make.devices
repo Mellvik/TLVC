@@ -59,6 +59,19 @@ ifeq ($(CONFIG_BLK_DEV_BHD), y)
 	$(MKDEV) /dev/bdd  b 3 96
 	$(MKDEV) /dev/fd0  b 3 128
 	$(MKDEV) /dev/fd1  b 3 160
+# raw devices
+	$(MKDEV) /dev/rbda  c 3 0
+	$(MKDEV) /dev/rbda1 c 3 1
+	$(MKDEV) /dev/rbda2 c 3 2
+	$(MKDEV) /dev/rbda3 c 3 3
+	$(MKDEV) /dev/rbda4 c 3 4
+	$(MKDEV) /dev/rbdb  c 3 32
+	$(MKDEV) /dev/rbdb1 c 3 33
+	$(MKDEV) /dev/rbdb2 c 3 34
+	$(MKDEV) /dev/rbdb3 c 3 35
+	$(MKDEV) /dev/rbdb4 c 3 36
+	$(MKDEV) /dev/rfd0  c 3 128
+	$(MKDEV) /dev/rfd1  c 3 160
 endif
 
 ##############################################################################
@@ -69,7 +82,7 @@ endif
 	$(MKDEV) /dev/ptyp2 c 11 10
 	$(MKDEV) /dev/ptyp3 c 11 11
 
-# These are not yet supported by the ELKS kernel.
+# These are not yet supported by the kernel.
 
 #	$MKSET   0 15 $(MKDEV) /dev/ptyp x 2
 #	$MKSET  16 15 $(MKDEV) /dev/ptyq x 2
@@ -88,7 +101,7 @@ endif
 #	$MKSET 224 15 $(MKDEV) /dev/ptyd x 2
 #	$MKSET 240 15 $(MKDEV) /dev/ptye x 2
 
-# These are not yet supported by the ELKS kernel.
+# These are not yet supported by the kernel.
 #	$MKSET   0 15 $(MKDEV) /dev/ttyp x 3
 #	$MKSET  16 15 $(MKDEV) /dev/ttyq x 3
 #	$MKSET  32 15 $(MKDEV) /dev/ttyr x 3

@@ -70,6 +70,7 @@
 #define DRIVE_FD3	7	/* PC98 only*/
 
 #define BIOSDISK	/* for blk.h */
+#define INCLUDE_RAW	/* include support for raw device */
 
 #include "blk.h"
 
@@ -773,6 +774,23 @@ static struct file_operations bioshd_fops = {
     bioshd_release		/* release */
 };
 
+#ifdef INCLUDE_RAW
+size_t block_wr(struct inode *, struct file *, char *, size_t);
+size_t block_rd(struct inode *, struct file *, char *, size_t);
+
+static struct file_operations rhd_fops = {
+    NULL,			/* lseek */
+    block_rd,			/* read */
+    block_wr,			/* write */
+    NULL,			/* readdir */
+    NULL,			/* select */
+    NULL,			/* ioctl - maybe later */	
+    bioshd_open,		/* open */
+    bioshd_release		/* release */
+};
+#endif
+
+
 int INITPROC bioshd_init(void)
 {
     register struct gendisk *ptr;
@@ -846,6 +864,10 @@ int INITPROC bioshd_init(void)
 
     copy_ddpt();	/* make a RAM copy of the disk drive parameter table*/
 
+#ifdef INCLUDE_RAW
+    if (register_chrdev(R_MAJOR_NR, "rbioshd", &rhd_fops))
+        printk("rbioshd: Unable to get major %d for raw device\n", RAW_HD_MAJOR);
+#endif
     count = register_blkdev(MAJOR_NR, DEVICE_NAME, &bioshd_fops);
 
     if (count == 0) {
@@ -910,7 +932,13 @@ static void get_chst(struct drive_infot *drivep, sector_t start_sec, unsigned in
 	tmp = start_sec / drivep->sectors;
 	*h = (unsigned int) (tmp % drivep->heads);
 	*c = (unsigned int) (tmp / drivep->heads);
-	*t = (drivep->heads == 2) ? (drivep->sectors<<*h) - *s + 1 : drivep->sectors - *s + 1;
+#ifdef CONFIG_HW_PCXT
+	*t = drivep->sectors - *s + 1;	/* Some very old BIOSes (XT class) require this
+					 * for floppy IO. Not for disk IO, but we keep 
+					 * it simple */
+#else
+	*t = (drivep->heads == 2) ? drivep->sectors*(2-*h) - *s + 1: 255;
+#endif
 	debug_biosio("bioshd: lba %ld is CHS %d/%d/%d remaining sectors %d\n",
 		start_sec, *c, *h, *s, *t);
 }

@@ -53,10 +53,6 @@ ifeq ($(CONFIG_BLK_DEV_HD), y)
     OBJS += rhd.o
 endif
 
-ifeq ($(CONFIG_BLK_DEV_BIOS), y)
-    OBJS += rbioshd.o
-endif
-
 ifeq ($(CONFIG_ARCH_8018X), y)
 	CONIO = 8018x
 	SERIAL = template
