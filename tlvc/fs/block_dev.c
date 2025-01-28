@@ -234,7 +234,8 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
 		chars &= ~(SECT_SIZE - 1);
 		sec_cnt = ebh->b_nr_sectors;
-		debug_raw("IO: blk %lu cnt %d\n", ebh->b_blocknr, (int)ebh->b_nr_sectors);
+		debug_raw("IO: blk %lu cnt %d addr %x:%x\n", ebh->b_blocknr,
+			(int)ebh->b_nr_sectors, ebh->b_L2seg, bh->b_data);
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
