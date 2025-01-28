@@ -305,7 +305,7 @@ static unsigned short INITPROC bioshd_gethdinfo(void) {
 #endif
 	    drivep->fdtype = -1;
 	    drivep->sector_size = 512;
-	    printk("bioshd: hd%c CHS %d/%d/%d", 'a'+drive, drivep->cylinders,
+	    printk("bioshd: bd%c CHS %d/%d/%d", 'a'+drive, drivep->cylinders,
 		drivep->heads, drivep->sectors);
 	}
 #ifdef CONFIG_IDE_PROBE
@@ -951,7 +951,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *b
 	unsigned int cylinder, head, sector, this_pass;
 	unsigned int segment, offset, physaddr;
 	size_t end;
-	int usedmaseg;
+	int use_bounce;
 
 	drive = drivep - drive_info;
 	map_drive(&drive);
@@ -965,17 +965,25 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *b
 	errs = MAX_ERRS;	/* BIOS disk reads should be retried at least three times */
 	do {
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
-	    usedmaseg = seg >> 16;	/* set if using XMS buffers */
-	    if (!usedmaseg) {
+	    use_bounce = seg >> 16;	/* set if using XMS buffers */
+	    if (!use_bounce) {
+		int sec_cnt;
 		/* check for 64k I/O overlap */
 		physaddr = (seg << 4) + (unsigned int)buf;
 		end = this_pass * drivep->sector_size - 1;
-		usedmaseg = (physaddr + end < physaddr);
-		debug_blk("bioshd: %p:%p = %p count %d wrap %d\n",
-			(unsigned int)seg, buf, physaddr, this_pass, usedmaseg);
+		if (physaddr + end < physaddr) {
+			sec_cnt = (0xffff - physaddr)/drivep->sector_size;
+			if (sec_cnt < 1) {
+				this_pass = 1;
+				use_bounce++;
+			} else
+				this_pass = sec_cnt;
+		}
+		debug_blk("bioshd: %p:%p = %p count %d wrap %d sec_cnt %d\n",
+			(unsigned int)seg, buf, physaddr, this_pass, use_bounce, sec_cnt);
 	    }
-	    if (usedmaseg) {
-		segment = FD_BOUNCESEG;		/* if xms buffer use FD_BOUNCESEG */
+	    if (use_bounce) {
+		segment = FD_BOUNCESEG;
 		offset = 0;
 		if (cmd == WRITE)	/* copy xms buffer down before write */
 		    xms_fmemcpyw(0, FD_BOUNCESEG, buf, seg, this_pass*(drivep->sector_size >> 1));
@@ -1004,7 +1012,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *b
 	last_drive = drivep;
 
 	if (error) return 0;
-	if (usedmaseg) {
+	if (use_bounce) {
 		if (cmd == READ)	/* copy DMASEG up to xms*/
 			xms_fmemcpyw(buf, seg, 0, FD_BOUNCESEG, this_pass*(drivep->sector_size >> 1));
 		set_cache_invalid();
