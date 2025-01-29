@@ -31,7 +31,6 @@
 #include <linuxmt/minix_fs.h>
 #include <linuxmt/kdev_t.h>
 #include <linuxmt/major.h>
-#include <linuxmt/config.h>
 #include "../../bootblocks/mbr_autogen.c"
 
 #define BUF_SIZE	1024 
@@ -368,18 +367,13 @@ usage:
 	}
 
 	rootdev = sbuf.st_dev;
-#ifdef CONFIG_BLK_DEV_BIOS
-	rootdevice = devname(rootdev, S_IFBLK);
-#else
 	char rawroot[20] = "/dev/r";
 	rootdevice = strcat(rawroot, strrchr(devname(rootdev, S_IFBLK), '/'));
-#endif
 
 	if (opt_writebb == 1) {
 		get_bootblock(bootfile);
 		fstype = rootfstype;
 	}
-#ifndef CONFIG_BLK_DEV_BIOS
 	struct stat rsbuf;
 	if (stat(targetdevice, &rsbuf)) {
 		perror(targetdevice);
@@ -389,7 +383,6 @@ usage:
 		printf("Target must med a raw device: %s\n", targetdevice);
 		return -1;
 	}
-#endif
 	fd = open(targetdevice, O_RDWR);
 	if (fd < 0)
 		fatalmsg("Can't open target device %s\n", targetdevice);

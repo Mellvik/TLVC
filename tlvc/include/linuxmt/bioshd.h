@@ -46,6 +46,7 @@
 #endif
 
 #define MAJOR_NR		BIOSHD_MAJOR
+#define R_MAJOR_NR		RAW_BIOS_MAJOR
 
 #define MAX_ERRS		5
 

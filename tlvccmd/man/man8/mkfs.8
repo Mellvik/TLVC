@@ -12,7 +12,7 @@ mkfs \- make a MINIX file system
 .B mkfs /dev/rdf1 360
 # Make empty 360 block file system
 .TP 20
-.B mkfs /dev/rdhda3 65535
+.B mkfs /dev/rhda3 65535
 # Create a maximum size filesystem on the hard disk partition \fI/dev/rdhda3\fR.
 .SH DESCRIPTION
 .PP
@@ -21,11 +21,10 @@ creates an empty MINIX version 1 file system, with a size in 1K-blocks
 .I blocks
 for use with
 .B mount.
-Unless the system is using BIOS IO, the device must be a raw (character) device as in the examples.
+The device must be a raw (character) device as in the examples.
 The native TLVC file system is MINIX.
 .PP
-The maximum size of a file system is 65535 blocks, which is
-64 Mb or 67,107,840 bytes.
+The maximum size of a file system is 65535 blocks: 64 Mb or 67,107,840 bytes.
 .SH "SEE ALSO"
 .BR fsck (8),
 .BR mount (8).

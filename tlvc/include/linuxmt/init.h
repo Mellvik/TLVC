@@ -65,6 +65,7 @@ extern void INITPROC tcpdev_init(void);
 extern void INITPROC rhd_init(void);
 extern void INITPROC rdf_init(void);
 extern void INITPROC rxd_init(void);
+extern void INITPROC rbioshd_init(void);
 
 extern void kfork_proc(void (*addr)());
 extern void arch_setup_user_stack(struct task_struct *, word_t entry);

@@ -140,7 +140,7 @@ size_t block_write(struct inode *inode, struct file *filp, char *buf, size_t cou
  * NOTE: This code assumes that the major device #s are the same for char and block devices.
  * DO NOT CHANGE THAT.
  *
- * A regular buffer acts as a bounce buffer for small and odd sized * (< SECTSIZE) transfers.
+ * A regular buffer acts as a bounce buffer for small and odd sized (< SECTSIZE) transfers.
  * For other transfers, the buffer header is used to pass metadata back and forth while
  * data transfers go directly to/from the process' memory space.
  */
@@ -162,9 +162,15 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
     /*
      *      Partial sector processing.
      *
-     *	    As much as I'd like to stay off the buffer system, this is the easy 
-     *	    way to temporarily acquire a bounce buffer for the odd cases.
+     *	    As much as I'd like to stay off the buffer system, this is a convenient
+     *	    way to acquire a tmp bounce buffer for the odd cases.
      */
+	/* check for end of medium */
+	if ((inode->i_size - filp->f_pos) <= 0) {
+		if (wr == BLOCK_READ || io_count)
+			return io_count;	/* Truncated r/w or read EOF */
+		return -ENOSPC;			/* Nothing written, No space */
+	}
 	offset = ((size_t)filp->f_pos) & (SECT_SIZE - 1);
 	chars = 0;
 	if (offset) {	/* process partial first sector */
@@ -228,7 +234,8 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		ebh->b_nr_sectors = (chars >> SECT_SIZE_BITS);
 		chars &= ~(SECT_SIZE - 1);
 		sec_cnt = ebh->b_nr_sectors;
-		debug_raw("IO: blk %lu cnt %d\n", ebh->b_blocknr, (int)ebh->b_nr_sectors);
+		debug_raw("IO: blk %lu cnt %d addr %x:%x\n", ebh->b_blocknr,
+			(int)ebh->b_nr_sectors, ebh->b_L2seg, bh->b_data);
 
 	    	ll_rw_blk(wr, bh);
 	    	wait_on_buffer(bh);
@@ -252,9 +259,10 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	debug_raw("raw: chars %d, nxt blk %ld, bh %04x;", 
 		chars, filp->f_pos >> SECT_SIZE_BITS, bh);
     }
+done:
     ebh->b_dev = NODEV;	/* Invalidate buffer */
     brelse(bh);
-    debug_raw("raw returning %d\n", io_count);
+    debug_raw("raw io returns %d\n", io_count);
     return io_count;
 }
 

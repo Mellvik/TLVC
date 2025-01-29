@@ -17,7 +17,6 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <linuxmt/major.h>
-#include <linuxmt/config.h>
 
 #ifdef __ia16__
 #include <arch/hdio.h>
@@ -434,7 +433,6 @@ void set_dev(char *rdev) {
 	    printf("Cannot set geometry for disks, use /bootopts\n");
 	    quit();
 	}
-#ifndef CONFIG_BLK_DEV_BIOS	/* Will not detect floppy if using BIOS IO */
 	if (MAJOR(sbuf.st_rdev) == RAW_FD_MAJOR) {
 	    printf("Cannot use fdisk on floppy device\n");
 	    usage();
@@ -443,7 +441,6 @@ void set_dev(char *rdev) {
 	    printf("Raw device required.\n");
 	    usage();
 	}
-#endif 
 	/* chop off minor device num */
 	if (isdigit(rdev[strlen(rdev)-1]))
 	    rdev[strlen(rdev)-1] = '\0';
@@ -513,9 +510,6 @@ int main(int argc, char **argv)
 	int i;
 	int mode = MODE_EDIT;
 
-#if CONFIG_BLK_DEV_HD	/* DELETEME */
-	int no_use;
-#endif
 	dev[0] = 0;
 	progname = argv[0];
 	for (i = 1; i < argc; i++) {
