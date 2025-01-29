@@ -31,16 +31,4 @@ void INITPROC chr_dev_init(void)
 #ifdef CONFIG_PSEUDO_TTY    
     pty_init();    
 #endif
-
-#ifdef CONFIG_BLK_DEV_XD
-    rxd_init();
-#endif
-
-#ifdef CONFIG_BLK_DEV_HD
-    rhd_init();
-#endif
-
-#ifdef CONFIG_BLK_DEV_FD
-    rdf_init();
-#endif
 }

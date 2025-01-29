@@ -123,10 +123,15 @@ static int cur_type;		/* per request XT/IDE type (for speed)  */
 
 #include "blk.h"
 
+/* Internals */
 int directhd_ioctl();
 int directhd_open();
 void directhd_release();
 static void mdelay(int);
+
+/* Externals */
+size_t block_wr(struct inode *, struct file *, char *, size_t);
+size_t block_rd(struct inode *, struct file *, char *, size_t);
 
 static struct file_operations directhd_fops = {
     NULL,			/* lseek */
@@ -135,6 +140,17 @@ static struct file_operations directhd_fops = {
     NULL,			/* readdir */
     NULL,			/* select */
     directhd_ioctl,		/* ioctl */
+    directhd_open,		/* open */
+    directhd_release		/* release */
+};
+
+static struct file_operations rhd_fops = {
+    NULL,			/* lseek */
+    block_rd,			/* read */
+    block_wr,			/* write */
+    NULL,			/* readdir */
+    NULL,			/* select */
+    directhd_ioctl,		/* ioctl */	
     directhd_open,		/* open */
     directhd_release		/* release */
 };
@@ -429,7 +445,6 @@ int INITPROC directhd_init(void)
     unsigned int port;
     char athd_msg[] = "athd%d: AT/IDE controller at 0x%x%s\n";
 
-    /* .. once for each drive */
     /* By default, MAX_ATA_DRIVES is 4. On some systems, this may break (hang)
      * if there is only one IDE interface (the normal).
      * If so, change the MAX_ATA_DRIVES to 2 (which saves memory too).
@@ -440,6 +455,7 @@ int INITPROC directhd_init(void)
      * Also, we should do a CMOS check for the number of drives, which would make 
      * this logic faster and more reliable FIXME */ 
 
+    /* .. once for each drive */
     for (drive = 0; drive < MAX_ATA_DRIVES; drive++) {
 	struct drive_infot *dp = &drive_info[drive];
 	struct ide_controller *ct = &ide_ct[drive>>1];
@@ -632,6 +648,8 @@ int INITPROC directhd_init(void)
 	printk("ath: unable to register\n");
 	return -1;
     }
+    if (register_chrdev(RAW_HD_MAJOR, "rhd", &rhd_fops))
+	printk("rhd: Warning: Cannot get major %d for raw disk\n", RAW_HD_MAJOR);
 
 #ifdef USE_INTERRUPTS	/* Experimental */
     /* FIXME: Need to move this into the main loop to accomodate the use of different IRQs
@@ -677,7 +695,7 @@ int INITPROC directhd_init(void)
     for (i = 0; i < MAX_ATA_DRIVES; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
-	    printk("athd%dd%d: /dev/dhd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
+	    printk("athd%dd%d: /dev/hd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
 		   i/2, i&1, (i + 'a'),
 		   drive_info[i].heads,
 		   drive_info[i].cylinders, drive_info[i].sectors,
@@ -742,7 +760,7 @@ int directhd_open(struct inode *inode, struct file *filp)
     /* limit inode size to max filesize for CHS >= 4MB (2^22)*/
     if (hd[minor].nr_sects >= 0x00400000L)	/* 2^22*/
         inode->i_size = 0x7ffffffL;		/* 2^31 - 1*/
-    debug_blkdrv("%cdhd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ',
+    debug_blkdrv("%chd[%04x] open, size %ld\n", S_ISCHR(inode->i_mode)? 'r': ' ',
 						inode->i_rdev, inode->i_size);
     return 0;
 }
@@ -830,7 +848,7 @@ void do_directhd_request(void)
 	start = req->rq_blocknr;
 	buff = req->rq_buffer;
 	/* safety check should be here */
-	debug_blkdrv("dhd[%04x]: start: %lu nscts: %lu\n", req->rq_dev,
+	debug_blkdrv("hd[%04x]: start: %lu nscts: %lu\n", req->rq_dev,
 			hd[minor].start_sect, hd[minor].nr_sects);
 
 	if (hd[minor].start_sect == -1 || hd[minor].nr_sects < start) {

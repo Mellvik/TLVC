@@ -126,7 +126,7 @@ void (*DEVICE_INTR) () = NULL;
 			 * autoprobes, is questionable. E.g. when I accidentally open the
 			 * drive door on a mounted floppy, I'd rather be able to just put
 			 * it back than pretending it's possible to save anything - detecting,
-			 * fluching, umounting etc. */
+			 * flushing, umounting etc. */
 			/* Always use off for PC/XT/8086/8088 8bit ISA systems */
 #else
 #undef CHECK_MEDIA_CHANGE /* Now defined in linuxmt/fs.h */
@@ -327,6 +327,8 @@ static struct format_descr format_req;
 
 // Externals
 void finvalidate_inodes(kdev_t, int);
+size_t block_wr(struct inode *, struct file *, char *, size_t);
+size_t block_rd(struct inode *, struct file *, char *, size_t);
 
 // Internals
 static void redo_fd_request(void);
@@ -352,7 +354,7 @@ static int recover;		/* signal that we're recovering from a hang,
 				 * awakened by the watchdog timer */
 static int seek;		/* set if the current operation needs a cylinder
 				 * change (seek) */
-static int nr_sectors;		/* # of sectors to r/w, 2 if block IO */
+static int nr_sectors;		/* # of sectors to r/w in current transaction */
 static unsigned char raw;	/* set if raw/char IO	*/
 static unsigned char use_bounce;/* this transaction uses the bounce buffer */
 
@@ -688,14 +690,13 @@ static void setup_DMA(void)
 			 * 2 or three parts, using the first k of the sector cache
 			 * as a bounce buffer */
 	    int sec_cnt = (0xffff - physaddr) >> 9;
-	    if (sec_cnt <= 1) {	/* the single block with wrap problem */
+	    if (sec_cnt < 1) {	/* the single block with wrap problem */
 		nr_sectors = BLOCK_SIZE >> 9;	
 	    } else {		/* get the sectors before the wrap */
-		nr_sectors = sec_cnt-1;
+		nr_sectors = sec_cnt;
 		use_bounce = 0;
 		dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 	    }
-	    //count = nr_sectors<<9;
 	}
     } else {
 #if CONFIG_FLOPPY_CACHE
@@ -1454,7 +1455,7 @@ static void redo_fd_request(void)
 
 	/* Ensure raw IO requests have valid # of sectors: Don't span cyl boundaries */
 	/* If running a 82077 which has implied seek, enable that instead! */
-#if 0
+#if 0	/* This is now done (and simpler) in setup_DMA	*/
 	if (raw && ((sector + (floppy->sect*head) + nr_sectors)) 
 			> (floppy->sect<<1)) {		/* sect * 2 = cyl */
 		nr_sectors = (floppy->sect<<1) - (sector + (floppy->sect * head));
@@ -1757,6 +1758,18 @@ static struct file_operations floppy_fops = {
     floppy_release,		/* release */
 };
 
+static struct file_operations rdf_fops = {
+    NULL,			/* lseek */
+    block_rd,			/* read */
+    block_wr,			/* write */
+    NULL,			/* readdir */
+    NULL,			/* select */
+    fd_ioctl,			/* required for makeboot etc. */
+    floppy_open,		/* open */
+    floppy_release		/* release */
+};
+
+
 /*
  * The version command is not supposed to generate an interrupt, but
  * my FDC does, except when booting in SVGA screen mode.
@@ -1791,9 +1804,11 @@ void INITPROC floppy_init(void)
 
     outb(current_DOR, FD_DOR);	/* all motors off, DMA, /RST  (0x0c) */
     if (register_blkdev(MAJOR_NR, DEVICE_NAME, &floppy_fops)) {
-	printk("Unable to get major %d for floppy\n", MAJOR_NR);
+	printk("df: Cannot get major %d for floppy\n", MAJOR_NR);
 	return;
     }
+    if (register_chrdev(RAW_FD_MAJOR, "rdf", &rdf_fops))
+	printk("rdf: Warning: Cannot get major %d for raw floppy\n", RAW_FD_MAJOR);
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
     err = request_irq(FLOPPY_IRQ, floppy_interrupt, INT_GENERIC);
