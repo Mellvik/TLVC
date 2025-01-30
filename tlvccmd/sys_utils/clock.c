@@ -301,7 +301,6 @@ int ast_getreg(int reg)
 int ast_getbcd(int reg)
 {
     int	val = ast_getreg(reg);
-
     return ((val & 15) + (val >> 4) * 10);
 }
 
@@ -433,12 +432,12 @@ int main(int argc, char **argv)
 	}
     }
 
-    if (!cmos_probe()) {
+    if (astclock || !cmos_probe()) {	/* don't run cmos_probe() if ASTclock is set */
 	if (ast_chiptype() < 0) {
 	    printf("No RTC found on system, not setting date and time\n");
 	    exit(1);
 	} else {
-	    if (verbose)
+	    if (verbose && !astclock)
 		printf("No CMOS clock found, assuming AST\n");
 	    astclock = 1;
 	    show_astclock();
@@ -562,6 +561,7 @@ int main(int argc, char **argv)
 	else
 	    cmos_settime(tmp);
 #endif
+	printf("%s RTC updated\n", astclock? "AST" : "CMOS");
     }
     return 0;
 }
