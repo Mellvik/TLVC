@@ -9,8 +9,6 @@ export PATH=/bin
 # get TZ timezone variable from /bootopts or /etc/profile
 source /etc/profile
 
-# comment out clock if you don't have one (XT class) or add -A
-# (AST Sixpakplus) to avoid keyboard lockup on IBM 5150, 5155, 5160
 clock -s -u
 
 # mount and check filesystems
