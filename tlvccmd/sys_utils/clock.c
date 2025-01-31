@@ -258,10 +258,22 @@ void cmos_write_bcd(int addr, int value)
  * [Alternative method: Read all 4 status regs. If they're all the same
  *  there's nothing there. For reference, on physical systems the 'empty' 
  *  readback is 0x48, on emulators 0xff]
+ *
+ * IBMs XT-variants don't decode A4 so IO ports 0x6? and 0x7? are the same. Thus
+ * access to CMOS (0x70 and 0x71) end up locking the keyboard. The fix is to read and save
+ * ports 70 and 71 first, then - at the end, if the read from 70 was 0, write the 'mode'
+ * byte back like the keyboard driver does. If someone happens to have typed a character
+ * on the keyboard at exact that time, this test will break. The likelyhood of that
+ * is minimal although not zero.
  */
 int cmos_probe(void)
 {
     unsigned char a;
+    int code, mode;
+
+    code = inb(0x70);	/* reads 0 on IBM/XTs, FF on AT+, something else on XT compatibles */
+    mode = inb(0x71);
+    //printf("cmos probe: got %x and %x\n", code, mode);
 
     cmos_write(0xd, 0);
     a = cmos_read(0xa);
@@ -269,6 +281,11 @@ int cmos_probe(void)
 	return 1;
     //printf("CMOS status A %x, B %x, C %x, D %x\n", a, cmos_read(0xb),
 	     //cmos_read(0xc), cmos_read(0xd));
+    if (code == 0) {	/* this is an IBM XT variant, probing disturbs the keyboard,
+			 * clear it */
+    	outb(mode|0x80, 0x61);
+    	outb(mode, 0x61);
+    }
     return 0;
 }
 
@@ -301,7 +318,6 @@ int ast_getreg(int reg)
 int ast_getbcd(int reg)
 {
     int	val = ast_getreg(reg);
-
     return ((val & 15) + (val >> 4) * 10);
 }
 
@@ -433,12 +449,12 @@ int main(int argc, char **argv)
 	}
     }
 
-    if (!cmos_probe()) {
+    if (astclock || !cmos_probe()) {	/* don't run cmos_probe() if ASTclock is set */
 	if (ast_chiptype() < 0) {
 	    printf("No RTC found on system, not setting date and time\n");
 	    exit(1);
 	} else {
-	    if (verbose)
+	    if (verbose && !astclock)
 		printf("No CMOS clock found, assuming AST\n");
 	    astclock = 1;
 	    show_astclock();
@@ -562,6 +578,7 @@ int main(int argc, char **argv)
 	else
 	    cmos_settime(tmp);
 #endif
+	printf("%s RTC updated\n", astclock? "AST" : "CMOS");
     }
     return 0;
 }
