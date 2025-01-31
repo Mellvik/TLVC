@@ -230,6 +230,10 @@ static void xd_build (byte_t *, byte_t, byte_t, byte_t, word_t, byte_t, byte_t, 
 static int xd_recal(int);
 static word_t xd_command(byte_t *, byte_t, byte_t *, byte_t *, byte_t *, int);
 
+/* Externals */
+size_t block_wr(struct inode *, struct file *, char *, size_t);
+size_t block_rd(struct inode *, struct file *, char *, size_t);
+
 //#define ALLOW_FORMATTING	/* comment out to avoid accidental disasters */
 
 #ifdef ALLOW_FORMATTING
@@ -244,7 +248,7 @@ static void xd_format(int);
 #endif
 
 
-static struct file_operations xd_ops = {
+static struct file_operations xd_fops = {
     NULL,			/* lseek - default */
     block_read,			/* read - general block-dev read */
     block_write,		/* write - general block-dev write */
@@ -253,6 +257,17 @@ static struct file_operations xd_ops = {
     xd_ioctl,			/* ioctl */
     xd_open,			/* open */
     xd_release,			/* release */
+};
+
+static struct file_operations rxd_fops = {
+    NULL,			/* lseek */
+    block_rd,			/* read */
+    block_wr,			/* write */
+    NULL,			/* readdir */
+    NULL,			/* select */
+    xd_ioctl,			/* ioctl - FIXME: Useful or dangerous? */	
+    xd_open,			/* open */
+    xd_release			/* release */
 };
 
 static struct gendisk xd_gendisk = {
@@ -618,10 +633,13 @@ void INITPROC xd_init(void)
     struct gendisk *ptr;
 
     //bounce_buffer = NULL;	/* not allocated yet */
-    if (register_blkdev(MAJOR_NR, DEVICE_NAME, &xd_ops)) {
+    if (register_blkdev(MAJOR_NR, DEVICE_NAME, &xd_fops)) {
 	printk("Unable to register major %d for xd-disk\n", MAJOR_NR);
 	return;
     }
+    if (register_chrdev(RAW_XD_MAJOR, "rxd", &rxd_fops))
+        printk("rxd: Warning: Cannot get major %d for raw device\n", RAW_XD_MAJOR);
+
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
     err = request_irq(MHD_IRQ, do_xdintr, INT_GENERIC);

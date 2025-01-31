@@ -324,7 +324,7 @@ int main(int ac, char **av)
 	int opt_writebb = 0;
 	int fat32 = 0;
 	dev_t rootdev, targetdev;
-	struct stat sbuf;
+	struct stat sbuf, rsbuf;
 
 	if (ac < 2 || ac > 5) {
 usage:
@@ -368,26 +368,26 @@ usage:
 
 	rootdev = sbuf.st_dev;
 	char rawroot[20] = "/dev/r";
-	rootdevice = strcat(rawroot, strrchr(devname(rootdev, S_IFBLK), '/'));
+	rootdevice = strcat(rawroot, strrchr(devname(rootdev, S_IFBLK), '/')+1);
 
 	if (opt_writebb == 1) {
 		get_bootblock(bootfile);
 		fstype = rootfstype;
 	}
-	struct stat rsbuf;
+
 	if (stat(targetdevice, &rsbuf)) {
 		perror(targetdevice);
 		return -1;
 	}
 	if (!S_ISCHR(rsbuf.st_mode)) {
-		printf("Target must med a raw device: %s\n", targetdevice);
+		printf("Target must be a raw device: %s\n", targetdevice);
 		return -1;
 	}
 	fd = open(targetdevice, O_RDWR);
 	if (fd < 0)
 		fatalmsg("Can't open target device %s\n", targetdevice);
 
-	/* check target is not boot device, raw device, or -M used with floppy*/
+	/* check target is not the boot device or -M used with floppy */
 	if (fstat(fd, &sbuf) < 0)
 		fatalmsg("Can't stat %s\n", targetdevice);
 	targetdev = sbuf.st_rdev;
@@ -395,11 +395,11 @@ usage:
 	if (rootdev == targetdev)	/* FIXME: Should be able to MBR rootdev */
 		fatalmsg("Can't specify current boot device as target\n");
 
-	if (((MAJOR(targetdev) == BIOSHD_MAJOR) && (MINOR(targetdev) < BIOS_FD0_MINOR)) ||
-	     (MAJOR(targetdev) == ATHD_MAJOR) || MAJOR(targetdev) == XD_MAJOR) {	/* hard drive*/
+	if (((MAJOR(targetdev) == RAW_BIOS_MAJOR) && (MINOR(targetdev) < BIOS_FD0_MINOR)) ||
+	     (MAJOR(targetdev) == RAW_HD_MAJOR) || MAJOR(targetdev) == RAW_XD_MAJOR) {/* hard drive*/
 		if (!opt_writeflat && !opt_writembr) {
 			if ((targetdev & BIOS_MINOR_MASK) == 0)	/* non-partitioned device*/
-				fatalmsg("Must specify partitioned device (example /dev/hda1)\n");
+				fatalmsg("Must specify partitioned device (example /dev/rhda1)\n");
 		}
 	} else {					/* floppy*/
 		if (opt_writembr)
@@ -411,7 +411,7 @@ usage:
 		int ffd;
 
 					/* OK for direct HD too */
-		char *rawtargetdevice = devname(targetdev & ~BIOS_MINOR_MASK, S_IFBLK);
+		char *rawtargetdevice = devname(targetdev & ~BIOS_MINOR_MASK, S_IFCHR);
 		if (!rawtargetdevice)
 			fatalmsg("Can't find raw target device\n");
 		ffd = open(rawtargetdevice, O_RDWR);
@@ -423,7 +423,7 @@ usage:
 	}
 
 	if (opt_writeflat || opt_writebb) {
-		if (!get_geometry(fd))		/* gets ELKS CHS parameters for bootblock write*/
+		if (!get_geometry(fd))		/* gets CHS parameters for bootblock write*/
 			fatalmsg("Can't get geometry for target device %s\n", targetdevice);
 		setEPBparms(bootblock);		/* sets ELKS CHS parameters in bootblock*/
 		fstype = get_fstype(fd);
@@ -458,6 +458,13 @@ usage:
 	}
 
 	if (opt_syscopy == 1) {
+		char *b = strrchr(targetdevice, '/') + 1;
+		//*b = 0;
+		//strcat(targetdevice, b+1);
+		while (*b) { 			/* we're done with raw dev access, */
+			*b = *(b+1);		/* turn targetdevice into a block device name */
+			b++;
+		}
 		if (mkdir(MOUNTDIR, 0777) < 0)
 			fprintf(stderr, "Temp mount point %s not created (may already exist)\n", MOUNTDIR);
 

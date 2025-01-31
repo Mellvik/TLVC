@@ -147,7 +147,7 @@ static void floppy_off();	/*(unsigned int nr); */
 
 #ifdef ATDISK		/* direct hd */
 
-#define DEVICE_NAME "dhd"
+#define DEVICE_NAME "hd"
 #define DEVICE_INTR do_directhd
 #define DEVICE_REQUEST do_directhd_request
 #define DEVICE_NR(device) (MINOR(device)>>MINOR_SHIFT)

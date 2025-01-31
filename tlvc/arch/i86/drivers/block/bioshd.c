@@ -784,7 +784,7 @@ static struct file_operations rhd_fops = {
     block_wr,			/* write */
     NULL,			/* readdir */
     NULL,			/* select */
-    NULL,			/* ioctl - maybe later */	
+    bios_ioctl,			/* ioctl */	
     bioshd_open,		/* open */
     bioshd_release		/* release */
 };

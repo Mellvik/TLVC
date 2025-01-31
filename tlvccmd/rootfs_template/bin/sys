@@ -4,10 +4,10 @@
 
 usage()
 {
-	echo "Usage: sys [-3][-M][-F] /dev/{df0,ffd1,hda1,hda2,etc}"
+	echo "Usage: sys [-3][-M][-F] /dev/{rdf0,rdf1,rhda1,rhda2,etc}"
 	echo "	-3  Build minimal (360k) system"
 	echo "	-M  add MBR to target device"
-	echo "	-F  required for flat non-MBR /dev/hd[a-d]"
+	echo "	-F  required for flat non-MBR /dev/rhd[a-d]"
 	exit 1
 }
 
@@ -21,11 +21,17 @@ create_dev_dir()
 	mknod $MNT/dev/hda3	b 5 3
 	mknod $MNT/dev/hda4	b 5 4
 	mknod $MNT/dev/rhda	c 5 0
+	mknod $MNT/dev/rhda1	c 5 1
+	mknod $MNT/dev/rhda2	c 5 2
+	mknod $MNT/dev/rhda3	c 5 3
+	mknod $MNT/dev/rhda4	c 5 4
 	mknod $MNT/dev/xda	b 6 0
 	mknod $MNT/dev/xda1	b 6 1
 	mknod $MNT/dev/xda2	b 6 3
 	mknod $MNT/dev/xda3	b 6 4
 	mknod $MNT/dev/xda4	b 6 2
+	mknod $MNT/dev/rxda	c 6 0
+	mknod $MNT/dev/rxda1	c 6 1
 	mknod $MNT/dev/df0	b 2 0
 	mknod $MNT/dev/df1	b 2 32
 	mknod $MNT/dev/rdf0	c 2 0
@@ -53,6 +59,8 @@ create_dev_dir()
 	mknod $MNT/dev/hdb2	b 5 34
 	mknod $MNT/dev/hdb3	b 5 35
 	mknod $MNT/dev/hdb4	b 5 36
+	mknod $MNT/dev/rhdb	c 5 32
+	mknod $MNT/dev/rhdb1	c 5 33
 	mknod $MNT/dev/hdc	b 5 64
 	mknod $MNT/dev/hdc1	b 5 65
 	mknod $MNT/dev/rhdc	c 5 64
@@ -149,8 +157,10 @@ makeboot $arg $1
 FSTYPE=$?
 if test "$FSTYPE" = "255"; then exit 1; fi;
 
+BLKDEV=`echo $1 | sed s.v/r.v/.`
+
 mkdir -p $MNT
-mount $1 $MNT 
+mount $BLKDEV $MNT 
 
 # if MINIX, create /dev entries
 if test "$FSTYPE" = "1"; then create_dev_dir; fi
@@ -162,6 +172,6 @@ copy_bin_files
 copy_etc_files
 
 sync
-umount $1
+umount $MNT
 rmdir $MNT
 sync
