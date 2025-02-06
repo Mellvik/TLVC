@@ -8,6 +8,7 @@ export PATH=/bin
 
 # get TZ timezone variable from /bootopts or /etc/profile
 source /etc/profile
+
 clock -s -u
 
 # mount and check filesystems
