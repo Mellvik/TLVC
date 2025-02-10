@@ -502,8 +502,8 @@ int sys_link(char *oldname, char *pathname)
     error = namei(oldname, &oldinode, 0, 0);
     if (!error) {
         error = do_mknod(pathname, offsetof(struct inode_operations,link), (int)oldinode, 0);
-        if (error)
-            iput(oldinode);
+        //if (error)
+            //iput(oldinode);
     }
     return error;
 #endif
