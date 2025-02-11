@@ -344,8 +344,10 @@ static int empty_dir(register struct inode *inode)
     /* Cache s_dirsize to reduce dereference overhead */
     dirsize = inode->i_sb->u.minix_sb.s_dirsize;
 
-    if ((unsigned short)(inode->i_size) & (dirsize - 1)) goto bad_dir;
-    if (inode->i_size < (__u32)(dirsize << 1)) goto bad_dir;
+    if ((unsigned short)(inode->i_size) & (dirsize - 1)) /* assumes dirsize is power of 2 */
+	goto bad_dir;
+    if (inode->i_size < (__u32)(dirsize << 1))	/* cannot have less than 2 entries */
+	goto bad_dir;
     bh = minix_bread(inode, 0, 0);
     if (!bh) goto bad_dir;
     map_buffer(bh);
@@ -356,7 +358,7 @@ static int empty_dir(register struct inode *inode)
     bo = (__u32)dirsize;
     while ((bo += dirsize) < inode->i_size) {
 	offset = (__u16)bo & (BLOCK_SIZE - 1);
-	if (!offset) {
+	if (!offset) {				/* get next dir-block */
 	    unmap_brelse(bh);
 	    bh = minix_bread(inode, (__u16)(bo >> BLOCK_SIZE_BITS), 0);
 	    if (!bh)
@@ -364,17 +366,16 @@ static int empty_dir(register struct inode *inode)
 	    map_buffer(bh);
 	}
 	de = (struct minix_dir_entry *) (bh->b_data + offset);
-	if (de->inode) {
+	if (de->inode) {		/* valid entry found, not empty */
 	    unmap_brelse(bh);
 	    return 0;
 	}
     }
-    brelse(bh);
     goto empt_dir;
   bad_dir:
-    unmap_brelse(bh);
     printk("Bad directory on device %D\n", inode->i_dev);
   empt_dir:
+    unmap_brelse(bh);	/* bh == NULL is OK */
     return 1;
 }
 

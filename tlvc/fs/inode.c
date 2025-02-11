@@ -42,6 +42,7 @@ static int nr_free_inodes;
 
 void finvalidate_inodes(kdev_t, int);
 
+/* Remove inode from free list */
 static void remove_inode_free(register struct inode *inode)
 {
     register struct inode *ino;
@@ -225,7 +226,7 @@ void iput(register struct inode *inode)
 {
     register struct super_operations *sop;
 
-    debug("iput dev %D ino %lu count %d\n",
+    debug_inode("iput dev %D ino %lu count %d\n",
         inode->i_dev, (unsigned long)inode->i_ino, inode->i_count);
     if (inode) {
 	wait_on_inode(inode);
@@ -334,12 +335,12 @@ struct inode *iget(struct super_block *sb, ino_t inr)
     register struct inode *n_ino;
 
     if (!sb) panic("iget0");
-    debug("iget dev %D ino %lu\n", sb->s_dev, (unsigned long)inr);
+    debug_inode("iget dev %D ino %lu\n", sb->s_dev, (unsigned long)inr);
 
     n_ino = NULL;
     goto start;
     do {
-	debug("iget: getting an empty inode...\n");
+	debug_inode("iget: getting an empty inode...\n");
 	n_ino = get_empty_inode();	/* This function may sleep and someone else */
       start:				/* can create the inode */
 	inode = inode_llru;
@@ -348,7 +349,7 @@ struct inode *iget(struct super_block *sb, ino_t inr)
 	} while ((inode = inode->i_prev) != NULL);
     } while (n_ino == NULL);
     inode = n_ino;			/* Inode not found, use the new structure */
-    debug("iget: got one...\n");
+    debug_inode("iget: got one...\n");
 
     inode->i_sb = sb;
     inode->i_dev = sb->s_dev;
