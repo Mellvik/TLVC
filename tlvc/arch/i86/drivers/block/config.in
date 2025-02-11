@@ -14,7 +14,7 @@ mainmenu_option next_comment
 	bool '  Native floppy support'		CONFIG_BLK_DEV_FD	y
 	bool '  Native IDE hardisk support'	CONFIG_BLK_DEV_HD	y
 	if [ "$CONFIG_BLK_DEV_HD" == "y" ]; then
-	    bool '  Include XT-IDE/CF support'	CONFIG_IDE_XT		n
+	    bool '  Include XT-IDE/CF support'	CONFIG_XT_IDE		n
 	fi
 	bool '  XT/MFM disk support'	CONFIG_BLK_DEV_XD	n
     fi

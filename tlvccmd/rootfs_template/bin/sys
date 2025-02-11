@@ -61,6 +61,9 @@ create_dev_dir()
 	mknod $MNT/dev/hdb4	b 5 36
 	mknod $MNT/dev/rhdb	c 5 32
 	mknod $MNT/dev/rhdb1	c 5 33
+	mknod $MNT/dev/rhdb2	c 5 34
+	mknod $MNT/dev/rhdb3	c 5 35
+	mknod $MNT/dev/rhdb4	c 5 36
 	mknod $MNT/dev/hdc	b 5 64
 	mknod $MNT/dev/hdc1	b 5 65
 	mknod $MNT/dev/rhdc	c 5 64
@@ -69,15 +72,6 @@ create_dev_dir()
 	mknod $MNT/dev/hdd1	b 5 67
 	mknod $MNT/dev/rhdd	c 5 96
 	mknod $MNT/dev/rhdd1	b 5 67
-	mknod $MNT/dev/rhda1	c 5 1
-	mknod $MNT/dev/rhda2	c 5 2
-	mknod $MNT/dev/rhda3	c 5 3
-	mknod $MNT/dev/rhda4	c 5 4
-	mknod $MNT/dev/rhdb	c 5 32
-	mknod $MNT/dev/rhdb1	c 5 33
-	mknod $MNT/dev/rhdb2	c 5 34
-	mknod $MNT/dev/rhdb3	c 5 35
-	mknod $MNT/dev/rhdb4	c 5 36
 	mknod $MNT/dev/rd0	b 2 0
 	mknod $MNT/dev/rd1	b 2 1
 	mknod $MNT/dev/tty2	c 4 1

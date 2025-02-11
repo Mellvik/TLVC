@@ -25,7 +25,7 @@ OBJS=	builtins.o cd.o dirent.o error.o eval.o exec.o expand.o input.o \
 OBJS += bltin/echo.o bltin/history.o
 OBJS += bltin/expr.o bltin/regexp.o bltin/operators.o
 
-LDFLAGS += -maout-heap=20000 -maout-stack=2304
+LDFLAGS += -maout-heap=14000 -maout-stack=2304
 
 #
 # Set READLINE in shell.h and add -ledit to LIBS if you want to use the

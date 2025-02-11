@@ -17,4 +17,4 @@ t2:56:respawn:/bin/getty /dev/tty2
 t3:56:respawn:/bin/getty /dev/tty3
 s0:2346:respawn:/bin/getty /dev/ttyS0
 s1:46:respawn:/bin/getty /dev/ttyS1 9600
-s2:3:respawn:/bin/getty /dev/ttyS2 19200
+s2:6:respawn:/bin/getty /dev/ttyS2 57600
