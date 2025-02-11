@@ -375,7 +375,7 @@ static int empty_dir(register struct inode *inode)
   bad_dir:
     printk("Bad directory on device %D\n", inode->i_dev);
   empt_dir:
-    unmap_brelse(bh);
+    unmap_brelse(bh);	/* bh == NULL is OK */
     return 1;
 }
 
