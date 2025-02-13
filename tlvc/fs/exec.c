@@ -131,7 +131,7 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
     register struct task_struct *currentp;
     struct inode *inode;
     struct file *filp;
-    int retval;
+    int retval, i;
     __u16 ds;
     seg_t base_data = 0;
     segment_s *seg_code;
@@ -469,64 +469,60 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
 
     /* Wipe the BSS */
     fmemsetb((char *)(size_t)mh.dseg + base_data, seg_data->base, 0, (size_t)mh.bseg);
-    {
-	register int i = 0;
+    i = 0;
 
-	/* argv and envp are two NULL-terminated arrays of pointers, located
-	 * right after argc.  This fixes them up so that the loaded program
-	 * gets the right strings. */
+    /* argv and envp are two NULL-terminated arrays of pointers, located
+     * right after argc.  This fixes them up so that the loaded program
+     * gets the right strings. */
+ 
+    slen = 0;	/* Start skiping argc */
+    do {
+	i += sizeof(__u16);
+	if ((retval = get_ustack(currentp, i)) != 0)
+	    put_ustack(currentp, i, (currentp->t_begstack + retval));
+	else slen++;	/* increments for each array traversed */
+    } while (slen < 2);
+    retval = 0;
 
-	slen = 0;	/* Start skiping argc */
-	do {
-	    i += sizeof(__u16);
-	    if ((retval = get_ustack(currentp, i)) != 0)
-		put_ustack(currentp, i, (currentp->t_begstack + retval));
-	    else slen++;	/* increments for each array traversed */
-	} while (slen < 2);
-	retval = 0;
+    /* Clear signal handlers */
+    i = 0;
+    do {
+	currentp->sig.action[i].sa_dispose = SIGDISP_DFL;
+    } while (++i < NSIG);
+    currentp->sig.handler = (__kern_sighandler_t)NULL;
 
-	/* Clear signal handlers */
-	i = 0;
-	do {
-	    currentp->sig.action[i].sa_dispose = SIGDISP_DFL;
-	} while (++i < NSIG);
-	currentp->sig.handler = (__kern_sighandler_t)NULL;
+    /* Close required files */
+    i = 0;
+    do {
+	if (FD_ISSET(i, &currentp->files.close_on_exec))
+	    sys_close(i);
+    } while (++i < NR_OPEN);
 
-	/* Close required files */
-	i = 0;
-	do {
-	    if (FD_ISSET(i, &currentp->files.close_on_exec))
-		sys_close(i);
-	} while (++i < NR_OPEN);
-    }
+    iput(currentp->t_inode);	/* 'close' the current process' inode */
+    currentp->t_inode = inode;
 
-    {
     /* this could be a good place to set the effective user identifier
      * in case the suid bit of the executable had been set */
 
-	iput(currentp->t_inode);
-	currentp->t_inode = inode;
-
     /* can I trust the following fields?  */
-	if (inode->i_mode & S_ISUID)
-	    currentp->euid = inode->i_uid;
-	if (inode->i_mode & S_ISGID)
-	    currentp->egid = inode->i_gid;
-    }
+    if (inode->i_mode & S_ISUID)
+        currentp->euid = inode->i_uid;
+    if (inode->i_mode & S_ISGID)
+        currentp->egid = inode->i_gid;
 
     currentp->t_enddata = (size_t)mh.dseg + (size_t)mh.bseg + base_data;
     currentp->t_endbrk =  currentp->t_enddata;
 
-	/* ease libc memory allocations by setting even break address*/
-	if ((int)currentp->t_endbrk & 1)
-		currentp->t_endbrk++;
+    /* ease libc memory allocations by setting even break address */
+    if ((int)currentp->t_endbrk & 1)
+    	currentp->t_endbrk++;
 
     /*
      *      Arrange our return to be to CS:entry
      */
     arch_setup_user_stack(currentp, (word_t) mh.entry);
 
-#if 0	/* used only for vfork()*/
+#if UNUSED	/* used only for vfork() */
     wake_up(&currentp->p_parent->child_wait);
 #endif
 
