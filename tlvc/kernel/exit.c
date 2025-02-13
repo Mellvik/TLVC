@@ -37,55 +37,55 @@ static void reparent_children(void)
 /* note: 'usage' parameter ignored */
 int sys_wait4(pid_t pid, int *status, int options, void *usage)
 {
-	register struct task_struct *p;
-	int waitagain;
+    register struct task_struct *p;
+    int waitagain;
 
-	debug_wait("WAIT(%d) for %d %s\n", current->pid, pid, (options & WNOHANG)? "nohang": "");
+    debug_wait("WAIT(%d) for %d %s\n", current->pid, pid, (options & WNOHANG)? "nohang": "");
 
- for (;;) {
+    for (;;) {
 	waitagain = 0;
 
 	for_each_task(p) {
-		if (p->p_parent == current && p->state != TASK_UNUSED) {
-		  if (p->state == TASK_ZOMBIE || p->state == TASK_STOPPED) {
-			if (pid == (pid_t)-1 || p->pid == pid || (!pid && p->pgrp == current->pgrp)) {
-				if (status) {
-					if (verified_memcpy_tofs(status, &p->exit_status, sizeof(int)))
-						return -EFAULT;
-				}
-
-				/* just return status on stopped state, don't release task*/
-				if (p->state == TASK_STOPPED)
-					return p->pid;
-
-				p->state = TASK_UNUSED;		/* unassign task entry*/
-				next_task_slot = p;
-				task_slots_unused++;
-
-				debug_wait("WAIT(%d) got %d\n", current->pid, p->pid);
-				return p->pid;
+	    if (p->p_parent == current && p->state != TASK_UNUSED) {
+		if (p->state == TASK_ZOMBIE || p->state == TASK_STOPPED) {
+		    if (pid == (pid_t)-1 || p->pid == pid || (!pid && p->pgrp == current->pgrp)) {
+			if (status) {
+			    if (verified_memcpy_tofs(status, &p->exit_status, sizeof(int)))
+				return -EFAULT;
 			}
+
+			/* just return status on stopped state, don't release task*/
+			if (p->state == TASK_STOPPED)
+			    return p->pid;
+
+			p->state = TASK_UNUSED;		/* unassign task entry*/
+			next_task_slot = p;
+			task_slots_unused++;
+
+			debug_wait("WAIT(%d) got %d\n", current->pid, p->pid);
+			return p->pid;
+		    }
 		} else {
-			/* keep waiting while process has non-zombie/stopped children*/
-			debug_wait("WAIT(%d) again for pid %d state %d\n", current->pid, p->pid, p->state);
-			waitagain = 1;
+		    /* keep waiting while process has non-zombie/stopped children*/
+		    debug_wait("WAIT(%d) again for pid %d state %d\n", current->pid, p->pid, p->state);
+		    waitagain = 1;
 		}
-	  }
+	    }
 	}
 
 	if (options & WNOHANG)
-		return 0;
+	    return 0;
 	if (!waitagain)
-		break;
+	    break;
 
 	debug_wait("WAIT(%d) sleep\n", current->pid);
 	interruptible_sleep_on(&current->child_wait);
 	if (current->signal) {
-		debug_wait("WAIT(%d) return -EINTR\n", current->pid);
-		return -EINTR;
+	    debug_wait("WAIT(%d) return -EINTR\n", current->pid);
+	    return -EINTR;
 	}
 	debug_wait("WAIT(%d) wakeup\n", current->pid);
-  }
+    }
 
     debug_wait("WAIT(%d) return -ECHILD\n", current->pid);
 	return -ECHILD;

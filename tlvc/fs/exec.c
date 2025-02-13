@@ -504,6 +504,7 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
     /* this could be a good place to set the effective user identifier
      * in case the suid bit of the executable had been set */
 
+	iput(currentp->t_inode);
 	currentp->t_inode = inode;
 
     /* can I trust the following fields?  */
