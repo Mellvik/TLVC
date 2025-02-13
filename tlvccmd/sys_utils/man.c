@@ -124,7 +124,7 @@ static char manorcat[] = "man:cat";
    char *mc, *mp, *ms, *su, *nmc, *nmp, *nms, *nsu;
    int rv = -1;
 
-                  manpath = getenv("MANPATH");
+   manpath = getenv("MANPATH");
    if (!manpath) manpath = defpath;
    if (!mansect) mansect = getenv("MANSECT");
    if (!mansect) mansect = defsect;

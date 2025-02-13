@@ -1637,8 +1637,8 @@ static unsigned char * INITPROC find_base(int drive, int type)
 	printk("df%d: %s (type %d)", drive, floppy_type[*base].name, type);
 	return base;
     }
-    printk("df%d is unknown type %d", drive, type);
-    return NULL;
+    printk("df%d: unknown type %d, using type 1200k/AT", drive, type);
+    return probe_list[1];
 }
 
 /* CMOS 0x10 bits 7-4: Floppy 1 drive type,
@@ -1835,7 +1835,7 @@ void INITPROC floppy_init(void)
 #else
     fdc_version = FDC_TYPE_STD;	/* force std fdc type; can't test other. */
 #endif
-    printk("%s: Direct floppy driver, FDC %s @ irq %d, DMA %d", DEVICE_NAME, 
+    printk("%s: Floppy controller, FDC %s @ irq %d, DMA %d", DEVICE_NAME, 
 	    fdc_version == 0x80 ? "8272A" : "82077", FLOPPY_IRQ, FLOPPY_DMA);
     configure_fdc_mode();
 #ifdef USE_DIR_REG
