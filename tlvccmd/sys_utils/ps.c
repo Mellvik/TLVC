@@ -226,7 +226,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("  PID   GRP  TTY USER STAT ");
+	printf("  PID  PPID  PGRP  TTY USER STAT ");
 #ifdef CONFIG_CPU_USAGE
 	printf("CPU");
 #endif
@@ -259,9 +259,10 @@ int main(int argc, char **argv)
 		}
 		pwent = getpwuid(task_table.uid);
 
-		/* pid grp tty user stat*/
-		printf("%5d %5d %4s %-8s%c ",
+		/* pid ppid grp tty user stat*/
+		printf("%5d %5d %5d %4s %-8s%c ",
 				task_table.pid,
+				task_table.ppid,
 				task_table.pgrp,
 				tty_name(fd, (unsigned int)task_table.tty, ds),
 				(pwent ? pwent->pw_name : "unknown"),
