@@ -368,7 +368,7 @@ int sys_open(const char *filename, int flags, int mode)
     if ((mode_t)((flags + 1) & O_ACCMODE)) flag++;
     if (flag & (O_TRUNC | O_CREAT)) flag |= FMODE_WRITE;
 
-    debug_file("OPEN '%t' flags 0x%x", filename, flags);
+    debug_file("OPEN '%t' flags 0x%x\n", filename, flags);
     error = open_namei(filename, flag, mode, &inode, NULL);
     if (!error) {
 	if ((error = open_fd(flags, inode)) < 0)
