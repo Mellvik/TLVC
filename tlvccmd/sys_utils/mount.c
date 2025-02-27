@@ -12,8 +12,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <ctype.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <linuxmt/fs.h>
 #include <linuxmt/limits.h>
 
@@ -51,16 +54,17 @@ static void show(void)
 static void usage(void)
 {
 	errmsg("usage: mount [-a][-q][-t minix|fat] [-o ro|remount,{rw|ro}] <device> <directory>\n");
-	return 1;
+	return;
 }
 
 int main(int argc, char **argv)
 {
 	char	*str;
-	int	type = 0;		/* default fs*/
+	int	type = 0;		/* default fs */
 	int	flags = 0;
 	int	query = 0;
 	char	*option;
+	char	fsname[18];
 
 	argc--;
 	argv++;
@@ -128,16 +132,28 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	strncpy(fsname, argv[0], 18);
+	if (isalpha(fsname[strlen(fsname)-1])) {	/* we're mounting a flat drive,
+							 * check that it really is flat */
+		strcat(fsname, "1");
+		if (open(fsname, O_RDWR) != -1) {
+			printf("Cannot mount %s: Device is partitioned\n", argv[0]);
+			return 1;
+		}
+	}
 	if (flags == 0 && type == 0)
 		flags = MS_AUTOMOUNT;
 	if (mount(argv[0], argv[1], type, flags) < 0) {
+		char failed[] = "mount failed";
 		if (flags & MS_AUTOMOUNT) {
 			type = (!type || type == FST_MINIX)? FST_MSDOS: FST_MINIX;
 			if (mount(argv[0], argv[1], type, flags) >= 0)
 				goto mount_ok;
 		}
-		if (!query)
-			perror("mount failed");
+		if (errno == ENODEV)
+			printf("%s: Filesystem type not available\n", failed);
+		else if (!query)
+			perror(failed);
 		return 1;
 	}
 

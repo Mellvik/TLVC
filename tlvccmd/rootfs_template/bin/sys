@@ -27,11 +27,14 @@ create_dev_dir()
 	mknod $MNT/dev/rhda4	c 5 4
 	mknod $MNT/dev/xda	b 6 0
 	mknod $MNT/dev/xda1	b 6 1
-	mknod $MNT/dev/xda2	b 6 3
-	mknod $MNT/dev/xda3	b 6 4
-	mknod $MNT/dev/xda4	b 6 2
+	mknod $MNT/dev/xda2	b 6 2
+	mknod $MNT/dev/xda3	b 6 3
+	mknod $MNT/dev/xda4	b 6 4
 	mknod $MNT/dev/rxda	c 6 0
 	mknod $MNT/dev/rxda1	c 6 1
+	mknod $MNT/dev/rxda2	c 6 2
+	mknod $MNT/dev/rxda3	c 6 3
+	mknod $MNT/dev/rxda4	c 6 4
 	mknod $MNT/dev/df0	b 2 0
 	mknod $MNT/dev/df1	b 2 32
 	mknod $MNT/dev/rdf0	c 2 0
