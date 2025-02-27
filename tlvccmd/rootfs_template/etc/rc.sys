@@ -19,10 +19,10 @@ fi
 #
 # start networking
 #
-# check /bootopts "net=" env variable
-case "$net" in
+# check /bootopts "NET=" env variable
+case "$NET" in
 ee0|ne0|wd0|3c0)
-	net start $net
+	net start $NET
 	;;
 slip)
 	net start slip
@@ -31,8 +31,8 @@ cslip)
 	net start cslip
 	;;
 *)
-	if test "$net" != ""; then
-		echo "Unrecognized /bootopts network option: net=$net"
+	if test "$NET" != ""; then
+		echo "Unrecognized /bootopts network option: NET=$NET"
 	fi
 	;;
 esac

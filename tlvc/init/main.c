@@ -108,6 +108,7 @@ static char * INITPROC root_dev_name(int dev);
 static int INITPROC parse_options(void);
 static void INITPROC finalize_options(void);
 static char * INITPROC option(char *s);
+static void add_env(char *);
 
 #endif
 
@@ -171,10 +172,8 @@ static void INITPROC early_kernel_init(void)
     if (fdcache < 0 ||			/* not set in bootopts */
 	fdcache > CONFIG_FLOPPY_CACHE)	/* or too big */
 	fdcache = CONFIG_FLOPPY_CACHE; 	/* then default to CONFIG */
-#if 0	/* temporarily disabled */
-    if (arch_cpu == 7)
-	fdcache = 0;			/* disable fdcache for 386+ */
-#endif
+    if (!debug_level && arch_cpu == 7)	/* disable fdcache for 386+ unless */
+	fdcache = 0;			/* we're debugging */
 
 #ifdef TEST_UPPER_MEM
 /*** Works with /bin/init to test the upper 1k of memory for BIOS modifications ****/
@@ -327,24 +326,22 @@ static void INITPROC do_init_task(void)
     panic("No init or sh found");
 }
 
-/* this procedure runs in user mode as task 1*/
+/* this procedure runs in user mode as task 1 */
 static void init_task(void)
 {
     do_init_task();
 }
-
 
 #ifdef CONFIG_BOOTOPTS
 static struct dev_name_struct {
 	const char *name;
 	int num;
 } devices[] = {
-	/* the 4 primary partitionable drives must be first [REALLY? Why?] */
+	/* the 4 primary (bootable) partitionable drives must be first for the loop in
+	 * root_dev_name() to work as expected ( if (i < 4) etc.) */
 #if defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_XD)
 	{ "hda",     DEV_HDA },
 	{ "hdb",     DEV_HDB },
-	{ "hdc",     DEV_HDC },
-	{ "hdd",     DEV_HDD },
 	{ "xda",     DEV_XDA },
 	{ "xdb",     DEV_XDB },
 #else
@@ -382,7 +379,7 @@ static char * INITPROC root_dev_name(int dev)
 	static char name[18] = "ROOTDEV=/dev/";
 
 #if DEBUG
-	printk("ROOTDEV 0x%x; ", dev);
+	printk("root_dev_name 0x%x; ", dev);
 #endif
 	for (i=0; i<6; i++) {
 		if (devices[i].num == (dev & 0xfff0)) {
@@ -651,26 +648,27 @@ static int INITPROC parse_options(void)
 			argv_init[args++] = line;
 		}
 #if ENV
-		else {
-			if (envs >= MAX_INIT_ENVS)
-				panic(errmsg_initenvs);
-			envp_init[envs++] = line;
-		}
+		else add_env(line);
 #endif
 	}
 	return 1;	/* success*/
 }
+
+static void add_env(char *line)
+{
+	if (envs >= MAX_INIT_ENVS)
+		panic(errmsg_initenvs);
+	envp_init[envs++] = line;
+}
+
 
 static void INITPROC finalize_options(void)
 {
 	int i;
 
 	/* set ROOTDEV environment variable for fsck in /etc/mount.cfg */
-	if (envs + running_qemu >= MAX_INIT_ENVS)
-		panic(errmsg_initenvs);
-	envp_init[envs++] = root_dev_name(ROOT_DEV);
-	if (running_qemu)
-		envp_init[envs++] = (char *)"QEMU=1";
+	add_env(root_dev_name(ROOT_DEV));
+	if (running_qemu) add_env((char *)"QEMU=1");
 
 #if DEBUG
 	printk("args: ");
