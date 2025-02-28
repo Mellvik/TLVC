@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+#include <limits.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -64,7 +65,7 @@ int main(int argc, char **argv)
 	int	flags = 0;
 	int	query = 0;
 	char	*option;
-	char	fsname[18];
+	char	fsname[PATH_MAX];
 
 	argc--;
 	argv++;
@@ -132,7 +133,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	strncpy(fsname, argv[0], 18);
+	strncpy(fsname, argv[0], PATH_MAX-2);
 	if (isalpha(fsname[strlen(fsname)-1])) {	/* we're mounting a flat drive,
 							 * check that it really is flat */
 		strcat(fsname, "1");
@@ -144,7 +145,7 @@ int main(int argc, char **argv)
 	if (flags == 0 && type == 0)
 		flags = MS_AUTOMOUNT;
 	if (mount(argv[0], argv[1], type, flags) < 0) {
-		char failed[] = "mount failed";
+		char *failed = "mount failed";
 		if (flags & MS_AUTOMOUNT) {
 			type = (!type || type == FST_MINIX)? FST_MSDOS: FST_MINIX;
 			if (mount(argv[0], argv[1], type, flags) >= 0)
