@@ -511,6 +511,7 @@ putfile(longname, shortname, parent)
 	long l;
 	char newparent[NAMSIZ+64];
 	char buf[TBLOCK];
+	char *safename = longname;
 
 	if (!hflag)
 		i = lstat(shortname, &stbuf);
@@ -528,6 +529,7 @@ putfile(longname, shortname, parent)
 	//if (Fflag && checkf(shortname, stbuf.st_mode, Fflag) == 0)
 		//return;
 
+	if (*longname == '/') safename++;	/* keep the root dir out */
 	switch (stbuf.st_mode & S_IFMT) {
 	case S_IFDIR:
 		for (i = 0, cp = buf; (*cp++ = longname[i++]) != '\0';)
@@ -586,7 +588,7 @@ putfile(longname, shortname, parent)
 			    longname);
 			return;
 		}
-		strcpy(dblock.dbuf.name, longname);
+		strcpy(dblock.dbuf.name, safename);
 		if (stbuf.st_size + 1 >= NAMSIZ) {
 			fprintf(stderr, "tar: %s: symbolic link too long\n",
 			    longname);
@@ -616,7 +618,7 @@ putfile(longname, shortname, parent)
 			    longname);
 			return;
 		}
-		strcpy(dblock.dbuf.name, longname);
+		strcpy(dblock.dbuf.name, safename);
 		(void)sprintf(dblock.dbuf.devmajor, "%8d", stbuf.st_rdev >> 8);
 		(void)sprintf(dblock.dbuf.devminor, "%8d", stbuf.st_rdev & 0xff);
 		dblock.dbuf.typeflag = S_ISCHR(stbuf.st_mode) ? CHRTYPE : BLKTYPE;
@@ -642,7 +644,7 @@ putfile(longname, shortname, parent)
 			close(infile);
 			return;
 		}
-		strcpy(dblock.dbuf.name, longname);
+		strcpy(dblock.dbuf.name, safename);
 		if (stbuf.st_nlink > 1) {
 			struct linkbuf *lp;
 			int found = 0;
