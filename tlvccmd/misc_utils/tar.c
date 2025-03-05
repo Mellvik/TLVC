@@ -74,14 +74,14 @@ union hblock {
 		char chksum[8];
 		char typeflag;
 		char linkname[NAMSIZ];
-		char magic[6];                /* 257 */
-		char version[2];              /* 263 */
-		char uname[32];               /* 265 */
-		char gname[32];               /* 297 */
-		char devmajor[8];             /* 329 */
-		char devminor[8];             /* 337 */
-		char prefix[155];             /* 345 */
-		                              /* 500 */
+		char magic[6];                /* 0x101 */
+		char version[2];              /* 0x107 */
+		char uname[32];               /* 0x109 */
+		char gname[32];               /* 0x129 */
+		char devmajor[8];             /* 0x149 */
+		char devminor[8];             /* 0x151 */
+		char prefix[155];             /* 0x159 */
+		                              /* 500/0x1f4 */
 	} dbuf;
 } dblock, tbuf[NBLOCK];
 
@@ -118,8 +118,8 @@ daddr_t	high;
 FILE	*tfile;
 char	tname[] = "/tmp/tarXXXXXX";
 
-char	*usefile;
-char	magtape[]	= "/dev/mt1";
+char	*usefile, *xclude;
+char	magtape[] = "/dev/mt1";
 
 void putfile();
 int readtape();
@@ -183,8 +183,15 @@ done(n)
 void
 usage()
 {
-	fprintf(stderr, "tar: usage  tar -{txu}[cvfblmhop] [tarfile] [blocksize] file1 file2...\n");
+	fprintf(stderr, "tar: usage  tar -{txc}[uvfblmhop] [-C newdir] [-X excludedir] [tarfile] [blocksize] file1 file2...\n");
 	done(1);
+}
+
+int check_exclude(char *s) 
+{
+	if (*s == '/') s++;
+	//if (!strcmp(s, xclude)) printf("Exclude match: %s|%s\n", s, xclude);
+	return (strcmp(s, xclude));
 }
 
 void longt(st)
@@ -303,7 +310,7 @@ dorep(argv)
 	}
 
 	getcwd(wdir, sizeof(wdir));
-	while (*argv && ! term) {
+	while (*argv && !term) {
 		cp2 = *argv;
 		if (!strcmp(cp2, "-C") && argv[1]) {
 			argv++;
@@ -314,8 +321,20 @@ dorep(argv)
 				getcwd(wdir, sizeof(wdir));
 			argv++;
 			continue;
-		}
-		parent = wdir;
+		} 
+		if (!strcmp(*argv, "-X") && argv[1]) {
+			argv++;
+			xclude = *argv;
+			if (vflag) 
+				printf("Excluding %s\n", xclude);
+			argv++;
+			continue;
+		} 
+		if (**argv == '/') {	/* don't allow absolute pathnames */
+			chdir("/");
+			parent = "./";
+		} else
+			parent = wdir;
 		for (cp = *argv; *cp; cp++)
 			if (*cp == '/')
 				cp2 = cp;
@@ -329,6 +348,10 @@ dorep(argv)
 			parent = getcwd(tempdir, sizeof(tempdir));
 			*cp2 = '/';
 			cp2++;
+		}
+		if (!check_exclude(*argv)) {
+			argv++;
+			continue;
 		}
 		putfile(*argv++, cp2, parent);
 		if (chdir(wdir) < 0) {
@@ -385,8 +408,8 @@ checksum()
 	return(i);
 }
 
-/* Get a directory entry (1 block) from the tape, fill the global stbuf 
- * (struct stat buffer) from the contents
+/* Get a directory entry (1 block) from the tape, fill the global struct stat stbuf 
+ * from the contents
  */
 void getdir()
 {
@@ -511,8 +534,9 @@ putfile(longname, shortname, parent)
 	long l;
 	char newparent[NAMSIZ+64];
 	char buf[TBLOCK];
-	char *safename = longname;
+	int root = 0;
 
+	//printf("putfile: long %s, short %s, parent %s\n", longname, shortname, parent);
 	if (!hflag)
 		i = lstat(shortname, &stbuf);
 	else
@@ -529,12 +553,12 @@ putfile(longname, shortname, parent)
 	//if (Fflag && checkf(shortname, stbuf.st_mode, Fflag) == 0)
 		//return;
 
-	if (*longname == '/') safename++;	/* keep the root dir out */
+	while (longname[root] == '/') root++;
 	switch (stbuf.st_mode & S_IFMT) {
 	case S_IFDIR:
 		for (i = 0, cp = buf; (*cp++ = longname[i++]) != '\0';)
 			;
-		*--cp = '/';
+		*--cp = '/';	/* add slash for historic compatibility */
 		*++cp = 0  ;
 		if (!oflag) {
 			if ((cp - buf) >= NAMSIZ) {
@@ -545,7 +569,7 @@ putfile(longname, shortname, parent)
 			stbuf.st_size = 0;
 			tomodes(&stbuf);
 			dblock.dbuf.typeflag = DIRTYPE;
-			strcpy(dblock.dbuf.name,buf);
+			strcpy(dblock.dbuf.name,buf+root);
 			(void)sprintf(dblock.dbuf.chksum, "%6o", checksum());
 			(void) writetape((char *)&dblock);
 		}
@@ -570,7 +594,7 @@ putfile(longname, shortname, parent)
 			strcpy(cp, dp->d_name);
 			l = telldir(dirp);
 			closedir(dirp);
-			putfile(buf, cp, newparent);
+			if (check_exclude(buf)) putfile(buf, cp, newparent+root);
 			dirp = opendir(".");
 			seekdir(dirp, l);
 		}
@@ -588,7 +612,7 @@ putfile(longname, shortname, parent)
 			    longname);
 			return;
 		}
-		strcpy(dblock.dbuf.name, safename);
+		strcpy(dblock.dbuf.name, longname+root);
 		if (stbuf.st_size + 1 >= NAMSIZ) {
 			fprintf(stderr, "tar: %s: symbolic link too long\n",
 			    longname);
@@ -604,7 +628,7 @@ putfile(longname, shortname, parent)
 		dblock.dbuf.typeflag = SYMTYPE;
 		if (vflag)
 			fprintf(stderr, "a %s symbolic link to %s\n",
-			    longname, dblock.dbuf.linkname);
+			    longname+root, dblock.dbuf.linkname);
 		(void)sprintf(dblock.dbuf.size, "%11lo", 0L);
 		(void)sprintf(dblock.dbuf.chksum, "%6o", checksum());
 		(void)writetape((char *)&dblock);
@@ -618,12 +642,12 @@ putfile(longname, shortname, parent)
 			    longname);
 			return;
 		}
-		strcpy(dblock.dbuf.name, safename);
+		strcpy(dblock.dbuf.name, longname+root);
 		(void)sprintf(dblock.dbuf.devmajor, "%8d", stbuf.st_rdev >> 8);
 		(void)sprintf(dblock.dbuf.devminor, "%8d", stbuf.st_rdev & 0xff);
 		dblock.dbuf.typeflag = S_ISCHR(stbuf.st_mode) ? CHRTYPE : BLKTYPE;
 		if (vflag)
-			fprintf(stderr, "a %-12s %s (%d,%d)\n", longname,
+			fprintf(stderr, "a %-12s %s (%d,%d)\n", longname+root,
 				dblock.dbuf.typeflag == CHRTYPE ? "char-device ":"block-device",
 				stbuf.st_rdev>>8, stbuf.st_rdev&0xff);
 		(void)sprintf(dblock.dbuf.size, "%11lo", 0L);
@@ -644,7 +668,7 @@ putfile(longname, shortname, parent)
 			close(infile);
 			return;
 		}
-		strcpy(dblock.dbuf.name, safename);
+		strcpy(dblock.dbuf.name, longname+root);
 		if (stbuf.st_nlink > 1) {
 			struct linkbuf *lp;
 			int found = 0;
@@ -662,7 +686,7 @@ putfile(longname, shortname, parent)
 				(void) writetape( (char *) &dblock);
 				if (vflag)
 					fprintf(stderr, "a %s link to %s\n",
-					    longname, lp->pathname);
+					    longname+root, lp->pathname);
 				lp->count--;
 				close(infile);
 				return;
@@ -674,12 +698,12 @@ putfile(longname, shortname, parent)
 				lp->inum = stbuf.st_ino;
 				lp->devnum = stbuf.st_dev;
 				lp->count = stbuf.st_nlink - 1;
-				strcpy(lp->pathname, longname);
+				strcpy(lp->pathname, longname+root);
 			}
 		}
         blocks = (stbuf.st_size + (TBLOCK-1)) / TBLOCK;
         if (vflag) {
-            fprintf(stderr, "a %s ", longname);
+            fprintf(stderr, "a %s ", longname+root);
             fprintf(stderr, "%ld blocks\n", blocks);
         }
         sprintf(dblock.dbuf.chksum, "%6o", checksum());
@@ -1047,7 +1071,7 @@ again:
 				done(4);
 			}
 			if (i != nblock && i != 1) {
-				fprintf(stderr, "Tar: blocksize = %d\n", i);
+				fprintf(stderr, "Tar: transfer blocksize = %d\n", i);
 				nblock = i;
 			}
 		}
