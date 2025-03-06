@@ -162,6 +162,8 @@ static int check_connected = 0;
 static int connected = 0;
 static char srvr_ip[ADDRBUF], myip[ADDRBUF]; 	/* For qemu hack */
 
+void print_timing(unsigned long, struct timeval *, struct timeval *, char *);
+
 #ifdef QEMUHACK
 static int qemu = 0;
 #endif
@@ -209,35 +211,22 @@ int ask(char *source, char *name) {
 	//return 1;
 }
 		
-#if 0
-/* Read (and echo) reply from server */
-/* NOTE: The fd argument is not used (replaced by global fcmd for buffered IO). */
-/* fd is kept because it makes the code easier to read. */
-int get_reply(int fd, char *buf, int size, int dbg) {
-
-	if (fgets(buf, size, fcmd) == NULL) {
-		check_connected++;
-		return -1;
-	}
-	/* dbg - at which debug level this command should be echoed */
-	if (debug >= dbg) printf("%s", buf);
-	return 1;
-}
-#else
 /*
  * get_reply: Return exactly one complete reply from the server.
  * - Collect long (multiline) replies
  * - Buffer replies if several arrive concurrently (never more than one extra)
  * - Return buffer status when queried
  *
- * This version of get_reply eliminates the use of buffered IO in order for select() to work predictably
- * and enable querying of possible buffered replies (the peculiarities created by the huge difference in speed
- * between and ELKS system and a more recent system).
- * E.g when receiving small (and zero length) files in particular, the 'Transfer Complete' control message 
- * will arrive before any data and be read as part of the previous command response.
- * Multiline control responses (typically at login), will some times arrive in several packets and must be
- * assembled properly.
+ * This version of get_reply eliminates the use of buffered IO in order for select()
+ * to work predictably and enable querying of possible buffered replies (the
+ * peculiarities created by the huge difference in speed between an TLVC/ELKS system
+ * and a more recent system).
+ * E.g when receiving small (and zero length) files in particular, the 'Transfer Complete'
+ * control message will arrive before any data and be read as part of the previous
+ * command response. Multiline control responses (typically at login), will sometimes
+ * arrive in several packets and must be assembled properly.
  * Not elegant, but very memory efficiant (abusing the *buf parameter for all the work).
+ *
  * DO NOT call get_reply with a buf size less than BUF_SIZ (512b).
  */
 
@@ -251,12 +240,13 @@ int get_reply(int fd, char *buf, int size, int dbg) {
 	if (dbg < 0) 		/* Just return status */
 		return lb;
 
-	if (lb) {		/* something in the buffer, return it */
+	if (lb) {		/* something in the buffer already, return it */
 		strncpy(buf, lbuf, size);
-		if (debug >= dbg) printf("(bf) %s", buf);
-		if (!strncmp(buf, "421", 3)) connected = 0;	/* look for server timeout */
 		lb = 0;
-		return 1;
+		goto reply_finis;
+		//if (debug >= dbg) printf("(bf) %s", buf);
+		//if (!strncmp(buf, "421", 3)) connected = 0;	/* look for server timeout */
+		//return 1;
 	}
 	bzero(buf, size);
 
@@ -280,9 +270,10 @@ int get_reply(int fd, char *buf, int size, int dbg) {
 	buf[lb] = '\0';
 	lb = 0;
 
-	// cp points to the start of the last record,
-	// compare status codes to see if we have an extra
-	// reply to save for the next call.
+	/* cp points to the start of the last record,
+	 * compare status codes to see if we have more than one
+	 * reply. If so, save them for the next call.
+	 */
 
 	if (cp != buf) {
 		if (strncmp(buf, cp, 3)) {
@@ -293,13 +284,13 @@ int get_reply(int fd, char *buf, int size, int dbg) {
 		}
 	}
 	
-	if (!strncmp(buf, "421", 3)) connected = 0;
-	if (debug >= dbg || !connected) printf("%s", buf); // If the server timed out, always
-							   // print the status message.
+reply_finis:
+	if (!strncmp(buf, "421", 3)) connected = 0;	   /* look for server timeout */
+	if (debug >= dbg || !connected) printf("%s", buf); /* If the server timed out, always
+							    * print the status message. */
 	return 1;
 }
 
-#endif
 
 int is_connected(int cmdfd) {	// return 1 if connected, otherwise 0
 	char str[IOBUFLEN];
@@ -567,16 +558,20 @@ int do_ls(int controlfd, int datafd, char **cmdline, int mode) {
 
 int do_get(int controlfd, char *src, char *dst, int mode) {
 	char iobuf[IOBUFLEN+1];
-	int status = 1, fd, n, datafd = -1;
+	int status, fd, n, datafd = -1, created = 0;
 	int maxfdp1, data_finished = FALSE, control_finished = FALSE;
 	fd_set rdset;
-	long bcnt = 0, start, timeused;
+	long bcnt = 0;
 
 	if (dst == NULL) dst = src;
 
-	if ((fd = open(dst, O_WRONLY|O_TRUNC|O_CREAT, 0664)) < 0) {
-		printf("GET: Cannot open/create '%s'\n", dst);
-		return -1;
+	if ((fd = open(dst, O_WRONLY|O_TRUNC, 0664)) < 0) {
+		/* file does not exist, create it */
+		created++;
+		if ((fd = open(dst, O_WRONLY|O_TRUNC|O_CREAT, 0664)) < 0) {
+			printf("GET: Cannot open/create '%s'\n", dst);
+			return -1;
+		}
 	}
 	if (atype != type) settype(controlfd, type);
 #ifdef BLOATED
@@ -585,7 +580,10 @@ int do_get(int controlfd, char *src, char *dst, int mode) {
 	else
 #endif
 		datafd = do_passive(controlfd);
-	if (datafd < 0) return -1;
+	if (datafd < 0) {
+		status = -1;
+		goto get_out;
+	}
 
 	sprintf(iobuf, "RETR %s\r\n", src);
 	send_cmd(controlfd, iobuf);
@@ -605,9 +603,13 @@ int do_get(int controlfd, char *src, char *dst, int mode) {
 		}
 		datafd = n;
 	}
-	if (datafd < 0) goto get_out;
+	if (datafd < 0) {
+		status = -1;
+		goto get_out;
+	}
 
 	FD_ZERO(&rdset);
+	created = 0;	/* keep the new file */
 
 	maxfdp1 = MAX(controlfd, datafd) + 1;
 	printf("remote: %s, local: %s\n", src, dst);
@@ -619,9 +621,11 @@ int do_get(int controlfd, char *src, char *dst, int mode) {
 	 * This problem is now handled in the new get_reply function, which may be poked to see
 	 * if there's data pending.
 	 */
-	struct timeval tv; int select_return, icount = 0;
+	struct timeval tv, m_start, m_end;
+	int select_return, icount = 0;
 	long usec = 500;
-	start = time(NULL);
+
+	gettimeofday(&m_start, NULL);
 
 	while (1) {
 		if (control_finished == FALSE) FD_SET(controlfd, &rdset);
@@ -676,18 +680,43 @@ int do_get(int controlfd, char *src, char *dst, int mode) {
 			break;
 
 	}
-	timeused = time(NULL) - start;
-	printf("%ld bytes received in %ld secs (%u.%02u kB/s)\n", bcnt, timeused, (int) (bcnt/timeused)/1000, (int)(bcnt/timeused)%1000);
+	gettimeofday(&m_end, NULL);
+	print_timing(bcnt, &m_start, &m_end, "received");
+	status = 1;
 get_out:
 	if (datafd >= 0) close(datafd);
 	close(fd);
+	if (created) unlink(dst);	/* if unused, get rid of the newly created file */
 	return status;
+}
+
+void print_timing(unsigned long bcnt, struct timeval *m_start, struct timeval *m_end, char *msg)
+{
+	unsigned long ms;
+	unsigned int rest, rem, s, bps;
+
+	ms = (((m_end->tv_sec * 1000000) + m_end->tv_usec) -
+		((m_start->tv_sec * 1000000) + m_start->tv_usec))/1000;
+	rest = ms;
+	bps = (unsigned int)__divmod(bcnt, &rest);
+	rest = (unsigned int)(((long)rest*1000L)/ms);		/* scale the decimal */
+	if (ms > 1000) {
+		rem = 1000;
+		s = __divmod(ms, &rem);		/* make seconds */
+	} else {
+		s = 0;
+		rem = ms;
+	}
+
+	printf("%ld bytes %s in %u.%03u secs (%u.%02u kB/s)\n", bcnt, msg,
+			s, rem, bps, rest);
 }
 
 int do_put(int controlfd, char *src, char *dst, int mode){
 	char iobuf[IOBUFLEN+1];
 	int datafd, fd, n, status = 1;
-	long start, timeused, bcnt = 0;
+	long bcnt = 0;
+	struct timeval m_start, m_end;
 
 	bzero(iobuf, sizeof(iobuf));
 
@@ -725,7 +754,7 @@ int do_put(int controlfd, char *src, char *dst, int mode){
 		}
 		datafd = n;
 	}
-	start = time(NULL);
+	gettimeofday(&m_start, NULL);
 
 #if PUTSELECT
 	int maxfdp1, data_finished = FALSE, control_finished = FALSE;
@@ -775,8 +804,8 @@ int do_put(int controlfd, char *src, char *dst, int mode){
 		bcnt += n;
 	}
 #endif
-	timeused = time(NULL) - start;
-	printf("%ld bytes sent in %ld secs (%u.%02u kB/s)\n", bcnt, timeused, (int) (bcnt/timeused)/1000, (int)(bcnt/timeused)%1000);
+	gettimeofday(&m_end, NULL);
+	print_timing(bcnt, &m_start, &m_end, "sent");
 	close(datafd);
 	get_reply(controlfd, iobuf, sizeof(iobuf), 1);
 
