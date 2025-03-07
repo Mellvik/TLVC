@@ -869,8 +869,10 @@ int do_active(int cmdfd) {
 	get_port_string(str, myip, (int) UC(p[1]), (int) UC(p[0]));
 	send_cmd(cmdfd, str);
 
-	if ((get_reply(cmdfd, str, sizeof(str), 1) < 0) || (*str != '2')) { // Should be '200 Port command successful' ...
-		/* command channel error, probably server timeout or '551 Rejected data connection' */
+	if ((get_reply(cmdfd, str, sizeof(str), 1) < 0)
+			|| (*str != '2')) { // Should be '200 Port command successful' ...
+		/* command channel error, probably server timeout or
+		 * '551 Rejected data connection' */
 		close(fd);
 		fd = -1;
 	}
@@ -949,6 +951,7 @@ int do_mput(int controlfd, char **argv, int mode) {
 			while ((dp = readdir(dir)) != NULL) {
 				l = 0;
 				stat(dp->d_name, &buf);
+				/* skip '.', '..' and hidden files */
 				if ((*dp->d_name != '.') && !S_ISDIR(buf.st_mode) && (l = ask("mput", dp->d_name)) == 0) {
 					if (do_put(controlfd, dp->d_name, NULL, mode) < 0) break;
 					filecount++;
@@ -1098,17 +1101,17 @@ void do_close(int controlfd, char *str, int len) {
 	return;
 }
 
-int do_login(char *user, char *passwd, char *buffer, int len, char *ip, unsigned int port) {
+int do_login(char *user, char *passwd, char *buffer, int len, char *ip,
+						unsigned int port) {
 	char localbf[50], *lip, *cp;
 	int controlfd = -1;
 
 #ifdef QEMUHACK
-	// Check for QEMU mode - repeat on every login, since a loopback connection may have temporarily
-	// disabled QEMU mode.
+	/* Check for QEMU mode - repeat on every login, since a loopback
+	 * connection may have temporarily disabled QEMU mode. */
 	if ((cp = getenv("QEMU")) != NULL) {
 		qemu = atoi(cp);
 		printf("QEMU set to %d\n", qemu);
-		//if (qemu) debug++;      //FIXME: Temporary - for debugging
 	}
 #endif
 	lip = ip;
@@ -1120,42 +1123,35 @@ int do_login(char *user, char *passwd, char *buffer, int len, char *ip, unsigned
 		ip = strtok(lip, " ");
 		cp = strtok(NULL, " ");
 		if (cp) port = atoi(cp);
-		//printf("ip %s, port %u\n", ip, port);
 	} 
 	if ((controlfd = connect_cmd(ip, port)) < 0)
 		return -1;
 	//printf("Connected to %s.\n", ip);
-	//fcmd = fdopen(controlfd, "r+");
 
 	/* Get the ID message from the server */
 	get_reply(controlfd, buffer, len, 0);	/* 220 XYZ ftp server ready etc. */
 
 	/* Do the login process */
 
-	printf("Name (%s:%s): ", ip, user);
-	if (strlen(gets(localbf)) > 2) strcpy(user, localbf); /* no boundary checking */
+	if (*passwd == '\0') {		/* no user credentials provided on the cmd line */
+		printf("Name (%s:%s): ", ip, user);
+		if (strlen(gets(localbf)) > 2) strcpy(user, localbf); /* no boundary checking */
+	}
 	sprintf(buffer, "USER %s\r\n", user);
 	send_cmd(controlfd, buffer);
 	get_reply(controlfd, buffer, len, 1);	/* 331 Password required ... */
 	if (*buffer != '3') {
 		printf("Error in username: %s", buffer);
-		//fclose(fcmd);
 		return -1;
 	}
-	lip = getpass("Password:");
-	printf("\n");
-	if (strlen(lip) < 2) lip = passwd; /* use passwd from command line if present */
+	if (*passwd == '\0') {
+		lip = getpass("Password:");
+		printf("\n");
+		if (strlen(lip) < 2) lip = passwd; /* use passwd from command line if present */
+	} else lip = passwd;
 	sprintf(buffer, "PASS %s\r\n", lip);
 	send_cmd(controlfd, buffer);
-#if 0
-	/* Gobble up welcome message - line by line to catch continuation */
-	while (fgets(buffer, len, fcmd) != NULL) {
-		printf("%s", buffer);
-		if (buffer[3] == ' ') break;
-	}
-#else
 	get_reply(controlfd, buffer, len, 1);
-#endif
 	if (*buffer != '2') {	/* 230 User xxx logged in. */
 		printf("Login failed: %s", buffer);
 		do_close(controlfd, buffer, len);
@@ -1177,7 +1173,7 @@ void parm_err(void) {
 int main(int argc, char **argv) {
 
 	int server_port = DFLT_PORT, controlfd = -1, datafd, code;
-	int mode = PASV, i, mput, mget, f_mode, autologin = 1;
+	int mode = PASV, i, mput, mget, f_mode, autoconnect = 1;
 	char command[BUF_SIZE], str[IOBUFLEN+1], user[30], passwd[30];
 	char *param[MAXPARMS];
 
@@ -1206,7 +1202,7 @@ int main(int argc, char **argv) {
 				break;
 #ifdef BLOATED
 			case 'n':
-				autologin = 0;
+				autoconnect = 0;
 				break;
 			case 'P':
 				mode = PASV;
@@ -1241,12 +1237,13 @@ int main(int argc, char **argv) {
 	}
 	
 	if (*srvr_ip == '\0') {
-		autologin = 0;	// Don't attempt autologin unless there is a server name/address on the cmd line
+		autoconnect = 0;	// Don't attempt autoconnect unless there
+					// is a server name/address on the cmd line
 	}
 	if ((debug > 2) && (*srvr_ip != '\0')) 
 		printf("cmd line: ip %s port %u %s\n", srvr_ip, server_port, (server_port == DFLT_PORT)? "(default)" : ""); 
 
-	if (autologin) {
+	if (autoconnect) {
 		if ((controlfd = do_login(user, passwd, command, sizeof(command), srvr_ip, server_port)) > 0)
 			connected++;
 		else server_port = DFLT_PORT;
@@ -1285,7 +1282,8 @@ int main(int argc, char **argv) {
 				if (param[2])
 					server_port = atoi(param[2]);
 			}
-			if ((controlfd = do_login(user, passwd, str, sizeof(str), srvr_ip, server_port)) < 0) 
+			if ((controlfd = do_login(user, passwd, str, sizeof(str),
+							srvr_ip, server_port)) < 0) 
 				server_port = DFLT_PORT;	/* reset to default */
 			else
 				connected++;
@@ -1504,7 +1502,8 @@ int main(int argc, char **argv) {
 			break;
 
 		case CMD_TYPE:
-			printf("Using %s mode to transfer files.\n", (type == ASCII) ? "ascii" : "binary");
+			printf("Using %s mode to transfer files.\n",
+				(type == ASCII) ? "ascii" : "binary");
 			break;
 #ifndef BLOATED
 		case CMD_SHELL:
