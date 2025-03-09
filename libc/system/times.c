@@ -1,8 +1,11 @@
 #ifdef L_times
-#include <sys/time.h>
-#include <sys/times.h>
 
-#if 0	/* system call not implemented*/
+#include <sys/times.h>
+#include <linuxmt/mem.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+
+#if 0	/* system call not implemented */
 
 clock_t times(struct tms *tp)
 {
@@ -13,26 +16,28 @@ clock_t times(struct tms *tp)
 
 #else
 
-/* library version of 'times' since ELKS doesn't implement it*/
+/* library version of 'times' since TLVC doesn't implement it */
 clock_t times(struct tms *tp)
 {
-	struct timeval tv;
 
-	if (gettimeofday(&tv, (void *)0) < 0)
-		return -1;
+    unsigned long jif;
+    int fd = open("/dev/kmem", O_RDONLY);
 
-	if (tp) {
-		/* scale down to one hour period to fit in long*/
-		unsigned long usecs = (tv.tv_sec % 3600) * 1000000L + tv.tv_usec;
-
-		/* return user and system same since ELKS doesn't implement*/
-		tp->tms_utime = usecs;
-		tp->tms_stime = usecs;
-		tp->tms_cutime = usecs;
-		tp->tms_cstime = usecs;
-	}
-
-	return tv.tv_sec;
+    if (fd < 0) {
+	perror("/dev/kmem");
+	return -1;
+    }
+    if (ioctl(fd, MEM_GETJIFFIES, &jif) < 0 )  {
+	perror("times: ioctl error in /dev/kmem");
+	return -1;
+    }
+    close(fd);
+    tp->tms_utime = jif;
+    tp->tms_stime = jif;
+    tp->tms_cutime = jif;
+    tp->tms_cstime = jif;
+    
+    return jif;
 }
 
 #endif

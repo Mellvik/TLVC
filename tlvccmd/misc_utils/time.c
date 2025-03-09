@@ -8,22 +8,16 @@
 #include <sys/times.h>
 #include <sys/wait.h>
 
-static void printt(char * s, long us)
+static void printt(char *s, long jf)
 {
-	long mins, secs;
+	unsigned long mins, secs;
 
-	if (us < 1000L && us > 499L)	/* round up to 1/1000 second*/
-		us = 1000L;
-	mins = us / 60000000L;
-	if (mins)
-		us -= mins * 60000000L;
+	mins = jf/6000;
+	if (mins) jf -= mins*6000;
+	secs = jf/100;
+	if (secs) jf -= secs*100;
 
-	secs = us / 1000000L;
-	if (secs)
-		us -= secs * 1000000L;
-
-	fprintf(stderr, "%s\t%lum%lu.%03lus\n", s, mins, secs, us/1000);
-	
+	fprintf(stderr, "%s\t%lum%lu.%03lus\n", s, mins, secs, jf*10);
 }
 
 
