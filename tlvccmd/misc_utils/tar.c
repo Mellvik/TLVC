@@ -1148,11 +1148,6 @@ noupdate:
 			break;
 		case '-':
 			break;
-		case '0':
-		case '1':
-			magtape[7] = *cp;
-			usefile = magtape;
-			break;
 		case 'b':
 			nblock = atoi(*argv++);
 			if (nblock > NBLOCK || nblock <= 0) {
