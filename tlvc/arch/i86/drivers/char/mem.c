@@ -273,6 +273,9 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
     case MEM_GETJIFFADDR:
 	retword = (unsigned)&jiffies;
 	break;
+    case MEM_GETJIFFIES:
+	put_user_long(jiffies, arg);
+	return 0;
     case MEM_GETSEGALL:
         retword = (unsigned short)&_seg_all;
         break;

@@ -13,6 +13,7 @@
 #define MEM_GETJIFFADDR 11
 #define MEM_GETSEGALL	12
 #define MEM_GETBSS_SZ	13
+#define MEM_GETJIFFIES	14
 
 struct mem_usage {
 	unsigned int free_memory;
