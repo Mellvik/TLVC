@@ -114,7 +114,7 @@
 
 /* Default drive params if all else fails */
 #define DEF_HEADS	4
-#define DEF_CYLS	304
+#define DEF_CYLS	306
 #define DEF_SECTS	17
 #define DEF_WPCOMP	128
 
@@ -125,7 +125,7 @@
 				 * thus the uSec timings (they're not real). 70uS seems
 				 * to work in most cases. */
 /*
- * The 8237 DMA controller cannot access data above 1MB on the origianl PC
+ * The 8237 DMA controller cannot access data above 1MB on the original PC
  * (4 bit page register) (the AT is different, the page reg is 8 bits while the
  * 2nd DMA controller transfers words only, not bytes and thus up to 128k bytes
  * in one 'swoop').
@@ -267,7 +267,7 @@ static struct file_operations rxd_fops = {
     NULL,			/* select */
     xd_ioctl,			/* ioctl - FIXME: Useful or dangerous? */	
     xd_open,			/* open */
-    xd_release			/* release */
+    xd_release			/* release - could as well be NULL */
 };
 
 static struct gendisk xd_gendisk = {
@@ -298,7 +298,7 @@ static void xd_geninit(void)
 	    if ((hdp->nr_sects = (sector_t)drivep->sectors *
 				drivep->heads * drivep->cylinders))
 	    	hdp->start_sect = 0;	/* enable drive */
-	    //printk("xd%d: %ld##", i, hdp->nr_sects);
+	    //printk("xd%c: %ld##", 'a'+i, hdp->nr_sects);
 	    drivep++;
 	} else
 	    hdp->nr_sects = 0;
@@ -379,12 +379,12 @@ static void redo_xd_request(void)
     head  = track % dp->heads;
     cyl   = track / dp->heads;
     sec   = start % dp->sectors;
-    debug_xd("xd%d: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %c\n",
-		drive, cyl, head, sec, start, nr_sectors, req->rq_buffer,
+    debug_xd("xd%c: CHS %d/%d/%u st: %lu cnt: %d buf: %04x seg: %lx %c\n",
+		'a'+drive, cyl, head, sec, start, nr_sectors, req->rq_buffer,
 		(unsigned long)req->rq_seg, req->rq_cmd == READ? 'R' :'W');
     xd_build(cmd, req->rq_cmd == READ ? CMD_READ : CMD_WRITE, drive, head, 
 				cyl, sec, nr_sectors&0xFF, XD_CNTF);
-    //printk("xd%d: Command %x|%x|%x|%x|%x|%x\n", drive, cmd[0], cmd[1],
+    //printk("xd%c: Command %x|%x|%x|%x|%x|%x\n", 'a'+drive, cmd[0], cmd[1],
     //				cmd[2], cmd[3], cmd[4], cmd[5]);
     setup_DMA();
     xd_command(cmd, DMA_MODE, 0, 0, sense, XD_TIMEOUT);
@@ -553,6 +553,7 @@ void xd_release(struct inode *inode, struct file *filp)
     int target = DEVICE_NR(inode->i_rdev);
     kdev_t dev = inode->i_rdev;
 
+    if (S_ISCHR(inode->i_mode)) return; /* raw release */
     access_count[target]--;
     fsync_dev(dev);
     if (!access_count[target]) {
@@ -624,7 +625,7 @@ static void INITPROC xd_setparam(byte_t drive, byte_t heads, word_t cyls,
 	/* This setup takes care of both */
 
 	if (xd_command(cmdblk, PIO_MODE, NULL, &cmdblk[6], NULL, XD_TIMEOUT * 2))
-		printk("xd: error setting characteristics for xd%d\n", drive);
+		printk("xd: error setting parameters for xd%c\n", 'a'+drive);
 }
 
 void INITPROC xd_init(void)
@@ -699,14 +700,14 @@ void INITPROC xd_init(void)
 	}
 
 	hdcount++;
-	printk("xd%d: CHS %d/%d/%d/%d %s\n", 
-		drive, dp->cylinders, dp->heads, dp->sectors, dp->wpcomp,
+	printk("xd%c: CHS %d/%d/%d/%d %s\n", 
+		'a'+drive, dp->cylinders, dp->heads, dp->sectors, dp->wpcomp,
 		chs_src == 1 ? "(from /bootopts)" : "(preset)");
 
 #ifdef ALLOW_FORMATTING
 	if (dp->sectors < 0) {
 		xd_setparam(drive, dp->heads, dp->cylinders, dp->wpcomp);
-		printk("xd%d: Formatting drive. Change bootopts and reboot when done.\n", drive);
+		printk("xd%c: Formatting drive. Change bootopts and reboot when done.\n", 'a'+drive);
 		xd_format(drive);
 		printk("Looping ");
 		while (1) {
@@ -734,17 +735,19 @@ void INITPROC xd_init(void)
 	ptr->next = &xd_gendisk;
 	xd_gendisk.next = NULL;
     }
-    printk("xd: Found %d hard drive%c\n", hdcount, hdcount > 1? 's' : ' ');
+    //printk("xd: Found %d hard drive%c\n", hdcount, hdcount > 1? 's' : ' ');
 
+#if 0 	/* CHS already printed */
     /* print drive info */
     for (i = 0; i < hdcount; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
-	    printk("xd%d: %d heads, %d cylinders, %d sectors (~%luMB)\n",
-		   i, drive_info[i].heads, drive_info[i].cylinders, drive_info[i].sectors,
+	    printk("xd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
+		   'a'+i, drive_info[i].heads, drive_info[i].cylinders, drive_info[i].sectors,
 		   (((__u32)drive_info[i].heads*(__u32)drive_info[i].cylinders*
 		     (__u32)drive_info[i].sectors)>>1)/1000);
 	}
+#endif
 
 }
 
@@ -772,7 +775,7 @@ static void deverror(int drive, byte_t *sense)
 	    if (xdmsg[i].num == j)
 		break;
 	}
-	printk("xd%d: %s (%02X)", drive, xdmsg[i].msg, j);
+	printk("xd%c: %s (%02X)", 'a'+drive, xdmsg[i].msg, j);
 	if ((j & 0x30) == 0x10) /* drive error, add blocknr */
 				/* possibly get sector # from sense[] */
 	    printk(" @ block %lu", CURRENT->rq_blocknr);
@@ -915,6 +918,6 @@ static void xd_format(int drive)
 
 	xd_build(cmd, CMD_FORMATDRV, drive, 0, 0, 0, XD_INTERLEAVE, XD_CNTF);
 	if (xd_command(cmd, PIO_MODE, 0, 0, sense, XD_TIMEOUT*10))
-		printk("xd%d: Format command returned 0x%x\n", drive, sense[0]);
+		printk("xd%c: Format command returned 0x%x\n", 'a'+drive, sense[0]);
 }
 #endif
