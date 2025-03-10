@@ -17,6 +17,7 @@
 #include <utime.h>
 #include <errno.h>
 #include <dirent.h>
+#include <limits.h>
 #include "futils.h"
 
 #define BUF_SIZE 1024 
@@ -36,6 +37,16 @@ int isadir(char *name)
 	return S_ISDIR(statbuf.st_mode);
 }
 
+int isasymlink(char *name)
+{
+	struct	stat	statbuf;
+
+	if (lstat(name, &statbuf) < 0)
+		return 0;
+
+	return S_ISLNK(statbuf.st_mode);
+}
+
 /*
  * Build a path name from the specified directory name and file name.
  * If the directory name is NULL, then the original filename is returned.
@@ -44,7 +55,7 @@ int isadir(char *name)
 char *buildname(char *dirname, char *filename)
 {
 	char		*cp;
-	static	char	buf[PATHLEN];
+	static	char	buf[PATH_MAX];
 
 	if ((dirname == NULL) || (*dirname == '\0'))
 		return filename;
@@ -69,7 +80,9 @@ int linkfiles(char *srcdir, char *destdir)
 	DIR *dirp;
 	struct dirent *dp;
 	char *newsrc;
-	char newdest[PATHLEN];
+	int n;
+	char newdest[PATH_MAX];
+	char newlink[PATH_MAX];
 
 	dirp = opendir(srcdir);
 	if (!dirp) {
@@ -85,9 +98,9 @@ int linkfiles(char *srcdir, char *destdir)
 			continue;
 
 		newsrc = buildname(srcdir, dp->d_name);
-		if (lstat(newsrc, &sbuf) >= 0 && (S_ISDIR(sbuf.st_mode) || S_ISLNK(sbuf.st_mode))) {
+		if (lstat(newsrc, &sbuf) >= 0 && S_ISDIR(sbuf.st_mode)) {
 			errstr(newsrc);
-			errmsg(": can't move directory or symlink\n");
+			errmsg(": can't move directory\n");
 			closedir(dirp);
 			return 0;
 		}
@@ -104,8 +117,19 @@ int linkfiles(char *srcdir, char *destdir)
 
 		/* link will fail if directory or symlink*/
 		if (link(newsrc, newdest) < 0) {
-			perror(newsrc);
-			return 0;
+			if (!isasymlink(newsrc)) {
+				perror(newsrc);
+				return 0;
+			}
+			if ((n = readlink(newsrc, newlink, sizeof(newlink))) < 0) {
+				perror(newsrc);
+				return 0;
+			}
+			newlink[n] = '\0';
+			if (symlink(newlink, newdest) < 0) {
+				perror(newdest);
+				return 0;
+			}
 		}
 
 		if (unlink(newsrc) < 0) {
@@ -239,8 +263,8 @@ int main(int argc, char **argv)
 
 		/* handle renaming symlinks*/
 		if (lstat(srcname, &sbuf) >= 0 && S_ISLNK(sbuf.st_mode)) {
-			char buf[PATHLEN];
-			int len = readlink(srcname, buf, PATHLEN - 1);
+			char buf[PATH_MAX];
+			int len = readlink(srcname, buf, PATH_MAX - 1);
 			if (len < 0) {
 				perror(srcname);
 				continue;
@@ -280,7 +304,7 @@ int main(int argc, char **argv)
 
 			/* handle broken kernel directory rename (issue #583)*/
 			/*if (isadir(srcname)) {*/
-			char destdir[PATHLEN];
+			char destdir[PATH_MAX];
 
 			if (mkdir(destname, 0777 & ~umask(0))) {
 				perror(destname);
