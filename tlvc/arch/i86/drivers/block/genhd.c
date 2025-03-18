@@ -70,7 +70,7 @@ static void INITPROC print_minor_name(register struct gendisk *hd,
     printk(":(%lu,%lu) ", hdp->start_sect, hdp->nr_sects);
 }
 
-static void INITPROC add_partition(struct gendisk *hd, unsigned short int minor,
+static void INITPROC add_partition(struct gendisk *hd, unsigned short minor,
 			  sector_t start, sector_t size)
 {
     struct hd_struct *hdp = &hd->part[minor];

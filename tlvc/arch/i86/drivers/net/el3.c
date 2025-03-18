@@ -26,6 +26,13 @@
 #include <netinet/in.h>
 #include "eth-msgs.h"
 
+//#define DEBUG
+#ifdef DEBUG
+#define debug_el3 printk
+#else
+#define debug_el3(...) 
+#endif
+
 /* Offsets from base I/O address. */
 #define EL3_DATA	0x00
 #define EL3_CMD		0x0eU
@@ -169,7 +176,7 @@ static int INITPROC el3_find_id_port(void)
 		outb(0xff, el3_id_port);
 		if (inb(el3_id_port) & 0x01) {
 			/* Found a suitable port */
-			//printk("el3: using ID port at %04x\n", el3_id_port);
+			debug_el3("el3: using ID port at %04x\n", el3_id_port);
 			return 0;
 		}
 	}
@@ -257,7 +264,7 @@ static word_t id_read_eeprom(int index)
 	for (bit = 15; bit >= 0; bit--)
 		word = (word << 1) + (inb(el3_id_port) & 0x01);
 
-	//printk("3c509 EEPROM word %d %04x.\n", index, word);
+	debug_el3("el3: EEPROM word %d %04x.\n", index, word);
 
 	return word;
 }
@@ -268,6 +275,8 @@ static size_t el3_write(struct inode *inode, struct file *file, char *data, size
 
 	while (1) {
 
+		//debug_el3("T");
+		debug_el3("T%d^", len);
 		prepare_to_wait_interruptible(&txwait);
 
 		if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
@@ -285,8 +294,6 @@ static size_t el3_write(struct inode *inode, struct file *file, char *data, size
 				break;
 			}
 		}
-		//printk("T");
-		//printk("T%d^", len);
 		
 		outw(SetIntrEnb | 0x0, ioaddr + EL3_CMD);	// Block interrupts
 		
@@ -350,10 +357,10 @@ static void el3_int(int irq, struct pt_regs *regs)
 	int i = max_interrupt_work;
 
 	outw(SetIntrEnb | 0x0, ioaddr + EL3_CMD);	// Block interrupts
-	//printk("I");
+	debug_el3("I");
 
 	while ((status = inw(ioaddr + EL3_STATUS)) & active_imask) {
-		//printk("/%04x;", status);
+		debug_el3("/%04x;", status);
 
 		if (status & (RxEarly | RxComplete)) {
 			int err = inw(ioaddr + RX_STATUS);
@@ -383,7 +390,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 		}
 
 		if (status & TxAvailable) {
-			//printk("t:%02x;", inb(ioaddr + TX_STATUS));
+			debug_el3("t:%02x;", inb(ioaddr + TX_STATUS));
 
 			/* There's room in the FIFO for a full-sized packet. */
 			outw(AckIntr | TxAvailable, ioaddr + EL3_CMD);
@@ -398,7 +405,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 			if (status & RxEarly) {
 				//el3_rx(dev);
 				outw(AckIntr | RxEarly, ioaddr + EL3_CMD);
-				printk("RxEarly int\n");
+				printk("el3: RxEarly int\n");
 			}
 #endif
 			if (status & TxComplete) {		/* Really Tx error. */
@@ -429,7 +436,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 		}
 
 		if (--i < 0) {		/* Should not happen */
-			printk("eth: Infinite loop in interrupt, status %4.4x.\n",
+			printk("el3: Infinite loop in interrupt, status %4.4x.\n",
 				   status);
 
 			/* Clear all interrupts. */
@@ -441,7 +448,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 	}
 
 	outw(SetIntrEnb | active_imask, ioaddr + EL3_CMD);
-	//printk("i%04x!", inw(ioaddr + EL3_STATUS));
+	debug_el3("i%04x!", inw(ioaddr + EL3_STATUS));
 
 	return;
 }
@@ -537,7 +544,7 @@ static size_t el3_read(struct inode *inode, struct file *filp, char *data, size_
 	while(1) {
 		
 		rx_status = inw(ioaddr + RX_STATUS);
-		//printk("R%04x", rx_status);		// DEBUG
+		debug_el3("R%04x", rx_status);		// DEBUG
 		prepare_to_wait_interruptible(&rxwait);
 
 		if (rx_status & 0x8000) {	// FIFO empty or incomplete
@@ -558,7 +565,7 @@ static size_t el3_read(struct inode *inode, struct file *filp, char *data, size_
 			short error = rx_status & 0x3800;
 
 			outw(RxDiscard, ioaddr + EL3_CMD);
-			printk("3c509: Error in read (%04x), buffer cleared\n", error);
+			printk("el3: Error in read (%04x), buffer cleared\n", error);
 			inw(ioaddr + EL3_STATUS); 				/* Delay. */
 			while ((res = inw(ioaddr + EL3_STATUS) & 0x1000)) {
 				/// FIXME: printk to be removed	later, seems stable
@@ -581,7 +588,7 @@ static size_t el3_read(struct inode *inode, struct file *filp, char *data, size_
 	active_imask |= RxComplete;	/* Reactivate recv interrupts */
 
 	outw(SetIntrEnb | active_imask, ioaddr + EL3_CMD);
-	//printk("r%x:", inw(ioaddr + RX_STATUS));
+	debug_el3("r%x:", inw(ioaddr + RX_STATUS));
 	return res;
 }
 
@@ -636,7 +643,7 @@ static int el3_open(struct inode *inode, struct file *file)
 	/* Set the IRQ line. */
 	outw((net_irq << 12), ioaddr + WN0_IRQ);
 
-	//printk("el3: IOBASE %x, IRQ %d allocated\n", inw(ioaddr + WN0_ADDR_CONF) & 0xf, net_irq);
+	debug_el3("el3: IOBASE %x, IRQ %d allocated\n", inw(ioaddr + WN0_ADDR_CONF) & 0xf, net_irq);
 
 	/* Set the station address in window 2 each time opened. */
 	EL3WINDOW(2);
@@ -683,7 +690,7 @@ static int el3_open(struct inode *inode, struct file *file)
 		EL3WINDOW(0);
 		sw_info = (read_eeprom(ioaddr, 0x14) & 0x400f) |
 			(read_eeprom(ioaddr, 0x0d) & 0xBff0);
-		//printk("sw_info %04x ", sw_info);
+		debug_el3("sw_info %04x ", sw_info);
 		EL3WINDOW(4);
 		//net_diag = inw(ioaddr + WN4_NETDIAG);
 		//net_diag = (net_diag | FD_ENABLE); /* temporarily assume full-duplex will be set */
@@ -711,7 +718,7 @@ static int el3_open(struct inode *inode, struct file *file)
 		}
 
 		//outw(net_diag, ioaddr + WN4_NETDIAG);
-		//printk("%s: 3c5x9 net diag word is now: %4.4x.\n", dev->name, net_diag);
+		debug_el3("%s: 3c5x9 net diag word is now: %4.4x.\n", dev->name, net_diag);
 		/* Enable link beat and jabber check. */
 		outw(inw(ioaddr + WN4_MEDIA) | MEDIA_TP, ioaddr + WN4_MEDIA);
 	}
@@ -753,7 +760,7 @@ static int el3_ioctl(struct inode *inode, struct file *file, unsigned int cmd, u
 	
 	switch (cmd) {
 		case IOCTL_ETH_ADDR_GET:
-			err = verified_memcpy_tofs((byte_t *)arg, mac_addr, 6);
+			err = verified_memcpy_tofs((char *)arg, mac_addr, 6U);
 			break;
 
 		case IOCTL_ETH_GETSTAT:
@@ -795,7 +802,7 @@ int el3_select(struct inode *inode, struct file *filp, int sel_type)
 
 			/* Don't use the RxComplete intr for this test, it has been masked out! */
 			if (inw(ioaddr+RX_STATUS) & 0x8000) {
-				//printk("s%x", inw(ioaddr+RX_STATUS));
+				debug_el3("s%x", inw(ioaddr+RX_STATUS));
 				select_wait(&rxwait);
 				break;
 			}
@@ -805,7 +812,7 @@ int el3_select(struct inode *inode, struct file *filp, int sel_type)
 		default:
 			res = -EINVAL;
 	}
-	//printk("S%d", res);
+	debug_el3("S%d", res);
 	outw(SetIntrEnb | active_imask, ioaddr + EL3_CMD);	// reenable interrupts
 	return res;
 }

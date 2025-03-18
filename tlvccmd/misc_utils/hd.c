@@ -39,15 +39,12 @@ printline(long address, int *num, char *chr, int eofflag)
 {
    int   j;
 
-   if (lastaddr >= 0)
-   {
+   if (lastaddr >= 0) {
       for (j = 0; j < 16; j++)
 	 if (num[j] != lastnum[j])
 	    break;
-      if (j == 16 && !eofflag)
-      {
-	 if (lastaddr + 16 == address)
-	 {
+      if (j == 16 && !eofflag) {
+	 if (lastaddr + 16 == address) {
 	    fprintf(ofd, "*\n");
 	    fflush(ofd);
 	 }
@@ -96,7 +93,7 @@ void do_fd(void)
 	 else
 	    buf[j] = '.';
       }
-       if (j) printline(offset, num, buf, ch == EOF);
+      if (j) printline(offset, num, buf, ch == EOF);
    }
 }
 

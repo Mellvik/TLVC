@@ -518,7 +518,7 @@ int INITPROC directhd_init(void)
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
 	localbuf = heap_alloc(BLOCK_SIZE, HEAP_TAG_DRVR);	/* permanent bounce buffer */
 	if (!localbuf) {
-	    printk("athd: cannot allocate bounce buffer\n");
+	    printk("hd: cannot allocate bounce buffer\n");
 	    return -ENOMEM;
 	}
 	ide_buffer = (word_t *)localbuf;
@@ -532,7 +532,7 @@ int INITPROC directhd_init(void)
 	mdelay(OLD_IDE_DELAY);
 	i = STATUS(port);
 	if (!i || (i & 1) == 1) { /* error - drive not found or non-ide */
-	    //printk("athd%d (port 0x%x) not found (%x)\n", drive, port, i);
+	    //printk("hd%d (port 0x%x) not found (%x)\n", drive, port, i);
 	    continue;	/* Proceed with next drive.
 			 * Always do this, even if the master drive
 			 * is missing.  */
@@ -629,7 +629,7 @@ int INITPROC directhd_init(void)
 	    }
 #endif	/* USE_MULTISECT_IO */
 	    printk("\n");
-	    //printk("athd%d: IDE data 47-49: %04x, %04x, %04x\n", drive, 
+	    //printk("hd%c: IDE data 47-49: %04x, %04x, %04x\n", 'a'+drive, 
 		//ide_buffer[47], ide_buffer[48], ide_buffer[49]);
 	} else
 	    printk("hd%c: No valid drive ID\n", ('a'+drive));
@@ -639,7 +639,7 @@ int INITPROC directhd_init(void)
 #endif
     }
     if (!hdcount) {
-	printk("athd: no drives found\n");
+	printk("hd: no drives found\n");
 	return 0;
     }
 

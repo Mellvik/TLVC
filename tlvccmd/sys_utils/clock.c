@@ -178,6 +178,9 @@
 
 #define AST_CHIPTYPE	0x0D	/* Distinguish between Ricoh and NS chip via
 				 * this register */
+#define AST_CHIP_NONE	-1
+#define AST_CHIP_RI	0
+#define AST_CHIP_NS	2
 
 /* Globals */
 int	readit = 0;
@@ -339,7 +342,7 @@ int ast_chiptype(void)
     /* Otherwise (all hw) returns 0xff */
 
     if ((ast_getreg(1) + ast_getreg(2) + ast_getreg(3) + ast_getreg(4)) / 4 == ast_getreg(1))
-	return -1;
+	return AST_CHIP_NONE;
 
     ast_putreg(AST_CHIPTYPE, tmp);
     return (ast_getreg(AST_CHIPTYPE) & 0x2);
@@ -348,7 +351,7 @@ int ast_chiptype(void)
 #ifdef AST_TEST
 void show_astclock(void)
 {
-    if (ast_chiptype()) {
+    if (ast_chiptype() != AST_CHIP_NONE) {
 	printf("AST clock (NS): %d/%d/%d - %02d:%02d:%02d.%d\n", ast_getbcd(AST_NS_DOM), ast_getbcd(AST_NS_MON),
 	       ast_getreg(AST_NS_YEAR) + 1980, ast_getbcd(AST_NS_HRS), ast_getbcd(AST_NS_MIN),
 	       ast_getbcd(AST_NS_SEC), ast_getbcd(AST_NS_MSEC));
@@ -450,7 +453,7 @@ int main(int argc, char **argv)
     }
 
     if (astclock || !cmos_probe()) {	/* don't run cmos_probe() if ASTclock is set */
-	if (ast_chiptype() < 0) {
+	if (ast_chiptype() == AST_CHIP_NONE) {
 	    printf("No RTC found on system, not setting date and time\n");
 	    exit(1);
 	} else {
@@ -590,7 +593,7 @@ void ast_gettime(struct tm *tm)
 {
     int wait = AST_RETRY;
 
-    if (ast_chiptype()) {
+    if (ast_chiptype() == AST_CHIP_NS) {
 
 	do {			/* NS clock chip */
 	    tm->tm_sec = ast_getbcd(AST_NS_SEC);
@@ -634,7 +637,7 @@ void cmos_gettime(struct tm *tm)
 
 void ast_settime(struct tm *tmp)
 {
-    if (ast_chiptype()) {
+    if (ast_chiptype() == AST_CHIP_NS) {
 	ast_putreg(AST_NS_CRST, 0xff);	/* clear counters */
 	ast_putbcd(AST_NS_SEC, tmp->tm_sec);
 	ast_putbcd(AST_NS_MIN, tmp->tm_min);
