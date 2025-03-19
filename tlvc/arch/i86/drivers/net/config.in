@@ -8,10 +8,10 @@ mainmenu_option next_comment
 	bool 'Ethernet device support' CONFIG_ETH y
 	if [ "$CONFIG_ETH" = "y" ]; then
 		bool 'NE2K'			CONFIG_ETH_NE2K y
-		bool 'WD/SMC8003'	CONFIG_ETH_WD y
-		bool '3C509'		CONFIG_ETH_EL3 y
+		bool 'WD/SMC80x3'	CONFIG_ETH_WD y
+		bool '3Com 3C509'		CONFIG_ETH_EL3 y
 		bool 'Intel EtherExpress 16'		CONFIG_ETH_EE16 y
-		bool 'Lance/79C760'     CONFIG_ETH_LANCE y
+		bool 'AMD Lance/79C760'     CONFIG_ETH_LANCE y
 
 	fi
 endmenu

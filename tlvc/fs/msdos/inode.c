@@ -18,11 +18,19 @@
 #ifdef CONFIG_FS_DEV
 /* FAT device table, increase DEVDIR_SIZE and DEVINO_BASE to add entries*/
 struct msdos_devdir_entry devnods[DEVDIR_SIZE] = {
+#ifdef CONFIG_BLK_DEV_HD
     { "hda",	S_IFBLK | 0644, MKDEV(5, 0) },
     { "hda1",	S_IFBLK | 0644, MKDEV(5, 1) },
     { "hda2",	S_IFBLK | 0644, MKDEV(5, 2) },
     { "hda3",	S_IFBLK | 0644, MKDEV(5, 3) },
     { "hda4",	S_IFBLK | 0644, MKDEV(5, 4) },
+    { "rhda",	S_IFCHR | 0644, MKDEV(5, 0) },
+    { "rhda1",	S_IFCHR | 0644, MKDEV(5, 1) },
+    { "rhda2",	S_IFCHR | 0644, MKDEV(5, 2) },
+    { "rhda3",	S_IFCHR | 0644, MKDEV(5, 3) },
+    { "rhda4",	S_IFCHR | 0644, MKDEV(5, 4) },
+#endif
+#ifdef CONFIG_BLK_DEV_BHD
     { "hdb",	S_IFBLK | 0644, MKDEV(5, 32)},
     { "bda",	S_IFBLK | 0644, MKDEV(3, 0) },
     { "bda1",	S_IFBLK | 0644, MKDEV(3, 1) },
@@ -34,11 +42,32 @@ struct msdos_devdir_entry devnods[DEVDIR_SIZE] = {
     { "bdb2",	S_IFBLK | 0644, MKDEV(3, 34)},
     { "bdb3",	S_IFBLK | 0644, MKDEV(3, 35)},
     { "bdb4",	S_IFBLK | 0644, MKDEV(3, 36)},
+#endif
+#ifdef CONFIG_BLK_DEV_FD
     { "df0",	S_IFBLK | 0644, MKDEV(2,  0)},
     { "df1",	S_IFBLK | 0644, MKDEV(2,  1)},
+    { "rdf0",	S_IFCHR | 0644, MKDEV(2,  0)},
+    { "rdf1",	S_IFCHR | 0644, MKDEV(2,  1)},
+#endif
+#ifdef CONFIG_BLK_DEV_BFD
     { "fd0",	S_IFBLK | 0644, MKDEV(3,128)},
     { "fd1",	S_IFBLK | 0644, MKDEV(3,160)},
+#endif
+#ifdef CONFIG_BLK_DEV_RAM
     { "rd0",	S_IFBLK | 0644, MKDEV(1, 0) },
+#endif
+#ifdef CONFIG_BLK_DEV_XD
+    { "xda",	S_IFBLK | 0644, MKDEV(6, 0) },
+    { "xda1",	S_IFBLK | 0644, MKDEV(6, 1) },
+    { "xda2",	S_IFBLK | 0644, MKDEV(6, 2) },
+    { "xda3",	S_IFBLK | 0644, MKDEV(6, 3) },
+    { "xda4",	S_IFBLK | 0644, MKDEV(6, 4) },
+    { "rxda",	S_IFCHR | 0644, MKDEV(6, 0) },
+    { "rxda1",	S_IFCHR | 0644, MKDEV(6, 1) },
+    { "rxda2",	S_IFCHR | 0644, MKDEV(6, 2) },
+    { "rxda3",	S_IFCHR | 0644, MKDEV(6, 3) },
+    { "rxda4",	S_IFCHR | 0644, MKDEV(6, 4) },
+#endif
     { "kmem",	S_IFCHR | 0644, MKDEV(1, 2) },
     { "null",	S_IFCHR | 0644, MKDEV(1, 3) },
     { "zero",	S_IFCHR | 0644, MKDEV(1, 5) },
@@ -53,11 +82,13 @@ struct msdos_devdir_entry devnods[DEVDIR_SIZE] = {
     { "ptyp0",	S_IFCHR | 0644, MKDEV(11, 8) },
     { "ttyp1",	S_IFCHR | 0644, MKDEV(4, 9) },
     { "ptyp1",	S_IFCHR | 0644, MKDEV(11, 9) },
+#ifdef CONFIG_ETH
     { "tcpdev",	S_IFCHR | 0644, MKDEV(8, 0) },
     { "ne0",	S_IFCHR | 0644, MKDEV(9, 0) },
     { "wd0",	S_IFCHR | 0644, MKDEV(9, 1) },
     { "3c0",	S_IFCHR | 0644, MKDEV(9, 2) },
     { "ee0",	S_IFCHR | 0644, MKDEV(9, 3) },
+#endif
 };
 #endif
 

@@ -44,7 +44,7 @@
 extern int directhd_initialized;
 #endif
 
-int boot_rootdev;	/* set by /bootopts options if configured*/
+int boot_rootdev;	/* set by /bootopts options if configured */
 extern int boot_partition;
 char running_qemu;	/* for directhd/fd */
 
@@ -60,7 +60,6 @@ void INITPROC device_init(void)
 
     for (p = gendisk_head; p; p = p->next)
 	setup_dev(p);
-    //printk("boot_rootdev 0x%x, ", boot_rootdev);
 
     /*
      * The bootloader may have passed us a ROOT_DEV which is actually a BIOS

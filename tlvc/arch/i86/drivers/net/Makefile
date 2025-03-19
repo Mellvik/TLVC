@@ -40,6 +40,9 @@ endif
 ifeq ($(CONFIG_ETH_EE16), y)
 OBJS += ee16-asm.o ee16.o
 endif
+ifeq ($(CONFIG_ETH_LANCE), y)
+OBJS += lance.o
+endif
 
 all: net_drv.a
 

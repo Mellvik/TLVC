@@ -169,7 +169,7 @@ void finvalidate_inodes(kdev_t dev, int force)
         prev = inode->i_prev;	/* clear_inode() changes the queues.. */
 	if (inode->i_dev != dev) continue;
 	if (!force && (inode->i_count || inode->i_dirt || inode->i_lock))
-	    printk("VFS: inode %04x busy on removed device %D\n", inode, dev);
+	    printk("VFS: inode %lu busy on removed device %D\n", inode->i_ino, dev);
 	else
 	    clear_inode(inode);
     } while ((inode = prev) != NULL);

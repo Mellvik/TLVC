@@ -253,10 +253,10 @@ void blk_scan(void)
 	segs[i].end = curend;
 	if (Pflag) return;
 
-	printf("Kernel heap (DS-base %x):\n\t   SEG   OFFS   SIZE\n", ds);
+	printf("Kernel heap:\n\t   SEG   OFFS   SIZE\n");
 	int tot = 0;
 	for (i = 0; heap[i].base; i++) {
-	    printf(" Block %d: %x   %x  %5u bytes\n", i+1, (heap[i].base>>4) + ds, heap[i].base,
+	    printf(" Block %d: %x   %x  %5u bytes\n", i+1, ds, heap[i].base,
 	    	     heap[i].end - heap[i].base);
 	    tot += heap[i].end - heap[i].base;
 	}
