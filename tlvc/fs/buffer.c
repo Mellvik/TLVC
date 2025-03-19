@@ -80,7 +80,7 @@ static struct buffer_head *L1map[MAX_NR_MAPBUFS]; /* L1 indexed pointer to L2 bu
 static struct wait_queue L1wait;                  /* Wait for a free L1 buffer area */
 static int lastL1map;
 #endif
-static int xms_enabled;
+int xms_enabled;
 static int map_count, remap_count, unmap_count;
 
 static int nr_free_bh, nr_bh;
@@ -220,10 +220,16 @@ int INITPROC buffer_init(void)
     if (!buffer_heads) return 1;
 #ifdef CONFIG_FAR_BUFHEADS
     size_t size = bufs_to_alloc * sizeof(ext_buffer_head);
-    segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
-    if (!seg) return 1;
-    fmemsetw(0, seg->base, 0, size >> 1);
-    ext_buffer_heads = _MK_FP(seg->base, 0);
+    if (xms_enabled) {		/* use HMA for ext headers */
+	unsigned int hma_seg = 0xFFFF; 
+	fmemsetw(0x10, hma_seg, 0, size >> 1);
+	ext_buffer_heads = _MK_FP(hma_seg, 0x10);
+    } else {
+	segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
+	if (!seg) return 1;
+	fmemsetw(0, seg->base, 0, size >> 1);
+	ext_buffer_heads = _MK_FP(seg->base, 0);
+    }
 #endif
     bh_next = bh_lru = bh_llru = buffer_heads;
 

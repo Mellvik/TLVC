@@ -27,6 +27,7 @@
 #   USE_A20ASM		- use Chris Giese A20.ASM method (send D0, read, OR 2, D1, write)
 #   USE_HIMEM_AT	- use himem.sys PC AT method (send D1,DF,FF)
 #define USE_A20ASM
+#define USE_BIOS
 //#define USE_HIMEM_AT
 
 	.arch	i386,nojumps
@@ -118,11 +119,13 @@ enable_unreal_mode:
 # Attempt to enable A20 address gate, return 0 on fail
 enable_a20_gate:
 	mov	$1,%ah		# enable A20
+#ifdef USE_BIOS
 	call	bios_set_a20	# try BIOS first
 	call	verify_a20	# returns 1 if enabled, 0 if disabled
 	and	%ax,%ax
 	jnz	1f
 	mov	$1,%ah		# enable A20
+#endif
 	call	set_a20		# call configurable A20 handler
 	call	verify_a20	# returns 1 if enabled, 0 if disabled
 1:	ret
@@ -161,6 +164,7 @@ verify_a20:
 
 #
 # enable/disable A20 gate using keyboard port/controller, entry AH=0 disable
+#ifdef USE_BIOS
 bios_set_a20:
 	or	%ah,%ah
 	jz	bios_reset_a20
@@ -171,6 +175,7 @@ bios_reset_a20:
 	mov	$0x2400,%ax	# BIOS disable A20
 	int	$0x15
 	ret
+#endif
 
 #ifdef USE_A20ASM
 set_a20:

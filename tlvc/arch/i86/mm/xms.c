@@ -12,8 +12,11 @@
 #include <linuxmt/debug.h>
 #include <arch/segment.h>
 
+#undef debug
+#define debug printk
+
 /* linear address to start XMS buffer allocations from */
-#define XMS_START_ADDR    0x00100000L	/* 1M */
+#define XMS_START_ADDR    0x00110000L	/* 1M+64k */
 //#define XMS_START_ADDR  0x00FA0000L	/* 15.6M (Compaq with only 1M ram) */
 
 #ifdef CONFIG_FS_XMS_BUFFER
@@ -35,7 +38,7 @@ extern void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t 
  *     in linear32_fmemcypw.
  */
 
-static int xms_enabled;
+extern int xms_enabled;		/* set in buffer.c */
 static long_t xms_alloc_ptr = XMS_START_ADDR;
 
 /* try to enable unreal mode and A20 gate. Return 1 if successful */
@@ -57,16 +60,18 @@ int xms_init(void)
 	debug(" now %s, ", enabled? "on" : "off");
 	if (!enabled) {
 		printk("disabled, A20 error, ");
-		return 0;
-	}
+		//return 0;
+	} else {
 #ifdef CONFIG_FS_XMS_INT15
 	printk("using int 15/1F, ");
 #else
 	enable_unreal_mode();
 	printk("using unreal mode, ");
 #endif
-	xms_enabled = 1;	/* enables xms_fmemcpyw()*/
-	return xms_enabled;
+	//xms_enabled = 1;	/* enables xms_fmemcpyw()*/
+	//return xms_enabled;
+	}
+	return enabled;
 }
 
 /* allocate from XMS memory - very simple for now, no free */
@@ -75,7 +80,7 @@ ramdesc_t xms_alloc(long_t size)
 	long_t mem = xms_alloc_ptr;
 
 	xms_alloc_ptr += size;
-	//printk("xms_alloc %lx size %lu\n", mem, size);
+	printk("xms_alloc %lx size %lu\n", mem, size);
 	return mem;
 }
 
@@ -204,6 +209,7 @@ void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg
 	//gp->flags_limit_19_16 = 0xCF;	/* page-granular, 32-bit, limit=4GB */
 	gp->base_31_24 = dst_seg >> 24;
 	block_move(gdt_table, count);
+	enable_a20_gate();	/* The BIOS call turns off A20 and we need it for HMA access */
 }
 #endif
 
