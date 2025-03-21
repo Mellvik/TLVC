@@ -116,7 +116,7 @@
 #define IS_IMMUTABLE(inode) ((inode)->i_flags & S_IMMUTABLE)
 
 #ifdef CONFIG_FS_XMS_BUFFER
-#define CONFIG_FAR_BUFHEADS	/* split buffer_head and move to far memory */
+#define CONFIG_FAR_BUFHEADS	/* split buffer_head and move to far memory/HMA  */
 #endif
 
 /* allow for reduced stack usage when not using async IO */
@@ -133,20 +133,18 @@ struct buffer_head {
 /* a little tricky here - buffer_head is split into near and far components */
 struct ext_buffer_head_s {
 #endif
-    block32_t			b_blocknr;	/* 32-bit block numbers required for FAT */
-    kdev_t			b_dev;
-    struct buffer_head		*b_next_lru;
-    struct buffer_head		*b_prev_lru;
-    unsigned char		b_count;
-    unsigned char		b_locked;
-    unsigned char		b_dirty;
-    unsigned char		b_uptodate;
-//#ifdef CONFIG_FS_EXTERNAL_BUFFER
-    ramdesc_t			b_L2seg;	/* L2 buffer address @ seg:0 */
-				/* Also used in raw drivers to hold the user process data seg */
-    char			b_mapcount;	/* Count of L2 buffer mapped into L1 */
-    char			b_nr_sectors;	/* Used in raw drivers only */
-//#endif
+    block32_t		b_blocknr;	/* 32-bit block numbers required for FAT */
+    kdev_t		b_dev;
+    struct buffer_head	*b_next_lru;
+    struct buffer_head	*b_prev_lru;
+    unsigned char	b_count;
+    unsigned char	b_locked;
+    unsigned char	b_dirty;
+    unsigned char	b_uptodate;
+    ramdesc_t		b_L2seg;	/* L2 buffer address @ seg:0 */
+			/* Also used in raw drivers to hold the user process data seg */
+    char		b_mapcount;	/* Count of L2 buffer mapped into L1 */
+    char		b_nr_sectors;	/* Used in raw drivers only */
 };
 
 #ifdef CONFIG_FAR_BUFHEADS

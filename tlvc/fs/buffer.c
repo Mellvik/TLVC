@@ -70,7 +70,9 @@ static struct buffer_head *bh_next;
  *   extended/xms memory will be used and CONFIG_FS_NR_EXT_BUFFERS ignored.
  * Total extended/xms memory would be (BLOCK_SIZE * CONFIG_FS_NR_XMS_BUFFERS).
  * Otherwise, total main memory used is (BLOCK_SIZE * CONFIG_FS_NR_EXT_BUFFERS),
- * each main memory segment being up to 64K in size for segment register addressing
+ * each main memory segment being up to 64K in size for segment register addressing.
+ * Buffer headers are allocated in main memory unless xms memory is used, in which
+ * case the HMA segment is used.
  *
  * Number of external/main (L2) buffers specified in config by CONFIG_FS_NR_EXT_BUFFERS
  * Number of extended/xms  (L2) buffers specified in config by CONFIG_FS_NR_XMS_BUFFERS
@@ -80,7 +82,7 @@ static struct buffer_head *L1map[MAX_NR_MAPBUFS]; /* L1 indexed pointer to L2 bu
 static struct wait_queue L1wait;                  /* Wait for a free L1 buffer area */
 static int lastL1map;
 #endif
-static int xms_enabled;
+extern int xms_size;		/* kbytes, 0 if not present */
 static int map_count, remap_count, unmap_count;
 
 static int nr_free_bh, nr_bh;
@@ -135,7 +137,7 @@ static void INITPROC add_buffers(int nbufs, char *buf, ramdesc_t seg)
 	size_t offset;
 
         /* segment adjusted to require no offset to buffer */
-        offset = xms_enabled? ((n & 63) << BLOCK_SIZE_BITS) :
+        offset = xms_size? ((n & 63) << BLOCK_SIZE_BITS) :
                               ((n & 63) << (BLOCK_SIZE_BITS - 4));
         ebh->b_L2seg = seg + offset;
 #else
@@ -193,14 +195,14 @@ int INITPROC buffer_init(void)
 
 #ifdef CONFIG_FS_XMS_BUFFER
     if (nr_xms_bufs)
-        xms_enabled = xms_init();       /* try to enable unreal mode and A20 gate*/
-    if (xms_enabled)
-        bufs_to_alloc = nr_xms_bufs;
+        xms_init();       /* try to enable unreal mode and A20 gate*/
+    if (xms_size)	  /* set in xms_init() */
+        bufs_to_alloc = (nr_xms_bufs > (xms_size-64)) ? (xms_size-64) : nr_xms_bufs;
 #endif
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
 #else
-    if (bufs_to_alloc > 256) bufs_to_alloc = 256; /* protect against high XMS value*/
+    if (bufs_to_alloc > 256) bufs_to_alloc = 256;   /* protect against high XMS value*/
 #endif
 
 #else
@@ -220,10 +222,17 @@ int INITPROC buffer_init(void)
     if (!buffer_heads) return 1;
 #ifdef CONFIG_FAR_BUFHEADS
     size_t size = bufs_to_alloc * sizeof(ext_buffer_head);
-    segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
-    if (!seg) return 1;
-    fmemsetw(0, seg->base, 0, size >> 1);
-    ext_buffer_heads = _MK_FP(seg->base, 0);
+    if (xms_size) {		/* use HMA for ext headers */
+	seg_t hma_seg = 0xFFFF; 
+	fmemsetw((void *)0x10, hma_seg, 0, size >> 1);
+	ext_buffer_heads = _MK_FP(hma_seg, 0x10);
+	printk(", HMA available\n     ");
+    } else {
+	segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
+	if (!seg) return 1;
+	fmemsetw(0, seg->base, 0, size >> 1);
+	ext_buffer_heads = _MK_FP(seg->base, 0);
+    }
 #endif
     bh_next = bh_lru = bh_llru = buffer_heads;
 
@@ -238,7 +247,7 @@ int INITPROC buffer_init(void)
             nbufs = 64;
         bufs_to_alloc -= nbufs;
 #ifdef CONFIG_FS_XMS_BUFFER
-        if (xms_enabled) {
+        if (xms_size) {
 	    ramdesc_t xmsseg = xms_alloc((long_t)nbufs << BLOCK_SIZE_BITS);
 	    add_buffers(nbufs, 0, xmsseg);
 	    if (!b_base) b_base = xmsseg;
@@ -253,7 +262,7 @@ int INITPROC buffer_init(void)
         }
     } while (bufs_to_alloc > 0);
     printk("%d %s buffers (base @ 0x%lx), %dK L1-cache, %d req hdrs\n", abufs,
-        xms_enabled? "xms": "ext", (unsigned long)b_base, nr_map_bufs, NR_REQUEST);
+        xms_size? "xms": "ext", (unsigned long)b_base, nr_map_bufs, NR_REQUEST);
 #else
     /* no EXT or XMS buffers, internal L1 only */
     add_buffers(nr_map_bufs, L1buf, kernel_ds);

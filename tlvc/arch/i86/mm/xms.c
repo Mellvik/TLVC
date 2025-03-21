@@ -13,7 +13,7 @@
 #include <arch/segment.h>
 
 /* linear address to start XMS buffer allocations from */
-#define XMS_START_ADDR    0x00100000L	/* 1M */
+#define XMS_START_ADDR    0x00110000L	/* 1M+64k */
 //#define XMS_START_ADDR  0x00FA0000L	/* 15.6M (Compaq with only 1M ram) */
 
 #ifdef CONFIG_FS_XMS_BUFFER
@@ -35,11 +35,11 @@ extern void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t 
  *     in linear32_fmemcypw.
  */
 
-static int xms_enabled;
+int xms_size;
 static long_t xms_alloc_ptr = XMS_START_ADDR;
 
 /* try to enable unreal mode and A20 gate. Return 1 if successful */
-int xms_init(void)
+void xms_init(void)
 {
 	int enabled;
 
@@ -48,25 +48,31 @@ int xms_init(void)
 #ifndef CONFIG_FS_XMS_INT15
 	if (check_unreal_mode() <= 0) {
 		printk("disabled, requires 386, ");
-		return 0;
+		return;
 	}
 #endif
+	xms_size = get_xms_size();
+	if (!xms_size) {
+		printk("not available\n");
+		return;
+	}
+	printk("%uk available, ", xms_size);
 	debug("A20 was %s", verify_a20()? "on" : "off");
 	enable_a20_gate();
 	enabled = verify_a20();
 	debug(" now %s, ", enabled? "on" : "off");
 	if (!enabled) {
-		printk("disabled, A20 error, ");
-		return 0;
-	}
+		xms_size = 0;
+		printk("disabled, A20 error\n");
+	} else {
 #ifdef CONFIG_FS_XMS_INT15
-	printk("using int 15/1F, ");
+		printk("using int 15/1F");
 #else
-	enable_unreal_mode();
-	printk("using unreal mode, ");
+		enable_unreal_mode();
+		printk("using unreal mode");
 #endif
-	xms_enabled = 1;	/* enables xms_fmemcpyw()*/
-	return xms_enabled;
+	}
+	return;
 }
 
 /* allocate from XMS memory - very simple for now, no free */
@@ -87,7 +93,7 @@ void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_src || need_xms_dst) {
-		if (!xms_enabled) panic("xms_fmemcpyw");
+		if (!xms_size) panic("xms_fmemcpyw");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
 
@@ -109,7 +115,7 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_src || need_xms_dst) {
-		if (!xms_enabled) panic("xms_fmemcpyb");
+		if (!xms_size) panic("xms_fmemcpyb");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
 
@@ -152,7 +158,7 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_dst) {
-		if (!xms_enabled) panic("xms_fmemset");
+		if (!xms_size) panic("xms_fmemset");
 
 #ifdef CONFIG_FS_XMS_INT15
 		panic("xms_fmemset int15");
@@ -204,6 +210,7 @@ void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg
 	//gp->flags_limit_19_16 = 0xCF;	/* page-granular, 32-bit, limit=4GB */
 	gp->base_31_24 = dst_seg >> 24;
 	block_move(gdt_table, count);
+	enable_a20_gate();	/* The BIOS call turns off A20 and we need it for HMA access */
 }
 #endif
 
