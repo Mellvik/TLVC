@@ -35,7 +35,7 @@ extern void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t 
  *     in linear32_fmemcypw.
  */
 
-int xms_size;		/* set in buffer.c */
+int xms_size;
 static long_t xms_alloc_ptr = XMS_START_ADDR;
 
 /* try to enable unreal mode and A20 gate. Return 1 if successful */
@@ -63,7 +63,7 @@ void xms_init(void)
 	debug(" now %s, ", enabled? "on" : "off");
 	if (!enabled) {
 		xms_size = 0;
-		printk("disabled, A20 error, ");
+		printk("disabled, A20 error\n");
 	} else {
 #ifdef CONFIG_FS_XMS_INT15
 		printk("using int 15/1F");

@@ -70,7 +70,9 @@ static struct buffer_head *bh_next;
  *   extended/xms memory will be used and CONFIG_FS_NR_EXT_BUFFERS ignored.
  * Total extended/xms memory would be (BLOCK_SIZE * CONFIG_FS_NR_XMS_BUFFERS).
  * Otherwise, total main memory used is (BLOCK_SIZE * CONFIG_FS_NR_EXT_BUFFERS),
- * each main memory segment being up to 64K in size for segment register addressing
+ * each main memory segment being up to 64K in size for segment register addressing.
+ * Buffer headers are allocated in main memory unless xms memory is used, in which
+ * case the HMA segment is used.
  *
  * Number of external/main (L2) buffers specified in config by CONFIG_FS_NR_EXT_BUFFERS
  * Number of extended/xms  (L2) buffers specified in config by CONFIG_FS_NR_XMS_BUFFERS
@@ -200,7 +202,7 @@ int INITPROC buffer_init(void)
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
 #else
-    if (bufs_to_alloc > 256) bufs_to_alloc = 256; /* protect against high XMS value*/
+    if (bufs_to_alloc > 256) bufs_to_alloc = 256;   /* protect against high XMS value*/
 #endif
 
 #else
