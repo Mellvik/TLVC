@@ -36,13 +36,14 @@ int check_unreal_mode(void);	/* check if unreal mode capable, returns > 0 on suc
 void enable_unreal_mode(void);	/* requires 386+ CPU to call */
 int enable_a20_gate(void);	/* returns 0 on fail */
 int verify_a20(void);		/* returns 0 if a20 disabled */
+int get_xms_size(void);		/* returns 0 if none or error, else KB above 1M */
 
 /* XMS memory management */
 #ifdef CONFIG_FS_XMS_BUFFER
 typedef __u32 ramdesc_t;	/* special physical ram descriptor */
 
 /* allocate from XMS memory */
-int xms_init(void);		/* enables unreal mode and A20 gate */
+void xms_init(void);		/* enables xms and A20 gate if present */
 ramdesc_t xms_alloc(long_t size);
 
 /* copy to/from XMS or far memory - XMS requires unreal mode and A20 gate enabled */

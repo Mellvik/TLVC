@@ -39,6 +39,7 @@
 	.global	enable_a20_gate
 	.global	verify_a20
 	.global	set_a20
+	.global get_xms_size
 	.global	linear32_fmemcpyw
 	.global	linear32_fmemcpyb
 	.global	linear32_fmemset
@@ -114,6 +115,15 @@ enable_unreal_mode:
 	popf			# restore interrupt status
 
 	mov	$1,%ax		# system is in unreal mode, return 1
+	ret
+
+# Get XMS size from BIOS; may or may not be reliable
+get_xms_size:
+	mov     $0x8800,%ax     # BIOS enable A20
+	int     $0x15           # CF clear on success
+	jnc	1f
+	xor	%ax,%ax		# just return zero 
+1:
 	ret
 
 # Attempt to enable A20 address gate, return 0 on fail
