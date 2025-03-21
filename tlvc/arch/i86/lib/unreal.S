@@ -119,8 +119,8 @@ enable_unreal_mode:
 
 # Get XMS size from BIOS; may or may not be reliable
 get_xms_size:
-	mov     $0x8800,%ax     # BIOS enable A20
-	int     $0x15           # CF clear on success
+	mov     $0x8800,%ax
+	int     $0x15		# CF clear on success
 	jnc	1f
 	xor	%ax,%ax		# just return zero 
 1:
