@@ -1,3 +1,5 @@
+# arch/i86/boot/Makefile
+#
 # Note that the standard Makefile rules and defines have been moved to
 # the file below.
 
@@ -11,7 +13,7 @@ USEBCC 		= Y
 
 CLEANDEP	= 
 
-CLEANME 	= Image bootsect nbImage netbootsect setup system
+CLEANME 	= Image setup system system.sym
 
 DEPEND  	= 
 

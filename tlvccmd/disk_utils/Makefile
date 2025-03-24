@@ -35,4 +35,4 @@ ramdisk: ramdisk.o $(TINYPRINTF)
 	$(LD) $(LDFLAGS) -o ramdisk ramdisk.o $(TINYPRINTF) $(LDLIBS)
 
 clean:
-	rm -f *.o $(FORMATMOD) core $(PRGS)
+	rm -f *.o $(PRGS)

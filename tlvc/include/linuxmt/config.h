@@ -95,9 +95,9 @@
 
 /* Don't touch these, unless you really know what you are doing. */
 #define DEF_INITSEG	0x0100		/* initial Image load address by boot code */
-#define DEF_SYSSEG	0x1300		/* kernel copied here by setup.S code */
+#define DEF_SYSSEG	0x1400		/* kernel copied here by setup.S code */
 #define DEF_SETUPSEG	(DEF_INITSEG + 0x20)
-#define DEF_SYSSIZE	0x2F00
+#define DEF_SYSMAX	0x2F00
 
 #ifdef CONFIG_ROMCODE
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
@@ -121,15 +121,15 @@
 
 /* Define segment locations of low memory, must not overlap.
 
-   Reorganized dec 2024 (HS): The bootopts buffer and the FD bounce buffer
+   Reorganized Dec 2024 (HS): The bootopts buffer and the FD bounce buffer
    are now the same (they're used at different stages), so there is no
    OPTSEG to release after boot. Also, the setup-data seg (REL_INITSEG) now
    overlaps with the FD_CACHE if present. If there is a FD_CACHE allocated
-   and not used, it will be released - including the detup-data seg.
+   and not used, it will be released - including the setup-data segment.
    If there is no FD_CACHE, the setup-data-seg may be released but its small
-   size may make less than useful.
+   size may make it less than useful.
 
-   NOTE: The meminfo program makes assumptions about the order of these blocks!
+   NOTE: The meminfo(1) program makes assumptions about the order of these blocks!
 
  | kernel text     |
  +-----------------+ Kernel CS = REL_SYSSEG = (XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
