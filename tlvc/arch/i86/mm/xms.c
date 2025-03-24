@@ -51,6 +51,11 @@ void xms_init(void)
 		printk("disabled, requires 386, ");
 		return;
 	}
+#else
+	if (kernel_cs == 0xffffU) {
+		printk("Not available with INT15: Kernel in HMA, ");
+		return;
+	} 
 #endif
 	xms_size = get_xms_size();
 	if (!xms_size) {

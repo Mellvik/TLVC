@@ -80,6 +80,8 @@
 #include <linuxmt/boot.h>
 
 // Relocating loader debug option
+// NOTE: If running the kernel in HMA, setup hangs when jumping to the kernel if
+// debug_output is active and serial_output is NOT active.
 debug_output    =       0       // display various register values during execution
 serial_output   =       0       // use INT 14 serial instead of INT 10 console out
 debug_loader    =       0       // display relocations
@@ -91,6 +93,7 @@ debug_loader    =       0       // display relocations
 
 #define MINIX_SPLITID_LOW 0x0301L
 #define KERNEL_MAGICNUMBER MINIX_SPLITID_LOW
+#define HMA_SEG 0xffff
 
 #ifndef CONFIG_ROMCODE
   INITSEG  = DEF_INITSEG	// initial setup data seg and initial Image load address
@@ -173,7 +176,7 @@ no_sig:	lea	no_sig_mess,%si
 1:                             // And halt
 	jmp	1b
 
-no_sig_mess:	.ascii	"No TLVC setup signature found ...\0"
+no_sig_mess:	.ascii	"No ELKS setup signature found ...\0"
 
 // If setup and kernel were loaded as a blob, we need to separate them out,
 // then move to our own stack
@@ -477,11 +480,11 @@ sys_hdr_msg:
 
 sys_hdr_good:
 	mov %sp,%bp
-	mov 8,%dx     // -2(%bp) code size
+	mov 8,%dx     // -2(%bp) code (text) size
 	push %dx
 	add $15,%dx   // align on next paragraph (issue #209)
 	mov $4,%cl
-	shr %cl,%dx   // DX = code segment size in paragraph
+	shr %cl,%dx   // DX = code size in paragraph
 	shr %cl,%bx   // BX = header size in paragraphs
 
 	mov 12,%ax    // -4(%bp) data size
@@ -509,13 +512,37 @@ sys_hdr_good:
 	mov %ax,%ds
 	xor %si,%si
 
+#ifdef CONFIG_HMA_KERNEL
+	mov $0x8800,%ax
+	int $0x15	// get xms size
+	jc  no_xms
+	cmp $64,%ax
+	jl  no_xms
+	mov $0x2401,%ax
+	int $0x15	// Set a20
+	jnc 2f
+	call set_a20
+	call verify_a20
+	jc no_xms
+2:
+	mov $HMA_SEG,%ax
+	jmp 1f
+no_xms:
+#endif
 	mov $REL_SYSSEG,%ax
+1:
 	mov %ax,%es
 	mov %ax,-18(%bp) // save .text segment
 	.ifeq debug_output
 	call hex4sp
 	.endif
-	add %dx,%ax      // add code paragraphs
+
+	add %dx,%ax	// add code paragraphs = .fartext start
+#ifdef CONFIG_HMA_KERNEL
+	jnc 1f		// skip if it didn't overflow (no HMA) 
+	movw $REL_SYSSEG,%ax	// .fartext start here
+1:
+#endif
 	mov %ax,-20(%bp) // save .data start in case no .fartext
 	xor %di,%di
 
@@ -559,6 +586,11 @@ sys_hdr_good:
 
 	mov -18(%bp),%ax  // kernel .text segment
 	add %dx,%ax       // skip code paragraphs
+#ifdef CONFIG_HMA_KERNEL
+	jnc 1f
+	mov $REL_SYSSEG,%ax	// if text in HMA, start fartext here
+#endif
+1:
 	mov %ax,%es
 	mov %ax,-20(%bp)  // save .fartext segment
 	xor %di,%di
@@ -859,6 +891,89 @@ arch_get_mem:
 	int $0x12   // AX in KB
 #endif
 	ret
+
+// A20 handlers - from unrteal.c
+// Even quite modern BIOSes don't support the A20 INT15 calls (QEMU does)
+// set_a20: Attempt to set the A20 line on 286 and higher
+// verify_a20: Check that a20 is set/working
+
+#ifdef CONFIG_HMA_KERNEL
+set_a20:
+	pushf			# save interrupt status
+	cli			# interrupts off
+	call	empty_8042
+	mov	$0xD0,%al	# 8042 command byte to read output port
+	out	%al,$0x64
+1:	in	$0x64,%al
+	test	$1,%al		# output buffer (data _from_ keyboard) full?
+	jz	1b		# no, loop
+
+	in	$0x60,%al	# read output port
+	or	%ah,%ah
+	jne	2f
+	and	$0xFD,%al	# AND ~2 to disable
+	jmp	3f
+2:	or	$2,%al		# OR 2 to enable
+3:	mov	%al,%ah
+
+	call	empty_8042
+	mov	$0xD1,%al	# 8042 command byte to write output port
+	out	%al,$0x64
+
+	call	empty_8042
+	mov	%ah,%al		# the value to write
+	out	%al,$0x60
+
+	call	empty_8042
+	popf			# restore interrupt status
+	ret
+
+0:	jmp	1f		# a delay (probably not effective nor necessary)
+1:	jmp	2f
+2:	in	$0x60,%al	# read and discard data/status from 8042
+empty_8042:
+	jmp	1f
+1:	jmp	2f		# delay
+2:	in	$0x64,%al
+	test	$1,%al		# output buffer (data _from_ keyboard) full?
+	jnz	0b		# yes, read and discard
+	test	$2,%al		# input buffer (data _to_ keyboard) empty?
+	jnz	empty_8042	# no, loop
+	ret
+
+// verify if A20 gate is enabled, return 0 if disabled
+verify_a20:
+	push	%ds
+	push	%es
+
+	xor	%ax,%ax
+	mov	%ax,%ds
+	dec	%ax
+	mov	%ax,%es
+
+	pushf			# save interrupt status
+	cli			# interrupts off
+
+	mov	%es:0x10,%ax	# read word at FFFF:0010 (1 meg)
+	not	%ax		# 1's complement
+	pushw	0		# save word at 0000:0000 (0)
+
+	mov	%ax,0		# word at 0 = ~(word at 1 meg)
+	mov	0,%ax		# read it back
+	cmp	%es:0x10,%ax	# fail if word at 0 == word at 1 meg
+
+	popw	0
+
+	jz	1f		# if ZF=1, the A20 gate is NOT enabled
+	clc			# no carry: OK
+9:	popf			# restore interrupt status
+	pop	%es
+	pop	%ds
+	ret
+1:	stc			# Carry - error
+	jmp	9b
+
+#endif
 
 // Set INITSEG values for IBM PC
 // Determine display type using INT 10h AH=12 and INT 10h AH=1A

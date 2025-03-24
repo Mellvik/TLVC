@@ -59,6 +59,7 @@ mainmenu_option next_comment
 	bool 'Enable tracing (set on for development)' CONFIG_TRACE   n
 	bool 'Use INT 0Fh in idle loop for timer' CONFIG_TIMER_INT0F  n
 	bool 'Use INT 1Ch from BIOS for timer'    CONFIG_TIMER_INT1C  n
+	bool 'Use HMA memory for kernel if available' CONFIG_HMA_KERNEL n
 
 	if [ "$CONFIG_ARCH_IBMPC" = "y" ] || [ "$CONFIG_ARCH_8018X" = "y" ]; then
 		bool 'Build kernel as ROM-bootable'   CONFIG_ROMCODE      n
