@@ -18,6 +18,8 @@
 
 #ifdef CONFIG_FS_XMS_BUFFER
 
+extern int xms_size;
+
 /* these used in CONFIG_FS_XMS_INT15 only */
 struct gdt_table;
 extern int block_move(struct gdt_table *gdtp, size_t words);
@@ -35,7 +37,6 @@ extern void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t 
  *     in linear32_fmemcypw.
  */
 
-int xms_size;
 static long_t xms_alloc_ptr = XMS_START_ADDR;
 
 /* try to enable unreal mode and A20 gate. Return 1 if successful */
