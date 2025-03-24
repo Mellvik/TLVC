@@ -132,12 +132,12 @@ entry1:
 	// Keep a pointer to the original table so that RESTORE_DDPT can
 	// restore it later
 
-	mov $0x78,%bx  // 0:78h (INT vector 1Eh)
-	lds (%bx),%si  // ds:si = BIOS original table
-	push %ds
-	push %si
-	push %cx       // push address 0:78h (cx = 0)
-	push %bx
+	//mov $0x78,%bx  // 0:78h (INT vector 1Eh)
+	//lds (%bx),%si  // ds:si = BIOS original table
+	//push %ds
+	//push %si
+	//push %cx       // push address 0:78h (cx = 0)
+	//push %bx
 .if floppy_table == entry
 	xor %di,%di
 .else
@@ -562,7 +562,7 @@ boot_it:
 	mov %cx,part_offset  // save sector offset of booted partition
 	mov %bx,part_offset+2
 
-	RESTORE_DDPT
+	//RESTORE_DDPT
 
 	mov $LOADSEG,%ax
 	mov %ax,%ds
