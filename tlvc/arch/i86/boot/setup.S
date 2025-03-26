@@ -62,6 +62,7 @@
 !	...
 !	0x1e2:	part_offset	long Sector offset of booted MBR partition
 !	0x1e6:	elks_magic	long "ELKS", written by build tool
+|	0x1ea:	xms_kbytes	word Size of XMS memory in Kbytes
 !	0x1ea-0x1ee:		5 bytes UNUSED
 !	0x1ef:	SETUPSEG	word UNUSED
 !	0x1f1:	setup_sects	byte in 512-byte sectors, written by build tool
@@ -512,10 +513,15 @@ sys_hdr_good:
 	mov %ax,%ds
 	xor %si,%si
 
-#ifdef CONFIG_HMA_KERNEL
+	push %ds
+	mov $SETUP_DATA,%ax
+	mov %ax,%ds
 	mov $0x8800,%ax
 	int $0x15	// get xms size
 	jc  no_xms
+	mov %ax,(xms_kbytes)
+	pop %ds
+#ifdef CONFIG_HMA_KERNEL
 	cmp $64,%ax
 	jl  no_xms
 	mov $0x2401,%ax
@@ -527,8 +533,10 @@ sys_hdr_good:
 2:
 	mov $HMA_SEG,%ax
 	jmp 1f
-no_xms:
 #endif
+no_xms:
+	movw $0,(xms_kbytes)
+	pop %ds
 	mov $REL_SYSSEG,%ax
 1:
 	mov %ax,%es
@@ -727,6 +735,8 @@ data_reloc:
 	.hex4sp	%cx,"entry:"
 	.if debug_output
 	.ifeq serial_output // if not serial output
+	mov $debug_prompt, %ax
+	call csputs
 	xor %ah,%ah         // read key press
 	int $0x16
 	.endif
@@ -874,6 +884,10 @@ hex4sp: call hex4
 
 hello_mess:
 	.ascii "\r\nTLVC Setup \0"
+.if debug_output
+debug_prompt:
+	.ascii "\r\nPress key to boot: \0"
+.endif
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Architecture specific routines for IBM PC
@@ -892,7 +906,7 @@ arch_get_mem:
 #endif
 	ret
 
-// A20 handlers - from unrteal.c
+// A20 handlers - from unreal.c
 // Even quite modern BIOSes don't support the A20 INT15 calls (QEMU does)
 // set_a20: Attempt to set the A20 line on 286 and higher
 // verify_a20: Check that a20 is set/working

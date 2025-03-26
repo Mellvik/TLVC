@@ -41,7 +41,7 @@
 
    The fields in /linux are mainly based on an old version of the Linux/x86
    Boot Protocol (https://www.kernel.org/doc/html/latest/x86/boot.html).
-   Fields which are specific to ELKS are indicated below.  */
+   Fields which are specific to ELKS and/or TLVC are indicated below.  */
 
 #ifndef DUMMYBOOT
 #define screen_cols     7               /* byte screen width*/
@@ -55,6 +55,7 @@
 #define setup_sects     0x1f1           /* byte 512-byte sectors used by setup.S*/
 #define syssize         0x1f4           /* word paragraph kernel size used by setup.S*/
 #define elks_flags      0x1f6           /* byte ELKS flags, BLOB and BIOS_DRV*/
+#define	xms_kbytes	0x1ea		/* word TLVC Kbytes of XMS available */
 #define root_dev        0x1fc           /* word BIOS drive or kdev_t ROOT_DEV*/
 #define boot_flag       0x1fe           /* word constant AA55h checked by boot sector*/
 #endif
