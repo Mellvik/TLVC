@@ -82,7 +82,7 @@ static struct buffer_head *L1map[MAX_NR_MAPBUFS]; /* L1 indexed pointer to L2 bu
 static struct wait_queue L1wait;                  /* Wait for a free L1 buffer area */
 static int lastL1map;
 #endif
-int xms_size;		/* kbytes, 0 if not present */
+extern int xms_size;		/* kbytes, 0 if not present */
 static int map_count, remap_count, unmap_count;
 
 static int nr_free_bh, nr_bh;
@@ -196,7 +196,7 @@ int INITPROC buffer_init(void)
 #ifdef CONFIG_FS_XMS_BUFFER
     if (nr_xms_bufs)
         xms_init();       /* try to enable unreal mode and A20 gate*/
-    if (xms_size)	  /* set in xms_init() */
+    if (xms_size)
         bufs_to_alloc = (nr_xms_bufs > (xms_size-64)) ? (xms_size-64) : nr_xms_bufs;
 #endif
 #ifdef CONFIG_FAR_BUFHEADS
@@ -222,16 +222,17 @@ int INITPROC buffer_init(void)
     if (!buffer_heads) return 1;
 #ifdef CONFIG_FAR_BUFHEADS
     size_t size = bufs_to_alloc * sizeof(ext_buffer_head);
-    if (xms_size) {		/* use HMA for ext headers */
-	seg_t hma_seg = 0xFFFF; 
+    seg_t hma_seg = 0xFFFFU; 
+    if (xms_size && kernel_cs != hma_seg) {		/* HMA available for ext headers */
 	fmemsetw((void *)0x10, hma_seg, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(hma_seg, 0x10);
-	//printk(", HMA available\n     ");
+	printk(", HMA bufheads\n     ");
     } else {
 	segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
 	if (!seg) return 1;
 	fmemsetw(0, seg->base, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(seg->base, 0);
+	printk(", EXT bufheads\n     ");
     }
 #endif
     bh_next = bh_lru = bh_llru = buffer_heads;

@@ -77,6 +77,11 @@ word_t getword(word_t off, word_t seg)
 	return word;
 }
 
+void p_divider_l(unsigned long seg, char *suffix)
+{
+	printf("%05lx:0+--------------------+ %s\n", seg, suffix);
+}
+
 void p_divider(unsigned int seg, char *suffix)
 {
 	printf("%04x:0 +--------------------+ %s\n", seg, suffix);
@@ -256,7 +261,7 @@ void blk_scan(void)
 	printf("Kernel heap:\n\t   SEG   OFFS   SIZE\n");
 	int tot = 0;
 	for (i = 0; heap[i].base; i++) {
-	    printf(" Block %d: %x   %x  %5u bytes\n", i+1, ds, heap[i].base,
+	    printf(" Block %d: %04x   %04x  %5u bytes\n", i+1, ds, heap[i].base,
 	    	     heap[i].end - heap[i].base);
 	    tot += heap[i].end - heap[i].base;
 	}
@@ -290,6 +295,12 @@ void mem_map(void)
 	    while (proc_list[seg].seg < proc_list[0].seg) seg--; 
 	}
 	printf("\n");
+	if (cs == 0xffffU) {	/* HMA kernel */
+		p_divider_l(0x11000L, "HMA top");
+		p_block(5, (long_t)0x10000, "Kernel text seg", "");
+		p_divider_l((long)cs+1, "HMA start");
+		printf("\n");
+	}
 	p_divider(segs[0].end, "Top of conv. memory");
 	i = 8;
 	if (Pflag) i = 1;
@@ -306,7 +317,7 @@ void mem_map(void)
 	p_block(3, (long_t)(heap[0].end-heap[0].base+1), "Main kernel heap", "");
 	p_subdiv(heap[0].base, "", 1);
 	if (heap[1].base) {		/* More heap found: the released bootopts buffer */
-	    p_block(1, (long_t)(heap[0].base-heap[1].end), "Kernel (bss)", "");
+	    p_block(1, (long_t)(heap[0].base-heap[1].end), "Kernel bss", "");
 	    p_subdiv(heap[1].end, "BSS continues", 1);
 	    p_block(1, (long_t)(heap[1].end-heap[1].base), "[bootopts buffer]",
 			"Heap block 2");
@@ -335,8 +346,10 @@ void mem_map(void)
 	    s_size = ftext - cs;
 	} else
 	    s_size = ds - cs;
-	p_block(5, (long_t)s_size<<4, "Kernel text", "");
-	p_divider(cs, "");
+	if (cs != 0xffff) {	/* kernel text in conv memnory */
+		p_block(5, (long_t)s_size<<4, "Kernel text", "");
+		p_divider(cs, "");
+	} else cs = ftext;
 	if (XD_BOUNCESEGSZ) {	/* bounce buffer for MFM/Lance configured, 1k */
 	    p_block(1, (long_t)XD_BOUNCESEGSZ, "XD/Lance bounce", "");
 	    start = cs - (XD_BOUNCESEGSZ>>4);

@@ -28,6 +28,7 @@
 #define SETUP_ELKS_FLAGS	setupb(0x1f6)	/* flags for root device type */
 #define SETUP_PART_OFFSETLO	setupw(0x1e2)	/* partition offset low word */
 #define SETUP_PART_OFFSETHI	setupw(0x1e4)	/* partition offset high word */
+#define SETUP_XMS_SIZE		setupw(0x1ea)	/* xms size in kbytes */
 #ifdef CONFIG_ROMCODE
 #define SYS_CAPS	(CAP_PC_AT|CAP_DRIVE_PARMS)
 #endif
