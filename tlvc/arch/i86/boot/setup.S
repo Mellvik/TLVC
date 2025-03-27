@@ -62,8 +62,9 @@
 !	...
 !	0x1e2:	part_offset	long Sector offset of booted MBR partition
 !	0x1e6:	elks_magic	long "ELKS", written by build tool
-|	0x1ea:	xms_kbytes	word Size of XMS memory in Kbytes
-!	0x1ea-0x1ee:		5 bytes UNUSED
+!	0x1ea:	xms_kbytes	word size of xms memory in kbytes
+!	0x1ec:	hma_kernel	byte hma=kernel seen in /bootopts
+!	0x1ed-0x1ee:		2 bytes UNUSED
 !	0x1ef:	SETUPSEG	word UNUSED
 !	0x1f1:	setup_sects	byte in 512-byte sectors, written by build tool
 !	0x1f2:	ROOTFLAGS	word UNUSED
@@ -81,8 +82,6 @@
 #include <linuxmt/boot.h>
 
 // Relocating loader debug option
-// NOTE: If running the kernel in HMA, setup hangs when jumping to the kernel if
-// debug_output is active and serial_output is NOT active.
 debug_output    =       0       // display various register values during execution
 serial_output   =       0       // use INT 14 serial instead of INT 10 console out
 debug_loader    =       0       // display relocations
@@ -481,11 +480,11 @@ sys_hdr_msg:
 
 sys_hdr_good:
 	mov %sp,%bp
-	mov 8,%dx     // -2(%bp) code (text) size
+	mov 8,%dx     // -2(%bp) .text code size
 	push %dx
 	add $15,%dx   // align on next paragraph (issue #209)
 	mov $4,%cl
-	shr %cl,%dx   // DX = code size in paragraph
+	shr %cl,%dx   // DX = code size in paragraphs
 	shr %cl,%bx   // BX = header size in paragraphs
 
 	mov 12,%ax    // -4(%bp) data size
@@ -512,49 +511,31 @@ sys_hdr_good:
 	add %bx,%ax      // skip header
 	mov %ax,%ds
 	xor %si,%si
+	xor %di,%di
 
-	push %ds
-	mov $SETUP_DATA,%ax
-	mov %ax,%ds
-	mov $0x8800,%ax
-	int $0x15	// get xms size
-	jc  no_xms
-	mov %ax,(xms_kbytes)
-	pop %ds
-#ifdef CONFIG_HMA_KERNEL
-	cmp $64,%ax
-	jl  no_xms
-	mov $0x2401,%ax
-	int $0x15	// Set a20
-	jnc 2f
-	call set_a20
-	call verify_a20
-	jc no_xms
-2:
+#ifdef CONFIG_ARCH_IBMPC
+// Check whether relocating .text to HMA is possible
+	call checkhma
+	jc 2f		 // no HMA
 	mov $HMA_SEG,%ax
 	jmp 1f
 #endif
-no_xms:
-	movw $0,(xms_kbytes)
-	pop %ds
-	mov $REL_SYSSEG,%ax
-1:
-	mov %ax,%es
+2:	mov $REL_SYSSEG,%ax
+1:	mov %ax,%es
 	mov %ax,-18(%bp) // save .text segment
 	.ifeq debug_output
 	call hex4sp
 	.endif
 
-	add %dx,%ax	// add code paragraphs = .fartext start
-#ifdef CONFIG_HMA_KERNEL
-	jnc 1f		// skip if it didn't overflow (no HMA) 
-	movw $REL_SYSSEG,%ax	// .fartext start here
-1:
-#endif
-	mov %ax,-20(%bp) // save .data start in case no .fartext
-	xor %di,%di
-
 	mov -2(%bp),%cx  // code size in bytes
+	add %dx,%ax      // add code paragraphs = .fartext start
+	jnc 1f		 // skip if didn't overflow (no HMA)
+	mov $REL_SYSSEG,%ax // .fartext starts at normal .text location
+	add $16,%si	 // skip first paragraph at FFFF:0000
+	add $16,%di
+	sub $16,%cx
+1:	mov %ax,-20(%bp) // save .data start in case no .fartext
+
 	.hex4sp	%ds,"\nCopy DEF_SYSSEG .text to  REL_SYSSEG DS:"
 	.hex4sp	%si,"SI:"
 	.hex4sp	%es,"ES:"
@@ -594,12 +575,9 @@ no_xms:
 
 	mov -18(%bp),%ax  // kernel .text segment
 	add %dx,%ax       // skip code paragraphs
-#ifdef CONFIG_HMA_KERNEL
 	jnc 1f
-	mov $REL_SYSSEG,%ax	// if text in HMA, start fartext here
-#endif
-1:
-	mov %ax,%es
+	mov $REL_SYSSEG,%ax // if text in HMA, start fartext here
+1:	mov %ax,%es
 	mov %ax,-20(%bp)  // save .fartext segment
 	xor %di,%di
 
@@ -735,7 +713,7 @@ data_reloc:
 	.hex4sp	%cx,"entry:"
 	.if debug_output
 	.ifeq serial_output // if not serial output
-	mov $debug_prompt, %ax
+	mov $debug_prompt,%ax
 	call csputs
 	xor %ah,%ah         // read key press
 	int $0x16
@@ -839,6 +817,9 @@ csputs:	push	%bx
 	jmp	1b
 2:	pop	%bx
 	ret
+
+debug_prompt:
+	.ascii	"\r\nPress key to boot: \0"
 .endif
 
 // Output hex nibble, byte and word. All registers saved.
@@ -883,11 +864,7 @@ hex4sp: call hex4
 	ret
 
 hello_mess:
-	.ascii "\r\nTLVC Setup \0"
-.if debug_output
-debug_prompt:
-	.ascii "\r\nPress key to boot: \0"
-.endif
+	.ascii "\r\nELKS Setup \0"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Architecture specific routines for IBM PC
@@ -905,89 +882,6 @@ arch_get_mem:
 	int $0x12   // AX in KB
 #endif
 	ret
-
-// A20 handlers - from unreal.c
-// Even quite modern BIOSes don't support the A20 INT15 calls (QEMU does)
-// set_a20: Attempt to set the A20 line on 286 and higher
-// verify_a20: Check that a20 is set/working
-
-#ifdef CONFIG_HMA_KERNEL
-set_a20:
-	pushf			# save interrupt status
-	cli			# interrupts off
-	call	empty_8042
-	mov	$0xD0,%al	# 8042 command byte to read output port
-	out	%al,$0x64
-1:	in	$0x64,%al
-	test	$1,%al		# output buffer (data _from_ keyboard) full?
-	jz	1b		# no, loop
-
-	in	$0x60,%al	# read output port
-	or	%ah,%ah
-	jne	2f
-	and	$0xFD,%al	# AND ~2 to disable
-	jmp	3f
-2:	or	$2,%al		# OR 2 to enable
-3:	mov	%al,%ah
-
-	call	empty_8042
-	mov	$0xD1,%al	# 8042 command byte to write output port
-	out	%al,$0x64
-
-	call	empty_8042
-	mov	%ah,%al		# the value to write
-	out	%al,$0x60
-
-	call	empty_8042
-	popf			# restore interrupt status
-	ret
-
-0:	jmp	1f		# a delay (probably not effective nor necessary)
-1:	jmp	2f
-2:	in	$0x60,%al	# read and discard data/status from 8042
-empty_8042:
-	jmp	1f
-1:	jmp	2f		# delay
-2:	in	$0x64,%al
-	test	$1,%al		# output buffer (data _from_ keyboard) full?
-	jnz	0b		# yes, read and discard
-	test	$2,%al		# input buffer (data _to_ keyboard) empty?
-	jnz	empty_8042	# no, loop
-	ret
-
-// verify if A20 gate is enabled, return 0 if disabled
-verify_a20:
-	push	%ds
-	push	%es
-
-	xor	%ax,%ax
-	mov	%ax,%ds
-	dec	%ax
-	mov	%ax,%es
-
-	pushf			# save interrupt status
-	cli			# interrupts off
-
-	mov	%es:0x10,%ax	# read word at FFFF:0010 (1 meg)
-	not	%ax		# 1's complement
-	pushw	0		# save word at 0000:0000 (0)
-
-	mov	%ax,0		# word at 0 = ~(word at 1 meg)
-	mov	0,%ax		# read it back
-	cmp	%es:0x10,%ax	# fail if word at 0 == word at 1 meg
-
-	popw	0
-
-	jz	1f		# if ZF=1, the A20 gate is NOT enabled
-	clc			# no carry: OK
-9:	popf			# restore interrupt status
-	pop	%es
-	pop	%ds
-	ret
-1:	stc			# Carry - error
-	jmp	9b
-
-#endif
 
 // Set INITSEG values for IBM PC
 // Determine display type using INT 10h AH=12 and INT 10h AH=1A
@@ -1035,10 +929,70 @@ novga:	mov	%al,14		// CGA 25 rows
 	mov	%ax,%ds
 	call	arch_get_mem	// save base memory size
 	mov	%ax,mem_kbytes
+	mov	$0x8800,%ax	// get xms size
+	int	$0x15
+	jc	1f
+	mov	%ax,xms_kbytes
 
 #ifdef CONFIG_BOOTOPTS
 	call	bootopts	// load /bootopts into DEF_OPTSEG (0050:0000)
+	call    hmabootopts	// check /bootopts for hma=kernel
+	mov	%al,hma_kernel
 #endif
+	ret
+
+// check for hma=kernel in /bootopts, return AX = 0 if not
+hmabootopts:
+	push	%ds
+	push	%es
+
+	push	%cs			// ES = our code segment
+	pop	%es
+	mov	$DEF_OPTSEG,%ax		// DS:SI = /bootopts in memory
+	mov	%ax,%ds
+
+	xor	%si,%si			// look for hma=kernel in /bootopts segment
+look:	mov	(%si),%al		// done when NUL seen
+	test	%al,%al
+	jz	1f
+	mov	$hma_string,%di
+	mov	$11,%cx
+	push	%si
+	repz
+	cmpsb				// %ds:(%si) with %es:(%di)
+	pop	%si
+	inc	%si
+	test	%cx,%cx
+	jnz	look			// NZ = no match
+	mov	$'H',%ax
+	call	putc
+	jmp	2f
+1:	xor	%ax,%ax			// no HMA
+2:	pop	%es
+	pop	%ds
+	ret
+
+hma_string:
+	.ascii	"\nhma=kernel"		// size = 11
+
+// check whether HMA can be enabled, return NC if so with A20 enabled
+checkhma:
+	push	%ds
+	mov	$INITSEG,%ax
+	mov	%ax,%ds
+	mov	xms_kbytes,%ax		//. must have xms size >= 64k
+	cmp	$64,%ax
+	jl	1f
+	mov	hma_kernel,%al		// and hma=kernel in /bootopts
+	test	%al,%al
+	jz	1f
+	call	enable_a20_gate		// and A20 enabled
+	test	%ax,%ax
+	jz	1f
+	clc				// success
+	jmp 	2f
+1:	stc				// fail
+2:	pop	%ds
 	ret
 
 // Write AL to console, save all registers
@@ -1067,6 +1021,9 @@ putc:	push %ax
 // needed for guessing system capabilities (sys_caps) for XT vs AT BIOS
 // TODO: remove and use alternate mechanism for XT vs AT BIOS capabilities
 #include "cputype.S"
+
+// include code to enable/verify A20 address gate
+#include "../lib/a20.inc"
 
 #endif /* CONFIG_ARCH_IBMPC*/
 

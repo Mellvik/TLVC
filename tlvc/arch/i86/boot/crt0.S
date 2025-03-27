@@ -10,10 +10,8 @@
         .extern start_kernel
         .global early_putchar
 
-#ifdef CONFIG_HMA_KERNEL
 	jmp	_start		// 16byte filler to move entry point to the
 	.word	0,0,0,0,0,0,0	// ... start of the HMA
-#endif
 _start:
 
 /*

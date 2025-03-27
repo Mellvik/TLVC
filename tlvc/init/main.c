@@ -74,6 +74,7 @@ int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
 int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
+int xms_size;
 static int boot_console;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -187,6 +188,7 @@ static void INITPROC early_kernel_init(void)
 void INITPROC kernel_init(void)
 {
     irq_init();		/* Install timer and DIV fault handlers */
+    xms_size = SETUP_XMS_SIZE;
 
     /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
