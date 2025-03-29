@@ -84,6 +84,7 @@
 // Relocating loader debug option
 debug_output    =       0       // display various register values during execution
 serial_output   =       0       // use INT 14 serial instead of INT 10 console out
+				// NOTE: Not supported on some/most XT class systems
 debug_loader    =       0       // display relocations
 
 
@@ -514,13 +515,21 @@ sys_hdr_good:
 	xor %di,%di
 
 #ifdef CONFIG_ARCH_IBMPC
-// Check whether relocating .text to HMA is possible
+// If 80286 or higher, check whether relocating .text to HMA is possible
+	push %ds
+	mov $INITSEG,%ax
+	mov %ax,%ds
+	mov cpu_type,%ax
+	cmpb $6,cpu_type
+	jl 2f
 	call checkhma
 	jc 2f		 // no HMA
 	mov $HMA_SEG,%ax
+	pop %ds
 	jmp 1f
+2:	pop %ds
 #endif
-2:	mov $REL_SYSSEG,%ax
+	mov $REL_SYSSEG,%ax
 1:	mov %ax,%es
 	mov %ax,-18(%bp) // save .text segment
 	.ifeq debug_output
@@ -864,7 +873,7 @@ hex4sp: call hex4
 	ret
 
 hello_mess:
-	.ascii "\r\nELKS Setup \0"
+	.ascii "\r\nTLVC Setup \0"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Architecture specific routines for IBM PC
@@ -943,7 +952,11 @@ novga:	mov	%al,14		// CGA 25 rows
 
 // check for hma=kernel in /bootopts, return AX = 0 if not
 hmabootopts:
-	push	%ds
+	cmpb	$6,cpu_type	// ignore if < 80826
+	jae	1f
+	xor	%al,%al
+	ret
+1:	push	%ds
 	push	%es
 
 	push	%cs			// ES = our code segment
@@ -976,10 +989,8 @@ hma_string:
 	.ascii	"\nhma=kernel"		// size = 11
 
 // check whether HMA can be enabled, return NC if so with A20 enabled
+// Assumes DS=INITSEG
 checkhma:
-	push	%ds
-	mov	$INITSEG,%ax
-	mov	%ax,%ds
 	mov	xms_kbytes,%ax		//. must have xms size >= 64k
 	cmp	$64,%ax
 	jl	1f
@@ -992,8 +1003,7 @@ checkhma:
 	clc				// success
 	jmp 	2f
 1:	stc				// fail
-2:	pop	%ds
-	ret
+2:	ret
 
 // Write AL to console, save all registers
 putc:	push %ax

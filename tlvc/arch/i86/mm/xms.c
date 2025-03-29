@@ -19,6 +19,8 @@
 #ifdef CONFIG_FS_XMS_BUFFER
 
 extern int xms_size;
+extern int xms_avail;
+extern int hma_avail;
 
 /* these used in CONFIG_FS_XMS_INT15 only */
 struct gdt_table;
@@ -53,23 +55,31 @@ void xms_init(void)
 	}
 #else
 	if (kernel_cs == 0xffffU) {
-		printk("Not available with INT15: Kernel in HMA");
+		printk("Not available with INT15 and kernel in HMA");
+		xms_avail = 0;
 		return;
 	} 
 #endif
-	if (!xms_size) {
+	if (!xms_avail) {
 		printk("not available\n");
 		return;
 	}
-	printk("%uk available, ", xms_size);
+	printk("%uk available, ", xms_avail);
+#ifdef NOT_REQUIRED_ANYMORE
 	debug("A20 was %s", verify_a20()? "on" : "off");
 	enable_a20_gate();
 	enabled = verify_a20();
 	debug(" now %s, ", enabled? "on" : "off");
 	if (!enabled) {
-		xms_size = 0;
+		xms_size = 0;		/* No xms, no HMA */
+		xms_avail = 0;
 		printk("disabled, A20 error\n");
 	} else {
+#else
+	if (!hma_avail)  {
+		printk("disabled, A20 error\n");
+	} else {
+#endif
 #ifdef CONFIG_FS_XMS_INT15
 		printk("using int 15/1F");
 #else
