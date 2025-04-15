@@ -95,10 +95,12 @@ enable_unreal_mode:
 
 	lgdt gdt_ptr
 
-	mov %cs,%ax		# self-modifying code, ugh..
-	mov %ax,%ds
-	mov %ax,ur_ret		# set the CS for protected mode return
+	//mov %cs,%ax		# self-modifying code, ugh..
+	//mov %ax,%ds
+	//mov %ax,ur_ret		# set the CS for protected mode return
 
+	push %cs
+	push $unreal
 	movl %cr0, %eax		# CR0.PE=1: enable protected mode
 	orb $1,%al
 	movl %eax, %cr0
@@ -116,9 +118,10 @@ pmode:
 
 	decb %al        # CR0.PE=0: back to (un)real mode
 	movl %eax, %cr0
-	.byte 0xea	# ljmp
-	.word unreal	# address
-ur_ret:	.word 0		# CS, changed by the code above
+	lret
+	//.byte 0xea	# ljmp
+	//.word unreal	# address
+//ur_ret:	.word 0		# CS, changed by the code above
 
 # loading segment registers in (un)real mode changes their base address
 # but not the segment limit; which remains 4GB-1
@@ -412,7 +415,7 @@ code:   .byte 0xff, 0xff, 0, 0, 0, 0b10011011, 0b00001111, 0
 
 # linear data segment descriptor:
 LINEAR_SEL = . - gdt
-        .word 0xFF    # limit 64k - either bytes of 4k pages
+        .word 0xFFFF    # limit 64k - either bytes of 4k pages
         .word 0         # base 0
         .byte 0
         .byte 0x93      # present, ring 0, data, expand-up, writable, accessed
