@@ -94,21 +94,13 @@ enable_unreal_mode:
 	mov %ah,code+7
 
 	lgdt gdt_ptr
-
-	//mov %cs,%ax		# self-modifying code, ugh..
-	//mov %ax,%ds
-	//mov %ax,ur_ret		# set the CS for protected mode return
-
-	push %cs
+	push %cs		# prepare for return to real mode
 	push $unreal
 	movl %cr0, %eax		# CR0.PE=1: enable protected mode
 	orb $1,%al
 	movl %eax, %cr0
 
-	ljmp $code-gdt,$pmode
-	//.byte 0xea
-	//.word pmode,code-gdt
-	
+	ljmp $code-gdt,$pmode	# Set the CS to enter protected mode
 pmode:
 	movw $LINEAR_SEL, %bx # selector to segment with 4GB-1 limit
 	movw %bx,%ds    # set segment limits in descriptor caches
@@ -118,10 +110,8 @@ pmode:
 
 	decb %al        # CR0.PE=0: back to (un)real mode
 	movl %eax, %cr0
-	lret
-	//.byte 0xea	# ljmp
-	//.word unreal	# address
-//ur_ret:	.word 0		# CS, changed by the code above
+	lret		# Effectively an ljmp to the next line
+			# to set the CS
 
 # loading segment registers in (un)real mode changes their base address
 # but not the segment limit; which remains 4GB-1
