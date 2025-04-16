@@ -46,6 +46,11 @@ int root_mountflags = MS_RDONLY;
 int root_mountflags = 0;
 #endif
 
+struct umb_vec {
+	seg_t seg;
+	unsigned int size;
+} umbvec[5];
+
 struct netif_parms netif_parms[MAX_ETHS] = {
     /* NOTE:  The order must match the defines in netstat.h */
     { NE2K_IRQ, NE2K_PORT, 0, NE2K_FLAGS },
@@ -117,6 +122,7 @@ static void INITPROC kernel_init(void);
 static void INITPROC kernel_banner(seg_t init, seg_t extra);
 static void INITPROC early_kernel_init(void);
 static void init_task(void);
+static int INITPROC umb_valid(seg_t);
 
 /* this procedure is called using temp stack then switched, no local vars allowed */
 void start_kernel(void)
@@ -168,6 +174,10 @@ static void INITPROC early_kernel_init(void)
     heap_init();                    /* init near memory allocator */
     endbss = setup_arch();          /* sets membase and memend globals, cpu type */
     heap_add((void *)endbss, heapsize);
+    if (memend == umbvec[0].seg) {  /* if UMB is avail just above main mem, add it */
+	    memend += umbvec[0].size;
+	    umbvec[0].size = 1;	    /* flag that we've used it */
+    }
     mm_init(membase, memend);       /* init far/main memory allocator */
 
     if (fdcache < 0 ||			/* not set in bootopts */
@@ -187,6 +197,8 @@ static void INITPROC early_kernel_init(void)
 
 void INITPROC kernel_init(void)
 {
+    int i;
+
     irq_init();		/* Install timer and DIV fault handlers */
     xms_size = xms_avail = SETUP_XMS_SIZE;
     if (xms_size) hma_avail = enable_a20_gate();
@@ -199,6 +211,7 @@ void INITPROC kernel_init(void)
 #ifdef CONFIG_CHAR_DEV_RS
     serial_init();
 #endif
+    if (arch_cpu > 6) enable_unreal_mode();	/* 386+ */
 
     inode_init();
     if (buffer_init())	/* also enables xms and unreal mode if configured and possible */
@@ -213,6 +226,22 @@ void INITPROC kernel_init(void)
 #ifdef CONFIG_SOCKET
     sock_init();
 #endif
+
+    /* Process UMB blocks if available */
+    i = 0;
+    if (umbvec[0].seg) {
+	printk("umb: ");
+	if (umbvec[i].size == 1) {	/* 1st element may already have been added to memend */
+	    i++;
+	    printk("%dk added to main memory", (memend-0xA000)>>6);
+	}
+	while (umbvec[i].seg) {
+	    seg_add(umbvec[i].seg, umbvec[i].seg + umbvec[i].size);
+	    printk(", %dk block at 0x%x", umbvec[i].size>>6, umbvec[i].seg);
+	    i++;
+	}
+	printk("\n");
+    }
 
     device_init();
 
@@ -265,6 +294,7 @@ static void INITPROC kernel_banner(seg_t init, seg_t extra)
 #endif
     printk("data 0x%x, top 0x%x, %uK free\n",
            kernel_ds,  memend, (int)((memend - membase) >> 6));
+    if (memend > 0xa000) printk("Warning: base RAM > 640k\n");
 }
 
 static void INITPROC try_exec_process(const char *path)
@@ -291,7 +321,7 @@ static void INITPROC do_init_task(void)
     current->session = current->pgrp = 1;
 #endif
 
-    /* Don't open /dev/console for /bin/init, 0-2 closed immediately and fragments heap */
+    /* Don't open /dev/console for /bin/init, 0-2 are closed immediately and fragments heap */
     //if (strcmp(init_command, bininit) != 0) {
 	/* Set stdin/stdout/stderr to /dev/console if not running /bin/init */
 	num = sys_open(s="/dev/console", O_RDWR, 0);
@@ -450,7 +480,27 @@ static void INITPROC comirq(char *line)
 
 	parse_parms(MAX_SERIAL, line, irq, 0);
 	for (i = 0; i < MAX_SERIAL; i++) 
-		if (irq[i]) set_serial_irq(i, irq[i]);
+	    if (irq[i]) set_serial_irq(i, irq[i]);
+}
+
+static void parse_umb(char *line, struct umb_vec *umbv)
+{
+	char *l = line;
+	int i, ind = 0;
+	unsigned int seg = 0xa000;
+
+	for (i = 0; i < 10 && l[i]; i++) {
+	    if (l[i] == '1' && !umb_valid(seg)) {
+		if (!umbv[ind].seg) umbv[ind].seg = seg;
+		if (umbv[ind].seg) umbv[ind].size += 0x800;
+	    } else {
+		if (umbv[ind].seg) ind++;
+	    }
+	    seg += 0x800;
+	}
+	/* DEBUG */
+	for (i = 0; i < 5; i++) 
+		printk("umb%i: %x %x\n", i, umbv[i].seg, umbv[i].size);
 }
 
 static void INITPROC parse_nic(char *line, struct netif_parms *parms)
@@ -591,7 +641,7 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"memsize=", 8)) {
 			unsigned int m = (int)simple_strtol(line+8, 10);
-			if (m <= 640) memend = m << 6;
+			/*if (m <= 640)*/ memend = m << 6;
 			continue;
 		}
 		if (!strncmp(line,"tasks=", 6)) {
@@ -624,6 +674,10 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"hdparms=", 8)) {
 			parse_parms(CHS_ARR_SIZE, line+8, hdparms, 10);
+			continue;
+		}
+		if (!strncmp(line,"umb=", 4)) {
+			parse_umb(line+4, umbvec);
 			continue;
 		}
 		if (!strncmp(line, "netbufs=", 8)) {
@@ -743,6 +797,22 @@ static char * INITPROC option(char *s)
 		}
 	}
 	return s;
+}
+
+static int INITPROC umb_valid(seg_t seg)
+{
+	int wd = peekw(0, seg);
+
+	if (seg < 0xa000) return 1;	/* sanity check */
+
+	pokew(0, seg, 0x1234);
+	if (peekw(0, seg) != 0x1234) return 1;
+	pokew(0, seg, wd);
+	wd = peekw(0x7ffe, seg);
+	pokew(0x7ffe, seg, 0x4321);
+	if (peekw(0x7ffe, seg) != 0x4321) return 1;
+	pokew(0x7ffe, seg, 0x4321);
+	return 0;
 }
 #endif /* CONFIG_BOOTOPTS*/
 
