@@ -31,7 +31,7 @@
 	.global	linear32_fmemcpyb
 	.global	linear32_fmemset
 
-#include "a20.inc"              # A20 gate functions shared with setup.S
+#include "a20.inc"
 
 # Check if unreal mode capable. Currently requires 32-bit CPU (386+)
 # Returns 1 if OK, otherwise error code (-1=not 386, -2=in V86 mode).
@@ -67,40 +67,61 @@ in_vm86mode:
 
 # Put CPU in unreal mode. Requires 32-bit CPU (386+) to call!
 enable_unreal_mode:
-# point gdt_ptr to gdt
+
 	xorl %eax,%eax
 	movw %ds,%ax
 	shll $4,%eax
 
-	addl $gdt, %eax
+	addl $gdt, %eax		# point gdt_ptr to gdt
 	movl %eax, gdt_ptr+2
 
 	pushf			# save interrupt status
 	cli                     # interrupts off
-	pushl %ds
-	pushl %es
-	pushl %fs
-	pushl %gs
-		lgdt gdt_ptr
-		movl %cr0, %eax # CR0.PE=1: enable protected mode
-		orb $1,%al
-		movl %eax, %cr0
+	mov $0x80,%ax
+	out %al,$0x70		# for good measure, turn off RTC NMI
 
-		movw $LINEAR_SEL, %bx # selector to segment with 4GB-1 limit
-		movw %bx,%ds    # set segment limits in descriptor caches
-		movw %bx,%es
-		movw %bx,%fs
-		movw %bx,%gs
+	push %ds
+	push %es
+	push %fs
+	push %gs
 
-		decb %al        # CR0.PE=0: back to (un)real mode
-		movl %eax, %cr0
+	xorl %eax,%eax
+	mov %cs,%ax		# set up the GDT entry for the code seg
+	shll $4,%eax
+	mov %ax,code+2
+	ror $16,%eax
+	mov %al,code+4
+	mov %ah,code+7
+
+	lgdt gdt_ptr
+	push %cs		# prepare for return to real mode
+	push $unreal
+	movl %cr0, %eax		# CR0.PE=1: enable protected mode
+	orb $1,%al
+	movl %eax, %cr0
+
+	ljmp $code-gdt,$pmode	# Set the CS to enter protected mode
+pmode:
+	movw $LINEAR_SEL, %bx # selector to segment with 4GB-1 limit
+	movw %bx,%ds    # set segment limits in descriptor caches
+	movw %bx,%es
+	movw %bx,%fs
+	movw %bx,%gs
+
+	decb %al        # CR0.PE=0: back to (un)real mode
+	movl %eax, %cr0
+	lret		# Effectively an ljmp to the next line
+			# to set the CS
 
 # loading segment registers in (un)real mode changes their base address
 # but not the segment limit; which remains 4GB-1
-	popl %gs
-	popl %fs
-	popl %es
-	popl %ds
+unreal:
+	pop %gs
+	pop %fs
+	pop %es
+	pop %ds
+	xor %al,%al
+	out %al,$0x70
 	popf			# restore interrupt status
 
 	mov	$1,%ax		# system is in unreal mode, return 1
@@ -117,8 +138,7 @@ linear32_peekw:
 	call   setgpf
 	mov    %si,%dx
 
-	//pushf               // save interrupt status
-	//cli                 // uncomment if extended registers used in interrupt routines
+	//cli			// uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
@@ -132,7 +152,7 @@ linear32_peekw:
 
 	cld
 	addr32 lodsw          // AX = [DS:ESI++]
-	//popf                // restore interrupt status
+	//sti			// restore interrupt status
 
 	mov    %dx,%si
 	mov    %ss,%bx
@@ -151,7 +171,6 @@ linear32_fmemcpyw:
 	mov    %si,%ax
 	mov    %di,%dx
 
-	//pushf               // save interrupt status
 	//cli                 // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
@@ -177,7 +196,7 @@ linear32_fmemcpyw:
 	addr32 rep movsw      // word [ES:EDI++] <- [DS:ESI++], ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//popf                // restore interrupt status
+	//sti		      // restore interrupt status
 
 	mov    %ax,%si
 	mov    %dx,%di
@@ -197,8 +216,7 @@ linear32_fmemcpyb:
 	mov    %si,%ax
 	mov    %di,%dx
 
-	//pushf               // save interrupt status
-	//cli                 // uncomment if extended registers used in interrupt routines
+	//cli		      // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
@@ -228,7 +246,7 @@ linear32_fmemcpyb:
 	addr32 rep movsb      // byte [ES:EDI++] <- [DS:ESI++], ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//popf                // restore interrupt status
+	//sti		      // restore interrupt status
 
 	mov    %ax,%si
 	mov    %dx,%di
@@ -247,7 +265,6 @@ linear32_fmemset:
 	push   %es
 	mov    %di,%dx
 
-	//pushf               // save interrupt status
 	//cli                 // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
@@ -277,7 +294,7 @@ linear32_fmemset:
 	addr32 rep stosb      // byte [ES:EDI++] <- AL, ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//popf                // restore interrupt status
+	//sti		      // restore interrupt status
 
 	mov    %dx,%di
 	mov    %ss,%ax
@@ -383,16 +400,19 @@ gdt:    .word 0         # limit 15:0
         .byte 0         # b7-4=flags, b3-0=limit 19:16
         .byte 0         # base 31:24
         
+code:   .byte 0xff, 0xff, 0, 0, 0, 0b10011011, 0b00001111, 0
+//flat:   .byte 0xff, 0xff, 0, 0, 0, 0b10010010, 0b11001111, 0
+
 # linear data segment descriptor:
 LINEAR_SEL = . - gdt
-        .word 0xFFFF    # limit 0xFFFFF
+        .word 0xFFFF    # limit 64k - either bytes of 4k pages
         .word 0         # base 0
         .byte 0
         .byte 0x93      # present, ring 0, data, expand-up, writable, accessed
 # putting a zero byte here (instead of 0xCF) effectively disables unreal mode:
 #       .byte 0         # byte-granular, 16-bit, limit=64K-1
-        .byte 0xCF      # page-granular, 32-bit, limit=4GB-1
-        .byte 0
+        .byte 0xCF      # page-granular, 32-bit, limit=4GB-1 (was CF)
+        .byte 0		# upper (4th) byte of base address, not used
 gdt_len = . - gdt
 
 gdt_ptr:.word gdt_len - 1
