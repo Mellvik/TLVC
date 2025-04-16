@@ -1,7 +1,7 @@
-## boot options max 1023 bytes, see wiki for details
+## boot options max 1023 bytes, details in wiki
 console=ttyS0,57600 3	# serial console and init-level (3)
-#debug=2
-NET=ne0 		# start netw on boot w/this interface
+debug=2
+NET=ne0 		# start netw @ boot w/this interface
 #root=df0
 #TZ=MDT7
 LOCALIP=10.0.2.15
@@ -11,19 +11,21 @@ ne0=12,0x300,,0x80
 wd0=2,0x280,0xCC00,0x80
 #3c0=11,0x330,,0x80
 ee0=11,0x360,,0x80
-comirq=,,7,10		# IRQ for com ports, up to 4
-#cache=8		# L1 cache
-#bufs=40		# L2 buffers
-#xmsbufs=0	# if supported
+comirq=,,7,10		# IRQ for com ports, max 4
+#cache=8	# L1 cache
+#bufs=40	# L2 buffers
+xmsbufs=128	# if supported
+#umb=110011100
 #heap=30	# max heap (kB)
 #memsize=640	# system RAM (kB)
 #files=64 inodes=96
-#hdparms=823,4,38,-1,63,16,63,-1 # CHSW values for 2 drives, overrides CMOS and drive values
+#hdparms=823,4,38,-1,63,16,63,-1 # CHSW values for 2 drives, overrides CMOS & BIOS
 #netbufs=2,0	# netw buffers, recv/trans, ne2k only
 #tasks=18	# max tasks, default 16, max 20
 #sync=30		# autosync secs
 #xtflpy=3,1	# meaningful for XT systems w/720k drive(s) (type3)
 fdcache=5	# floppy read cache for slow systems <= 286
+hma=kernel
 #xtide=0x300,5,1,,, # addr, IRQ, flgs for 2 XT-IDE controllers
 #init=/bin/init 3 n	# multiuser serial no /etc/rc.sys
 #init=/bin/sh		# singleuser shell
