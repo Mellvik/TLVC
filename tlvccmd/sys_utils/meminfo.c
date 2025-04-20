@@ -58,10 +58,13 @@ struct proc_list_s {
 	unsigned int size;
 } *proc_list;
 
+#define MAX_BLOCKS 5
+
 static long_t total_segsize = 0;
 static char *segtype[] =
     { "free", "CSEG", "DSEG", "DDAT", "FDAT", "BUF ", "RDSK", "BUFH" };
-struct pseg_s { seg_t base, end; } heap[5], segs[5], extbuf;
+struct pseg_s { seg_t base, end; } heap[MAX_BLOCKS], segs[MAX_BLOCKS], extbuf;
+unsigned int free_cnt[MAX_BLOCKS];
 
 int memread(word_t off, word_t seg, void *buf, int size)
 {
@@ -232,6 +235,7 @@ void blk_scan(void)
         word_t segflags, mem, n = getword(heap_all + offsetof(list_s, next), ds);
 	seg_t segbase, oldbase = 0, oldend, curend;
 	int i = 0;
+	unsigned int size;
 	long_t s;
 	char nn[8];
 
@@ -255,7 +259,8 @@ void blk_scan(void)
 	    mem = n - offsetof(segment_s, all);
 	    segbase = getword(mem + offsetof(segment_s, base), ds);
 	    segflags = getword(mem + offsetof(segment_s, flags), ds) & SEG_FLAG_TYPE;
-	    curend = segbase + getword(mem + offsetof(segment_s, size), ds);
+	    size = getword(mem + offsetof(segment_s, size), ds);
+	    curend = segbase + size;
 	    if (!oldbase) segs[i].base = segbase; 	/* initial */
 	    if (segflags == SEG_FLAG_EXTBUF) {
 		extbuf.base = segbase;
@@ -266,8 +271,10 @@ void blk_scan(void)
 		//printf("new arena, oldend %x, new base %x\n", oldend, segbase);
 		segs[i].end  = oldend;
 		segs[++i].base = segbase;	
-		if (segbase > 0xa000) has_umb++;	/* system has UMBs */
+		if (segbase >= 0xa000) has_umb++;	/* system has UMBs */
 	    }
+	    if (segflags == SEG_FLAG_FREE) free_cnt[i] += size;
+	    //if (segflags == SEG_FLAG_FREE) printf("FREE: arena %d, free %ld |", i, ((long)size<<4));
 	    oldend = curend;
 	    oldbase = segbase;
 	    n = getword(n + offsetof(list_s, next), ds);
@@ -299,8 +306,10 @@ void blk_scan(void)
 
 void map_umb(char *msg, int n) {
 	msg[strlen(msg)-1] = n + '1';
-	p_divider((long_t)(segs[n].end), "UMB end");
+	p_divider((long_t)(segs[n].end), "");
 	if (Pflag) {
+	    p_block(1, (long_t)(segs[n].end - segs[n].base)<<4, "UMB block,    size", msg);
+	    p_block(1, (long_t)(free_cnt[n])<<4, "         available", "");
 	    p_empty();
 	    pp_block(segs[n].base, segs[n].end);
 	} else
@@ -323,14 +332,17 @@ void mem_map(void)
 	printf("\n");
 	if (cs == 0xffffU) {	/* HMA kernel */
 	    p_divider_l(0x11000L, "HMA top");
-	    p_block(5, (long_t)0x10000, "Kernel text seg", "");
+	    p_block(5, (long_t)0x10000, "Kernel text", "");
 	    p_divider_l((long)cs+1, "HMA start");
 	    printf("\n");
 	}
 	if (has_umb) {		/* map UMB blocks */
-	    for (i = 1; segs[i].base; i++) {
-		if (segs[i].base > segs[0].end) 
+	    /* since the segs array is structured the way it is, we're accessing it backwards */
+	    i = MAX_BLOCKS - 1;
+	    while (i) {
+		if (segs[i].base > 0x9fff) 	/* UMB is > 640k, HMA is separate */
 	   	    map_umb(main_msg, i);
+		i--;
 	    }
 	}
 	p_divider(segs[0].end, "Top of conv. memory");
@@ -428,17 +440,18 @@ void dump_segs(void)
     if (!Pflag) printf("\t SEG   TYPE    SIZE  CNT  NAME\n");
 
     n = getword(seg_all + offsetof(list_s, next), ds);
+
     while (n != seg_all) {
 	mem = n - offsetof(segment_s, all);
 	segbase = getword(mem + offsetof(segment_s, base), ds);
+	oldbase = segs[area-1].base;
 
 	if (!Pflag) {
-	    if (!oldbase || segbase < oldbase)
+	    if (segbase == oldbase)
         	printf("Arena %d ", area++);
 	    else
 	    	printf("        ");
 	}
-	oldbase = segbase;
 	display_seg(mem);
 	if (!Pflag) printf("\n");
 	/* next in list */
@@ -567,8 +580,8 @@ int main(int argc, char **argv)
     if (!memread(taskoff, ds, &task_table, sizeof(task_table)))
         perror("taskinfo");
 
+    blk_scan();	
     if (Mflag || Pflag) {
-	blk_scan();
 	if (Pflag)  {
 	    int sz = sizeof(struct proc_list_s) * (maxtasks<<1);
 	    if (!(proc_list = (struct proc_list_s *)malloc(sz))) {
