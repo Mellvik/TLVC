@@ -5,9 +5,14 @@
  * harkal@gmx.net
  *
  * Enhanced by Greg Haerr 24 Apr 2020
+ * Partial rewrite by Helge Skrivervik, TLVC, 2024/2025 
  *
  * This file may be distributed under the terms of the GNU General Public
  * License v2, or at your option any later version.
+ *
+ * TODO: Rewrite and simplify mem_map with a big loop through arenas instead
+ *	 of linear coding which includes a lot of fixed expectations that keep
+ *	 changing all the time.
  */
 
 #define __LIBC__            /* get all typedefs */
@@ -44,6 +49,7 @@ unsigned int taskoff;
 unsigned int bss_size;
 int maxtasks;
 int segptr;
+int has_umb;
 struct task_struct task_table;
 struct proc_list_s {
 	seg_t seg;
@@ -52,10 +58,13 @@ struct proc_list_s {
 	unsigned int size;
 } *proc_list;
 
+#define MAX_BLOCKS 5
+
 static long_t total_segsize = 0;
 static char *segtype[] =
     { "free", "CSEG", "DSEG", "DDAT", "FDAT", "BUF ", "RDSK", "BUFH" };
-
+struct pseg_s { seg_t base, end; } heap[MAX_BLOCKS], segs[MAX_BLOCKS], extbuf;
+unsigned int free_cnt[MAX_BLOCKS];
 
 int memread(word_t off, word_t seg, void *buf, int size)
 {
@@ -116,24 +125,25 @@ void p_empty(void)
 	printf("       | %-19s|\n", "");
 }
 
-void pp_block(int start, int end)		/* box content with process names etc. */
+void pp_block(seg_t start, seg_t end)		/* box content with process names etc. */
 {
-	int i, count = end - start;
+	int i, count = 0;
 	char p[16];
 
-	if (start >= segptr) return;		/* out of bounds */
-	if (count > 5) p_empty();
-	for (i = end; i >= start; i--) {
-	    printf("  %04x | %c %-17s| %s\n", proc_list[i].seg,
+	for (i = segptr - 1; i; i--) {
+	    if ((proc_list[i].seg >= start) && (proc_list[i].seg < end)) {
+		printf("  %04x | %c %-17s| %s\n", proc_list[i].seg,
 	           *segtype[proc_list[i].flag], proc_list[i].proc,
 		   make_kb(p, (long_t)proc_list[i].size<<4));
+		count++;
+	    }
 	}
-	if (count > 5) p_empty();
+	if (count > 4) p_empty();
 }
 
 void p_block(int count, long_t size, char *txt, char *suffix)
 {
-	int i, mid=1;
+	int i, mid;
 	char n[8];
 
 	mid = count/2;
@@ -181,8 +191,6 @@ struct task_struct *find_process(unsigned int seg)
     return NULL;
 }
 
-struct { seg_t base, end; } heap[5], segs[5], extbuf; /* lazy: this way it gets zeroed */
-
 void display_seg(word_t mem)
 {
     seg_t segbase = getword(mem + offsetof(segment_s, base), ds);
@@ -210,6 +218,14 @@ void display_seg(word_t mem)
     total_segsize += (long_t)segsize << 4;
 }
 
+/*
+ * This is where most of the dirty work happens.
+ * First scan the heap and map every entry into the heap-struct.
+ * Then, using the pointers in the heap, map every main memory allocation
+ * into the segs struct. 
+ * The rest of the code pretty much assumes that the sequence of arenas in the
+ * segs array is: main mem - umbs - freed fartext - freed lower mem. FIX!
+ */ 
 void blk_scan(void)
 {
 	/*
@@ -219,6 +235,7 @@ void blk_scan(void)
         word_t segflags, mem, n = getword(heap_all + offsetof(list_s, next), ds);
 	seg_t segbase, oldbase = 0, oldend, curend;
 	int i = 0;
+	unsigned int size;
 	long_t s;
 	char nn[8];
 
@@ -236,21 +253,28 @@ void blk_scan(void)
 	heap[i].end = curend;
 
 	i = oldbase = 0;
+	oldend = 0xffff;
 	n = getword(seg_all + offsetof(list_s, next), ds);
 	while (n != seg_all) {
 	    mem = n - offsetof(segment_s, all);
 	    segbase = getword(mem + offsetof(segment_s, base), ds);
 	    segflags = getword(mem + offsetof(segment_s, flags), ds) & SEG_FLAG_TYPE;
-	    curend = segbase + getword(mem + offsetof(segment_s, size), ds);
+	    size = getword(mem + offsetof(segment_s, size), ds);
+	    curend = segbase + size;
 	    if (!oldbase) segs[i].base = segbase; 	/* initial */
 	    if (segflags == SEG_FLAG_EXTBUF) {
 		extbuf.base = segbase;
 		extbuf.end  = curend;
 	    }
-	    if (segbase < oldbase) {
+	    //printf("segbase=%x oldbase=%x curend=%x\n", segbase, oldbase, curend);
+	    if ((segbase < oldbase) || (segbase > oldend)) { /* catch UMBs too */
+		//printf("new arena, oldend %x, new base %x\n", oldend, segbase);
 		segs[i].end  = oldend;
 		segs[++i].base = segbase;	
+		if (segbase >= 0xa000) has_umb++;	/* system has UMBs */
 	    }
+	    if (segflags == SEG_FLAG_FREE) free_cnt[i] += size;
+	    //if (segflags == SEG_FLAG_FREE) printf("FREE: arena %d, free %ld |", i, ((long)size<<4));
 	    oldend = curend;
 	    oldbase = segbase;
 	    n = getword(n + offsetof(list_s, next), ds);
@@ -279,43 +303,63 @@ void blk_scan(void)
 		     s, make_kb(nn, s));
 	}
 }
+
+void map_umb(char *msg, int n) {
+	msg[strlen(msg)-1] = n + '1';
+	p_divider((long_t)(segs[n].end), "");
+	if (Pflag) {
+	    p_block(1, (long_t)(segs[n].end - segs[n].base)<<4, "UMB block,    size", msg);
+	    p_block(1, (long_t)(free_cnt[n])<<4, "         available", "");
+	    p_empty();
+	    pp_block(segs[n].base, segs[n].end);
+	} else
+	    p_block(5, (long_t)(segs[n].end - segs[n].base)<<4, "Upper memory block", msg);
+	p_divider((long_t)(segs[n].base), "UMB block base");
+	printf("\n");
+}
+
 /*
  * Paint a graphic representaiton of conventional memory layout. 
  * Uses data generated by blk_scan() above.
  */
 void mem_map(void)
 {
-	int i, seg = 0, start;
+	int i, start;
 	seg_t s_size;
 	char main_msg[] = "Main memory arena x";
 	unsigned int membase = ds + (seg_t)(((long_t)heap[0].end + 0x8L)>>4);
 
-	if (Pflag) {	/* get to the end of main memory arena (1) */
-	    seg = segptr-1;
-	    while (proc_list[seg].seg < proc_list[0].seg) seg--; 
-	}
 	printf("\n");
 	if (cs == 0xffffU) {	/* HMA kernel */
-		p_divider_l(0x11000L, "HMA top");
-		p_block(5, (long_t)0x10000, "Kernel text seg", "");
-		p_divider_l((long)cs+1, "HMA start");
-		printf("\n");
+	    p_divider_l(0x11000L, "HMA top");
+	    p_block(5, (long_t)0x10000, "Kernel text", "");
+	    p_divider_l((long)cs+1, "HMA start");
+	    printf("\n");
+	}
+	if (has_umb) {		/* map UMB blocks */
+	    /* since the segs array is structured the way it is, we're accessing it backwards */
+	    i = MAX_BLOCKS - 1;
+	    while (i) {
+		if (segs[i].base > 0x9fff) 	/* UMB is > 640k, HMA is separate */
+	   	    map_umb(main_msg, i);
+		i--;
+	    }
 	}
 	p_divider(segs[0].end, "Top of conv. memory");
 	i = 8;
 	if (Pflag) i = 1;
-	if (extbuf.base && !Pflag) {
-	    p_block(2, (long_t)(segs[0].end - extbuf.base)<<4, "Ext buffers", "");
+	if (extbuf.base) { 
+	    p_block(3, (long_t)(segs[0].end - extbuf.base)<<4, "Ext buffers", "");
 	    p_subdiv(extbuf.base, "", 1);
 	    i -= 2;
 	}
 	p_block(i, (long_t)(segs[0].end - membase)<<4, "Main memory", "Arena 1");
-	//p_block(i, (long_t)(segs[0].end-(ds+0x1000))<<4, "Main memory", "Arena 1");
 	if (Pflag)
-	    pp_block(0, seg);			/* display processes populating the arena */
+	    pp_block(segs[0].base, segs[0].end); /* display processes populating the arena */
 	p_divider(membase, "Kernel DS end");
 	p_block(3, (long_t)(heap[0].end-heap[0].base+1), "Main kernel heap", "");
 	p_subdiv(heap[0].base, "", 1);
+
 	if (heap[1].base) {		/* More heap found: the released bootopts buffer */
 	    p_block(1, (long_t)(heap[0].base-heap[1].end), "Kernel bss", "");
 	    p_subdiv(heap[1].end, "BSS continues", 1);
@@ -325,28 +369,32 @@ void mem_map(void)
 	    p_block(1, (long_t)(heap[1].base - (heap[0].base - bss_size)), "Kernel bss", "");
 	} else
 	    p_block(2, (long_t)bss_size, "Kernel bss", "");
+
 	p_subdiv(heap[0].base - bss_size, "BSS start", 1);
 	p_block(1, (long_t)heap[0].base - bss_size, "Kernel data", "");
 	p_divider(ds, "Kernel DS start");
 	i = 1; 					/* index into the segs[] array */
+	while (segs[i].base > segs[0].end) i++; /* skip umbs - assumes predetermined sequence
+						 * of memory arenas in the segs array */
+
 	if (ftext) {		/* we have FARTEXT, then we also have INITPROC */
 	    main_msg[strlen(main_msg)-1] = i + '1';
 	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, "[INITPROC code]",
 			main_msg);
 	    if (Pflag) {
-	    	start = ++seg;
-	        while (proc_list[seg+i].seg > proc_list[seg].seg) seg++; 
-		if (seg >= start) pp_block(start, seg);
+		p_empty();
+		pp_block(segs[i].base, segs[i].end);
 	    }
 	    if (segs[i].base > ftext)	/* if fartext > INITPROC, sometimes it's not */
 		p_subdiv(segs[i].base, "", 0);
 	    p_block(1, (long_t)(segs[i].base - ftext)<<4, "Kernel fartext", "");
 	    p_divider(ftext, "");
 	    i++;
+	    while (segs[i].base > segs[0].end) i++; 			/* skip umbs */
 	    s_size = ftext - cs;
 	} else
 	    s_size = ds - cs;
-	if (cs != 0xffff) {	/* kernel text in conv memnory */
+	if (cs != 0xffff) {				/* kernel text in conv memory */
 		p_block(5, (long_t)s_size<<4, "Kernel text", "");
 		p_divider(cs, "");
 	} else cs = ftext;
@@ -367,11 +415,8 @@ void mem_map(void)
 	    else
 		type = "[Unused FDcache]";
 	    p_block(1, (long_t)(segs[i].end-segs[i].base)<<4, type, main_msg);
-	    if (Pflag) {
-		start = ++seg;
-		while (proc_list[seg+1].seg > proc_list[seg].seg) seg++; 
-		if (seg >= start) pp_block(start, seg);
-	    }
+	    if (Pflag)
+		pp_block(segs[i].base, segs[i].end);
 	    if (segs[i].base > REL_INITSEG) {
 		p_divider(segs[i].base, "");
 	        p_block(1, (long_t)(segs[i].base - REL_INITSEG)<<4, "Floppy cache", "in use");
@@ -395,17 +440,18 @@ void dump_segs(void)
     if (!Pflag) printf("\t SEG   TYPE    SIZE  CNT  NAME\n");
 
     n = getword(seg_all + offsetof(list_s, next), ds);
+
     while (n != seg_all) {
 	mem = n - offsetof(segment_s, all);
 	segbase = getword(mem + offsetof(segment_s, base), ds);
+	oldbase = segs[area-1].base;
 
-	if (!Pflag)
-	    if (!oldbase || segbase < oldbase)
+	if (!Pflag) {
+	    if (segbase == oldbase)
         	printf("Arena %d ", area++);
 	    else
 	    	printf("        ");
-
-	oldbase = segbase;
+	}
 	display_seg(mem);
 	if (!Pflag) printf("\n");
 	/* next in list */
@@ -534,17 +580,17 @@ int main(int argc, char **argv)
     if (!memread(taskoff, ds, &task_table, sizeof(task_table)))
         perror("taskinfo");
 
-    if (Pflag)  {
-	int sz = sizeof(struct proc_list_s) * (maxtasks<<1);
-	if (!(proc_list = (struct proc_list_s *)malloc(sz))) {
-	    printf("%s: malloc failed\n", argv[0]);
-	    return 2;
+    blk_scan();	
+    if (Mflag || Pflag) {
+	if (Pflag)  {
+	    int sz = sizeof(struct proc_list_s) * (maxtasks<<1);
+	    if (!(proc_list = (struct proc_list_s *)malloc(sz))) {
+		printf("%s: malloc failed\n", argv[0]);
+		return 2;
+	    }
+	    memset(proc_list, 0, sz);	/* mandatory */
+	    dump_segs(); 	/* silent dump to fill the proc_list array */
 	}
-	memset(proc_list, 0, sz);	/* mandatory */
-	dump_segs(); 	/* silent dump to fill the proc_list array */
-    }
-    if (Mflag) {
-	blk_scan();
 	mem_map();
     }
     else if (mflag) dump_segs();
@@ -552,7 +598,7 @@ int main(int argc, char **argv)
 
     if (!ioctl(fd, MEM_GETUSAGE, &mu)) {
 	    /* note MEM_GETUSAGE amounts are floors, 
-	     * so total may display less by 1k than actual */
+	     * so total may display 1k less than actual */
     	printf("Memory: %4dKB total, %4dKB used, %4dKB free\n\n",
     		mu.used_memory + mu.free_memory, mu.used_memory, mu.free_memory);
     }

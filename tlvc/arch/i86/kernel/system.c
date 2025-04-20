@@ -62,10 +62,10 @@ unsigned int INITPROC setup_arch(void)
 
 	if (!memend) 				/* bootopts setting overrides */
 		memend = SETUP_MEM_KBYTES << 6;
-	if (memend > 0xa000) memend = 0xa000;	/* sanity check */
+	//if (memend > 0xa000) memend = 0xa000;	/* sanity check */
 
 #if defined(CONFIG_RAMDISK_SEGMENT) && (CONFIG_RAMDISK_SEGMENT > 0)
-	if (CONFIG_RAMDISK_SEGMENT <= *memend) {
+	if (CONFIG_RAMDISK_SEGMENT <= memend) {
 		/* reduce top of memory by size of ram disk */
 		memend -= CONFIG_RAMDISK_SECTORS << 5;
 	}
