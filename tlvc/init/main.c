@@ -31,9 +31,12 @@
 #define MAX_INIT_ARGS	6	/* max # arguments to /bin/init or init= program */
 #define MAX_INIT_ENVS	12	/* max # environ variables passed to /bin/init */
 #define MAX_INIT_SLEN	80	/* max # words of args + environ passed to /bin/init */
+#define XMS_START_ADDR	0x100000 /* Extended memory physical start addr */
 
 #define	__STRING(x)	#x	/* TODO: move these to header file */
 #define STR(x)          __STRING(x)
+#define KB_TO_LINADDR(x)	((long_t)(x)<<10)
+#define LINADDR_TO_KB(x)	((word_t)((x)>>10))
 
 /* bootopts error message are duplicated below so static here for space savings */
 char errmsg_initargs[] = "bootopts: init args > " STR(MAX_INIT_ARGS);
@@ -79,7 +82,7 @@ int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
 int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
-int xms_size, xms_avail, hma_avail;
+int xms_size, xms_avail, xms_start, hma_avail;	/* descriptions in xms.c */
 static int boot_console;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -123,11 +126,39 @@ static void INITPROC kernel_banner(seg_t init, seg_t extra);
 static void INITPROC early_kernel_init(void);
 static void init_task(void);
 static int INITPROC umb_valid(seg_t);
+static word_t INITPROC find_xms_start(void);
+static word_t INITPROC find_xms_end(word_t, word_t);
+
+#ifdef GET_GDT
+unsigned *get_gdt(void);
+
+/* Dump the contents of the GDT last used by the BIOS */
+void dump_gdt(void)
+{
+    unsigned i, *gdt = get_gdt();
+    int count;
+    unsigned long ptr = *(unsigned long*)(gdt+1) & 0xffffff;	/* mask off 286 garbage */
+    unsigned __far *entry = (unsigned __far *)(((ptr&0xffff0000)<<12) + (ptr&0xffff));
+
+    count = *gdt;
+    if (!count) count = 8*8;	/* peek at it even if it's zero length */
+    printk("\noriginal gdt from %x, len %u, addr %lx(%lx/%lx)\n",
+					gdt, *gdt, *(long*)(gdt+1), ptr, entry);
+    for (i = 0; i < count; i+=8) {
+	printk(" %04x %04x %04x %04x\n", *entry, *(entry+1), *(entry+2), *(entry+3));
+	entry += 4;
+    }
+    printk("\n");
+}
+#endif
 
 /* this procedure is called using temp stack then switched, no local vars allowed */
 void start_kernel(void)
 {
     //printk("START\n");
+#ifdef GET_GDT
+    dump_gdt();
+#endif
     early_kernel_init();        /* read bootopts using kernel temp stack */
     task = heap_alloc(max_tasks * sizeof(struct task_struct),
         HEAP_TAG_TASK|HEAP_TAG_CLEAR);
@@ -199,10 +230,35 @@ void INITPROC kernel_init(void)
 {
     int i;
 
-    irq_init();		/* Install timer and DIV fault handlers */
+#ifdef CONFIG_ARCH_IBMPC
+    outw(0, 0x510);
+    if (inb(0x511) == 'Q' && inb(0x511) == 'E')
+        running_qemu = 1;
+#endif
+
+    irq_init();		/* Install timer and IDIV fault handlers */
+    if (arch_cpu > 6) {	/* 386+ */
+	enable_a20_gate();
+	enable_unreal_mode();
+    }
+
     xms_size = xms_avail = SETUP_XMS_SIZE;
-    if (xms_size) hma_avail = enable_a20_gate();
-    if (hma_avail) xms_avail = xms_size - 64;
+    printk("got xms size %d\n", xms_size);
+
+    /* Size up XMS, which may consist of more than one segment and start
+     * anywhere above 1M. We're using only the first (lowest address), 
+     * assuming it's the largest. 
+     */
+    if (xms_size) {		/* if > 0 then we know A20 is OK */
+	hma_avail = (kernel_cs == 0xffff || umb_valid(0xffff));
+	if (hma_avail)
+	    xms_start = 64;
+	else
+	    /* XMS does not start at 1M, find it */
+	    xms_start = find_xms_start();	/* kbytes from 1M */
+	xms_avail = find_xms_end(xms_start, xms_size) - xms_start;
+    }
+    //printk("hma %d size %x avail %x start %x \n", hma_avail, xms_size, xms_avail, xms_start);
 
     /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
@@ -211,17 +267,10 @@ void INITPROC kernel_init(void)
 #ifdef CONFIG_CHAR_DEV_RS
     serial_init();
 #endif
-    if (arch_cpu > 6) enable_unreal_mode();	/* 386+ */
 
     inode_init();
     if (buffer_init())	/* also enables xms and unreal mode if configured and possible */
 	panic("No buf mem");
-
-#ifdef CONFIG_ARCH_IBMPC
-    outw(0, 0x510);
-    if (inb(0x511) == 'Q' && inb(0x511) == 'E')
-        running_qemu = 1;
-#endif
 
 #ifdef CONFIG_SOCKET
     sock_init();
@@ -230,14 +279,14 @@ void INITPROC kernel_init(void)
     /* Process UMB blocks if available */
     i = 0;
     if (umbvec[0].seg) {
-	printk("umb: ");
+	printk("umb:");
 	if (umbvec[i].size == 1) {	/* 1st element may already have been added to memend */
 	    i++;
-	    printk("%dk added to main memory", (memend-0xA000)>>6);
+	    printk(" %dk added to main memory", (memend-0xA000)>>6);
 	}
 	while (umbvec[i].seg) {
 	    seg_add(umbvec[i].seg, umbvec[i].seg + umbvec[i].size);
-	    printk(", %dk block at 0x%x", umbvec[i].size>>6, umbvec[i].seg);
+	    printk("%s %dk block at 0x%x", i>0?",":"", umbvec[i].size>>6, umbvec[i].seg);
 	    i++;
 	}
 	printk("\n");
@@ -366,6 +415,46 @@ static void init_task(void)
     do_init_task();
 }
 
+static word_t INITPROC find_xms_start(void)
+{
+	long_t lin_base = XMS_START_ADDR;
+	//unsigned int save, check;
+	word_t val = 0x79BA;
+
+	while (lin_base < 0x1000000L) {		/* cap start at 16M for now */
+	    printk("start xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)20, lin_base));
+	    linear32_pokew((void *)0, lin_base, val);
+	    if (linear32_peekw((void *)0, lin_base) == val)
+		break;
+	    lin_base += 0x10000;
+	}
+	return LINADDR_TO_KB(lin_base - 0x10000);
+}
+
+/* Find the end of the current XMS 'segment', searching up, since there may be holes
+ * in it. Stop at 'end' which is normally the systemreported xms size (kb)
+ */
+static word_t INITPROC find_xms_end(word_t start, word_t top)
+{
+	long_t lin_base = KB_TO_LINADDR(start) + XMS_START_ADDR;
+	word_t val = 0x76AB;
+
+	top += LINADDR_TO_KB(XMS_START_ADDR);
+	if (top > 0x7fffU) top = 0x7fffU;	/* cap at 32M for now */
+	printk("find_xms_end: base %lx: st %04x end %04x\n", lin_base, start, top);
+
+	while (lin_base < KB_TO_LINADDR(top)) {
+	    printk("endloop xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)0x8010, lin_base));
+	    linear32_pokew((void *)0x8010, lin_base, val);
+	    printk("endloop xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)0x8010, lin_base));
+	    if (linear32_peekw((void *)0x8010, lin_base) != val)
+		break;
+	    lin_base += 0x10000;
+	    start += 64;
+	}
+	return(start);
+}
+
 #ifdef CONFIG_BOOTOPTS
 static struct dev_name_struct {
 	const char *name;
@@ -483,14 +572,14 @@ static void INITPROC comirq(char *line)
 	    if (irq[i]) set_serial_irq(i, irq[i]);
 }
 
-static void parse_umb(char *line, struct umb_vec *umbv)
+static void INITPROC parse_umb(char *line, struct umb_vec *umbv)
 {
 	char *l = line;
 	int i, ind = 0;
 	unsigned int seg = 0xa000;
 
 	for (i = 0; i < 10 && l[i]; i++) {
-	    if (l[i] == '1' && !umb_valid(seg)) {
+	    if (l[i] == '1' && umb_valid(seg)) {
 		if (!umbv[ind].seg) umbv[ind].seg = seg;
 		if (umbv[ind].seg) umbv[ind].size += 0x800;
 	    } else {
@@ -498,9 +587,10 @@ static void parse_umb(char *line, struct umb_vec *umbv)
 	    }
 	    seg += 0x800;
 	}
-	/* DEBUG */
+#if 0
 	for (i = 0; i < 5; i++) 
-		printk("umb%i: %x %x\n", i, umbv[i].seg, umbv[i].size);
+	    printk("umb%i: %x %x\n", i, umbv[i].seg, umbv[i].size);
+#endif
 }
 
 static void INITPROC parse_nic(char *line, struct netif_parms *parms)
@@ -801,18 +891,13 @@ static char * INITPROC option(char *s)
 
 static int INITPROC umb_valid(seg_t seg)
 {
-	int wd = peekw(0, seg);
+	if (seg < 0xa000) return 0;	/* sanity check */
 
-	if (seg < 0xa000) return 1;	/* sanity check */
-
-	pokew(0, seg, 0x1234);
-	if (peekw(0, seg) != 0x1234) return 1;
-	pokew(0, seg, wd);
-	wd = peekw(0x7ffe, seg);
-	pokew(0x7ffe, seg, 0x4321);
-	if (peekw(0x7ffe, seg) != 0x4321) return 1;
-	pokew(0x7ffe, seg, 0x4321);
-	return 0;
+	pokew(0x20, seg, 0x1234);	/* use offset so we can test HMA too */
+	if (peekw(0x20, seg) != 0x1234) return 0;
+	pokew(0x7ff0, seg, 0x4321);
+	if (peekw(0x7ff0, seg) != 0x4321) return 0;
+	return 1;
 }
 #endif /* CONFIG_BOOTOPTS*/
 

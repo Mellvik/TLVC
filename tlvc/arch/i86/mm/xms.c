@@ -13,14 +13,16 @@
 #include <arch/segment.h>
 
 /* linear address to start XMS buffer allocations from */
-#define XMS_START_ADDR    0x00110000L	/* 1M+64k */
+#define XMS_START_ADDR    0x00100000L	/* 1M */
 //#define XMS_START_ADDR  0x00FA0000L	/* 15.6M (Compaq with only 1M ram) */
 
 #ifdef CONFIG_FS_XMS_BUFFER
 
-extern int xms_size;
-extern int xms_avail;
-extern int hma_avail;
+extern int xms_size;	/* Total XMS size, may be less than reported by BIOS, k bytes */
+extern int xms_start;	/* Offset from 1M where xms memory starts, normally 0, k bytes */
+extern int xms_avail;	/* XMS mem available, may be less than size (hma, ramdisk ...) */
+extern int hma_avail;	/* Set if HMA memory is available */
+extern int nr_xms_bufs;	/* Number of XMS buffers to allocate if available (bootopts) */
 
 /* these used in CONFIG_FS_XMS_INT15 only */
 struct gdt_table;
@@ -39,18 +41,21 @@ extern void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t 
  *     in linear32_fmemcypw.
  */
 
-static long_t xms_alloc_ptr = XMS_START_ADDR;
+static long_t xms_alloc_ptr;
+//static long_t xms_alloc_ptr = XMS_START_ADDR;
 
 /* try to enable unreal mode and A20 gate. Return 1 if successful */
 void xms_init(void)
 {
-	int enabled;
+	//int enabled;
 
 	/* display initial A20 and A20 enable result */
 	printk("xms: ");
 #ifndef CONFIG_FS_XMS_INT15
 	if (check_unreal_mode() <= 0) {
-		printk("disabled, requires 386, ");
+		printk("disabled, requires 386");
+		xms_avail = 0;
+		nr_xms_bufs = 0;
 		return;
 	}
 #else
@@ -64,7 +69,10 @@ void xms_init(void)
 		printk("not available\n");
 		return;
 	}
+	xms_alloc_ptr = XMS_START_ADDR + ((long)xms_start<<10);
 	printk("%uk available, ", xms_avail);
+	printk("a20 status %d, ", verify_a20());
+	//enable_a20_gate();
 #ifdef NOT_REQUIRED_ANYMORE
 	debug("A20 was %s", verify_a20()? "on" : "off");
 	enable_a20_gate();
@@ -75,11 +83,12 @@ void xms_init(void)
 		xms_avail = 0;
 		printk("disabled, A20 error\n");
 	} else {
-#else
+//#else
 	if (!hma_avail)  {
 		printk("disabled, A20 error\n");
-	} else {
+	} else
 #endif
+	{
 #ifdef CONFIG_FS_XMS_INT15
 		printk("using int 15/1F");
 #else
@@ -90,14 +99,23 @@ void xms_init(void)
 	return;
 }
 
-/* allocate from XMS memory - very simple for now, no free */
-ramdesc_t xms_alloc(long_t size)
+/* Allocate from XMS memory - very simple for now, no free,
+ * just checking against over-allocation.
+ * Unit is K bytes.
+ */
+ramdesc_t xms_alloc(int size)
 {
 	long_t mem = xms_alloc_ptr;
 
-	xms_alloc_ptr += size;
-	//printk("xms_alloc %lx size %lu\n", mem, size);
-	return mem;
+	//if ((xms_alloc_ptr + size)>>10 - xms_start < xms_avail) {
+	if (size < xms_avail) {
+	    xms_alloc_ptr += ((long)size<<10);
+	    xms_avail -= size;
+	    //printk("xms_alloc %lx size %u\n", mem, size);
+	    return mem;
+	}
+	printk("xms: Alloc failed @ %lx\n", xms_alloc_ptr);
+	return 0;
 }
 
 /* copy words between XMS and far memory */
@@ -108,7 +126,7 @@ void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_src || need_xms_dst) {
-		if (!xms_size) panic("xms_fmemcpyw");
+		if (!xms_avail) panic("xms_fmemcpyw");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
 
@@ -130,7 +148,7 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_src || need_xms_dst) {
-		if (!xms_size) panic("xms_fmemcpyb");
+		if (!xms_avail) panic("xms_fmemcpyb");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
 
@@ -184,6 +202,7 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	}
 	fmemsetb(dst_off, (seg_t)dst_seg, val, count);
 }
+
 
 #ifdef CONFIG_FS_XMS_INT15
 struct gdt_table {

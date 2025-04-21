@@ -30,6 +30,8 @@
 	.global	linear32_fmemcpyw
 	.global	linear32_fmemcpyb
 	.global	linear32_fmemset
+	.global linear32_peekw
+	.global linear32_pokew
 
 #include "a20.inc"
 
@@ -82,11 +84,11 @@ enable_unreal_mode:
 
 	push %ds
 	push %es
-	push %fs
-	push %gs
+	//push %fs
+	//push %gs
 
 	xorl %eax,%eax
-	mov %cs,%ax		# set up the GDT entry for the code seg
+	mov %cs,%ax		# set up GDT entry for the code seg
 	shll $4,%eax
 	mov %ax,code+2
 	ror $16,%eax
@@ -105,8 +107,8 @@ pmode:
 	movw $LINEAR_SEL, %bx # selector to segment with 4GB-1 limit
 	movw %bx,%ds    # set segment limits in descriptor caches
 	movw %bx,%es
-	movw %bx,%fs
-	movw %bx,%gs
+	//movw %bx,%fs
+	//movw %bx,%gs
 
 	decb %al        # CR0.PE=0: back to (un)real mode
 	movl %eax, %cr0
@@ -116,8 +118,8 @@ pmode:
 # loading segment registers in (un)real mode changes their base address
 # but not the segment limit; which remains 4GB-1
 unreal:
-	pop %gs
-	pop %fs
+	//pop %gs
+	//pop %fs
 	pop %es
 	pop %ds
 	xor %al,%al
@@ -127,38 +129,75 @@ unreal:
 	mov	$1,%ax		# system is in unreal mode, return 1
 	ret
 
-#if UNUSED
+#ifdef GET_GDT
+	.global get_gdt
+#
+get_gdt:
+	sgdt gdt_save
+	mov $gdt_save,%ax
+	ret
+#endif
+
 #
 # word_t linear32_peekw(void *src_off, addr_t src_seg)
+# void linear32_pokew(void *src_off, addr_t src_seg, unsigned val)
 # WARNING: Requires 32-bit CPU, with unreal mode and A20 gate enabled!
 #          Trashes EBX and ESI without saving.
 #
 	.global	linear32_peekw
 linear32_peekw:
-	call   setgpf
-	mov    %si,%dx
+	push	%es		// Required: ES is somehow invisibly used, must be saved
+	mov	%si,%dx
 
 	//cli			// uncomment if extended registers used in interrupt routines
-	xorl   %esi,%esi
-	mov    %sp,%si
+	xorl	%esi,%esi
+	mov	%sp,%si
 
-	xorl   %ebx,%ebx
-	mov    2(%si),%bx     // word src offset -> EBX
-	movl   4(%esi),%esi   // long src address -> ESI
-	addl   %ebx,%esi      // ESI is linear destination
+	xorl	%ebx,%ebx
+	mov 	4(%si),%bx     // word src offset -> EBX
+	movl	6(%esi),%esi   // long src address -> ESI
+	addl	%ebx,%esi      // ESI is linear destination
 
-	xor    %bx,%bx        // DS = 0 for 32-bit linear addressing
-	mov    %bx,%ds
-
+	xor	%bx,%bx        // DS = 0 for 32-bit linear addressing
+	mov	%bx,%ds
 	cld
-	addr32 lodsw          // AX = [DS:ESI++]
+	addr32	lodsw		// AX = [DS:ESI++]
 	//sti			// restore interrupt status
 
 	mov    %dx,%si
 	mov    %ss,%bx
 	mov    %bx,%ds
+	pop	%es
 	ret
-#endif
+#
+#
+	.global	linear32_pokew
+linear32_pokew:
+	push	%es		// Required!
+	mov	%di,%dx
+
+	//cli			// uncomment if extended registers used in interrupt routines
+	xorl	%edi,%edi
+	mov 	%sp,%di
+
+	xorl	%ebx,%ebx
+	mov 	4(%di),%bx	// word src offset -> EBX
+	mov 	10(%di),%ax	// get value for poke
+	movl	6(%edi),%edi	// long src address -> EDI
+	addl	%ebx,%edi	// ESI is linear destination
+
+	xor	%bx,%bx        // ES = 0 for 32-bit linear addressing
+	mov	%bx,%es
+	cld
+	addr32 stosw		// AX = [ES:ESI++]
+	//sti			// restore interrupt status
+
+1:
+	mov    %dx,%di
+	//mov    %ss,%bx
+	//mov    %bx,%ds
+	pop	%es
+	ret
 
 #
 # void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
@@ -411,9 +450,12 @@ LINEAR_SEL = . - gdt
         .byte 0x93      # present, ring 0, data, expand-up, writable, accessed
 # putting a zero byte here (instead of 0xCF) effectively disables unreal mode:
 #       .byte 0         # byte-granular, 16-bit, limit=64K-1
-        .byte 0xCF      # page-granular, 32-bit, limit=4GB-1 (was CF)
+        .byte 0xCF      # page-granular, 32-bit, limit=4GB-1
         .byte 0		# upper (4th) byte of base address, not used
 gdt_len = . - gdt
 
 gdt_ptr:.word gdt_len - 1
         .long gdt
+#ifdef GET_GDT
+gdt_save: .word 0,0,0
+#endif

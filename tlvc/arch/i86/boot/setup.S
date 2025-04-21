@@ -1,3 +1,4 @@
+
 /*
 !
 !	setup.S		Copyright (C) 1991, 1992 Linus Torvalds
@@ -515,21 +516,13 @@ sys_hdr_good:
 	xor %di,%di
 
 #ifdef CONFIG_ARCH_IBMPC
-// If 80286 or higher, check whether relocating .text to HMA is possible
-	push %ds
-	mov $INITSEG,%ax
-	mov %ax,%ds
-	mov cpu_type,%ax
-	cmpb $6,cpu_type
-	jl 2f
+// Check whether relocating .text to HMA is possible
 	call checkhma
 	jc 2f		 // no HMA
 	mov $HMA_SEG,%ax
-	pop %ds
 	jmp 1f
-2:	pop %ds
 #endif
-	mov $REL_SYSSEG,%ax
+2:	mov $REL_SYSSEG,%ax
 1:	mov %ax,%es
 	mov %ax,-18(%bp) // save .text segment
 	.ifeq debug_output
@@ -942,7 +935,7 @@ novga:	mov	%al,14		// CGA 25 rows
 	int	$0x15
 	jc	1f
 	mov	%ax,xms_kbytes
-
+1:
 #ifdef CONFIG_BOOTOPTS
 	call	bootopts	// load /bootopts into DEF_OPTSEG (0050:0000)
 	call    hmabootopts	// check /bootopts for hma=kernel
@@ -952,11 +945,7 @@ novga:	mov	%al,14		// CGA 25 rows
 
 // check for hma=kernel in /bootopts, return AX = 0 if not
 hmabootopts:
-	cmpb	$6,cpu_type	// ignore if < 80826
-	jae	1f
-	xor	%al,%al
-	ret
-1:	push	%ds
+	push	%ds
 	push	%es
 
 	push	%cs			// ES = our code segment
@@ -979,6 +968,7 @@ look:	mov	(%si),%al		// done when NUL seen
 	jnz	look			// NZ = no match
 	mov	$'H',%ax
 	call	putc
+	mov	$1,%ax			// return success
 	jmp	2f
 1:	xor	%ax,%ax			// no HMA
 2:	pop	%es
@@ -989,21 +979,30 @@ hma_string:
 	.ascii	"\nhma=kernel"		// size = 11
 
 // check whether HMA can be enabled, return NC if so with A20 enabled
-// Assumes DS=INITSEG
 checkhma:
-	mov	xms_kbytes,%ax		//. must have xms size >= 64k
+	push	%ds
+	mov	$INITSEG,%ax
+	mov	%ax,%ds
+	mov	xms_kbytes,%ax		// must have xms size >= 64k
 	cmp	$64,%ax
 	jl	1f
 	mov	hma_kernel,%al		// and hma=kernel in /bootopts
 	test	%al,%al
 	jz	1f
+	mov	$0xffff,%ax
+	mov	%ax,%ds
+	mov	$1234,%ax		// check that HMA is RAM
+	mov	%ax,0x200		// random location
+	cmp	0x200,%ax
+	jnz	1f
 	call	enable_a20_gate		// and A20 enabled
 	test	%ax,%ax
 	jz	1f
 	clc				// success
 	jmp 	2f
 1:	stc				// fail
-2:	ret
+2:	pop	%ds
+	ret
 
 // Write AL to console, save all registers
 putc:	push %ax
