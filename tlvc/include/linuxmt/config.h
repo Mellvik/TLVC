@@ -9,7 +9,8 @@
  */
 
 #ifdef CONFIG_ARCH_IBMPC
-#define MAX_SERIAL		4		/* max number of serial tty devices*/
+#define MAX_SERIAL		4		/* max number of serial tty devices */
+#define MAX_XMS_SIZE		0x7fff		/* Caps XMS-size to 32M (mask - setup.S) */
 
 /* If SETUP_MEM_KBYTES_ASM is unset, the BIOS will be queried for the himem value */
 /* (in setup.S) */

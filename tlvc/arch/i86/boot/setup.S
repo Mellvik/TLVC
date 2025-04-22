@@ -934,6 +934,7 @@ novga:	mov	%al,14		// CGA 25 rows
 	mov	$0x8800,%ax	// get xms size
 	int	$0x15
 	jc	1f
+	and	$MAX_XMS_SIZE,%ax
 	mov	%ax,xms_kbytes
 1:
 #ifdef CONFIG_BOOTOPTS
@@ -947,6 +948,7 @@ novga:	mov	%al,14		// CGA 25 rows
 hmabootopts:
 	push	%ds
 	push	%es
+#ifndef CONFIG_FS_XMS_INT15
 
 	push	%cs			// ES = our code segment
 	pop	%es
@@ -970,6 +972,7 @@ look:	mov	(%si),%al		// done when NUL seen
 	call	putc
 	mov	$1,%ax			// return success
 	jmp	2f
+#endif
 1:	xor	%ax,%ax			// no HMA
 2:	pop	%es
 	pop	%ds
@@ -985,7 +988,7 @@ checkhma:
 	mov	%ax,%ds
 	mov	xms_kbytes,%ax		// must have xms size >= 64k
 	cmp	$64,%ax
-	jl	1f
+	jb	1f
 	mov	hma_kernel,%al		// and hma=kernel in /bootopts
 	test	%al,%al
 	jz	1f

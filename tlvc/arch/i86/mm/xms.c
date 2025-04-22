@@ -16,6 +16,9 @@
 #define XMS_START_ADDR    0x00100000L	/* 1M */
 //#define XMS_START_ADDR  0x00FA0000L	/* 15.6M (Compaq with only 1M ram) */
 
+#define KB_TO_LINADDR(x)	((long_t)(x)<<10)
+#define LINADDR_TO_KB(x)	((word_t)((x)>>10))
+
 #ifdef CONFIG_FS_XMS_BUFFER
 
 extern int xms_size;	/* Total XMS size, may be less than reported by BIOS, k bytes */
@@ -49,7 +52,6 @@ void xms_init(void)
 {
 	//int enabled;
 
-	/* display initial A20 and A20 enable result */
 	printk("xms: ");
 #ifndef CONFIG_FS_XMS_INT15
 	if (check_unreal_mode() <= 0) {
@@ -72,7 +74,7 @@ void xms_init(void)
 	xms_alloc_ptr = XMS_START_ADDR + ((long)xms_start<<10);
 	printk("%uk available, ", xms_avail);
 	printk("a20 status %d, ", verify_a20());
-	//enable_a20_gate();
+
 #ifdef NOT_REQUIRED_ANYMORE
 	debug("A20 was %s", verify_a20()? "on" : "off");
 	enable_a20_gate();
@@ -83,19 +85,15 @@ void xms_init(void)
 		xms_avail = 0;
 		printk("disabled, A20 error\n");
 	} else {
-//#else
 	if (!hma_avail)  {
 		printk("disabled, A20 error\n");
 	} else
 #endif
-	{
 #ifdef CONFIG_FS_XMS_INT15
 		printk("using int 15/1F");
 #else
-		enable_unreal_mode();
 		printk("using unreal mode");
 #endif
-	}
 	return;
 }
 
@@ -107,7 +105,6 @@ ramdesc_t xms_alloc(int size)
 {
 	long_t mem = xms_alloc_ptr;
 
-	//if ((xms_alloc_ptr + size)>>10 - xms_start < xms_avail) {
 	if (size < xms_avail) {
 	    xms_alloc_ptr += ((long)size<<10);
 	    xms_avail -= size;
@@ -203,6 +200,43 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	fmemsetb(dst_off, (seg_t)dst_seg, val, count);
 }
 
+word_t INITPROC find_xms_start(void)
+{
+	long_t lin_base = XMS_START_ADDR;
+	word_t val = 0x79BA;
+
+	while (lin_base < (KB_TO_LINADDR(xms_size) + XMS_START_ADDR)) {
+	    printk("start xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)20, lin_base));
+	    linear32_pokew((void *)0, lin_base, val);
+	    if (linear32_peekw((void *)0, lin_base) == val)
+		break;
+	    lin_base += 0x10000;
+	}
+	return LINADDR_TO_KB(lin_base - 0x10000);
+}
+
+/* Find the end of the current XMS 'segment', searching up, since there may be holes
+ * in it. Stop at 'end' which is normally the systemreported xms size (kb)
+ */
+word_t INITPROC find_xms_end(word_t start, word_t top)
+{
+	long_t lin_base = KB_TO_LINADDR(start) + XMS_START_ADDR;
+	word_t val = 0x76AB;
+
+	top += LINADDR_TO_KB(XMS_START_ADDR);
+	if (top > 0x7fffU) top = 0x7fffU;	/* cap at 32M for now */
+	//printk("find_xms_end: base %lx: st %04x end %04x\n", lin_base, start, top);
+
+	while (lin_base < KB_TO_LINADDR(top)) {
+	    linear32_pokew((void *)0x8010, lin_base, val);
+	    //printk("endloop xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)0x8010, lin_base));
+	    if (linear32_peekw((void *)0x8010, lin_base) != val)
+		break;
+	    lin_base += 0x10000;
+	    start += 64;
+	}
+	return(start);
+}
 
 #ifdef CONFIG_FS_XMS_INT15
 struct gdt_table {
@@ -217,7 +251,7 @@ struct gdt_table {
 static struct gdt_table gdt_table[8];
 
 /* move words between XMS and main memory using BIOS INT 15h AH=87h block move */
-void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
+void /*XMSPROC*/ int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 		size_t count)
 {
 	struct gdt_table *gp;

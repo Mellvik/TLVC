@@ -80,12 +80,10 @@ enable_unreal_mode:
 	pushf			# save interrupt status
 	cli                     # interrupts off
 	mov $0x80,%ax
-	out %al,$0x70		# for good measure, turn off RTC NMI
+	out %al,$0x70		# block NMI
 
 	push %ds
 	push %es
-	//push %fs
-	//push %gs
 
 	xorl %eax,%eax
 	mov %cs,%ax		# set up GDT entry for the code seg
@@ -104,13 +102,11 @@ enable_unreal_mode:
 
 	ljmp $code-gdt,$pmode	# Set the CS to enter protected mode
 pmode:
-	movw $LINEAR_SEL, %bx # selector to segment with 4GB-1 limit
-	movw %bx,%ds    # set segment limits in descriptor caches
+	movw $LINEAR_SEL, %bx	# selector to segment with 4GB-1 limit
+	movw %bx,%ds    	# set segment limits in descriptor caches
 	movw %bx,%es
-	//movw %bx,%fs
-	//movw %bx,%gs
 
-	decb %al        # CR0.PE=0: back to (un)real mode
+	decb %al        	# CR0.PE=0: back to (un)real mode
 	movl %eax, %cr0
 	lret		# Effectively an ljmp to the next line
 			# to set the CS
@@ -118,12 +114,10 @@ pmode:
 # loading segment registers in (un)real mode changes their base address
 # but not the segment limit; which remains 4GB-1
 unreal:
-	//pop %gs
-	//pop %fs
 	pop %es
 	pop %ds
 	xor %al,%al
-	out %al,$0x70
+	out %al,$0x70		# re-enable NMI
 	popf			# restore interrupt status
 
 	mov	$1,%ax		# system is in unreal mode, return 1
@@ -146,7 +140,6 @@ get_gdt:
 #
 	.global	linear32_peekw
 linear32_peekw:
-	push	%es		// Required: ES is somehow invisibly used, must be saved
 	mov	%si,%dx
 
 	//cli			// uncomment if extended registers used in interrupt routines
@@ -154,8 +147,8 @@ linear32_peekw:
 	mov	%sp,%si
 
 	xorl	%ebx,%ebx
-	mov 	4(%si),%bx     // word src offset -> EBX
-	movl	6(%esi),%esi   // long src address -> ESI
+	mov 	2(%si),%bx     // word src offset -> EBX
+	movl	4(%esi),%esi   // long src address -> ESI
 	addl	%ebx,%esi      // ESI is linear destination
 
 	xor	%bx,%bx        // DS = 0 for 32-bit linear addressing
@@ -167,13 +160,12 @@ linear32_peekw:
 	mov    %dx,%si
 	mov    %ss,%bx
 	mov    %bx,%ds
-	pop	%es
 	ret
 #
 #
 	.global	linear32_pokew
 linear32_pokew:
-	push	%es		// Required!
+	push	%es
 	mov	%di,%dx
 
 	//cli			// uncomment if extended registers used in interrupt routines
@@ -192,10 +184,7 @@ linear32_pokew:
 	addr32 stosw		// AX = [ES:ESI++]
 	//sti			// restore interrupt status
 
-1:
 	mov    %dx,%di
-	//mov    %ss,%bx
-	//mov    %bx,%ds
 	pop	%es
 	ret
 

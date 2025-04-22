@@ -202,7 +202,10 @@ int INITPROC buffer_init(void)
     xms_init();       /* try to enable unreal mode and A20 gate*/
     if (xms_avail && nr_xms_bufs)
 	bufs_to_alloc = (nr_xms_bufs > xms_avail) ? xms_avail : nr_xms_bufs;
+#else
+    nr_xms_bufs = 0;
 #endif
+
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
 #else
@@ -222,33 +225,35 @@ int INITPROC buffer_init(void)
         return 1;
 
     buffer_heads = heap_alloc(bufs_to_alloc * sizeof(struct buffer_head),
-        HEAP_TAG_BUFHEAD|HEAP_TAG_CLEAR);
+        		      HEAP_TAG_BUFHEAD|HEAP_TAG_CLEAR);
     if (!buffer_heads) return 1;
+
 #ifdef CONFIG_FAR_BUFHEADS
     size_t size = bufs_to_alloc * sizeof(ext_buffer_head);
     seg_t hma_seg = 0xffffU; 
     //printk("HMA space available: %u, need %u\n", 0xfff0 - (unsigned)_endtext, size); 
+
 #if 0	/* Disabled for debugging, reenable later */
     /* Need to determine whether this capability is really useful */
     if (hma_avail && kernel_cs != hma_seg) {		/* HMA available for ext headers */
 	fmemsetw((void *)0x10, hma_seg, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(hma_seg, 0x10);
 	printk(", HMA bufheads\n     ");
-    } else if (kernel_cs == hma_seg && (size < (hma_seg - (unsigned)_endtext))) {
+    } else
+#endif
+     if (kernel_cs == hma_seg && (size < (hma_seg - (unsigned)_endtext))) {
 	/* kernel is loaded high, but there is still enough space for the buffer headers */
-	/* This capability is ALWAYS useful */
-	/* compact this later */
+	/* Requires CONFIG_FAR_BUFHEADS via CONFIG_XMS_... */
 	fmemsetw((void *)_endtext, hma_seg, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(hma_seg, (unsigned)_endtext);
 	printk(", bufheads in high HMA\n     ");
     } else
-#endif
     {
 	segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
 	if (!seg) return 1;
 	fmemsetw(0, seg->base, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(seg->base, 0);
-	/*if (xms_size)*/ printk(", EXT bufheads\n     ");
+	printk(", EXT bufheads\n     ");
     }
 #endif
     bh_next = bh_lru = bh_llru = buffer_heads;
@@ -280,11 +285,12 @@ int INITPROC buffer_init(void)
     } while (bufs_to_alloc > 0);
     printk("%d %s buffers (base @ 0x%lx), %dK L1-cache, %d req hdrs\n", abufs,
         nr_xms_bufs? "xms": "ext", (unsigned long)b_base, nr_map_bufs, NR_REQUEST);
-#else
-    /* no EXT or XMS buffers, internal L1 only */
+
+#else		/* no EXT or XMS buffers, internal L1 only */
     add_buffers(nr_map_bufs, L1buf, kernel_ds);
     printk("L1 cache: %uK, no buffers\n", nr_map_bufs);
 #endif
+
     return 0;
 }
 
