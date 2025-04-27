@@ -2,7 +2,7 @@
 console=ttyS0,57600 3	# serial console and init-level (3)
 debug=2
 NET=ne0 		# start netw @ boot w/this interface
-#root=df0
+#root=hda1
 #TZ=MDT7
 LOCALIP=10.0.2.15
 GATEWAY=10.0.2.1
@@ -14,8 +14,10 @@ ee0=11,0x360,,0x80
 comirq=,,7,10		# IRQ for com ports, max 4
 #cache=8	# L1 cache
 #bufs=40	# L2 buffers
-xmsbufs=128	# if supported
-#umb=110011100
+xms=on
+xmsbufs=256	# if supported
+hma=kernel
+#umb=000011111
 #heap=30	# max heap (kB)
 #memsize=640	# system RAM (kB)
 #files=64 inodes=96
@@ -25,7 +27,6 @@ xmsbufs=128	# if supported
 #sync=30		# autosync secs
 #xtflpy=3,1	# meaningful for XT systems w/720k drive(s) (type3)
 fdcache=5	# floppy read cache for slow systems <= 286
-hma=kernel
 #xtide=0x300,5,1,,, # addr, IRQ, flgs for 2 XT-IDE controllers
 #init=/bin/init 3 n	# multiuser serial no /etc/rc.sys
 #init=/bin/sh		# singleuser shell

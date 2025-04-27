@@ -196,7 +196,7 @@ int main(int argc,char **argv)
 		else if (argv[1][1] == 'S') {	/* update start sector in ELKS boot sector*/
 			if (argv[1][2] == 'm') opt_update_start_sector_minix = 1;
 			if (argv[1][2] == 'f') opt_update_start_sector_fat = 1;
-			printf("Updating start sector in ELKS boot sector\n");
+			printf("Updating start sector in TLVC boot sector\n");
 			argv++;
 			argc--;
 		}

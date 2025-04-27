@@ -5,9 +5,6 @@
 #
 # int enable_unreal_mode(void)	- Attempt to turn on 80386 unreal mode,
 #				  returns > 0 on success else error code
-# int enable_a20_gate(void)	- Enable A20 gate, return 0 on fail
-# int verify_a20		- Verify A20 gate status, return 0 if disabled
-# void set_a20			- ASM routine: enable (AH=1) or disable (AH=0) A20 gate
 # void linear32_fmemcpyw (void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)	- Copy words between XMS and far memory
 # void linear32_fmemcpyb (void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
@@ -30,10 +27,8 @@
 	.global	linear32_fmemcpyw
 	.global	linear32_fmemcpyb
 	.global	linear32_fmemset
-	.global linear32_peekw
-	.global linear32_pokew
-
-#include "a20.inc"
+//	.global linear32_peekw
+//	.global linear32_pokew
 
 # Check if unreal mode capable. Currently requires 32-bit CPU (386+)
 # Returns 1 if OK, otherwise error code (-1=not 386, -2=in V86 mode).
@@ -138,6 +133,7 @@ get_gdt:
 # WARNING: Requires 32-bit CPU, with unreal mode and A20 gate enabled!
 #          Trashes EBX and ESI without saving.
 #
+#ifdef CURENTLY_UNUSED
 	.global	linear32_peekw
 linear32_peekw:
 	mov	%si,%dx
@@ -187,7 +183,7 @@ linear32_pokew:
 	mov    %dx,%di
 	pop	%es
 	ret
-
+#endif
 #
 # void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)
@@ -199,7 +195,6 @@ linear32_fmemcpyw:
 	mov    %si,%ax
 	mov    %di,%dx
 
-	//cli                 // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
@@ -224,8 +219,6 @@ linear32_fmemcpyw:
 	addr32 rep movsw      // word [ES:EDI++] <- [DS:ESI++], ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//sti		      // restore interrupt status
-
 	mov    %ax,%si
 	mov    %dx,%di
 	mov    %ss,%ax
@@ -244,7 +237,6 @@ linear32_fmemcpyb:
 	mov    %si,%ax
 	mov    %di,%dx
 
-	//cli		      // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
@@ -274,8 +266,6 @@ linear32_fmemcpyb:
 	addr32 rep movsb      // byte [ES:EDI++] <- [DS:ESI++], ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//sti		      // restore interrupt status
-
 	mov    %ax,%si
 	mov    %dx,%di
 	mov    %ss,%ax
@@ -292,13 +282,11 @@ linear32_fmemset:
 	push   %si
 	push   %es
 	mov    %di,%dx
-
-	//cli                 // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
 	xorl   %ecx,%ecx
-	mov    14(%si),%cx    // word count -> ECX
+	mov    14(%si),%cx    // byte count -> ECX
 
 	xorl   %ebx,%ebx
 	mov    6(%si),%bx     // word dest offset -> EBX
@@ -314,15 +302,14 @@ linear32_fmemset:
 	mov    %bx,%ds
 
 	cld
-	shrl   $1,%ecx        // store words
+	clc
+	rcrl   $1,%ecx        // store words
 	addr32 rep stosw      // word [ES:EDI++] <- AX, ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
 	rcll    $1,%ecx       // then possibly final byte
 	addr32 rep stosb      // byte [ES:EDI++] <- AL, ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
-
-	//sti		      // restore interrupt status
 
 	mov    %dx,%di
 	mov    %ss,%ax

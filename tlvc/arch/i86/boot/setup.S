@@ -948,7 +948,6 @@ novga:	mov	%al,14		// CGA 25 rows
 hmabootopts:
 	push	%ds
 	push	%es
-#ifndef CONFIG_FS_XMS_INT15
 
 	push	%cs			// ES = our code segment
 	pop	%es
@@ -972,7 +971,6 @@ look:	mov	(%si),%al		// done when NUL seen
 	call	putc
 	mov	$1,%ax			// return success
 	jmp	2f
-#endif
 1:	xor	%ax,%ax			// no HMA
 2:	pop	%es
 	pop	%ds
@@ -992,15 +990,17 @@ checkhma:
 	mov	hma_kernel,%al		// and hma=kernel in /bootopts
 	test	%al,%al
 	jz	1f
-	mov	$0xffff,%ax
+	push	%cs			// enable_a20_gate returns via lret 
+	call	enable_a20_gate		// need A20 enabled before we test HMA mem
+	test	%ax,%ax
+	jz	1f
+	mov	$0xffff,%ax		// check that HMA is really RAM		
 	mov	%ax,%ds
-	mov	$1234,%ax		// check that HMA is RAM
+	mov	$1234,%ax
 	mov	%ax,0x200		// random location
 	cmp	0x200,%ax
 	jnz	1f
-	call	enable_a20_gate		// and A20 enabled
-	test	%ax,%ax
-	jz	1f
+
 	clc				// success
 	jmp 	2f
 1:	stc				// fail

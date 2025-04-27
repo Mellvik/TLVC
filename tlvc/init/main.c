@@ -31,12 +31,9 @@
 #define MAX_INIT_ARGS	6	/* max # arguments to /bin/init or init= program */
 #define MAX_INIT_ENVS	12	/* max # environ variables passed to /bin/init */
 #define MAX_INIT_SLEN	80	/* max # words of args + environ passed to /bin/init */
-#define XMS_START_ADDR	0x100000 /* Extended memory physical start addr */
 
 #define	__STRING(x)	#x	/* TODO: move these to header file */
 #define STR(x)          __STRING(x)
-#define KB_TO_LINADDR(x)	((long_t)(x)<<10)
-#define LINADDR_TO_KB(x)	((word_t)((x)>>10))
 
 /* bootopts error message are duplicated below so static here for space savings */
 char errmsg_initargs[] = "bootopts: init args > " STR(MAX_INIT_ARGS);
@@ -83,6 +80,7 @@ int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
 int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
 int xms_size, xms_avail, xms_start, hma_avail;	/* descriptions in xms.c */
+int xms_mode;
 static int boot_console;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -126,8 +124,6 @@ static void INITPROC kernel_banner(seg_t init, seg_t extra);
 static void INITPROC early_kernel_init(void);
 static void init_task(void);
 static int INITPROC umb_valid(seg_t);
-static word_t INITPROC find_xms_start(void);
-static word_t INITPROC find_xms_end(word_t, word_t);
 
 #ifdef GET_GDT
 unsigned *get_gdt(void);
@@ -237,28 +233,12 @@ void INITPROC kernel_init(void)
 #endif
 
     irq_init();		/* Install timer and IDIV fault handlers */
-    if (arch_cpu > 6) {	/* 386+ */
-	enable_a20_gate();
-	enable_unreal_mode();
-    }
 
     xms_size = xms_avail = SETUP_XMS_SIZE;
-    printk("got xms size %d\n", xms_size);
-
-    /* Size up XMS, which may consist of more than one segment and start
-     * anywhere above 1M. We're using only the first (lowest address), 
-     * assuming it's the largest. 
-     */
-    if (xms_size) {		/* if > 0 then we know A20 is OK */
+    if (xms_size) {
+	enable_a20_gate();	/* if no HMA kernel, enable now */
 	hma_avail = (kernel_cs == 0xffff || umb_valid(0xffff));
-	if (hma_avail)
-	    xms_start = 64;
-	else
-	    /* XMS does not start at 1M, find it */
-	    xms_start = find_xms_start();	/* kbytes from 1M */
-	xms_avail = find_xms_end(xms_start, xms_size) - xms_start;
     }
-    //printk("hma %d size %x avail %x start %x \n", hma_avail, xms_size, xms_avail, xms_start);
 
     /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
@@ -413,46 +393,6 @@ static void INITPROC do_init_task(void)
 static void init_task(void)
 {
     do_init_task();
-}
-
-static word_t INITPROC find_xms_start(void)
-{
-	long_t lin_base = XMS_START_ADDR;
-	//unsigned int save, check;
-	word_t val = 0x79BA;
-
-	while (lin_base < 0x1000000L) {		/* cap start at 16M for now */
-	    printk("start xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)20, lin_base));
-	    linear32_pokew((void *)0, lin_base, val);
-	    if (linear32_peekw((void *)0, lin_base) == val)
-		break;
-	    lin_base += 0x10000;
-	}
-	return LINADDR_TO_KB(lin_base - 0x10000);
-}
-
-/* Find the end of the current XMS 'segment', searching up, since there may be holes
- * in it. Stop at 'end' which is normally the systemreported xms size (kb)
- */
-static word_t INITPROC find_xms_end(word_t start, word_t top)
-{
-	long_t lin_base = KB_TO_LINADDR(start) + XMS_START_ADDR;
-	word_t val = 0x76AB;
-
-	top += LINADDR_TO_KB(XMS_START_ADDR);
-	if (top > 0x7fffU) top = 0x7fffU;	/* cap at 32M for now */
-	printk("find_xms_end: base %lx: st %04x end %04x\n", lin_base, start, top);
-
-	while (lin_base < KB_TO_LINADDR(top)) {
-	    printk("endloop xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)0x8010, lin_base));
-	    linear32_pokew((void *)0x8010, lin_base, val);
-	    printk("endloop xms @ %lx: %04x\n", lin_base, linear32_peekw((void *)0x8010, lin_base));
-	    if (linear32_peekw((void *)0x8010, lin_base) != val)
-		break;
-	    lin_base += 0x10000;
-	    start += 64;
-	}
-	return(start);
 }
 
 #ifdef CONFIG_BOOTOPTS
@@ -719,6 +659,11 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"cache=", 6)) {
 			nr_map_bufs = (int)simple_strtol(line+6, 10);
+			continue;
+		}
+		if (!strncmp(line,"xms=",4)) {
+			if (!strcmp(line+4, "int15")) xms_mode = XMS_INT15;
+			if (!strcmp(line+4, "on"))    xms_mode = XMS_UNREAL;
 			continue;
 		}
 		if (!strncmp(line,"xmsbufs=", 8)) {
