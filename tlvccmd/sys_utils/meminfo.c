@@ -332,7 +332,7 @@ void mem_map(void)
 	printf("\n");
 	if (cs == 0xffffU) {	/* HMA kernel */
 	    p_divider_l(0x11000L, "HMA top");
-	    p_block(5, (long_t)0x10000, "Kernel text", "");
+	    p_block(5, (long_t)0x10000, "   Kernel text", "");
 	    p_divider_l((long)cs+1, "HMA start");
 	    printf("\n");
 	}

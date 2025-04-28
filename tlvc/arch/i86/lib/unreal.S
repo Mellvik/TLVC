@@ -302,8 +302,7 @@ linear32_fmemset:
 	mov    %bx,%ds
 
 	cld
-	clc
-	rcrl   $1,%ecx        // store words
+	shrl   $1,%ecx        // store words
 	addr32 rep stosw      // word [ES:EDI++] <- AX, ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 

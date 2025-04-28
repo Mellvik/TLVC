@@ -27,7 +27,12 @@
 #
 # int FARPROC block_move(struct gdt_table *gdtp, size_t words)
 # Uses BIOS INT 15h AH=87h Block Move
-# Enables A20 gate on return in case kernel in HMA
+# Enables A20 gate on return in case kernel in HMA. COmpletely 
+# disables all interrupts by masking of the interrupt controllers
+# and turning off the NMI for the duration of the transfer.
+# This is likely to create havoc of the transfers are 'big' - as
+# in 'many k bytes'. 1K (one disk block) per transfer seems to work 
+# fine. May also be system speed dependent. Tested on 12.5MHz 286
 #
 block_move:
 	push	%es
@@ -40,15 +45,19 @@ block_move:
 	push	%ds
 	pop	%es
 
-	mov	$0x80,%al
+	mov	$0x80,%al	// disable NMI
 	out	%al,$0x70
-	xor	%al,%al
+	in	$0x21,%al	// disable interrupt controller
+	xchg	%al,%ah
+	in	$0xA1,%al
+	push	%ax
+	mov	0xff,%al
+	out	%al,$0x21
+	out	%al,$0xA1	//--------
+	xor	%al,%al		// doesn't matter, but this is 'clean'
 	mov	$0x87,%ah	# BIOS Block Move
-	cli
 	int	$0x15
-	cli
 	jnc	1f
-	//sti			# ensure we've got interrupts
 	mov	$-1,%ax		# fail return AX < 0
 	jmp	2f
 1:	xor	%ax,%ax		# success return AX = 0
@@ -58,9 +67,14 @@ block_move:
 	call	enable_a20_gate
 
 	xor	%al,%al
-	out	%al,$0x70
-	sti
-	pop	%ax
+	out	%al,$0x70	# re-enable NMI
+	pop	%bx
+	pop	%ax		# get int mask back
+	out	%al,$0xA1	# re-enable interrupt controllers
+	xchg	%al,%ah
+	//and	$0x7f,%al	# IRQ 7??????????????
+	out	%al,$0x21
+	mov	%bx,%ax		# get return code from INT15
 	pop	%bp
 	pop	%si
 	pop	%es

@@ -232,9 +232,8 @@ int INITPROC buffer_init(void)
 #ifdef CONFIG_FAR_BUFHEADS
     size_t size = bufs_to_alloc * sizeof(ext_buffer_head);
     seg_t hma_seg = 0xffffU; 
-    //printk("HMA space available: %u, need %u\n", 0xfff0 - (unsigned)_endtext, size); 
+    //printk("\nHMA space available: %u, need %u\n", 0xfff0 - (unsigned)_endtext, size); 
 
-#if 0
     /* If kernel is not in HMA, use it for buffer heads instead */
     if (hma_avail && kernel_cs != hma_seg) {		/* HMA available for ext headers */
 	fmemsetw((void *)0x10, hma_seg, 0, size >> 1);
@@ -246,9 +245,7 @@ int INITPROC buffer_init(void)
 	fmemsetw((void *)_endtext, hma_seg, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(hma_seg, (unsigned)_endtext);
 	printk(", bufheads in high HMA\n     ");
-    } else 
-#endif
-	{
+    } else {
 	segment_s *seg = seg_alloc((size + 15) >> 4, SEG_FLAG_BUFHEAD);
 	if (!seg) return 1;
 	fmemsetw(0, seg->base, 0, size >> 1);

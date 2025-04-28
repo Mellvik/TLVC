@@ -22,9 +22,10 @@ enable_a20_gate:
 #ifdef USE_BIOS
 	mov	$1,%ah		# enable A20
 	call	bios_set_a20	# try BIOS first
-	call	verify_a20	# returns 1 if enabled, 0 if disabled
-	and	%ax,%ax
-	jnz	1f
+	jnc	1f
+	//call	verify_a20	# returns 1 if enabled, 0 if disabled
+	//and	%ax,%ax
+	//jnz	1f
 #endif
 	mov	$1,%ah		# enable A20
 	call	set_a20		# call configurable A20 handler
