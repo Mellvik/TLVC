@@ -16,6 +16,11 @@
 /* (in setup.S) */
 //#define SETUP_MEM_KBYTES_ASM    640		/* EXPERIMENTAL - make use of the top */
 						/* 1k reserved by the BIOS */
+
+/* linear address to start XMS buffer allocations from */
+#define XMS_START_ADDR	  0x00100000L	/* 1M */
+//#define XMS_START_ADDR  0x00FA0000L	/* 15.6M (Compaq with only 1M ram) */
+
 /*
  * Setup data - normally queried by startup setup.S code, but can
  * be overridden for embedded systems with less overhead.

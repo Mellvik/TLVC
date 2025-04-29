@@ -12,10 +12,6 @@
 #include <linuxmt/debug.h>
 #include <arch/segment.h>
 
-/* linear address to start XMS buffer allocations from */
-#define XMS_START_ADDR    0x00100000L	/* 1M */
-//#define XMS_START_ADDR  0x00FA0000L	/* 15.6M (Compaq with only 1M ram) */
-
 #define KB_TO_LINADDR(x)	((long_t)(x)<<10)
 #define LINADDR_TO_KB(x)	((word_t)((x)>>10))
 
@@ -105,6 +101,7 @@ void xms_init(void)
 	else 
 		printk("using unreal mode");
 	//enable_a20_gate();	/*DEBUG - makes no difference */
+	if (kernel_cs == 0xffff) printk(", HMA kernel");
 	return;
 }
 

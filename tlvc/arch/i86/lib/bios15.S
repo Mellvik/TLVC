@@ -34,6 +34,7 @@
 # in 'many k bytes'. 1K (one disk block) per transfer seems to work 
 # fine. May also be system speed dependent. Tested on 12.5MHz 286
 #
+#define CONFIG_FS_XMS_INT15DI
 block_move:
 	push	%es
 	push	%si
@@ -45,8 +46,9 @@ block_move:
 	push	%ds
 	pop	%es
 
-	mov	$0x80,%al	// disable NMI
-	out	%al,$0x70
+#ifdef CONFIG_FS_XMS_INT15DI
+	//mov	$0x80,%al	// disable NMI, may not be required
+	//out	%al,$0x70
 	in	$0x21,%al	// disable interrupt controller
 	xchg	%al,%ah
 	in	$0xA1,%al
@@ -54,6 +56,7 @@ block_move:
 	mov	0xff,%al
 	out	%al,$0x21
 	out	%al,$0xA1	//--------
+#endif
 	xor	%al,%al		// doesn't matter, but this is 'clean'
 	mov	$0x87,%ah	# BIOS Block Move
 	int	$0x15
@@ -65,15 +68,16 @@ block_move:
 	push	%ax
 	push	%cs
 	call	enable_a20_gate
-
-	xor	%al,%al
-	out	%al,$0x70	# re-enable NMI
 	pop	%bx
+
+#ifdef CONFIG_FS_XMS_INT15DI
+	//xor	%al,%al
+	//out	%al,$0x70	# re-enable NMI
 	pop	%ax		# get int mask back
 	out	%al,$0xA1	# re-enable interrupt controllers
 	xchg	%al,%ah
-	//and	$0x7f,%al	# IRQ 7??????????????
-	out	%al,$0x21
+	out	%al,$0x21	//---------------
+#endif
 	mov	%bx,%ax		# get return code from INT15
 	pop	%bp
 	pop	%si
