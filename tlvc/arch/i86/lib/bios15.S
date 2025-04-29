@@ -16,38 +16,75 @@
 
 	.arch	i8086, nojumps
 	.code16
-	.text
+	.section .fartext.far
 
 	.global	block_move
+	.global enable_a20_gate
+
+# IBM PC A20 gate functions shared with setup.S
+#include "a20.inc"
 
 #
-# int block_move(struct gdt_table *gdtp, size_t words)
+# int FARPROC block_move(struct gdt_table *gdtp, size_t words)
 # Uses BIOS INT 15h AH=87h Block Move
+# Enables A20 gate on return in case kernel in HMA. COmpletely 
+# disables all interrupts by masking of the interrupt controllers
+# and turning off the NMI for the duration of the transfer.
+# This is likely to create havoc of the transfers are 'big' - as
+# in 'many k bytes'. 1K (one disk block) per transfer seems to work 
+# fine. May also be system speed dependent. Tested on 12.5MHz 286
 #
+#define CONFIG_FS_XMS_INT15DI
 block_move:
 	push	%es
 	push	%si
 	push	%bp
 	mov	%sp,%bp
 
-	mov	10(%bp),%cx	# word count -> CX
-	mov	8(%bp),%si	# gdtp -> ES:SI
+	mov	12(%bp),%cx	# word count -> CX
+	mov	10(%bp),%si	# gdtp -> ES:SI
 	push	%ds
 	pop	%es
 
+#ifdef CONFIG_FS_XMS_INT15DI
+	//mov	$0x80,%al	// disable NMI, may not be required
+	//out	%al,$0x70
+	in	$0x21,%al	// disable interrupt controller
+	xchg	%al,%ah
+	in	$0xA1,%al
+	push	%ax
+	mov	0xff,%al
+	out	%al,$0x21
+	out	%al,$0xA1	//--------
+#endif
+	xor	%al,%al		// doesn't matter, but this is 'clean'
 	mov	$0x87,%ah	# BIOS Block Move
 	int	$0x15
 	jnc	1f
-	sti			# ensure we've got interrupts
 	mov	$-1,%ax		# fail return AX < 0
 	jmp	2f
 1:	xor	%ax,%ax		# success return AX = 0
-2:	pop	%bp
+2:
+	push	%ax
+	push	%cs
+	call	enable_a20_gate
+	pop	%bx
+
+#ifdef CONFIG_FS_XMS_INT15DI
+	//xor	%al,%al
+	//out	%al,$0x70	# re-enable NMI
+	pop	%ax		# get int mask back
+	out	%al,$0xA1	# re-enable interrupt controllers
+	xchg	%al,%ah
+	out	%al,$0x21	//---------------
+#endif
+	mov	%bx,%ax		# get return code from INT15
+	pop	%bp
 	pop	%si
 	pop	%es
-	ret
+	lret
 
-#if 0
+#if UNUSED
 #
 # Test functions
 #

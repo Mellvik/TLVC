@@ -79,7 +79,8 @@ int netbufs[2] = {-1,-1};	/* # of network buffers to allocate by the driver */
 int xt_floppy[2];		/* XT floppy types, needed if XT has 720k drive(s) */
 int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
-int xms_size, xms_avail, hma_avail;
+int xms_size, xms_avail, xms_start, hma_avail;	/* descriptions in xms.c */
+int xms_mode;
 static int boot_console;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -124,10 +125,36 @@ static void INITPROC early_kernel_init(void);
 static void init_task(void);
 static int INITPROC umb_valid(seg_t);
 
+#ifdef GET_GDT
+unsigned *get_gdt(void);
+
+/* Dump the contents of the GDT last used by the BIOS */
+void dump_gdt(void)
+{
+    unsigned i, *gdt = get_gdt();
+    int count;
+    unsigned long ptr = *(unsigned long*)(gdt+1) & 0xffffff;	/* mask off 286 garbage */
+    unsigned __far *entry = (unsigned __far *)(((ptr&0xffff0000)<<12) + (ptr&0xffff));
+
+    count = *gdt;
+    if (!count) count = 8*8;	/* peek at it even if it's zero length */
+    printk("\noriginal gdt from %x, len %u, addr %lx(%lx/%lx)\n",
+					gdt, *gdt, *(long*)(gdt+1), ptr, entry);
+    for (i = 0; i < count; i+=8) {
+	printk(" %04x %04x %04x %04x\n", *entry, *(entry+1), *(entry+2), *(entry+3));
+	entry += 4;
+    }
+    printk("\n");
+}
+#endif
+
 /* this procedure is called using temp stack then switched, no local vars allowed */
 void start_kernel(void)
 {
     //printk("START\n");
+#ifdef GET_GDT
+    dump_gdt();
+#endif
     early_kernel_init();        /* read bootopts using kernel temp stack */
     task = heap_alloc(max_tasks * sizeof(struct task_struct),
         HEAP_TAG_TASK|HEAP_TAG_CLEAR);
@@ -199,10 +226,19 @@ void INITPROC kernel_init(void)
 {
     int i;
 
-    irq_init();		/* Install timer and DIV fault handlers */
+#ifdef CONFIG_ARCH_IBMPC
+    outw(0, 0x510);
+    if (inb(0x511) == 'Q' && inb(0x511) == 'E')
+        running_qemu = 1;
+#endif
+
+    irq_init();		/* Install timer and IDIV fault handlers */
+
     xms_size = xms_avail = SETUP_XMS_SIZE;
-    if (xms_size) hma_avail = enable_a20_gate();
-    if (hma_avail) xms_avail = xms_size - 64;
+    if (xms_size) {
+	enable_a20_gate();	/* if no HMA kernel, enable now */
+	hma_avail = (kernel_cs == 0xffff || umb_valid(0xffff));
+    }
 
     /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
@@ -211,17 +247,10 @@ void INITPROC kernel_init(void)
 #ifdef CONFIG_CHAR_DEV_RS
     serial_init();
 #endif
-    if (arch_cpu > 6) enable_unreal_mode();	/* 386+ */
 
     inode_init();
     if (buffer_init())	/* also enables xms and unreal mode if configured and possible */
 	panic("No buf mem");
-
-#ifdef CONFIG_ARCH_IBMPC
-    outw(0, 0x510);
-    if (inb(0x511) == 'Q' && inb(0x511) == 'E')
-        running_qemu = 1;
-#endif
 
 #ifdef CONFIG_SOCKET
     sock_init();
@@ -230,14 +259,14 @@ void INITPROC kernel_init(void)
     /* Process UMB blocks if available */
     i = 0;
     if (umbvec[0].seg) {
-	printk("umb: ");
+	printk("umb:");
 	if (umbvec[i].size == 1) {	/* 1st element may already have been added to memend */
 	    i++;
-	    printk("%dk added to main memory", (memend-0xA000)>>6);
+	    printk(" %dk added to main memory", (memend-0xA000)>>6);
 	}
 	while (umbvec[i].seg) {
 	    seg_add(umbvec[i].seg, umbvec[i].seg + umbvec[i].size);
-	    printk(", %dk block at 0x%x", umbvec[i].size>>6, umbvec[i].seg);
+	    printk("%s %dk block at 0x%x", i>0?",":"", umbvec[i].size>>6, umbvec[i].seg);
 	    i++;
 	}
 	printk("\n");
@@ -483,14 +512,14 @@ static void INITPROC comirq(char *line)
 	    if (irq[i]) set_serial_irq(i, irq[i]);
 }
 
-static void parse_umb(char *line, struct umb_vec *umbv)
+static void INITPROC parse_umb(char *line, struct umb_vec *umbv)
 {
 	char *l = line;
 	int i, ind = 0;
 	unsigned int seg = 0xa000;
 
 	for (i = 0; i < 10 && l[i]; i++) {
-	    if (l[i] == '1' && !umb_valid(seg)) {
+	    if (l[i] == '1' && umb_valid(seg)) {
 		if (!umbv[ind].seg) umbv[ind].seg = seg;
 		if (umbv[ind].seg) umbv[ind].size += 0x800;
 	    } else {
@@ -498,9 +527,10 @@ static void parse_umb(char *line, struct umb_vec *umbv)
 	    }
 	    seg += 0x800;
 	}
-	/* DEBUG */
+#if 0
 	for (i = 0; i < 5; i++) 
-		printk("umb%i: %x %x\n", i, umbv[i].seg, umbv[i].size);
+	    printk("umb%i: %x %x\n", i, umbv[i].seg, umbv[i].size);
+#endif
 }
 
 static void INITPROC parse_nic(char *line, struct netif_parms *parms)
@@ -629,6 +659,11 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"cache=", 6)) {
 			nr_map_bufs = (int)simple_strtol(line+6, 10);
+			continue;
+		}
+		if (!strncmp(line,"xms=",4)) {
+			if (!strcmp(line+4, "int15")) xms_mode = XMS_INT15;
+			if (!strcmp(line+4, "on"))    xms_mode = XMS_UNREAL;
 			continue;
 		}
 		if (!strncmp(line,"xmsbufs=", 8)) {
@@ -801,18 +836,13 @@ static char * INITPROC option(char *s)
 
 static int INITPROC umb_valid(seg_t seg)
 {
-	int wd = peekw(0, seg);
+	if (seg < 0xa000) return 0;	/* sanity check */
 
-	if (seg < 0xa000) return 1;	/* sanity check */
-
-	pokew(0, seg, 0x1234);
-	if (peekw(0, seg) != 0x1234) return 1;
-	pokew(0, seg, wd);
-	wd = peekw(0x7ffe, seg);
-	pokew(0x7ffe, seg, 0x4321);
-	if (peekw(0x7ffe, seg) != 0x4321) return 1;
-	pokew(0x7ffe, seg, 0x4321);
-	return 0;
+	pokew(0x20, seg, 0x1234);	/* use offset so we can test HMA too */
+	if (peekw(0x20, seg) != 0x1234) return 0;
+	pokew(0x7ff0, seg, 0x4321);
+	if (peekw(0x7ff0, seg) != 0x4321) return 0;
+	return 1;
 }
 #endif /* CONFIG_BOOTOPTS*/
 

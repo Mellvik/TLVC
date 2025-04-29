@@ -32,6 +32,8 @@ int nr_ext_bufs = CONFIG_FS_NR_EXT_BUFFERS;     /* override with /bootopts bufs=
 #endif
 #ifdef CONFIG_FS_XMS_BUFFER
 int nr_xms_bufs = CONFIG_FS_NR_XMS_BUFFERS;     /* override with /bootopts xmsbufs= */
+#else
+int nr_xms_bufs;				/* for the boot listing printk */
 #endif
 
 /* Buffer heads: local heap allocated */
@@ -139,7 +141,8 @@ static void INITPROC add_buffers(int nbufs, char *buf, ramdesc_t seg)
 	size_t offset;
 
         /* segment adjusted to require no offset to buffer */
-        offset = xms_avail? ((n & 63) << BLOCK_SIZE_BITS) :
+	/* FIXME: this may not be the right test for XMS usage */
+        offset = nr_xms_bufs? ((n & 63) << BLOCK_SIZE_BITS) :
                               ((n & 63) << (BLOCK_SIZE_BITS - 4));
         ebh->b_L2seg = seg + offset;
 #else
@@ -196,11 +199,14 @@ int INITPROC buffer_init(void)
     int bufs_to_alloc = nr_ext_bufs;
 
 #ifdef CONFIG_FS_XMS_BUFFER
+    xms_init(); 
+    if (!xms_avail || !xms_mode) nr_xms_bufs = 0;
     if (nr_xms_bufs)
-        xms_init();       /* try to enable unreal mode and A20 gate*/
-    if (xms_avail)
-        bufs_to_alloc = (nr_xms_bufs > xms_avail) ? xms_avail : nr_xms_bufs;
+	bufs_to_alloc = (nr_xms_bufs > xms_avail) ? xms_avail : nr_xms_bufs;
+#else
+    nr_xms_bufs = 0;
 #endif
+
 #ifdef CONFIG_FAR_BUFHEADS
     if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
 #else
@@ -220,19 +226,22 @@ int INITPROC buffer_init(void)
         return 1;
 
     buffer_heads = heap_alloc(bufs_to_alloc * sizeof(struct buffer_head),
-        HEAP_TAG_BUFHEAD|HEAP_TAG_CLEAR);
+        		      HEAP_TAG_BUFHEAD|HEAP_TAG_CLEAR);
     if (!buffer_heads) return 1;
+
 #ifdef CONFIG_FAR_BUFHEADS
     size_t size = bufs_to_alloc * sizeof(ext_buffer_head);
     seg_t hma_seg = 0xffffU; 
-    //printk("HMA space available: %u, need %u\n", 0xfff0 - (unsigned)_endtext, size); 
+    //printk("\nHMA space available: %u, need %u\n", 0xfff0 - (unsigned)_endtext, size); 
+
+    /* If kernel is not in HMA, use it for buffer heads instead */
     if (hma_avail && kernel_cs != hma_seg) {		/* HMA available for ext headers */
 	fmemsetw((void *)0x10, hma_seg, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(hma_seg, 0x10);
 	printk(", HMA bufheads\n     ");
     } else if (kernel_cs == hma_seg && (size < (hma_seg - (unsigned)_endtext))) {
 	/* kernel is loaded high, but there is still enough space for the buffer headers */
-	/* compact this later */
+	/* Requires CONFIG_FAR_BUFHEADS via CONFIG_XMS_... */
 	fmemsetw((void *)_endtext, hma_seg, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(hma_seg, (unsigned)_endtext);
 	printk(", bufheads in high HMA\n     ");
@@ -241,7 +250,7 @@ int INITPROC buffer_init(void)
 	if (!seg) return 1;
 	fmemsetw(0, seg->base, 0, size >> 1);
 	ext_buffer_heads = _MK_FP(seg->base, 0);
-	if (xms_size) printk(", EXT bufheads\n     ");
+	printk(", FAR bufheads\n     ");
     }
 #endif
     bh_next = bh_lru = bh_llru = buffer_heads;
@@ -257,13 +266,13 @@ int INITPROC buffer_init(void)
             nbufs = 64;
         bufs_to_alloc -= nbufs;
 #ifdef CONFIG_FS_XMS_BUFFER
-        if (xms_avail) {
-	    ramdesc_t xmsseg = xms_alloc((long_t)nbufs << BLOCK_SIZE_BITS);
+        if (nr_xms_bufs) {
+	    ramdesc_t xmsseg = xms_alloc(nbufs);	/* assuming 1k buffer size */
 	    add_buffers(nbufs, 0, xmsseg);
 	    if (!b_base) b_base = xmsseg;
         } else
 #endif
-        {
+        {	/* allocate buffers in main memory */
             segment_s *extseg = seg_alloc(nbufs << (BLOCK_SIZE_BITS - 4),
                 SEG_FLAG_EXTBUF|SEG_FLAG_ALIGN1K);
             if (!extseg) return 2;
@@ -272,12 +281,13 @@ int INITPROC buffer_init(void)
         }
     } while (bufs_to_alloc > 0);
     printk("%d %s buffers (base @ 0x%lx), %dK L1-cache, %d req hdrs\n", abufs,
-        xms_avail? "xms": "ext", (unsigned long)b_base, nr_map_bufs, NR_REQUEST);
-#else
-    /* no EXT or XMS buffers, internal L1 only */
+        nr_xms_bufs? "xms": "ext", (unsigned long)b_base, nr_map_bufs, NR_REQUEST);
+
+#else		/* no EXT or XMS buffers, internal L1 only */
     add_buffers(nr_map_bufs, L1buf, kernel_ds);
     printk("L1 cache: %uK, no buffers\n", nr_map_bufs);
 #endif
+
     return 0;
 }
 
@@ -654,13 +664,13 @@ int sys_sync(void)
 /* clear a buffer area to zeros, used to avoid slow map to L1 if possible */
 void zero_buffer(struct buffer_head *bh, size_t offset, int count)
 {
-#if defined(CONFIG_FS_XMS_INT15) || (!defined(CONFIG_FS_EXTERNAL_BUFFER) && !defined(CONFIG_FS_XMS_BUFFER))
+#if !defined(CONFIG_FS_EXTERNAL_BUFFER) && !defined(CONFIG_FS_XMS_BUFFER)
 #define FORCEMAP 1
 #else
 #define FORCEMAP 0
 #endif
     /* xms int15 doesn't support a memset function, so map into L1 */
-    if (FORCEMAP || bh->b_data) {
+    if (FORCEMAP || bh->b_data || xms_mode == XMS_INT15) {
         map_buffer(bh);
         memset(bh->b_data + offset, 0, count);
         unmap_buffer(bh);

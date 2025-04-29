@@ -5,9 +5,6 @@
 #
 # int enable_unreal_mode(void)	- Attempt to turn on 80386 unreal mode,
 #				  returns > 0 on success else error code
-# int enable_a20_gate(void)	- Enable A20 gate, return 0 on fail
-# int verify_a20		- Verify A20 gate status, return 0 if disabled
-# void set_a20			- ASM routine: enable (AH=1) or disable (AH=0) A20 gate
 # void linear32_fmemcpyw (void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)	- Copy words between XMS and far memory
 # void linear32_fmemcpyb (void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
@@ -30,8 +27,8 @@
 	.global	linear32_fmemcpyw
 	.global	linear32_fmemcpyb
 	.global	linear32_fmemset
-
-#include "a20.inc"
+//	.global linear32_peekw
+//	.global linear32_pokew
 
 # Check if unreal mode capable. Currently requires 32-bit CPU (386+)
 # Returns 1 if OK, otherwise error code (-1=not 386, -2=in V86 mode).
@@ -78,15 +75,13 @@ enable_unreal_mode:
 	pushf			# save interrupt status
 	cli                     # interrupts off
 	mov $0x80,%ax
-	out %al,$0x70		# for good measure, turn off RTC NMI
+	out %al,$0x70		# block NMI
 
 	push %ds
 	push %es
-	push %fs
-	push %gs
 
 	xorl %eax,%eax
-	mov %cs,%ax		# set up the GDT entry for the code seg
+	mov %cs,%ax		# set up GDT entry for the code seg
 	shll $4,%eax
 	mov %ax,code+2
 	ror $16,%eax
@@ -102,13 +97,11 @@ enable_unreal_mode:
 
 	ljmp $code-gdt,$pmode	# Set the CS to enter protected mode
 pmode:
-	movw $LINEAR_SEL, %bx # selector to segment with 4GB-1 limit
-	movw %bx,%ds    # set segment limits in descriptor caches
+	movw $LINEAR_SEL, %bx	# selector to segment with 4GB-1 limit
+	movw %bx,%ds    	# set segment limits in descriptor caches
 	movw %bx,%es
-	movw %bx,%fs
-	movw %bx,%gs
 
-	decb %al        # CR0.PE=0: back to (un)real mode
+	decb %al        	# CR0.PE=0: back to (un)real mode
 	movl %eax, %cr0
 	lret		# Effectively an ljmp to the next line
 			# to set the CS
@@ -116,50 +109,81 @@ pmode:
 # loading segment registers in (un)real mode changes their base address
 # but not the segment limit; which remains 4GB-1
 unreal:
-	pop %gs
-	pop %fs
 	pop %es
 	pop %ds
 	xor %al,%al
-	out %al,$0x70
+	out %al,$0x70		# re-enable NMI
 	popf			# restore interrupt status
 
 	mov	$1,%ax		# system is in unreal mode, return 1
 	ret
 
-#if UNUSED
+#ifdef GET_GDT
+	.global get_gdt
+#
+get_gdt:
+	sgdt gdt_save
+	mov $gdt_save,%ax
+	ret
+#endif
+
 #
 # word_t linear32_peekw(void *src_off, addr_t src_seg)
+# void linear32_pokew(void *src_off, addr_t src_seg, unsigned val)
 # WARNING: Requires 32-bit CPU, with unreal mode and A20 gate enabled!
 #          Trashes EBX and ESI without saving.
 #
+#ifdef CURENTLY_UNUSED
 	.global	linear32_peekw
 linear32_peekw:
-	call   setgpf
-	mov    %si,%dx
+	mov	%si,%dx
 
 	//cli			// uncomment if extended registers used in interrupt routines
-	xorl   %esi,%esi
-	mov    %sp,%si
+	xorl	%esi,%esi
+	mov	%sp,%si
 
-	xorl   %ebx,%ebx
-	mov    2(%si),%bx     // word src offset -> EBX
-	movl   4(%esi),%esi   // long src address -> ESI
-	addl   %ebx,%esi      // ESI is linear destination
+	xorl	%ebx,%ebx
+	mov 	2(%si),%bx     // word src offset -> EBX
+	movl	4(%esi),%esi   // long src address -> ESI
+	addl	%ebx,%esi      // ESI is linear destination
 
-	xor    %bx,%bx        // DS = 0 for 32-bit linear addressing
-	mov    %bx,%ds
-
+	xor	%bx,%bx        // DS = 0 for 32-bit linear addressing
+	mov	%bx,%ds
 	cld
-	addr32 lodsw          // AX = [DS:ESI++]
+	addr32	lodsw		// AX = [DS:ESI++]
 	//sti			// restore interrupt status
 
 	mov    %dx,%si
 	mov    %ss,%bx
 	mov    %bx,%ds
 	ret
-#endif
+#
+#
+	.global	linear32_pokew
+linear32_pokew:
+	push	%es
+	mov	%di,%dx
 
+	//cli			// uncomment if extended registers used in interrupt routines
+	xorl	%edi,%edi
+	mov 	%sp,%di
+
+	xorl	%ebx,%ebx
+	mov 	4(%di),%bx	// word src offset -> EBX
+	mov 	10(%di),%ax	// get value for poke
+	movl	6(%edi),%edi	// long src address -> EDI
+	addl	%ebx,%edi	// ESI is linear destination
+
+	xor	%bx,%bx        // ES = 0 for 32-bit linear addressing
+	mov	%bx,%es
+	cld
+	addr32 stosw		// AX = [ES:ESI++]
+	//sti			// restore interrupt status
+
+	mov    %dx,%di
+	pop	%es
+	ret
+#endif
 #
 # void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)
@@ -171,7 +195,6 @@ linear32_fmemcpyw:
 	mov    %si,%ax
 	mov    %di,%dx
 
-	//cli                 // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
@@ -196,8 +219,6 @@ linear32_fmemcpyw:
 	addr32 rep movsw      // word [ES:EDI++] <- [DS:ESI++], ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//sti		      // restore interrupt status
-
 	mov    %ax,%si
 	mov    %dx,%di
 	mov    %ss,%ax
@@ -216,7 +237,6 @@ linear32_fmemcpyb:
 	mov    %si,%ax
 	mov    %di,%dx
 
-	//cli		      // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
@@ -246,8 +266,6 @@ linear32_fmemcpyb:
 	addr32 rep movsb      // byte [ES:EDI++] <- [DS:ESI++], ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
 
-	//sti		      // restore interrupt status
-
 	mov    %ax,%si
 	mov    %dx,%di
 	mov    %ss,%ax
@@ -264,13 +282,11 @@ linear32_fmemset:
 	push   %si
 	push   %es
 	mov    %di,%dx
-
-	//cli                 // uncomment if extended registers used in interrupt routines
 	xorl   %esi,%esi
 	mov    %sp,%si
 
 	xorl   %ecx,%ecx
-	mov    14(%si),%cx    // word count -> ECX
+	mov    14(%si),%cx    // byte count -> ECX
 
 	xorl   %ebx,%ebx
 	mov    6(%si),%bx     // word dest offset -> EBX
@@ -293,8 +309,6 @@ linear32_fmemset:
 	rcll    $1,%ecx       // then possibly final byte
 	addr32 rep stosb      // byte [ES:EDI++] <- AL, ECX times
 	addr32 nop            // 80386 B1 step chip bug on address size mixing
-
-	//sti		      // restore interrupt status
 
 	mov    %dx,%di
 	mov    %ss,%ax
@@ -411,9 +425,12 @@ LINEAR_SEL = . - gdt
         .byte 0x93      # present, ring 0, data, expand-up, writable, accessed
 # putting a zero byte here (instead of 0xCF) effectively disables unreal mode:
 #       .byte 0         # byte-granular, 16-bit, limit=64K-1
-        .byte 0xCF      # page-granular, 32-bit, limit=4GB-1 (was CF)
+        .byte 0xCF      # page-granular, 32-bit, limit=4GB-1
         .byte 0		# upper (4th) byte of base address, not used
 gdt_len = . - gdt
 
 gdt_ptr:.word gdt_len - 1
         .long gdt
+#ifdef GET_GDT
+gdt_save: .word 0,0,0
+#endif
