@@ -40,6 +40,7 @@ mainmenu_option next_comment
 	bool 'Use XMS memory'                  CONFIG_FS_XMS       n
 	if [ "$CONFIG_FS_XMS" == "y" ]; then
 	    bool 'Disable interrupts in XMS block_move' CONFIG_FS_XMS_INT15DI n
+	    bool 'Enable 286 LOADALL for XMS access'    CONFIG_FS_XMS_LOADALL n
 	    bool 'XMS buffer cache'            CONFIG_FS_XMS_BUFFER       n
 	    if [ "$CONFIG_FS_XMS_BUFFER" == "y" ]; then
 	        int 'Number of XMS buffers'        CONFIG_FS_NR_XMS_BUFFERS   256

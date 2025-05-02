@@ -167,11 +167,16 @@
 #define HAS_FDCACHE 0
 #endif
 
-#define DEF_OPTSEG	0x50
+// NOTE: for accomodating the LOADALL 0x80:0 seg (0x80-0x88),
+// leave OPTSEG in place (its use is over before LOADALL needs it)
+// and move REL_INITSEG above LOADALL (0x88 or 0x90)
+
+//#define DEF_OPTSEG	0x50
+#define DEF_OPTSEG	0x90
 #define OPTSEGSZ	0x400		/* max size of /bootopts file */
 #define FD_BOUNCESEG	DEF_OPTSEG	/* IRQ vectors/ BDA below this */
 #define DMASEG		FD_BOUNCESEG	/* used by bioshd driver only */
-#define REL_INITSEG	0x90
+#define REL_INITSEG	0xD0
 #define SETUP_DATA	REL_INITSEG	/* 0x200 bytes setup data */
 #define FD_CACHESEG	SETUP_DATA	/* overlapping if present */
 #define XD_BOUNCESEG	(FD_CACHESEG + 0x20 + \

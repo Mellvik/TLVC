@@ -54,8 +54,13 @@ void xms_init(void)
 		printk("not available");
 		return;
 	}
+
 	if (arch_cpu == 6) 
+#ifndef CONFIG_FS_XMS_LOADALL
 		xms_mode = XMS_INT15;	/* Force INT15 if 286 */
+#else
+		xms_mode = XMS_LOADALL;
+#endif
 	if (xms_mode == XMS_UNREAL) {
 		if (!check_unreal_mode()) {
 		    printk("disabled, unreal mode requires 386");
@@ -98,6 +103,8 @@ void xms_init(void)
 
 	if (xms_mode == XMS_INT15)
 		printk("using int 15/1F");
+	else if (xms_mode == XMS_LOADALL)
+		printk("using 286/LOADALL");
 	else 
 		printk("using unreal mode");
 	//enable_a20_gate();	/*DEBUG - makes no difference */
@@ -130,16 +137,28 @@ void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_src = src_seg >> 16;
 	int	need_xms_dst = dst_seg >> 16;
 
-	//printk("FM: %c %u;", need_xms_dst?'W':'R', need_xms_dst?
-		//((word_t)((dst_seg>>10)-xms_start)) : ((word_t)((src_seg>>10)-xms_start)));
 	if (need_xms_src || need_xms_dst) {
 		if (!xms_avail) panic("xms_fmemcpyw");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
-
+		//printk("FM: S:%lx/%x -> D:%lx/%x C:%d\n", src_seg, src_off, dst_seg, dst_off, count);  
 		if (xms_mode == XMS_UNREAL)
 		    linear32_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
-		else
+#ifdef CONFIG_FS_XMS_LOADALL
+		else if (xms_mode == XMS_LOADALL) {
+		    src_seg += (word_t)src_off;
+		    dst_seg += (word_t)dst_off;
+#ifdef LOADALL_DEBUG
+		    if (loadall_block_move(src_seg, dst_seg, count<<1)) {
+			xms_mode = XMS_INT15;
+		    	int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
+			printk("DEBUG: switching to INT15\n");
+		    }
+#else
+		    loadall_block_move(src_seg, dst_seg, count<<1);
+#endif /* LOADALL_DEBUG */
+#endif /* CONFIG_FS_XMS_LOADALL */
+		} else
 		    int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
 		return;
 	}
@@ -160,6 +179,8 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 
 		if (xms_mode == XMS_UNREAL)
 		    linear32_fmemcpyb(dst_off, dst_seg, src_off, src_seg, count);
+		else if (xms_mode == XMS_LOADALL)
+		    loadall_block_move(src_seg+(word_t)src_off, dst_seg+(word_t)dst_off, count);
 		else {
 		/* lots of extra work on odd transfers because INT 15 block moves words only */
 		    size_t wc = count >> 1;
@@ -199,7 +220,7 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	if (need_xms_dst) {
 		if (!xms_size) panic("xms_fmemset");
 
-		if (xms_mode == XMS_INT15) panic("xms_fmemset int15");
+		if (xms_mode != XMS_UNREAL) panic("xms_fmemset w/o unreal");
 		linear32_fmemset(dst_off, dst_seg, val, count);
 		return;
 	}
