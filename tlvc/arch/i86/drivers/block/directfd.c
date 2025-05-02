@@ -678,31 +678,33 @@ static void setup_DMA(void)
     struct request *req = CURRENT;
 
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
-    use_bounce = req->rq_seg >> 16;		/* XMS buffers active, always bounce */ 
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
     dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
-
     count = nr_sectors<<9;
-    if (use_bounce || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
-	use_bounce++;
-	dma_addr = _MK_LINADDR(FD_BOUNCESEG, 0);
-	if (raw) {	/* The application buffer spans a 64k boundary, split it into
+
+#if CONFIG_FLOPPY_CACHE
+    if (use_cache) 			/* set if it's a read, not raw, cache OK */
+	dma_addr = _MK_LINADDR(FD_CACHESEG, 0);
+    else
+#endif
+    {
+	/* Need bounce buffer if spanning a 64k boundary and if buffer is in XMS memory */ 
+	if ((req->rq_seg >> 16) || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
+	    use_bounce++;
+	    dma_addr = _MK_LINADDR(FD_BOUNCESEG, 0);
+	    if (raw) {	/* The application buffer spans a 64k boundary, split it into
 			 * 2 or three parts, using the first k of the sector cache
 			 * as a bounce buffer */
-	    int sec_cnt = (0xffff - physaddr) >> 9;
-	    if (sec_cnt < 1) {	/* the single block with wrap problem */
-		nr_sectors = BLOCK_SIZE >> 9;	
-	    } else {		/* get the sectors before the wrap */
-		nr_sectors = sec_cnt;
-		use_bounce = 0;
-		dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+		int sec_cnt = (0xffff - physaddr) >> 9;
+		if (sec_cnt < 1) {	/* the single block with wrap problem */
+		    nr_sectors = BLOCK_SIZE >> 9;	
+		} else {		/* get the sectors before the wrap */
+		    nr_sectors = sec_cnt;
+		    use_bounce = 0;
+		    dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
+		}
 	    }
 	}
-    } else {
-#if CONFIG_FLOPPY_CACHE
-	if (use_cache) 
-	    dma_addr = _MK_LINADDR(FD_CACHESEG, 0);
-#endif
     }
     if (raw) {	/* ensure raw access doesn't span cylinders */
 	int rest = (floppy->sect<<1) - sector - head*floppy->sect;
@@ -712,7 +714,7 @@ static void setup_DMA(void)
 	    nr_sectors = rest;
 	}
     }
-    count = nr_sectors<<9;
+    count = nr_sectors<<9;	/* recalculate count, nr_sectors may have changed */
     DEBUG("setupDMA:-%x:%x-", req->rq_seg, req->rq_buffer);
 
 #ifdef INCLUDE_FD_FORMATTING
