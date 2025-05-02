@@ -678,6 +678,7 @@ static void setup_DMA(void)
     struct request *req = CURRENT;
 
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
+    use_bounce = 0;
     physaddr = (req->rq_seg << 4) + (unsigned int)req->rq_buffer;
     dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
     count = nr_sectors<<9;
