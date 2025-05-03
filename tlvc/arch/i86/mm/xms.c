@@ -141,7 +141,7 @@ void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 		if (!xms_avail) panic("xms_fmemcpyw");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
-		//printk("FM: S:%lx/%x -> D:%lx/%x C:%d\n", src_seg, src_off, dst_seg, dst_off, count);  
+		printk("FM: S:%lx/%x -> D:%lx/%x C:%d\n", src_seg, src_off, dst_seg, dst_off, count);  
 		if (xms_mode == XMS_UNREAL)
 		    linear32_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
 #ifdef CONFIG_FS_XMS_LOADALL
@@ -220,8 +220,13 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	if (need_xms_dst) {
 		if (!xms_size) panic("xms_fmemset");
 
-		if (xms_mode != XMS_UNREAL) panic("xms_fmemset w/o unreal");
-		linear32_fmemset(dst_off, dst_seg, val, count);
+		if (xms_mode == XMS_INT15) panic("xms_fmemset w/o unreal");
+		if (xms_mode == XMS_UNREAL)
+		    linear32_fmemset(dst_off, dst_seg, val, count);
+		else {
+		    printk("memset %lx,%x,%d; ", dst_seg+(word_t)dst_off, val&0xff, count);
+		    loadall_block_move(0xffff0000L, dst_seg+(word_t)dst_off, count);
+		}
 		return;
 	}
 	fmemsetb(dst_off, (seg_t)dst_seg, val, count);

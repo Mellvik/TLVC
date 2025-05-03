@@ -120,12 +120,12 @@ loadall_block_move:
 	cld
 	mov	$0x80,%cx
 	mov	%cx,%es		#ES=0080h segment
-	//mov	$0x80,%cx
+	mov	$0x7f,%cx
 	xor	%ax,%ax
 	rep
 	stosw			#800h-880h clear
 
-	//xor	%di,%di
+	xor	%di,%di
 	dec	%ax		# limit is always 0xffff
 	mov	%ax,%es:(0x3a)	# ES limit
 	mov	%ax,%es:(0x4c)	# DS limit
@@ -133,11 +133,18 @@ loadall_block_move:
 	mov	%ax,%es:(0x46)	# SS limit
 	mov	%al,%es:(0x5f)	# IDT - important
 
+	# if highword(dst) = 0xffff, do memset 
 #src DS
+	xor	%bx,%bx
 	mov	12(%bp),%ax	#src addr low16
 	mov	%ax,%es:(0x48)	#new DS low16
 	mov	14(%bp),%ax	#src addr high8
-	mov	$0x93,%ah	# & access byte
+	cmp	$0xffff,%ax
+	jnz	1f
+	mov	$1,%bl		# memset flag
+	mov	%bl,%al		# make the high byte inoccuous
+				# we're not using it anyway
+1:	mov	$0x93,%ah	# & access byte
 	mov	%ax,%es:(0x4a)	#new DS high8 & access byte
 	
 #dst ES
@@ -183,7 +190,12 @@ loadall_block_move:
 	//mov	-6(%bp),%ax
 	//add	$2,%ax
 	//mov	%ax,%es:(0x1a)	#new IP
-	movw	$modechange,%es:(0x1a)	# where to start after loadall
+	cmp	$1,%bl
+	jnz	1f
+	movw	$memset,%es:(0x1a)	# run memset
+	mov	12(%bp),%ax		# memset value
+	jmp	2f
+1:	movw	$modechange,%es:(0x1a)	# run block transfer
 	//mov	%ax,%bx
 	//sub	$7,%bx
 	//mov	$0x050f,%ax		#loadall
@@ -193,26 +205,31 @@ loadall_block_move:
 	//mov	%ax,%es:(0x18)
 	//smsw	%es:(0x06)	# not useful
 
-	mov	%ds,%es:(0x1e)
+2:	mov	%ds,%es:(0x1e)
 	mov	%ss,%es:(0x20)
 	mov	%cs,%es:(0x22)
 	mov	%es,%es:(0x24)
 	//mov	%di,%es:(0x26)	# conveniently left at zero
 	//mov	%si,%es:(0x28)	# conveniently left at zero
-	//mov	%bp,%es:(0x2a)
+	mov	%bp,%es:(0x2a)
 	mov	%sp,%es:(0x2c)
 	mov	%bx,%es:(0x2e)
 	mov	%dx,%es:(0x30)
 	mov	%cx,%es:(0x32)
-	//mov	%ax,%es:(0x34)
+	mov	%ax,%es:(0x34)
 exe:
 	.byte 0x0f	#loadall
 	.byte 0x05
 modechange2:
-	//call	modechange3
 	retf		# use the push %cs above
-modechange3:
-	//ret
+memset:
+	shr	$1,%cx
+	rep
+	stosw
+	rcl	$1,%cx
+	rep
+	stosb
+	jmp	done
 modechange:
 	shr	$1,%cx	# make words
 	rep
@@ -221,7 +238,7 @@ modechange:
 	rep
 	movsb		# get the final byte if any
 
-	call	modechange2	#reset CS
+done:	call	modechange2	#reset CS
 	pop	%ax		#reset SS
 	mov	%ax,%ss
 	pop	%ax		#reset DS
