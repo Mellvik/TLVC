@@ -176,9 +176,9 @@ static int rd_ioctl(register struct inode *inode, struct file *file,
 		debug("RD: index %d set to %d sectors, %ld bytes\n",
 		       j, rd_segment[j].sectors, size);
 
-		debug("RD: fmemsetw(0, 0x%x, 0, 0x%x)\n",
-			rd_segment[j].seg, (size_t) (size >> 1));
-		fmemsetw(0, rd_segment[j].seg, 0, (size_t) (size >> 1));
+		debug("RD: fmemsetb(0, 0x%x, 0, 0x%x)\n",
+			rd_segment[j].seg, (size_t) size);
+		fmemsetb(0, rd_segment[j].seg, 0, (size_t)size);
 
 		if (k != -1)
 		    rd_segment[k].next = j;	/* set link to next index */
@@ -242,11 +242,11 @@ static void do_rd_request(void)
 	debug("entry %d, seg %x, offset %d\n", index, rd_segment[index].seg, offset);
 
 	if (req->rq_cmd == WRITE) {
-	    xms_fmemcpyw((char *) (offset * RD_SECTOR_SIZE), rd_segment[index].seg,
-		buff, req->rq_seg, 1024/2);
+	    xms_fmemcpyb((char *) (offset * RD_SECTOR_SIZE), rd_segment[index].seg,
+		buff, req->rq_seg, 1024);
 	} else {
-	    xms_fmemcpyw(buff, req->rq_seg,
-		(byte_t *) (offset * RD_SECTOR_SIZE), rd_segment[index].seg, 1024/2);
+	    xms_fmemcpyb(buff, req->rq_seg,
+		(byte_t *) (offset * RD_SECTOR_SIZE), rd_segment[index].seg, 1024);
 	}
 	end_request(1);
     }

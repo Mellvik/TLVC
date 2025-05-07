@@ -453,7 +453,7 @@ static void setup_DMA(void)
     debug_xd("setupDMA ");
 
     if (use_bounce && req->rq_cmd == WRITE)
-	xms_fmemcpyw(0, XD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	xms_fmemcpyb(0, XD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE);
 
     debug_xd("%d/%lx;", count, dma_addr);
     clr_irq();
@@ -526,9 +526,9 @@ static void do_xdintr(int irq, struct pt_regs *regs)
 			    deverror(drive, sense);
 
 			if (j != 0x18) {	/* check for correctable error */
-			        //xd_recal(drive); 	/* LATER */
-				i = 0;		/* indicate error */
-				goto done;
+			    //xd_recal(drive); 	/* LATER */
+			    i = 0;		/* indicate error */
+			    goto done;
 			}
 		}
 		if (raw) CURRENT->rq_nr_sectors = nr_sectors;
@@ -536,8 +536,8 @@ static void do_xdintr(int irq, struct pt_regs *regs)
 		 * Finished with this transfer ?
 		 */
 		if (use_bounce && CURRENT->rq_cmd == READ)
-			xms_fmemcpyw(CURRENT->rq_buffer, CURRENT->rq_seg, 0,
-					XD_BOUNCESEG, BLOCK_SIZE/2);
+			xms_fmemcpyb(CURRENT->rq_buffer, CURRENT->rq_seg, 0,
+					XD_BOUNCESEG, BLOCK_SIZE);
 		i = 1;	/* iodone */
 			
 done:

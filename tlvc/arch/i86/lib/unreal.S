@@ -184,6 +184,8 @@ linear32_pokew:
 	pop	%es
 	ret
 #endif
+
+#ifdef UNUSED
 #
 # void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)
@@ -225,6 +227,8 @@ linear32_fmemcpyw:
 	mov    %ax,%ds
 	pop    %es
 	ret
+
+#endif
 
 #
 # void linear32_fmemcpyb(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,

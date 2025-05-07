@@ -670,7 +670,7 @@ void zero_buffer(struct buffer_head *bh, size_t offset, int count)
 #define FORCEMAP 0
 #endif
     /* xms int15 doesn't support a memset function, so map into L1 */
-    if (FORCEMAP || bh->b_data || xms_mode == XMS_INT15) {	// DANGEROUS!!!
+    if (FORCEMAP || bh->b_data || xms_mode == XMS_INT15) {
         map_buffer(bh);
         memset(bh->b_data + offset, 0, count);
         unmap_buffer(bh);
@@ -748,7 +748,7 @@ void map_buffer(struct buffer_head *bh)
     L1map[i] = bh;
     bh->b_data = L1buf + (i << BLOCK_SIZE_BITS);
     if (ebh->b_uptodate)
-        xms_fmemcpyw(bh->b_data, kernel_ds, 0, ebh->b_L2seg, BLOCK_SIZE/2);
+        xms_fmemcpyb(bh->b_data, kernel_ds, 0, ebh->b_L2seg, BLOCK_SIZE);
     map_count++;
     debug_map("MAP:   L%02d block %ld\n", i+1, ebh->b_blocknr);
     debug_map("data %04x L2s %lx kds 0%04x\n", bh->b_data, (unsigned long)ebh->b_L2seg, kernel_ds);
@@ -797,7 +797,7 @@ void brelseL1_index(int i, int copyout)
     if (ebh->b_mapcount || ebh->b_locked)
         return;
     if (copyout && ebh->b_uptodate && bh->b_data) {
-        xms_fmemcpyw(0, ebh->b_L2seg, bh->b_data, kernel_ds, BLOCK_SIZE/2);
+        xms_fmemcpyb(0, ebh->b_L2seg, bh->b_data, kernel_ds, BLOCK_SIZE);
         unmap_count++;
     }
     bh->b_data = 0;

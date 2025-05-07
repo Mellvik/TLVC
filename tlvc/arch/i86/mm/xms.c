@@ -130,6 +130,7 @@ ramdesc_t xms_alloc(int size)
 	return 0;
 }
 
+#ifdef UNUSED
 /* copy words between XMS and far memory */
 void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src_seg,
 		size_t count)
@@ -165,6 +166,7 @@ void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	}
 	fmemcpyw(dst_off, (seg_t)dst_seg, src_off, (seg_t)src_seg, count);
 }
+#endif
 
 /* copy bytes between XMS and far memory */
 void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src_seg,
