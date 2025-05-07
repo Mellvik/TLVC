@@ -167,6 +167,12 @@
 #define HAS_FDCACHE 0
 #endif
 
+#define BDA_IAC_SEG		0x4F	/* BDA 'Intra-Applications Communications Area' */
+					/* 16 bytes, the first (0x4f:0) (W) holds the */
+					/* actual OPTSEG location used by the minix */
+					/* bootloader */
+#define BDA_IAC_OPTSEG		0x0
+
 // NOTE: for accomodating the LOADALL 0x80:0 seg (0x80:0-0x87:0),
 // leave OPTSEG in place (its use is over before LOADALL needs it)
 // and move REL_INITSEG above LOADALL (0x87 or 0x90)
