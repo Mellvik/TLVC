@@ -130,44 +130,6 @@ ramdesc_t xms_alloc(int size)
 	return 0;
 }
 
-#ifdef UNUSED
-/* copy words between XMS and far memory */
-void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src_seg,
-		size_t count)
-{
-	int	need_xms_src = src_seg >> 16;
-	int	need_xms_dst = dst_seg >> 16;
-
-	if (need_xms_src || need_xms_dst) {
-		if (!xms_avail) panic("xms_fmemcpyw");
-		if (!need_xms_src) src_seg <<= 4;
-		if (!need_xms_dst) dst_seg <<= 4;
-		//printk("FM: S:%lx/%x -> D:%lx/%x C:%d\n", src_seg, src_off, dst_seg, dst_off, count);  
-		if (xms_mode == XMS_UNREAL)
-		    linear32_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
-#ifdef CONFIG_FS_XMS_LOADALL
-		else if (xms_mode == XMS_LOADALL) {
-		    src_seg += (word_t)src_off;
-		    dst_seg += (word_t)dst_off;
-#ifdef LOADALL_DEBUG
-		    if (loadall_block_move(src_seg, dst_seg, count<<1)) {
-			xms_mode = XMS_INT15;
-		    	int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
-			printk("DEBUG: switching to INT15\n");
-		    }
-#else
-		    loadall_block_move(src_seg, dst_seg, count<<1);
-		}
-#endif /* LOADALL_DEBUG */
-#endif /* CONFIG_FS_XMS_LOADALL */
-		else
-		    int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
-		return;
-	}
-	fmemcpyw(dst_off, (seg_t)dst_seg, src_off, (seg_t)src_seg, count);
-}
-#endif
-
 /* copy bytes between XMS and far memory */
 void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src_seg,
 		size_t count)

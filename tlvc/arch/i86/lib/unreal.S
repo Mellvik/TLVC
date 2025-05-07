@@ -185,51 +185,6 @@ linear32_pokew:
 	ret
 #endif
 
-#ifdef UNUSED
-#
-# void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
-#		size_t count)
-# WARNING: Requires 32-bit CPU, with unreal mode and A20 gate enabled!
-#          Trashes EBX, ECX, ESI and EDI without saving.
-#
-linear32_fmemcpyw:
-	push   %es
-	mov    %si,%ax
-	mov    %di,%dx
-
-	xorl   %esi,%esi
-	mov    %sp,%si
-
-	xorl   %ecx,%ecx
-	mov    16(%si),%cx    // word count -> ECX
-
-	xorl   %ebx,%ebx
-	mov    4(%si),%bx     // word dest offset -> EBX
-	movl   6(%esi),%edi   // long dest address -> EDI
-	addl   %ebx,%edi      // EDI is linear destination
-
-	xorl   %ebx,%ebx
-	mov    10(%si),%bx    // word src offset -> EBX
-	movl   12(%esi),%esi  // long src address -> ESI
-	addl   %ebx,%esi      // ESI is linear source
-
-	xor    %bx,%bx        // ES = DS = 0 for 32-bit linear addressing
-	mov    %bx,%es
-	mov    %bx,%ds
-
-	cld
-	addr32 rep movsw      // word [ES:EDI++] <- [DS:ESI++], ECX times
-	addr32 nop            // 80386 B1 step chip bug on address size mixing
-
-	mov    %ax,%si
-	mov    %dx,%di
-	mov    %ss,%ax
-	mov    %ax,%ds
-	pop    %es
-	ret
-
-#endif
-
 #
 # void linear32_fmemcpyb(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)

@@ -32,7 +32,7 @@ fmemcpyb:
 	mov    %sp,%si
 	mov    %es,%bx
 	mov    ARG4(%si),%cx  // byte count
-1:	les    ARG0(%si),%di  // far destination pointer
+	les    ARG0(%si),%di  // far destination pointer
 	lds    ARG2(%si),%si  // far source pointer
 	cld
 	jc     3f
@@ -55,26 +55,6 @@ fmemcpyb:
 fmemcpyw:
 	stc
 	jmp    2b
-	mov    %es,%bx
-	mov    %si,%ax
-	mov    %di,%dx
-	mov    %sp,%si
-	mov    ARG4(%si),%cx  // word count
-	shl    $1,%cx	      // make bytes
-	jmp    1b
-#if 0
-	les    ARG0(%si),%di  // far destination pointer
-	lds    ARG2(%si),%si  // far source pointer
-	cld
-	rep
-	movsw
-	mov    %ax,%si
-	mov    %dx,%di
-	mov    %ss,%ax
-	mov    %ax,%ds
-	mov    %bx,%es
-	ret
-#endif
 
 // void fmemsetb (void * off, seg_t seg, byte_t val, size_t count)
 // compiler pushes byte_t as word_t
