@@ -290,7 +290,7 @@ _puts:
 	call _putc
 	inc %bx
 	jmp _puts
-1:  ret
+1:	ret
 
 //------------------------------------------------------------------------------
 
@@ -572,8 +572,16 @@ boot_it:
 
 //------------------------------------------------------------------------------
 
+	.global linux_ok
+linux_ok:
+	mov $msg_load,%bx;
+	jmp _puts
+
 msg_boot:
 	.asciz "TLVC"
+
+msg_load:
+	.asciz "Linux OK"
 
 msg_error:
 	.ascii "!\r\n"

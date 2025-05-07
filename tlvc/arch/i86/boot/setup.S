@@ -96,6 +96,7 @@ debug_loader    =       0       // display relocations
 #define MINIX_SPLITID_LOW 0x0301L
 #define KERNEL_MAGICNUMBER MINIX_SPLITID_LOW
 #define HMA_SEG 0xffff
+BOOTSEG=0x7C0			// The bootopts load address is stored here
 
 #ifndef CONFIG_ROMCODE
   INITSEG  = DEF_INITSEG	// initial setup data seg and initial Image load address
@@ -1043,6 +1044,8 @@ putc:	push %ax
 #ifdef CONFIG_BOOTOPTS
 //
 // load /bootopts file for FAT filesystem boot
+//	[NOTE: If we're booting a minix FS, /bootopts - if it exists, 
+//	is already loaded.]
 //      If size > 512 bytes, both sectors must be contiguous.
 //      This is currently guaranteed by providing a 1K /bootopts in
 //      distribution images, so later edits will remain contiguous.
@@ -1116,13 +1119,58 @@ pc98_int1b:
 #endif
 
 	jnc	1f
-0:	mov	$'F',%al
-	jmp	2f
+0:	mov	$'F',%al	// Fail, not FAT bootopts
+	call	putc
+	xor	%ax,%ax
+	mov	%ax,%es
+	movw	$DEF_OPTSEG,%es:((BDA_IAC_SEG<<4)+2)  // DEBUG
+	mov	%es:(BDA_IAC_SEG<<4),%ax
+	//call	hex4
+	cmp	$DEF_OPTSEG,%ax
+	jz	3f
+	call	reloc_opts
+	mov	$'R',%al	// Indicate relocated bootopts
+	call	putc
+	jmp	3f
 1:	mov	$' ',%al
 2:	call	putc
-	pop	%es
+3:	pop	%es
 	pop	%ds
 	ret
+
+# relocate the bootopts contents if the minix bootblock loaded it
+# in the wrong place, which may happen if the kernel at the bootblock
+# were compiled at different times with different CONFIG settings.
+#
+# AX = actual (current) start of bootopts.
+# FLAGS = set by caller
+# If moving down -> move from the bottom, if moving up -> move from the top.
+#
+reloc_opts:
+	push	%si
+	push	%di
+	mov	$512,%cx	# words to move
+	xor	%di,%di
+	xor	%si,%si
+	ja	reloc_up	# flags already set in the caller
+	mov	%ax,%ds
+	mov	$DEF_OPTSEG,%ax
+	mov	%ax,%es
+	cld
+1:	rep
+	movsw
+	pop	%di
+	pop	%si
+	ret
+reloc_up:
+	add	$1024,%ax
+	mov	%ax,%ds
+	mov	$DEF_OPTSEG+1024,%ax
+	mov	%ax,%es
+	std
+	jmp	1b
+#----
+
 
 // BPB offsets in boot sector already in high memory
 sec_per_clus	= 13
