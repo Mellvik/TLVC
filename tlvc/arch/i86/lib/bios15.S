@@ -14,7 +14,9 @@
 #	and uses a int15_fmemcpy wrapper above it to prefill the passed GDT table.
 #
 
-	.arch	i8086, nojumps
+#include <linuxmt/config.h>
+
+	.arch	i286, nojumps
 	.code16
 	.section .fartext.far
 
@@ -34,7 +36,6 @@
 # in 'many k bytes'. 1K (one disk block) per transfer seems to work 
 # fine. May also be system speed dependent. Tested on 12.5MHz 286
 #
-#define CONFIG_FS_XMS_INT15DI
 block_move:
 	push	%es
 	push	%si
@@ -84,40 +85,3 @@ block_move:
 	pop	%es
 	lret
 
-#if UNUSED
-#
-# Test functions
-#
-int0Dh:	push	%bp
-	push	%ax
-	mov	%sp,%bp
-	mov	4(%bp),%ax
-	inc	%ax
-	//inc	%ax
-	mov	%ax,4(%bp)
-	pop	%ax
-	pop	%bp
-	iret
-
-setgpf:	push	%ds
-	xor	%ax,%ax
-	mov	%ax,%ds
-	mov	$0x0D*4,%bx
-	mov	$int0Dh,%ax
-	mov	%ax,(%bx)
-	add	$2,%bx
-	push	%cs
-	pop	%ax
-	mov	%ax,(%bx)
-	pop	%ds
-	ret
-
-	.global	get_extmem
-get_extmem:
-	mov	$0x88,%ah
-	int	$0x15
-	jc	1f
-	ret
-1:	mov	$-1,%ax
-	ret
-#endif

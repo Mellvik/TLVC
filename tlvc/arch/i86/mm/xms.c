@@ -54,8 +54,13 @@ void xms_init(void)
 		printk("not available");
 		return;
 	}
+
 	if (arch_cpu == 6) 
+#ifndef CONFIG_FS_XMS_LOADALL
 		xms_mode = XMS_INT15;	/* Force INT15 if 286 */
+#else
+		xms_mode = XMS_LOADALL;
+#endif
 	if (xms_mode == XMS_UNREAL) {
 		if (!check_unreal_mode()) {
 		    printk("disabled, unreal mode requires 386");
@@ -98,6 +103,8 @@ void xms_init(void)
 
 	if (xms_mode == XMS_INT15)
 		printk("using int 15/1F");
+	else if (xms_mode == XMS_LOADALL)
+		printk("using 286/LOADALL");
 	else 
 		printk("using unreal mode");
 	//enable_a20_gate();	/*DEBUG - makes no difference */
@@ -130,15 +137,28 @@ void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_src = src_seg >> 16;
 	int	need_xms_dst = dst_seg >> 16;
 
-	//printk("FM: %c %u;", need_xms_dst?'W':'R', need_xms_dst?
-		//((word_t)((dst_seg>>10)-xms_start)) : ((word_t)((src_seg>>10)-xms_start)));
 	if (need_xms_src || need_xms_dst) {
 		if (!xms_avail) panic("xms_fmemcpyw");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
-
+		//printk("FM: S:%lx/%x -> D:%lx/%x C:%d\n", src_seg, src_off, dst_seg, dst_off, count);  
 		if (xms_mode == XMS_UNREAL)
 		    linear32_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
+#ifdef CONFIG_FS_XMS_LOADALL
+		else if (xms_mode == XMS_LOADALL) {
+		    src_seg += (word_t)src_off;
+		    dst_seg += (word_t)dst_off;
+#ifdef LOADALL_DEBUG
+		    if (loadall_block_move(src_seg, dst_seg, count<<1)) {
+			xms_mode = XMS_INT15;
+		    	int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
+			printk("DEBUG: switching to INT15\n");
+		    }
+#else
+		    loadall_block_move(src_seg, dst_seg, count<<1);
+		}
+#endif /* LOADALL_DEBUG */
+#endif /* CONFIG_FS_XMS_LOADALL */
 		else
 		    int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, count);
 		return;
@@ -160,6 +180,10 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 
 		if (xms_mode == XMS_UNREAL)
 		    linear32_fmemcpyb(dst_off, dst_seg, src_off, src_seg, count);
+#ifdef CONFIG_FS_XMS_LOADALL
+		else if (xms_mode == XMS_LOADALL)
+		    loadall_block_move(src_seg+(word_t)src_off, dst_seg+(word_t)dst_off, count);
+#endif
 		else {
 		/* lots of extra work on odd transfers because INT 15 block moves words only */
 		    size_t wc = count >> 1;
@@ -191,7 +215,7 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	fmemcpyb(dst_off, (seg_t)dst_seg, src_off, (seg_t)src_seg, count);
 }
 
-/* memset XMS or far memory, INT 15 not yet supported */
+/* memset XMS of far memory, INT 15 not supported */
 void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 {
 	int	need_xms_dst = dst_seg >> 16;
@@ -199,8 +223,16 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	if (need_xms_dst) {
 		if (!xms_size) panic("xms_fmemset");
 
-		if (xms_mode == XMS_INT15) panic("xms_fmemset int15");
-		linear32_fmemset(dst_off, dst_seg, val, count);
+		if (xms_mode == XMS_INT15) panic("xms_fmemset w/o unreal");
+		if (xms_mode == XMS_UNREAL)
+		    linear32_fmemset(dst_off, dst_seg, val, count);
+#ifdef CONFIG_FS_XMS_LOADALL
+		else {
+		    //printk("memset %lx,%x,%d; ", dst_seg+(word_t)dst_off, val&0xff, count);
+		    //loadall_fmemset(dst_off, dst_seg, 0, count);
+		    loadall_block_move(0xffff0000L, dst_seg+(word_t)dst_off, count);
+		}
+#endif
 		return;
 	}
 	fmemsetb(dst_off, (seg_t)dst_seg, val, count);
@@ -268,6 +300,7 @@ void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg
 	dst_seg += (word_t)dst_off;
 
 	gp = &gdt_table[2];		/* source descriptor*/
+	clr_irq();			/* protect gdt_tabe against reentry */
 	gp->limit_15_0 = 0xffff;
 	gp->base_15_0 = (word_t)src_seg;
 	gp->base_23_16 = src_seg >> 16;
@@ -285,6 +318,7 @@ void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg
 	//gp->flags_limit_19_16 = 0xCF;	/* page-granular, 32-bit, limit=4GB */
 	gp->base_31_24 = dst_seg >> 24;
 	block_move(gdt_table, count);
+	set_irq();
 }
 
 #endif /* CONFIG_FS_XMS_BUFFER */

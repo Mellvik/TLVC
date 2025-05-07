@@ -670,7 +670,7 @@ void zero_buffer(struct buffer_head *bh, size_t offset, int count)
 #define FORCEMAP 0
 #endif
     /* xms int15 doesn't support a memset function, so map into L1 */
-    if (FORCEMAP || bh->b_data || xms_mode == XMS_INT15) {
+    if (FORCEMAP || bh->b_data || xms_mode == XMS_INT15) {	// DANGEROUS!!!
         map_buffer(bh);
         memset(bh->b_data + offset, 0, count);
         unmap_buffer(bh);

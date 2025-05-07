@@ -149,7 +149,7 @@
  | Floppy bounce   |  1k
  | bootopts buffer | 
  +-----------------+ 0x50 DEF_OPTSEG FD_BOUNCESEG
- | IRQ vectors/BDA |
+ | IRQ vectors/BDA |	  If XMS_LOADALL, this segment is expanded to 0x90
  +-----------------+ 000
 
 */
@@ -167,11 +167,22 @@
 #define HAS_FDCACHE 0
 #endif
 
+// NOTE: for accomodating the LOADALL 0x80:0 seg (0x80:0-0x87:0),
+// leave OPTSEG in place (its use is over before LOADALL needs it)
+// and move REL_INITSEG above LOADALL (0x87 or 0x90)
+
+#define LOADALL_SEG	0x80		/* 286 only, 0x80-0x87 */
+#ifdef CONFIG_FS_XMS_LOADALL
+#define DEF_OPTSEG	0x90		/* release 0x50-0x7f in init */
+#define UNUSED_SEG	0x50		/* too small to release */
+					/* maybe use for SETUP_DATA */
+#else
 #define DEF_OPTSEG	0x50
+#endif
 #define OPTSEGSZ	0x400		/* max size of /bootopts file */
 #define FD_BOUNCESEG	DEF_OPTSEG	/* IRQ vectors/ BDA below this */
 #define DMASEG		FD_BOUNCESEG	/* used by bioshd driver only */
-#define REL_INITSEG	0x90
+#define REL_INITSEG	(FD_BOUNCESEG+0x40)
 #define SETUP_DATA	REL_INITSEG	/* 0x200 bytes setup data */
 #define FD_CACHESEG	SETUP_DATA	/* overlapping if present */
 #define XD_BOUNCESEG	(FD_CACHESEG + 0x20 + \

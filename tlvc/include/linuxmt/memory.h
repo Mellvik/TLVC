@@ -39,12 +39,14 @@ void enable_unreal_mode(void);	/* requires 386+ CPU to call */
 int FARPROC enable_a20_gate(void);	/* returns 0 on fail */
 struct gdt_table;
 int FARPROC block_move(struct gdt_table *gdtp, size_t words); /* use INT 15/1F */
+int FARPROC loadall_block_move(addr_t ssrc, addr_t dst, size_t words); /* use loadall */
 
 /* XMS memory management */
 /* possible values for xms_mode */
 #define XMS_DISABLED	0	/* Off */
 #define XMS_UNREAL	1	/* using unreal mode and linear32_fmemcpy for block moves */
 #define XMS_INT15	2	/* using BIOS INT 15 block move */
+#define XMS_LOADALL	3	/* Using LOADALL on 286 system */
 extern int xms_mode;
 
 #ifdef CONFIG_FS_XMS_BUFFER
