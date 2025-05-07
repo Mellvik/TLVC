@@ -42,12 +42,12 @@ int FARPROC block_move(struct gdt_table *gdtp, size_t words); /* use INT 15/1F *
 int FARPROC loadall_block_move(addr_t ssrc, addr_t dst, size_t words); /* use loadall */
 
 /* XMS memory management */
+extern int xms_mode;
 /* possible values for xms_mode */
 #define XMS_DISABLED	0	/* Off */
 #define XMS_UNREAL	1	/* using unreal mode and linear32_fmemcpy for block moves */
 #define XMS_INT15	2	/* using BIOS INT 15 block move */
 #define XMS_LOADALL	3	/* Using LOADALL on 286 system */
-extern int xms_mode;
 
 #ifdef CONFIG_FS_XMS_BUFFER
 typedef __u32 ramdesc_t;	/* special physical ram descriptor */
@@ -57,15 +57,11 @@ void xms_init(void);		/* enables xms and A20 gate if present */
 ramdesc_t xms_alloc(int size);
 
 /* copy to/from XMS or far memory - XMS requires unreal mode and A20 gate enabled */
-void xms_fmemcpyw(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src_seg,
-		size_t count);
 void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src_seg,
 		size_t count);
 void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count);
 
 /* low level copy - must have 386 CPU and xms_enabled before calling! */
-void linear32_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
-		size_t count);
 void linear32_fmemcpyb(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 		size_t count);
 void linear32_fmemset(void *dst_off, addr_t dst_seg, byte_t val, size_t count);
@@ -74,7 +70,6 @@ void linear32_pokew(void *, addr_t, unsigned);
 #else
 
 typedef seg_t ramdesc_t;	/* ramdesc_t is just a regular segment descriptor */
-#define xms_fmemcpyw	fmemcpyw
 #define xms_fmemcpyb	fmemcpyb
 #define xms_fmemset     fmemsetb
 
