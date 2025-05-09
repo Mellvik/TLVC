@@ -49,7 +49,7 @@ extern int xms_mode;
 #define XMS_INT15	2	/* using BIOS INT 15 block move */
 #define XMS_LOADALL	3	/* Using LOADALL on 286 system */
 
-#ifdef CONFIG_FS_XMS_BUFFER
+#ifdef CONFIG_FS_XMS
 typedef __u32 ramdesc_t;	/* special physical ram descriptor */
 
 /* allocate from XMS memory */
@@ -73,6 +73,6 @@ typedef seg_t ramdesc_t;	/* ramdesc_t is just a regular segment descriptor */
 #define xms_fmemcpyb	fmemcpyb
 #define xms_fmemset     fmemsetb
 
-#endif /* CONFIG_FS_XMS_BUFFER */
+#endif /* CONFIG_FS_XMS */
 
 #endif

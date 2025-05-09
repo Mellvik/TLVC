@@ -29,13 +29,15 @@
 #
 # int FARPROC block_move(struct gdt_table *gdtp, size_t words)
 # Uses BIOS INT 15h AH=87h Block Move
-# Enables A20 gate on return in case kernel in HMA. COmpletely 
+# Enables A20 gate on return in case kernel in HMA. Completely 
 # disables all interrupts by masking of the interrupt controllers
 # and turning off the NMI for the duration of the transfer.
 # This is likely to create havoc of the transfers are 'big' - as
 # in 'many k bytes'. 1K (one disk block) per transfer seems to work 
 # fine. May also be system speed dependent. Tested on 12.5MHz 286
 #
+
+#define CONFIG_FS_XMS_INT15DI	/* Always included */
 block_move:
 	push	%es
 	push	%si

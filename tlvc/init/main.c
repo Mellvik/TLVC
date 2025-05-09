@@ -562,7 +562,7 @@ static int INITPROC parse_options(void)
 	char *line = (char *)options;
 	char *next;
 
-	/* copy /bootops loaded by boot loader at 0050:0000 */
+	/* copy /bootops loaded by boot loader, possibly relocated by setup */
 	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, sizeof(options));
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
@@ -845,4 +845,5 @@ static int INITPROC umb_valid(seg_t seg)
 	return 1;
 }
 #endif /* CONFIG_BOOTOPTS*/
+
 
