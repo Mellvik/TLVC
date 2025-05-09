@@ -79,10 +79,8 @@ static void load_file();
 void load_prog()
 {
 	// Avoid reuse of an old copy of /bootopts in memory if we're rebooting w/ no /bootopts */
-	//int __far *optseg = _MK_FP(OPTSEG, 0);	/* Expensive, is there a better way? */
-	i_boot = i_now = 0;
-	//*optseg = i_boot = i_now = 0;
-	//*optseg = 0x1234;	/* no space for this */
+	int __far *optseg = _MK_FP(OPTSEG, 0);	/* Expensive, is there a better way? */
+	*optseg = i_boot = i_now = 0;
 
 	/* use the BDA_IAC location 0(W) (0x4f:0) to store the actual OPTSEG start */
 	asm("xor %ax,%ax; mov %ax,%es; movw $" STRING(OPTSEG) ",%es:(0x4f0)");
