@@ -15,7 +15,7 @@
 #define KB_TO_LINADDR(x)	((long_t)(x)<<10)
 #define LINADDR_TO_KB(x)	((word_t)((x)>>10))
 
-#ifdef CONFIG_FS_XMS_BUFFER
+#ifdef CONFIG_FS_XMS
 
 extern int xms_size;	/* Total XMS size, may be less than reported by BIOS, k bytes */
 extern int xms_start;	/* Offset from 1M where xms memory starts, normally 0, k bytes */
@@ -54,17 +54,28 @@ void xms_init(void)
 		printk("not available");
 		return;
 	}
-
-	if (arch_cpu == 6) 
-#ifndef CONFIG_FS_XMS_LOADALL
-		xms_mode = XMS_INT15;	/* Force INT15 if 286 */
-#else
-		xms_mode = XMS_LOADALL;
+#ifndef CONFIG_FS_XMS_INT15
+	if (xms_mode == XMS_INT15) {
+	    printk("XMS_INT15 not available, ");
+	    xms_mode = XMS_UNREAL;
+	}
 #endif
+
+	if (arch_cpu == 6) {
+		if (xms_mode == XMS_UNREAL) {
+#ifdef CONFIG_FS_XMS_LOADALL
+		    xms_mode = XMS_LOADALL;
+#else
+		    xms_mode = XMS_DISABLED;
+		    printk("not available");
+		    return;
+#endif
+		}
+	}			/* INT15 is ok if present */
+
 	if (xms_mode == XMS_UNREAL) {
 		if (!check_unreal_mode()) {
 		    printk("disabled, unreal mode requires 386");
-		    xms_avail = 0;
 		    xms_mode = XMS_DISABLED;
 		    return;
 		} else
@@ -89,14 +100,6 @@ void xms_init(void)
 
 	xms_avail = xms_size - xms_start;
 
-#if AUTODISABLE
-	if (xms_mode == XMS_INT15 && kernel_cs == 0xffffU) {
-		printk("kernel in HMA, int15 XMS disabled");
-		xms_mode = XMS_DISABLED;
-		xms_avail = 0;
-		return;
-	} 
-#endif
 	xms_alloc_ptr = XMS_START_ADDR + KB_TO_LINADDR(xms_start);
 	printk("%uk available, ", xms_avail);
 	//printk("a20 status %d, ", verify_a20());
@@ -107,7 +110,6 @@ void xms_init(void)
 		printk("using 286/LOADALL");
 	else 
 		printk("using unreal mode");
-	//enable_a20_gate();	/*DEBUG - makes no difference */
 	if (kernel_cs == 0xffff) printk(", HMA kernel");
 	return;
 }
@@ -148,6 +150,7 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 		else if (xms_mode == XMS_LOADALL)
 		    loadall_block_move(src_seg+(word_t)src_off, dst_seg+(word_t)dst_off, count);
 #endif
+#ifdef CONFIG_FS_XMS_INT15
 		else {
 		/* lots of extra work on odd transfers because INT 15 block moves words only */
 		    size_t wc = count >> 1;
@@ -174,6 +177,10 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 		    }
 		    int15_fmemcpyw(dst_off, dst_seg, src_off, src_seg, wc);
 		}
+#endif
+#if !(defined(CONFIG_FS_XMS_INT15) || defined(CONFIG_FS_XMS_LOADALL))
+		else panic("xms_memcpyb: config error");
+#endif
 		return;
 	}
 	fmemcpyb(dst_off, (seg_t)dst_seg, src_off, (seg_t)src_seg, count);
@@ -185,15 +192,13 @@ void xms_fmemset(void *dst_off, ramdesc_t dst_seg, byte_t val, size_t count)
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_dst) {
-		if (!xms_size) panic("xms_fmemset");
+		if (!xms_size || xms_mode == XMS_INT15) panic("xms_fmemset");
 
-		if (xms_mode == XMS_INT15) panic("xms_fmemset w/o unreal");
 		if (xms_mode == XMS_UNREAL)
 		    linear32_fmemset(dst_off, dst_seg, val, count);
 #ifdef CONFIG_FS_XMS_LOADALL
 		else {
 		    //printk("memset %lx,%x,%d; ", dst_seg+(word_t)dst_off, val&0xff, count);
-		    //loadall_fmemset(dst_off, dst_seg, 0, count);
 		    loadall_block_move(0xffff0000L, dst_seg+(word_t)dst_off, count);
 		}
 #endif
@@ -242,6 +247,7 @@ word_t INITPROC find_xms_end(word_t start, word_t top)
 }
 #endif
 
+#ifdef CONFIG_FS_XMS_INT15
 struct gdt_table {
 	word_t	limit_15_0;
 	word_t	base_15_0;
@@ -284,5 +290,5 @@ void int15_fmemcpyw(void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg
 	block_move(gdt_table, count);
 	set_irq();
 }
-
-#endif /* CONFIG_FS_XMS_BUFFER */
+#endif /* CONFIG_FS_XMS_INT15 */
+#endif /* CONFIG_FS_XMS */

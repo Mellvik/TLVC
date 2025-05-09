@@ -200,7 +200,7 @@ int INITPROC buffer_init(void)
 
 #ifdef CONFIG_FS_XMS_BUFFER
     xms_init(); 
-    if (!xms_avail || !xms_mode) nr_xms_bufs = 0;
+    if (!xms_avail || xms_mode == XMS_DISABLED) nr_xms_bufs = 0;
     if (nr_xms_bufs)
 	bufs_to_alloc = (nr_xms_bufs > xms_avail) ? xms_avail : nr_xms_bufs;
 #else
