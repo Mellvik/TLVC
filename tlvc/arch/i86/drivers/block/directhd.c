@@ -261,7 +261,7 @@ void read_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int 
 	insw(port, (word_t *)localbuf, count);
 	debug_blkdrv("insw %d %x:%04x %lx:%04x %04x;", count, kernel_ds, localbuf,
 		(unsigned long)seg, buffer, *(word_t *)localbuf);
-	xms_fmemcpyw(buffer, seg, localbuf, kernel_ds, count/2);
+	xms_fmemcpyb(buffer, seg, localbuf, kernel_ds, count);
     } else
 #endif
     {
@@ -316,7 +316,7 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
 #if defined(CONFIG_FS_XMS_BUFFER) || defined(USE_LOCALBUF)
 
     if (!raw) {
-	xms_fmemcpyw(localbuf, kernel_ds, buffer, seg, count/2);
+	xms_fmemcpyb(localbuf, kernel_ds, buffer, seg, count);
 	outsw(port, (word_t *)localbuf, count);
     } else 
 #endif

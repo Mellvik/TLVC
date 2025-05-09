@@ -26,7 +26,8 @@
 //		size_t count)
 
 fmemcpyb:
-	mov    %si,%ax
+	or     $1,%al		// clear ZF
+2:	mov    %si,%ax
 	mov    %di,%dx
 	mov    %sp,%si
 	mov    %es,%bx
@@ -34,8 +35,9 @@ fmemcpyb:
 	les    ARG0(%si),%di  // far destination pointer
 	lds    ARG2(%si),%si  // far source pointer
 	cld
+	jz     3f
 	shr    $1,%cx         // copy words
-	rep
+3:	rep
 	movsw
 	rcl    $1,%cx         // then possibly final byte
 	rep
@@ -51,22 +53,8 @@ fmemcpyb:
 //		size_t count)
 
 fmemcpyw:
-	mov    %es,%bx
-	mov    %si,%ax
-	mov    %di,%dx
-	mov    %sp,%si
-	mov    ARG4(%si),%cx  // word count
-	les    ARG0(%si),%di  // far destination pointer
-	lds    ARG2(%si),%si  // far source pointer
-	cld
-	rep
-	movsw
-	mov    %ax,%si
-	mov    %dx,%di
-	mov    %ss,%ax
-	mov    %ax,%ds
-	mov    %bx,%es
-	ret
+	xor	%al,%al		// Set ZF
+	jmp	2b
 
 // void fmemsetb (void * off, seg_t seg, byte_t val, size_t count)
 // compiler pushes byte_t as word_t
@@ -174,20 +162,36 @@ fmemcmpw_exit:
 #
 # int FARPROC loadall_block_move(addr_t src, addr_t dst, size_t bytes)
 #
-# Prepare a loadall register block which changes the DS cache entry to
-# point to the source address of the move, while the ES cache entry 
-# points to the destination address. Either can be anywhere in the 16M
-# address space. Filling the other two segment register caches (CS, SS)
-# is also required since this is what the processor will be running on
-# after the LOADALL instruction has been executed. 
-# The segment caches in the processor will be individually reset to 
+# This function prepares a complete processor register block which is 
+# loaded by the LOADALL instruction and immediately takes effect.
+# The magic is in the loading of the segment register caches with values 
+# pointing anywhere in the 16M processor address range.
+#
+# We set the DS cache entry to point to the source address of the move, 
+# while the ES cache entry points to the destination address, both may 
+# be anywhere in the address range. 
+# Filling the other two segment register caches (CS, SS)
+# is also required since this is what the processor will be using
+# immediately after the structure has been loaded by the LOADALL instruction.
+#
+# The segment caches will be individually reset to 
 # 'normal' real mode values (high 4 bits clear) whenever the 
 # corresponding register is changed by the running code. 
+#
 # Since this method copies the current SS and CS values into the corresponding
-# caches, resetting them after is not critical. What's needed is
+# caches, resetting them after is not critical. What's important is
 # that the DS and ES registers get updated (restored) before we exit.
 #
 # The return value is usually ignored, but may be useful for debugging.
+#
+# The LOADALL data structure is 'hardwired' to address 0x80:0, size 102 bytes
+# which are zeroed out before use. The word immediately following the structure,
+# at address 0x80:0 + 0x66 is used as an initialization flag to avoid repeating
+# initialization of the structure in every call. The rest of the 128 bytes set
+# aside for the structure is available. 
+# Keep in mind though that unless CONFIG_FS_XMS_LOADALL is set, this area in
+# low memory is used for other purposes.
+#
 
 loadall_block_move:
 
@@ -202,11 +206,14 @@ loadall_block_move:
 	cld
 	mov	$0x80,%cx
 	mov	%cx,%es		# ES=0080h segment
-	mov	$0x33,%cx	# 102 bytes
+	mov	$0xa5a5,%bx
+	cmp	%bx,%es:(0x66)
+	jz	2f
+	mov	$0x34,%cx	# 102+2 bytes
 	xor	%ax,%ax
-	cli
 	rep
 	stosw
+	mov	%bx,%es:(0x66)	# set the 'initialized' flag
 
 	xor	%di,%di
 	dec	%ax		# limit is always 0xffff
@@ -218,7 +225,8 @@ loadall_block_move:
 
 	# if highword(src) = 0xffff, do memset 
 # Prepare src (DS)
-	xor	%bx,%bx
+2:	xor	%bx,%bx
+	cli
 	mov	12(%bp),%ax	#src addr low16
 	mov	%ax,%es:(0x48)	#new DS low16
 	mov	14(%bp),%ax	#src addr high8

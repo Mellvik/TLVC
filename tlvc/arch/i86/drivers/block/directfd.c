@@ -733,7 +733,7 @@ static void setup_DMA(void)
     } else
 #endif
     if (use_bounce && command == FD_WRITE)
-	xms_fmemcpyw(0, FD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	xms_fmemcpyb(0, FD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE);
 
     DEBUG("%d/%lx/%x;", count, dma_addr, physaddr);
     clr_irq();
@@ -1004,8 +1004,7 @@ static void rw_interrupt(void)
     }
     if (raw) CURRENT->rq_nr_sectors = nr_sectors;
     if (use_bounce && command == FD_READ) {
-	xms_fmemcpyw(req->rq_buffer, req->rq_seg, NULL, FD_BOUNCESEG, nr_sectors << (9-1));
-									       /* words ^ */
+	xms_fmemcpyb(req->rq_buffer, req->rq_seg, NULL, FD_BOUNCESEG, nr_sectors << (9));
     } else {
 #if CONFIG_FLOPPY_CACHE
 	if (use_cache) {
@@ -1013,7 +1012,7 @@ static void rw_interrupt(void)
 	    cache_start = CURRENT->rq_blocknr;
 	    DEBUG("rd:%04x:0->%04lx:%04x;", FD_CACHESEG,
 		(unsigned long)req->rq_seg, req->rq_buffer);
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, 0, FD_CACHESEG, BLOCK_SIZE/2);
+	    xms_fmemcpyb(req->rq_buffer, req->rq_seg, 0, FD_CACHESEG, BLOCK_SIZE);
 	}
 #endif
     }
@@ -1511,11 +1510,11 @@ static void redo_fd_request(void)
 
 	if (command == FD_READ) {	/* requested data is in cache */
 //	    cache_hits++;
-	    xms_fmemcpyw(req->rq_buffer, req->rq_seg, buf_ptr, FD_CACHESEG, BLOCK_SIZE/2);
+	    xms_fmemcpyb(req->rq_buffer, req->rq_seg, buf_ptr, FD_CACHESEG, BLOCK_SIZE);
 	    request_done(1);
 	    goto repeat;
     	} else if (command == FD_WRITE)	/* update track cache */
-	    xms_fmemcpyw(buf_ptr, FD_CACHESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE/2);
+	    xms_fmemcpyb(buf_ptr, FD_CACHESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE);
     } 
 #endif
 

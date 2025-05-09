@@ -986,7 +986,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *b
 		segment = FD_BOUNCESEG;
 		offset = 0;
 		if (cmd == WRITE)	/* copy xms buffer down before write */
-		    xms_fmemcpyw(0, FD_BOUNCESEG, buf, seg, this_pass*(drivep->sector_size >> 1));
+		    xms_fmemcpyb(0, FD_BOUNCESEG, buf, seg, this_pass*drivep->sector_size);
 		set_cache_invalid();
 	    } else {
 		segment = (seg_t)seg;
@@ -1014,7 +1014,7 @@ static int do_bios_readwrite(struct drive_infot *drivep, sector_t start, char *b
 	if (error) return 0;
 	if (use_bounce) {
 		if (cmd == READ)	/* copy DMASEG up to xms*/
-			xms_fmemcpyw(buf, seg, 0, FD_BOUNCESEG, this_pass*(drivep->sector_size >> 1));
+			xms_fmemcpyb(buf, seg, 0, FD_BOUNCESEG, this_pass*drivep->sector_size);
 		set_cache_invalid();
 	}
 	return this_pass;
@@ -1081,7 +1081,7 @@ static int cache_valid(struct drive_infot *drivep, sector_t start, unsigned char
 
 	offset = (int)(start - cache_startsector) * drivep->sector_size;
 	debug_biosio("bioshd(%d): cache hit lba %ld\n", hd_drive_map[drivep-drive_info], start);
-	xms_fmemcpyw(buf, seg, (void *)offset, DMASEG, drivep->sector_size >> 1);
+	xms_fmemcpyb(buf, seg, (void *)offset, DMASEG, drivep->sector_size);
 	return 1;
 }
 
