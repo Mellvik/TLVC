@@ -171,7 +171,7 @@
 					/* 16 bytes, the first (0x4f:0) (W) holds the */
 					/* actual OPTSEG location used by the minix */
 					/* bootloader */
-#define BDA_IAC_OPTSEG		0x0
+#define BDA_IAC_OPTSEG		0x0	/* Offset where boot's DEF_OPTSEG is saved */
 
 // NOTE: for accomodating the LOADALL 0x80:0 seg (0x80:0-0x87:0),
 // leave OPTSEG in place (its use is over before LOADALL needs it)
