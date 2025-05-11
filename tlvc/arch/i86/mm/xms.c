@@ -45,6 +45,10 @@ static long_t xms_alloc_ptr;
 /* A15 has already been enabled at this point */
 void xms_init(void)
 {
+	if (hma_avail)
+		xms_start = 64;		/* set this for meminfo */
+	xms_avail = xms_size - xms_start;
+
 	printk("xms: ");
 	if (!xms_mode) {
 		printk("disabled");
@@ -81,28 +85,31 @@ void xms_init(void)
 		} else
 		    enable_unreal_mode();
 	}
-	if (hma_avail)
-		xms_start = 64;
-	else {
-#ifdef XMS_SIZEUP
+#ifdef XMS_SIZEUP		/* this is getting complicated */
+	if (!hma_avail) {
 		/* XMS does not start at 1M, size it up. It may consist of
 		 * more than one segment and start anywhere above 1M. We're
 		 * using the first assuming it's the largest. 
 		 * Useful in unreal mode only
 		 */
-		if (xms_mode == XMS_UNREAL) {
+		if (xms_mode == XMS_UNREAL 
+#ifdef CONFIG_FS_XMS_LOADALL
+			|| xms_mode == XMS_LOADALL
+#endif
+						) {
 		    xms_start = find_xms_start();	/* kbytes from 1M */
 		    xms_avail = find_xms_end(xms_start, xms_size) - xms_start;
 		} else
-#endif
+#ifdef CONFIG_FS_XMS_INT15
 		    xms_mode = XMS_INT15;	/* Force INT15 mode since HMA not found */
+#else
+		    xms_mode = XMS_DISABLED;
+#endif
 	}
-
-	xms_avail = xms_size - xms_start;
+#endif
 
 	xms_alloc_ptr = XMS_START_ADDR + KB_TO_LINADDR(xms_start);
 	printk("%uk available, ", xms_avail);
-	//printk("a20 status %d, ", verify_a20());
 
 	if (xms_mode == XMS_INT15)
 		printk("using int 15/1F");

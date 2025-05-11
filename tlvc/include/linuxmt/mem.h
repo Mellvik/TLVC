@@ -16,8 +16,13 @@
 #define MEM_GETJIFFIES	14
 
 struct mem_usage {
-	unsigned int free_memory;
-	unsigned int used_memory;
+    unsigned int main_free;
+    unsigned int main_used;
+    unsigned int xms_free;
+    unsigned int xms_used;
+    unsigned int xms_start;	/* xms may not start at 0x10000 */
 };
+
+void mm_get_usage(struct mem_usage *mu);
 
 #endif
