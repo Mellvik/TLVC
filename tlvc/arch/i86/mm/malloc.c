@@ -5,6 +5,8 @@
 #include <linuxmt/config.h>
 #include <linuxmt/sched.h>
 #include <linuxmt/mm.h>
+#include <linuxmt/mem.h>
+#include <linuxmt/memory.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/heap.h>
@@ -24,6 +26,9 @@
 
 list_s _seg_all;
 static list_s _seg_free;
+extern int xms_size;
+extern int xms_avail;
+extern int xms_start;
 
 #define ALLOW_TOPDWN_ALLOC
 
@@ -104,7 +109,7 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 	// Then allocate that free segment
 
 	if (best_seg) {
-	    seg_split(best_seg, size00);			// split off upper segment
+	    seg_split(best_seg, size00);		// split off upper segment
 #ifndef ALLOW_TOPDWN_ALLOC
 	    if (incr)
 		best_seg = seg_split(best_seg, incr);	// split off lower segment
@@ -218,7 +223,7 @@ segment_s *seg_dup(segment_s *src)
 
 // Get memory information (free and used) in KB
 
-void mm_get_usage(unsigned int *pfree, unsigned int *pused)
+void mm_get_usage(struct mem_usage *mu)
 {
 	unsigned int free = 0;
 	unsigned int used = 0;
@@ -242,8 +247,17 @@ void mm_get_usage(unsigned int *pfree, unsigned int *pused)
 	// Convert paragraphs to kilobytes
 	// Floor, not ceiling, so average return
 
-	*pfree = ((free + 31) >> 6);
-	*pused = ((used + 31) >> 6);
+	mu->main_free = ((free + 31) >> 6);
+	mu->main_used = ((used + 31) >> 6);
+#ifdef CONFIG_FS_XMS
+	mu->xms_used = xms_size - xms_avail - xms_start;
+	mu->xms_free = xms_avail;
+	mu->xms_start = xms_start;
+#else
+	mu->xms_used = 0
+	mu->xms_free = 0;
+	mu->xms_start = 0;
+#endif
 }
 
 

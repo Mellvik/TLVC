@@ -194,7 +194,7 @@ int INITPROC buffer_init(void)
 {
     if (nr_map_bufs > MAX_NR_MAPBUFS) nr_map_bufs = MAX_NR_MAPBUFS;
 
-    /* XMS buffers override EXT buffers override internal buffers*/
+    /* XMS buffers override EXT buffers override internal buffers */
 #if defined(CONFIG_FS_EXTERNAL_BUFFER) || defined(CONFIG_FS_XMS_BUFFER)
     int bufs_to_alloc = nr_ext_bufs;
 
@@ -208,9 +208,9 @@ int INITPROC buffer_init(void)
 #endif
 
 #ifdef CONFIG_FAR_BUFHEADS
-    if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes*/
+    if (bufs_to_alloc > 2975) bufs_to_alloc = 2975; /* max 64K far bufheads @22 bytes */
 #else
-    if (bufs_to_alloc > 256) bufs_to_alloc = 256;   /* protect against high XMS value*/
+    if (bufs_to_alloc > 256) bufs_to_alloc = 256;   /* protect against high XMS value */
 #endif
 
 #else

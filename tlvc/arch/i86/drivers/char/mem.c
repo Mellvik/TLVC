@@ -261,7 +261,7 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
         retword = (unsigned)((long)buffer_init >> 16);
         break;
     case MEM_GETUSAGE:
-	mm_get_usage (&(mu.free_memory), &(mu.used_memory));
+	mm_get_usage(&mu);
 	memcpy_tofs(arg, &mu, sizeof(struct mem_usage));
 #ifdef HEAP_DEBUG
 	heap_iterate(heap_cb);
