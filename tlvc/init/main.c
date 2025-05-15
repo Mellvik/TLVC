@@ -81,6 +81,8 @@ int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
 int xms_size, xms_avail, xms_start, hma_avail;	/* descriptions in xms.c */
 int xms_mode;
+unsigned char macaddr[6];
+
 static int boot_console;
 static char bininit[] = "/bin/init";
 static char binshell[] = "/bin/sh";
@@ -98,6 +100,7 @@ static char hasopts;
 static int args = 2;	/* room for argc and av[0] */
 static int envs;
 static int argv_slen;
+
 /* argv_init doubles as sptr data for sys_execv later */
 #ifdef CONFIG_SYS_NO_BININIT
 static char *argv_init[MAX_INIT_SLEN] = { NULL, binshell, NULL };
@@ -502,6 +505,17 @@ static void INITPROC parse_parms(int cnt, char *line, int *nums, int base)
 		l++;
 	}
 }
+static void parse_mac(char *line) {
+	char *c = line;
+	int mac[6];
+
+	while (*c) {
+		if (*c == ':') *c = ',';
+		c++;
+	}
+	parse_parms(6, line, mac, 16);
+	for (int i = 0; i < 6; i++) macaddr[i] = (unsigned char)mac[i];
+}
 
 static void INITPROC comirq(char *line)
 {
@@ -650,6 +664,10 @@ static int INITPROC parse_options(void)
 		}
 		if (!strncmp(line,"le0=", 4)) {
 			parse_nic(line+4, &netif_parms[ETH_LANCE]);
+			continue;
+		}
+		if (!strncmp(line,"mac=", 4)) {
+			parse_mac(line+4);
 			continue;
 		}
 		if (!strncmp(line,"bufs=", 5)) {
