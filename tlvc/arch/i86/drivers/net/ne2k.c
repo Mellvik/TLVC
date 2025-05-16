@@ -55,6 +55,7 @@ extern int ne2k_next_pk;
 extern word_t ne2k_flags;
 extern word_t ne2k_has_data;
 extern struct eth eths[];
+extern unsigned char macaddr[];
 
 /* Distinguish between buffered and non buffered IO */
 /* Don't change these constants, the asm code is using them literally */
@@ -514,7 +515,7 @@ void INITPROC ne2k_drv_init(void)
 			 * to set the QEMU flag (for ftp). This feature is currently
 			 * unused as there is no way to pass that info up to ftp.
 			 *
-			 * The MAC address occupies the first 6 bytes, followed by a 'card signature'
+			 * The MAC address occupies the first 6 words, followed by a 'card signature'
 			 * which is usually empty except for bytes 28 and 30, which contain
 			 * a 'B' if it's an 8bit card, 'W' if it's a 16bit card.
 			 * If a NIC doesn't implement this feature, 16-bit mode
@@ -572,11 +573,15 @@ void INITPROC ne2k_drv_init(void)
 		netif_stat.if_status |= NETIF_IS_QEMU;
 		running_qemu = 1;
 	}
-	//for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
-	//printk("\n");
+#if 0
+	for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
+	printk("\n");
+#endif
+	if (macaddr[0]+macaddr[1]+macaddr[2])	/* Bootopts mac address takes presedence */
+		cprom = macaddr;
 
 	memcpy(mac_addr, cprom, 6);
-	printk(", (%s) MAC %02x", model_name, mac_addr[0]);
+	printk(", (%s) MAC %02x%s", model_name, mac_addr[0], cprom==macaddr? " (from bootopts)":"");
 	ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works from ktcp */
 
 	i = 1;
