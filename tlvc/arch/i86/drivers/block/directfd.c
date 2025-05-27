@@ -128,8 +128,6 @@ void (*DEVICE_INTR) () = NULL;
 			 * it back than pretending it's possible to save anything - detecting,
 			 * flushing, umounting etc. */
 			/* Always use off for PC/XT/8086/8088 8bit ISA systems */
-#else
-#undef CHECK_MEDIA_CHANGE /* Now defined in linuxmt/fs.h */
 #endif
 
 #define DEBUG_DIRECTFD 0
@@ -201,7 +199,7 @@ static unsigned char reply_buffer[MAX_REPLIES];
 #define CMOS_360k   1
 #define CMOS_1200k  2
 #define CMOS_720k   3
-#define CMOS_1400k  4
+#define CMOS_1440k  4
 #define CMOS_2880k  5
 #define CMOS_MAX    5
 
@@ -214,6 +212,7 @@ static unsigned char reply_buffer[MAX_REPLIES];
 #define FT_360k_AT  4		/* 360kB in 1.2MB drive */
 #define FT_720k_AT  5		/* 720kB in 1.44MB drive */
 #define FT_1440k    6		/* 3.5" 1.44MB diskette */
+#define FT_2880k    7		/* 3.5" 2.88MB diskette */
 
 /* Data rate codes */
 #define R250	2
@@ -236,6 +235,10 @@ static struct floppy_struct floppy_type[] = {
     /* 4 */ { 720,  9, 40, 1, 0x23, R300, 0xDF, 0x50, "360k/AT"}, /* 360kB in 1.2MB drive */
     /* 5 */ {1440,  9, 80, 0, 0x23, R300, 0xDF, 0x50, "720k/AT"}, /* 720kB in 1.2MB drive */
     /* 6 */ {2880, 18, 80, 0, 0x1B, R500, 0xDF, 0x6C, "1.44M"},	  /* 1.44MB, SRT 3ms */
+#ifdef ENABLE_FDC_82077
+    /* 7 */ {5760, 36, 80, 0, 0x1B, 0x43, 0xAF, 0x28, "2.88M"},   /* 3.5" 2.88MB */
+#endif
+
 	 /* totSectors/secPtrack/tracks/stretch/gap/Drate/S&Hrates/fmtGap/name/  */
 };
 
@@ -243,14 +246,19 @@ static struct floppy_struct floppy_type[] = {
 static unsigned char p360k[] =  { FT_360k_PC, FT_360k_PC, 0 };	/* DO NOT change */
 static unsigned char p1200k[] = { FT_1200k,   FT_360k_AT, 0 };
 static unsigned char p720k[] =  { FT_720k,    FT_720k,    0 };
-static unsigned char p1440k[] = { FT_1440k,   FT_720k,    0 };	/* add 2880 here if needed */
+static unsigned char p1440k[] = { FT_1440k,   FT_720k,    0 };
+#ifdef ENABLE_FDC_82077
+static unsigned char p2880k[] = { FT_2880k,   FT_1440k,   0 };
+#else
+#define p2880k NULL
+#endif
 
 /*
  * Auto-detection. Each drive type has a zero-terminated list of formats which
  * are used in succession to try to read the disk. If the FDC cannot lock onto
  * the disk, the next format is tried. This uses the variable 'probing'.
  */
-static unsigned char *probe_list[CMOS_MAX] = { p360k, p1200k, p720k, p1440k, NULL };
+static unsigned char *probe_list[CMOS_MAX] = { p360k, p1200k, p720k, p1440k, p2880k };
 
 /* This type is tried first. */
 static unsigned char *base_type[MAX_FLOPPIES];
@@ -403,14 +411,10 @@ static struct timer_list select = { NULL, 0, 0, select_callback };
  * several drives can have the motor running at the same time. A drive cannot
  * be selected unless the motor is on, they can be set concurrently.
  */
-/*
- * NOTE: The argument (nr) is silently ignored, current_drive being used instead.
- * is this OK?
-  */
 static void floppy_select(unsigned int nr)
 {
     DEBUG("sel0x%x-", current_DOR);
-    if (current_drive == (current_DOR & 3)) {
+    if (nr == (current_DOR & 3)) {
 	/* Drive already selected, we're ready to go */
 	floppy_ready();
 	return;
@@ -424,7 +428,7 @@ static void floppy_select(unsigned int nr)
      * Setting them concurrently is OK
      */
     current_DOR &= 0xFC;
-    current_DOR |= current_drive;
+    current_DOR |= nr;
     outb(current_DOR, FD_DOR);
 
     /* It is not obvious why select should take any time at all ... HS */
@@ -689,8 +693,8 @@ static void setup_DMA(void)
     else
 #endif
     {
-	/* Need bounce buffer if spanning a 64k boundary and if buffer is in XMS memory */ 
-	if ((req->rq_seg >> 16) || (physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
+	/* Need bounce buffer if spanning a 64k boundary */
+	if ((physaddr + (unsigned int)count) < physaddr) { /* 64k phys wrap ? */
 	    use_bounce++;
 	    dma_addr = _MK_LINADDR(FD_BOUNCESEG, 0);
 	    if (raw) {	/* The application buffer spans a 64k boundary, split it into
@@ -705,6 +709,9 @@ static void setup_DMA(void)
 		    dma_addr = _MK_LINADDR(req->rq_seg, req->rq_buffer);
 		}
 	    }
+	} else if (req->rq_seg >> 16) {	/* Data in XMS memory */
+	    dma_addr = _MK_XMSADDR(req->rq_seg, req->rq_buffer);
+	    //printk("XMS %c @ %lx\n", command == FD_WRITE? 'W':'R', dma_addr);
 	}
     }
     if (raw) {	/* ensure raw access doesn't span cylinders */
@@ -735,7 +742,7 @@ static void setup_DMA(void)
     if (use_bounce && command == FD_WRITE)
 	xms_fmemcpyb(0, FD_BOUNCESEG, req->rq_buffer, req->rq_seg, BLOCK_SIZE);
 
-    DEBUG("%d/%lx/%x;", count, dma_addr, physaddr);
+    DEBUG("\nFD: %c %d/%lx/%x;", command == FD_WRITE?'W':'R', count, dma_addr, physaddr);
     clr_irq();
     disable_dma(FLOPPY_DMA);
     clear_dma_ff(FLOPPY_DMA);
@@ -806,11 +813,10 @@ static void bad_flp_intr(void)
 #endif
     errors = ++CURRENT->rq_errors;
     if (errors > MAX_ERRORS) {
-        printk("df%d: Max retries (%d) exceeded\n", CURRENT->rq_dev&3, errors);
+        if (!probing) printk("df%d: Max retries (%d) exceeded\n", CURRENT->rq_dev&3, errors);
 	request_done(0);
 	return;
     }
-    if (probing) return;
     if (errors > MAX_ERRORS / 2)
 	reset = 1;
     else
@@ -927,7 +933,7 @@ static void rw_interrupt(void)
     nr = result();
     DEBUG("rwI%x|%x|%x-",ST0,ST1,ST2);
 
-    /* check IC to find cause of interrupt */
+    /* check FDC to find cause of interrupt */
     switch ((ST0 & ST0_INTR) >> 6) {
     case 1:			/* error occured during command execution */
 	bad = 1;
@@ -955,8 +961,10 @@ static void rw_interrupt(void)
 		if (!probing) {
 		    printk("sector not found");
 		    tell_sector(nr);
-		} else
+		} else {
 		    printk("probe failed...");
+		    CURRENT->rq_errors = MAX_ERRORS;	/* stop trying */
+		}
 	    } else if (ST2 & ST2_WC) {	/* seek error */
 		printk("wrong cylinder");
 	    } else if (ST2 & ST2_BC) {	/* cylinder marked as bad */
@@ -967,9 +975,9 @@ static void rw_interrupt(void)
 	    }
 	    printk("\n");
 	    CURRENT->rq_errors++; /* may want to increase this even more, doesn't make */ 
-	    		/* sense to re-try most of these conditions more 
-			 * than the reporting threshold. NOTE: rq_errors is incremented in 
-			 * bad_flp_intr too!! */
+	    		/* sense to retry most of these conditions more 
+			 * than the reporting threshold. */
+			/* NOTE: rq_errors is incremented in bad_flp_intr too!! */
 			/* FIXME: Need smarter retry/error reporting scheme */
 			/* FIXME: A track change may fix some of these errors
 			 * on old and worn drives */
@@ -1066,7 +1074,7 @@ void setup_rw_floppy(void)
     }
 #endif
     DEBUG("S_OK;");
-    if (reset)		/* If output_byte timed out */
+    if (reset)			/* If output_byte timed out */
 	redo_fd_request();
 }
 
@@ -1383,7 +1391,7 @@ static void redo_fd_request(void)
     seek = 0;
     device = MINOR(req->rq_dev);
     drive = device & 3;
-    if (fdevice[drive].fd_probe) {
+    if (fdevice[drive].fd_probe) {	/* set in _open */
 	probing = 1;
 	fdevice[drive].fd_probe = 0;
     }
@@ -1400,12 +1408,12 @@ static void redo_fd_request(void)
 	floppy = &floppy_type[device >> 2];
     else {			/* Auto-detection */
 	floppy = fdevice[drive].current_type;
-	if (probing > 1) {	/* the previous attempt (using current_type) failed, start
+	if (probing) {	/* the previous attempt (using current_type) failed, start
 				 * auto-detection */
 	    if (!base_type[drive][probing-1])	/* end of table? */
 		probing = 1;
 	    floppy = &floppy_type[base_type[drive][probing-1]];
-	    //printk("df%d: auto-probe #%d %s\n", drive, probing, floppy->name);
+	    DEBUG("df%d: auto-probe #%d %s\n", drive, probing, floppy->name);
 	}
 #if 0
 	if (!floppy) {
@@ -1719,7 +1727,8 @@ int floppy_open(struct inode *inode, struct file *filp)
 	    this_floppy = &floppy_type[base_type[drive][0]];
 	    fdev->current_type = this_floppy;
 	}
-	if (sys_caps & CAP_PC_AT) fdev->fd_probe++;
+	if (sys_caps & CAP_PC_AT)	/* don't probe on XT */
+		fdev->fd_probe = 1;
     }
     fdev->inode = inode;
     inode->i_size = ((sector_t)(this_floppy->size)) << 9;
@@ -1846,7 +1855,6 @@ void INITPROC floppy_init(void)
     printk("\n");
 #endif
 
-#ifdef ENABLE_FDC_82077
     /* Not all FDCs seem to be able to handle the version command
      * properly, so force a reset for the standard FDC clones,
      * to avoid interrupt garbage.
@@ -1855,7 +1863,6 @@ void INITPROC floppy_init(void)
 	initial_reset_flag = 1;
 	reset_floppy();
     }
-#endif
     config_types();
 
 #if CONFIG_FLOPPY_CACHE
