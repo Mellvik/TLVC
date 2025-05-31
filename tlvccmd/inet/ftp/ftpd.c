@@ -26,10 +26,9 @@
 #include 	<dirent.h>
 
 #define		BLOAT
-#define		DEBUG
 
 #ifdef BLOAT
-#define GLOB
+#define GLOB	/* Enable local globbing - increases size of the executable significantly */
 #endif
 
 #ifdef GLOB
@@ -127,12 +126,15 @@ static int maxtimeout = 7200;
 static int controlfd;
 static char real_ip[20];
 
+int do_nlist(int, char *);
+
 /* Trim leading and trailing whitespaces */
 void trim(char *str) {
 	int i;
 	int begin = 0;
 	int end = strlen(str) - 1;
 
+	if (!*str) return;
 	while (isspace((unsigned char) str[begin]))
         	begin++;
 
@@ -146,12 +148,19 @@ void trim(char *str) {
 	str[i - begin] = '\0'; // Null terminate string.
 }
 
-int send_reply(int code, char *str) {
+void send_reply1(int code, char *str, char *parm) {
 	char cp[70];
+	char *sep = ": ";
 
-	sprintf(cp, "%d %s.\r\n", code, str);
-	return (write(controlfd, cp, strlen(cp)));
+	if (!*parm)
+		sep = "";
+	sprintf(cp, "%d %s%s%s\r\n", code, parm, sep, str);
+	write(controlfd, cp, strlen(cp));
 }
+
+void send_reply(int code, char *str) {
+	send_reply1(code, str, "");
+} 
 
 void clean(char *s) {	/* chop off CRLF at end of string */
 	int l = strlen(s);
@@ -258,10 +267,11 @@ int get_param(char *input, char *fileptr) {
 	param = strtok(input, " ");	/* skip command name */
 	param = strtok(NULL, "\r\n");	/* get the rest of the line */
 	
-	if (param == NULL)
+	if (param == NULL) {
+		*fileptr = '\0';
         	return -1;
-
-    	strncpy(fileptr, param, strlen(param));
+	}
+    	strcpy(fileptr, param);
     	return 1;
 }
 
@@ -323,122 +333,168 @@ int checknum(char *s) {
 	return 1;
 }
 
+/*
+ * Two quite different functions: LIST (DIR command) which returns a ls -l output
+ * and NLST (nlist) which returns filenames with paths if approriate. In the first case
+ * the shell will do wildcard processing, in the latter, we have to do it (if GLOB is defined).
+ * In both cases we should check for some existence, so as to not return an empty list (no
+ * message) which will look like an error 'wtf happened?') to the user at the other end.
+ */
 int do_list(int datafd, char *input) {
-	char *str, cmd_buf[CMDBUFSIZ], iobuf[IOBUFSIZ];
+	char cmd_buf[CMDBUFSIZ], iobuf[IOBUFSIZ];
    	FILE *in;
-	DIR *dir = NULL;
-	int len, nlst = 0, glob = 0, status = 1;
+	int len, nlst = 0, status = 0;
 
-	bzero(cmd_buf, sizeof(cmd_buf));
+	//bzero(cmd_buf, sizeof(cmd_buf));
 	bzero(iobuf, sizeof(iobuf));
 
-	str = "150 Opening ASCII mode data connection for /bin/ls.\r\n";
-	if (strncmp(input, "NLST", 4) == 0) { 
+	if (strncmp(input, "NLST", 4) == 0)
 		nlst++;
-		str = "125 List started OK.\r\n";
-	}
-	if (get_param(input, iobuf) > 0) {
+	if (get_param(input, iobuf) > 0)
 		trim(iobuf);
-		sprintf(cmd_buf, "/bin/ls -l %s", iobuf);
-	} else {
+	else
 		*iobuf = '.';	
-		strcat(cmd_buf, "/bin/ls -l");
-	}
 
-	//FIXME: Should split LIST and NLST processing - this is messy
-#ifdef GLOB
-	glob++;
-#endif
+	if (nlst) {
+		if (debug) printf("NLST <%s>\n", iobuf);
+		status = do_nlist(datafd, iobuf);
+	} else {
+		/* LIST - pipe output from ls-command back to the client */
+		/*        let /bin/sh do the error reporting */
 
-	if (!glob) {
-    		dir = opendir(iobuf); 	/* test for existence */
-    		if (!dir) {
-			send_reply(550, "No such file or directory");
+		sprintf(cmd_buf, "/bin/ls -l %s 2>&1", iobuf);
+
+#ifdef LET_LS_DO_THIS	/* wildcards are OK, so we either let the shell do the processing */
+			/* or we do full wildcard processing here */
+		if (access(iobuf, F_OK)) {
+			send_reply1(550, "No such file or directory", iobuf);
     			return -1;
     		} 
-	}
-    	write(controlfd, str, strlen(str));
-
-	/* NLST processing, send a list of names, one per line */
-	if (nlst) {
-		len = 0;
-#ifdef GLOB
-		char *myargv[MAXARGS];
-		int i = 0, count;
-
-		count = expandwildcards(iobuf, MAXARGS, myargv);
-		if (!count) {	// may be a plain file, which is ok to return.
-			if (access(iobuf, F_OK) == 0) {
-				strcat(iobuf, "\r\n");
-				len = strlen(iobuf);
-			}
-		} else
-			*iobuf = '\0';
-		if (debug > 1) printf("ftpd: nlst %s got %d\n", iobuf, count);
-		while (i < count) {
-			if (len + strlen(myargv[i] + 3) < IOBUFSIZ) {
-				strcat(iobuf, myargv[i]);
-				strcat(iobuf, "\r\n");
-				len += strlen(myargv[i]+2);
-				i++;
-			} else {
-				write(datafd, iobuf, strlen(iobuf));
-				len = 0;
-				bzero(iobuf, sizeof(iobuf));
-			}
-		}
-#else
-		struct dirent *dp;
-		*iobuf = '\0';
-		while ((dp = readdir(dir)) != NULL) {
-			if (*dp->d_name != '.') {
-				if (len + dp->d_namlen + 3 < IOBUFSIZ) {
-					strcat(iobuf, dp->d_name);
-					strcat(iobuf, "\r\n");
-					len += dp->d_namlen +2;
-				} else {
-					write(datafd, iobuf, strlen(iobuf));
-					len = 0;
-					bzero(iobuf, sizeof(iobuf));
-				}
-			}
-		}
 #endif
-		if (!glob) closedir(dir); 
-		if (len) {
-			write(datafd, iobuf, strlen(iobuf));
-			//if (debug) printf("NLST <%s>\n", iobuf);
+		if (!(in = popen(cmd_buf, "r"))) {
+			send_reply(451, "Requested action aborted. Local error in processing");
+        		return -1;
 		}
-		close(datafd);
-		return 2;
-	}
-	if (dir) closedir(dir); //FIXME - part of the LIST/NDIR mess
+		//printf("LIST: command is '%s'\n", cmd_buf);
+		send_reply(150,"Opening ASCII mode data connection for /bin/ls");
 
-	/*
-	 * LIST - pipe output from ls-command back to the client
-	 */
-
-	if (!(in = popen(cmd_buf, "r"))) {
-		send_reply(451, "Requested action aborted. Local error in processing");
-        	return -1;
-	}
-	bzero(iobuf, sizeof(iobuf));
-	while (fgets(iobuf, IOBUFSIZ-2, in) != NULL) {
-		len = strlen(iobuf);
-		iobuf[len-1] = '\r';    /* Fix FTP ASCII-style line endings */
-		iobuf[len++] = '\n';
-		if (write(datafd, iobuf, len) != len) {
-			printf("LIST: fd %d len %d\n", datafd, len);
-			perror("LIST: Data socket write error");
-			status = -1;
-			break;
-		}
 		bzero(iobuf, sizeof(iobuf));
+		while (fgets(iobuf, IOBUFSIZ-2, in) != NULL) {
+			len = strlen(iobuf);
+			iobuf[len-1] = '\r';    /* Change to FTP ASCII-style line endings */
+			iobuf[len++] = '\n';
+			if (write(datafd, iobuf, len) != len) {
+				perror("LIST: Data socket write error");
+				status = -1;
+				break;
+			}
+			bzero(iobuf, sizeof(iobuf));
+		}
+		pclose(in);
 	}
 	close(datafd);
-	pclose(in);
 
 	return status;
+}
+
+/* NLST processing, send a list of names, one per line. If the given name is a
+ * directory, return the content of that directory, path included
+ */
+int do_nlist(int dfd, char *iobuf)
+{
+	int len = 0, i = 0, count = 0;
+#ifdef GLOB
+	char *myargv[MAXARGS];
+
+	count = expandwildcards(iobuf, MAXARGS, myargv);
+	if (!count) {			// may be a plain file, no expansion
+#endif
+		clean(iobuf);	/* expandwildcards adds CRLF regardless */
+		if (access(iobuf, F_OK) == 0) {
+			strcat(iobuf, "\r\n");
+			len = strlen(iobuf);
+		} else {
+                        send_reply1(550, "No such file or directory", iobuf);
+			return -1;
+		}
+	
+#ifdef GLOB
+	} else
+		*iobuf = '\0';
+
+	send_reply(125, "List started OK");
+	if (debug > 1) printf("ftpd: nlst %s got %d\n", iobuf, count);
+	len = 0;
+
+	while (i < count) {			/* list the wildcard matches */
+		if (len + strlen(myargv[i] + 3) < IOBUFSIZ) {
+			strcat(iobuf, myargv[i]);
+			strcat(iobuf, "\r\n");
+			len += strlen(myargv[i])+2;
+			i++;
+			//printf("LIST: %s (%d)\n", myargv[i], len);
+		} else {
+			write(dfd, iobuf, len);
+			len = 0;
+			bzero(iobuf, IOBUFSIZ);
+		}
+	}
+	if (len)
+		write(dfd, iobuf, len);
+#else
+	send_reply(125, "List started OK");
+#endif
+
+	if (!count) {	/* if this is a directory, list it */
+		struct stat sb;
+		DIR *dir;
+		struct dirent *dp;
+		char thisdir[MAXNAMLEN+2];
+		int slen = 0;
+
+		clean(iobuf);
+		bzero(thisdir, MAXNAMLEN+2);
+		stat(iobuf, &sb);
+		if (S_ISDIR(sb.st_mode)) {
+			dir = opendir(iobuf);
+			if (*(unsigned *)iobuf != (unsigned)'.') { /* Don't prepend current dir */
+			    strcpy(thisdir, iobuf);
+			    slen = strlen(thisdir);
+			    if (*(unsigned *)iobuf != (unsigned)'/') 	  /* Avoid double slash */
+			    	thisdir[slen++] = '/';
+			} else *thisdir = '\0';
+			*iobuf = '\0';
+			len = 0;
+			while ((dp = readdir(dir)) != NULL) {
+			    if (*dp->d_name != '.') {
+				if (len + slen + dp->d_namlen + 3 < IOBUFSIZ) {
+				    strcat(iobuf, thisdir);
+				    strcat(iobuf, dp->d_name);
+				    strcat(iobuf, "\r\n");
+			    	    //printf("name: %s(%d)\n", &iobuf[len], dp->d_namlen);
+				    len += slen + dp->d_namlen + 2;
+				} else {
+				    write(dfd, iobuf, len);
+				    len = 0;
+				    bzero(iobuf, IOBUFSIZ);
+				}
+			    }
+			}
+			if (len) 
+				write(dfd, iobuf, strlen(iobuf));
+			closedir(dir);
+
+		} else {	/* the provided name was not a directory, not a wildcard,
+				 * just print it */
+			if (len) {
+				strcat(iobuf, "\r\n");
+				write(dfd, iobuf, strlen(iobuf));
+				if (debug > 1)
+				    printf("NLST <%s>, count %d\n", iobuf, count);
+			}
+		}
+	}
+	return 0;
 }
 
 /* Passive mode: Server listens for incoming data connection */
@@ -526,25 +582,31 @@ int do_retr(int datafd, char *input){
 	int fd, len;
 	struct stat fst;
 
-	bzero(cmd_buf, sizeof(cmd_buf));
+	//bzero(cmd_buf, sizeof(cmd_buf));
 	bzero(iobuf, sizeof(iobuf));
 
 	if (get_param(input, cmd_buf) > 0) {
 		trim(cmd_buf);
 		if (debug > 1) printf("RETR: <%s> fd %d\n", cmd_buf, datafd);
-		if ((fd = open(cmd_buf, O_RDONLY)) > 0 ) {
-			fstat(fd, &fst);
+
+		stat(cmd_buf, &fst);		/* should handle symlinks if the target is a regular file */
+		if (S_ISREG(fst.st_mode) && (fd = open(cmd_buf, O_RDONLY)) > 0 ) {
 			sprintf(iobuf, "150 Opening BINARY data connection for %s (%ld bytes).\r\n", cmd_buf, fst.st_size);
 			write(controlfd, iobuf, strlen(iobuf));
 			while ((len = read(fd, iobuf, sizeof(iobuf))) > 0) 
-				if (write(datafd, iobuf, len) != len) {
-					//printf("RETR error fd %d len %d\n", datafd, len);
-					perror("Data write error"); 
-					break;
-				}
+			    if (write(datafd, iobuf, len) != len) {
+				//printf("RETR error fd %d len %d\n", datafd, len);
+				perror("Data write error"); 
+				break;
+			    }
 			close(fd);
 		} else {
-			send_reply(550, "No such file or directory");
+			char *msg;
+			if (access(cmd_buf, F_OK))
+			    msg = "No such file or directory";
+			else
+			    msg = "Not a plain file";
+			send_reply1(550, msg, cmd_buf);
     			return -1;
 		}
 	} else { 
@@ -559,7 +621,7 @@ int do_stor(int datafd, char *input) {
 	int fp;
 	int n = 0, len;
 
-	bzero(cmd_buf, sizeof(cmd_buf));
+	//bzero(cmd_buf, sizeof(cmd_buf));
 	bzero(iobuf, sizeof(iobuf));
 
 
@@ -626,11 +688,9 @@ int main(int argc, char **argv) {
 	}
 	if ((cp = getenv("QEMU")) != NULL) 
 		qemu = atoi(cp);
-#ifdef DEBUG
-	if (qemu) {
+	if (qemu && debug) {
 		printf("QEMU mode\n");
 	}
-#endif
 		
 	if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket error");
@@ -771,7 +831,7 @@ int main(int argc, char **argv) {
 						close(datafd);
 						datafd = -1;
 					}
-					if (do_pasv( &datafd) < 0) {
+					if (do_pasv(&datafd) < 0) {
 						send_reply(502, "PASV: Cannot open server socket");
 						close(datafd);
 						datafd = -1;
@@ -781,14 +841,12 @@ int main(int argc, char **argv) {
 				case CMD_NLST:
     				case CMD_LIST:	/* List files */
 					if (datafd >= 0) {
-    						if (do_list(datafd, command) < 2)
-		    					write(controlfd, complete, strlen(complete));
-						else {
-							/* NLST - different response codes */
-							send_reply(250, "List completed");
-						}
-					} else 
+    						if (!do_list(datafd, command))
+		    				    write(controlfd, complete, strlen(complete));
+					} else {
 						send_reply(503, "Bad sequence of commands");
+						close(datafd);
+					}
 					datafd = -1;
 					break;
 
@@ -840,7 +898,7 @@ int main(int argc, char **argv) {
 					break;
 #ifdef BLOAT
 				case CMD_MKD:
-					bzero(namebuf, sizeof(namebuf));
+					//bzero(namebuf, sizeof(namebuf));
 					if (get_param(command, namebuf) < 0) {
 						send_reply(501, "Syntax error - MKDIR needs parameter");
 					} else {
@@ -855,7 +913,7 @@ int main(int argc, char **argv) {
 					break;
 
 				case CMD_RMD:
-					bzero(namebuf, sizeof(namebuf));
+					//bzero(namebuf, sizeof(namebuf));
 					if (get_param(command, namebuf) < 0) {
 						send_reply(501, "Syntax error - RMD needs parameter");
 					} else {
@@ -869,7 +927,7 @@ int main(int argc, char **argv) {
 					break;
 
 				case CMD_DELE:
-					bzero(namebuf, sizeof(namebuf));
+					//bzero(namebuf, sizeof(namebuf));
 					if (get_param(command, namebuf) < 0) {
 						send_reply(501, "Syntax error - DELE needs parameter");
 					} else {
@@ -896,7 +954,7 @@ int main(int argc, char **argv) {
 
 				case CMD_CWD:
 					/* FIXME: if no arg, change back to home dir */
-					bzero(namebuf, sizeof(namebuf));
+					//bzero(namebuf, sizeof(namebuf));
 					if (get_param(command, namebuf) < 0) {
 						send_reply(501, "Syntax error - CWD needs parameter");
 					} else {
@@ -910,7 +968,7 @@ int main(int argc, char **argv) {
 					break;
 #ifdef BLOAT
 				case CMD_SITE:	/* allow client to set or query server idle timeout */
-					bzero(namebuf, sizeof(namebuf));
+					//bzero(namebuf, sizeof(namebuf));
 					if (get_param(command, namebuf) < 0) {
 						send_reply(501, "Syntax error - SITE needs subcommand");
 						break;
