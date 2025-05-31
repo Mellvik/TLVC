@@ -687,7 +687,7 @@ static int wd_open(struct inode *inode, struct file *file)
 			printk(EMSG_IRQERR, dev_name, net_irq, err);
 			break;
 		}
-		wd_reset())
+		wd_reset();
 		wd_init_8390(0);
 		wd_start();
 	} while (0);
