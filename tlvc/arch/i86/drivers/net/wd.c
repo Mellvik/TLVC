@@ -33,14 +33,14 @@
  * is left on, writes (possibly accidental) to these registers may destroy the original
  * contents and possibly leave the card unusable, if nothing else because the checksum is 
  * now incorrect. Further, and this one hit me hard until I understood what was going on,
- * if the 'enable shadow register set' bit in reg4 is left
- * on, it will stay that way until power-cycled. Card reset doesn't change it back. Thus, after
- * a reboot the driver will find garbage where the MAC address is supposed to be, the checksum is
+ * if the 'enable shadow register set' bit in reg4 is left on, it will stay that way until
+ * power-cycled. Card reset doesn't change it back. Thus, after a reboot the driver will
+ * find garbage where the MAC address is supposed to be, the checksum is
  * not a checksum but something else, and the card will be 'not found'.
  *
  * This knowledge may be used to get and change not only the MAC address (less useful), but
  * the base address and the IRQ, most likely the shared memory address of the card, in the
- * driver. The currenbt version of the driver makes no attempt to do that and it takes
+ * driver. The current version of the driver makes no attempt to do that and it takes
  * some code to do it because the information is encoded in NVRAM. Like, the irq must be 
  * retreived like this:  irq = ((irqreg & 0x40) >> 4) + ((irqreg & 0x0c) >> 2)
  * which still isn't the irq but an 'index' if you like. The driver needs an array that
@@ -189,6 +189,8 @@
  * E, P, W - ???
  */
 
+#define DEBUG 0
+
 typedef struct {
 	unsigned char status;	/* status */
 	unsigned char next;	/* pointer to next packet */
@@ -199,7 +201,7 @@ static struct wait_queue rxwait;
 static struct wait_queue txwait;
 
 static byte_t usecount;
-static byte_t is_8bit = 0xff;
+static byte_t is_8bit;
 static byte_t model_name[] = "wd8013";
 static byte_t dev_name[] = "wd0";
 static byte_t stop_page; 	/* actual last pg of ring (+1) */
@@ -236,7 +238,6 @@ static void wd_get_hw_addr(word_t *data)
 static int INITPROC wd_probe(void) {
 	int i, type, tmp = 0;
 
-	//wd_reset();	/* Experimental, Should not be required */'
 #if DEBUG
 	for (i = 0; i < 16; i++)
 		printk("%x;", type = inb(net_port+i));
@@ -259,8 +260,8 @@ static int INITPROC wd_probe(void) {
 
 	outb(tmp ^ 0x01, net_port+1 );		/* attempt to clear 16bit bit */
 	if (((type = (inb(net_port+1) & 0x01)) == 0x01)	/* A 16 bit card */
-				&& (tmp & 0x01) == 0x01		/* In a 16 slot */
-				&& (is_8bit != 1)) {		/* and not forced to 8bit mode */
+				&& (tmp & 0x01) == 0x01	/* In a 16 slot */
+				&& (is_8bit != 1)) {	/* and not forced to 8bit mode */
 		int asic_reg5 = inb(net_port+WD_CMDREG5);
 		/* Magic to set ASIC to word-wide mode. */
 		outb(NIC16 | (asic_reg5&0x1f), net_port+WD_CMDREG5);
@@ -292,12 +293,17 @@ static int INITPROC wd_probe(void) {
 
 static void wd_reset(void)
 {
-	outb(WD_RESET, net_port);
-	/* FIXME: It's unclear whether reset is instant or we should wait/delay
-	 * a little. That's presumably what the Reset Complete interrupt is for. */
+	int asic_reg5 = inb(net_port+WD_CMDREG5);
 
-	/* Do NOT enable shared mem here */
-	//outb(((net_ram >> 9) & 0x3f) | WD_MEMENB, net_port);
+	outb(WD_RESET, net_port);
+
+	/* Important: re-enable shared memory, set 16 bit mode if required.
+	 * Some (newer) cards will hang unless these settings are restored immediately
+	 * after reset.
+	 */
+	outb(((net_ram >> 9) & 0x3f) | WD_MEMENB, net_port);
+	if (!is_8bit)
+		outb(NIC16 | (asic_reg5&0x1f), net_port+WD_CMDREG5);
 }
 
 /*
@@ -681,9 +687,13 @@ static int wd_open(struct inode *inode, struct file *file)
 			printk(EMSG_IRQERR, dev_name, net_irq, err);
 			break;
 		}
+		wd_reset();
 		wd_init_8390(0);
 		wd_start();
 	} while (0);
+#if DEBUG
+	printk("wd0: open status %d\n", err);
+#endif
 	return err;
 }
 
@@ -693,9 +703,11 @@ static int wd_open(struct inode *inode, struct file *file)
 
 static void wd_release(struct inode *inode, struct file *file)
 {
+#if DEBUG
+	printk("wd0: release: usecnt %d\n", usecount);
+#endif
 	if (--usecount == 0) {
 		wd_stop();
-		wd_reset();
 		free_irq(net_irq);
 	}
 }
