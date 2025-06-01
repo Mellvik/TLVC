@@ -739,7 +739,7 @@ int main(int argc, char **argv) {
 		dup2(ret, STDERR_FILENO);
 		if (ret > STDERR_FILENO)
 			close(ret);
-		//setsid();
+		setsid();
 	} else
 		printf("Debug: Not disconnecting from terminal.\n");
 

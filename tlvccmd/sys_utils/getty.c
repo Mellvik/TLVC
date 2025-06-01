@@ -242,6 +242,7 @@ int main(int argc, char **argv)
 		exit(5);
 	}
 	close(tty);
+	setsid();	/* if the parent exits, keep going */
     }
 
     /* setup tty termios state*/
