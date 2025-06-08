@@ -70,7 +70,7 @@
 #define DRIVE_FD3	7	/* PC98 only*/
 
 #define BIOSDISK	/* for blk.h */
-//#define INCLUDE_RAW	/* include support for raw device */
+#define INCLUDE_RAW	/* include support for raw device */
 
 #include "blk.h"
 
@@ -784,7 +784,7 @@ static struct file_operations rhd_fops = {
     block_wr,			/* write */
     NULL,			/* readdir */
     NULL,			/* select */
-    bioshd_ioctl,			/* ioctl */	
+    bioshd_ioctl,		/* ioctl */	
     bioshd_open,		/* open */
     bioshd_release		/* release */
 };
