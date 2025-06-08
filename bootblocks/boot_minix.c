@@ -118,7 +118,7 @@ static int strcmp(const char *s, const char *d)
 {
 	int c1, c2;
 
-	while ((c1 = *s++) == (c2 = *d++) && c1 && c2);
+	while ((c1 = *s++) == (c2 = *d++) && c1 /*&& c2*/);
 	return c1 - c2;
 }
 
