@@ -21,18 +21,18 @@ testsym: testsym.o $(LIBOBJS)
 	$(LD) $(LDFLAGS) -mno-post-link -o $@ $^ $(LDLIBS)
 	elf2elks --symtab --heap 12000 $@
 	./nm86 $@ > $@.map
-	cp $@ $(TOPDIR)/elkscmd/rootfs_template/root
+	cp $@ $(TOPDIR)/tlvccmd/rootfs_template/root
 
 disasm: dis.o disasm.o $(LIBOBJS)
 	$(LD) $(LDFLAGS) -mno-post-link -o $@ $^ $(LDLIBS)
 	elf2elks --symtab --heap 0xffff $@
-	cp -p $@ $(TOPDIR)/elkscmd/rootfs_template/root
-	-mkdir $(TOPDIR)/elkscmd/rootfs_template/lib
-	cp -p $(TOPDIR)/elks/arch/i86/boot/system.sym $(TOPDIR)/elkscmd/rootfs_template/lib
+	cp -p $@ $(TOPDIR)/tlvccmd/rootfs_template/root
+	-mkdir $(TOPDIR)/tlvccmd/rootfs_template/lib
+	cp -p $(TOPDIR)/tlvc/arch/i86/boot/system.sym $(TOPDIR)/tlvccmd/rootfs_template/lib
 
 opcodes: opcodes.o
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
-	cp $@ $(TOPDIR)/elkscmd/rootfs_template/root
+	cp $@ $(TOPDIR)/tlvccmd/rootfs_template/root
 
 disasm.o: disasm.c
 	$(CC) $(CFLAGS) -fno-instrument-functions -c -o $*.o $<

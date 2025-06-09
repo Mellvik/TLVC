@@ -1,9 +1,10 @@
 # Start/stop TLVC networking
 #
-# Usage: net [start|stop|restart|show] [ne0|slip|cslip] [baud] [device]
+# Usage: net [start|stop|restart|show] [ETH|slip|cslip] [baud] [device]
+#	where ETH is one of the supported ethernet NIC types
 #
 # Examples:
-#	net start ne0k			start ethernet networking
+#	net start ne0			start ethernet networking on the ne0 interface
 #	net start slip			start slip networking
 #	net start slip 19200	start slip at 19200 baud
 #	net start cslip 4800 /dev/ttyS1
@@ -19,7 +20,7 @@ source /etc/net.cfg
 
 usage()
 {
-	echo "Usage: net [start|stop|show] [ne0|wd0|3c0|ee0||slip|cslip] [baud] [device]"
+	echo "Usage: net [start|stop|show] [ne0|wd0|3c0|ee0|le0|slip|cslip] [baud] [device]"
 	exit 1
 }
 
@@ -42,7 +43,7 @@ start_network()
 		getty_off
 		ktcp="ktcp -b -p cslip -s $baud -l $device $localip $gateway $netmask"
 		;;
-	ee0|ne0|wd0|3c0)
+	ee0|ne0|wd0|3c0|le0)
 		ktcp="ktcp -b -p $link $mtu $localip $gateway $netmask"
 		;;
 	*)
