@@ -254,7 +254,7 @@ void mm_get_usage(struct mem_usage *mu)
 	mu->xms_free = xms_avail;
 	mu->xms_start = xms_start;
 #else
-	mu->xms_used = 0
+	mu->xms_used = 0;
 	mu->xms_free = 0;
 	mu->xms_start = 0;
 #endif
