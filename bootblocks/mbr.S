@@ -219,9 +219,12 @@ Got_key:
 	call	puts
 	pop	%ax
 
-	cmp	$'F',%al	// f -> floppy boot
+	cmp	$0x60,%al
+	jb	1f
+	and	$0xdf,%al	// conv to upper
+1:	cmp	$'A',%al	// A -> first floppy
 	jz	is_floppy
-	cmp	$'f',%al
+	cmp	$'B',%al	// B -> 2nd floppy
 	jz	is_floppy
 
 	cmp	$'1',%al	// 1 .. 4 -> hard disk partition
@@ -241,6 +244,9 @@ Got_key:
 
 is_floppy:
 	mov	$floppy_part,%si // replace table with floppy partition
+	dec	%al
+	and	$1,%al		// drive #, 0 or 1
+	mov	%al,(%si)
 	jmp	found_active
 
 Prompt:
@@ -248,7 +254,7 @@ Prompt:
 Unprompt:
 	.asciz	"\r    \r"
 Pause:
-	.asciz	"\rMBR F1234> "
+	.asciz	"\rMBR AB1234> "
 Showkey:
 	.ascii	" "
 crlf:
