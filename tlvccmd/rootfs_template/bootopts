@@ -1,5 +1,5 @@
 ## boot options max 1023 bytes, details in wiki
-console=ttyS0,57600 3	# serial console and init-level (3)
+console=ttyS0,57600 3	# serial console, init-level (3)
 debug=2
 NET=ne0 		# start netw @ boot w/this interface
 #root=hda1
@@ -11,7 +11,8 @@ ne0=12,0x300,,0x80
 wd0=2,0x280,0xCC00,0x80
 #3c0=11,0x330,,0x80
 ee0=11,0x360,,0x80
-comirq=,,7,10		# IRQ for com ports, max 4
+#mac=28:c1:f7:12:f7:41
+comirq=,,7,10	# IRQ for com ports, max 4
 #cache=8	# L1 cache
 #bufs=40	# L2 buffers
 xms=on

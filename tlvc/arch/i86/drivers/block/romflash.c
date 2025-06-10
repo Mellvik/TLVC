@@ -6,9 +6,9 @@
 #include "romflash.h"
 
 
-static int romflash_open (struct inode * i, struct file * f)
+static int romflash_open(struct inode *i, struct file *f)
 {
-	i->i_size = 0x10000;  // 8086 address space
+	i->i_size = 0x10000;	/* 8086 address space */
 	return 0;
 }
 
@@ -26,8 +26,8 @@ static struct file_operations romflash_fops =
 };
 
 
-void romflash_init (void)
+void INITPROC romflash_init(void)
 {
-	if (register_blkdev (ROMFLASH_MAJOR, "rom", &romflash_fops))
-		printk ("Unable to register major %u for rom-flash\n", ROMFLASH_MAJOR);
+	if (register_blkdev(ROMFLASH_MAJOR, "rom", &romflash_fops))
+		printk("Unable to register romfs\n");
 }

@@ -96,7 +96,6 @@ debug_loader    =       0       // display relocations
 #define MINIX_SPLITID_LOW 0x0301L
 #define KERNEL_MAGICNUMBER MINIX_SPLITID_LOW
 #define HMA_SEG 0xffff
-BOOTSEG=0x7C0			// The bootopts load address is stored here
 
 #ifndef CONFIG_ROMCODE
   INITSEG  = DEF_INITSEG	// initial setup data seg and initial Image load address

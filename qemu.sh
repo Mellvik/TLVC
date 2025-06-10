@@ -1,11 +1,29 @@
-# Helper to run ELKS in QEMU
+# Helper to run TLVC in QEMU
+#
+# The preferred QEMU variant is -i386, but it is unclear whether there is much 
+#	difference between -x86_64 and -i386 when running in real mode.
+#	There are however, some difference in which command line options are acceptable.
 
 # Auto-select QEMU system emulator variant
 [ -x /usr/bin/qemu-system-i386 ] && QEMU="qemu-system-i386"
 [ -x /usr/bin/qemu-system-x86_64 ] && QEMU="qemu-system-x86_64"
-[ -x /usr/local/bin/qemu-system-i386 ] && QEMU="qemu-system-i386"
 [ -x /usr/local/bin/qemu-system-x86_64 ] && QEMU="qemu-system-x86_64"
+[ -x /usr/local/bin/qemu-system-i386 ] && QEMU="qemu-system-i386"
 [ -z $QEMU ] && { echo 'QEMU system emulator not found!'; exit 1; }
+
+# Autoselect accelerator, important to get around problems in QEMU
+ACCEL_HVF="-accel hvf"
+ACCEL_V9="-accel tcg,one-insn-per-tb=on"
+ACCEL_SSTP="-singlestep"
+
+ACCEL=$ACCEL_SSTP
+if [[ `$QEMU -version` =~ "version 9" ]]; then
+     ACCEL=$ACCEL_V9
+fi
+if [[ `uname -a` =~ "x86_64" && $QEMU =~ "x86_64" ]]; then
+     ACCEL=$ACCEL_HVF
+fi
+QEMU="$QEMU $ACCEL"
 echo "Using QEMU: $QEMU"
 
 # Select disk image to use
@@ -16,12 +34,8 @@ echo "Using QEMU: $QEMU"
 #IMAGE="-fda image/fd720.img"
 #IMAGE="-fda image/fd360.img"
 #IMAGE="-hda image/hd.img"
-#IMAGE="-boot order=a -fda image/fd1440.img -drive format=raw,file=image/hd32-minix.img,id=hd0"
-#IMAGE="-boot order=a -fda ../../tmp/fd1440.img -global ide-hd.serial=EQUMI_ED \
-IMAGE="-boot order=a -fda image/fd1440.img -global ide-hd.serial=EQUMI_ED \
--drive format=raw,file=image/hd32-minix.img,id=hd0 \
--drive format=raw,file=../../tmp/compaq-bergen-hdkopi.img,id=hd1"
-#IMAGE="-boot order=a -device ide-fd,drive=fd0,node_name=floppy -blockdev node-name=floppy,driver=raw,filename=image/fd1440.img -device ide-hd,serial=QEMU_IDE,drive=hd0 -blockdev node-name=hd,filename=image/hd32-minix.img,driver=raw"
+IMAGE="-boot order=a -fda image/fd1440.img -drive format=raw,file=image/hd32mbr-minix.img,id=hd0"
+#IMAGE="-boot order=c -fda image/fd1440.img -drive format=raw,file=image/hd32mbr-minix.img,id=hd0"
 
 # FAT package manager build
 #IMAGE="-fda image/fd360-fat.img"

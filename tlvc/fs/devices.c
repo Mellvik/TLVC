@@ -30,7 +30,7 @@ struct file_operations *get_blkfops(unsigned int major)
     return (major >= MAX_BLKDEV) ? NULL : blkdevs[major].ds_fops;
 }
 
-int register_chrdev(unsigned int major, const char *name, struct file_operations *fops)
+int INITPROC register_chrdev(unsigned int major, const char *name, struct file_operations *fops)
 {
     register struct device_struct *dev = &chrdevs[major];
 
@@ -40,7 +40,7 @@ int register_chrdev(unsigned int major, const char *name, struct file_operations
     return 0;
 }
 
-int register_blkdev(unsigned int major, const char *name, struct file_operations *fops)
+int INITPROC register_blkdev(unsigned int major, const char *name, struct file_operations *fops)
 {
     register struct device_struct *dev = &blkdevs[major];
 
@@ -54,7 +54,7 @@ int register_blkdev(unsigned int major, const char *name, struct file_operations
  * Called every time a block special file is opened
  */
 
-int blkdev_open(struct inode *inode, struct file *filp)
+static int blkdev_open(struct inode *inode, struct file *filp)
 {
     register struct file_operations *fop;
     int i;
