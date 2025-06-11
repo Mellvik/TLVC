@@ -444,7 +444,7 @@ int INITPROC directhd_init(void)
     word_t *ide_buffer;
     int i, hdcount = 0, drive;
     unsigned int port;
-    char athd_msg[] = "hd%d: AT/IDE controller at 0x%x%s\n";
+    char athd_msg[] = "hd%d: %sIDE controller at 0x%x\n";
 
     /* By default, MAX_ATA_DRIVES is 4. On some systems, this may break (hang)
      * if there is only one IDE interface (the normal).
@@ -473,7 +473,6 @@ int INITPROC directhd_init(void)
 	    if (is_xtide) {	/* fails in the unlikely setting that the first
 				 * controller is IDE, 2nd is XTIDE. FIXME */
 		ct->io_port = port = xtideparms[xtide_port+offset];
-		athd_msg[6] = 'X';
 		ct->ctl_port = port + 8 + 6; /* 8 is the ctrl reg block offset, 6
 				 	      * is the register in that block */
 		cur_type = xtideparms[xtide_flags+offset];
@@ -493,7 +492,7 @@ int INITPROC directhd_init(void)
 		drive++; /* don't check for slave drive if controller not found */
 		continue;
 	    }
-	    printk(athd_msg, drive/2, port, is_xtide? " (8bit)":"");
+	    printk(athd_msg, drive/2, is_xtide? "XT-":"AT/", port);
 	}
 
 #ifdef CONFIG_XT_IDE

@@ -938,7 +938,7 @@ novga:	mov	%al,14		// CGA 25 rows
 	mov	%ax,xms_kbytes
 1:
 #ifdef CONFIG_BOOTOPTS
-	call	bootopts	// load /bootopts into DEF_OPTSEG (0050:0000)
+	call	bootopts	// load /bootopts into DEF_OPTSEG
 	call    hmabootopts	// check /bootopts for hma=kernel
 	mov	%al,hma_kernel
 #endif
@@ -1122,7 +1122,7 @@ pc98_int1b:
 	call	putc
 	xor	%ax,%ax
 	mov	%ax,%es
-	movw	$DEF_OPTSEG,%es:((BDA_IAC_SEG<<4)+2)  // DEBUG
+	//movw	$DEF_OPTSEG,%es:((BDA_IAC_SEG<<4)+2)  // DEBUG
 	mov	%es:(BDA_IAC_SEG<<4),%ax
 	//call	hex4
 	cmp	$DEF_OPTSEG,%ax

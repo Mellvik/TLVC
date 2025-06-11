@@ -1,13 +1,13 @@
 .TH SYS 8
 .SH NAME
-sys \- transfer ELKS to a new device or partition
+sys \- transfer TLVC to a new device or partition
 .SH SYNOPSIS
 \fBsys\fP [\fB\-M|F\fP] [\fB\-3\fP] \fIdevice\fR
 .br
 .SH OPTIONS
 .TP 5
 .B \-M
-Add a ELKS MBR (Master Boot Record) to the target drive.
+Add a TLVC MBR (Master Boot Record) to the target drive.
 .TP 5
 .B \-F
 Create a 'flat' (unpartitioned) device. 
@@ -15,15 +15,15 @@ Create a 'flat' (unpartitioned) device.
 .B \-3
 Create a minimal system for a 360K floppy.
 .SH DESCRIPTION
-\fBsys\fR uses the currently running system to build a complete and bootable ELKS partition or drive. 
-The common case would be to boot ELKS from a floppy disk and build a hard disk based system 
+\fBsys\fR uses the currently running system to build a complete and bootable TLVC partition or drive. 
+The common case would be to boot TLVC from a floppy disk and build a hard disk based system 
 from there with a single command, such as
 .sp
 .B # sys -M /dev/hda1
 .PP
 If the 
 .B \-M
-option is included, the ELKS MBR will replace the current MBR - if any - on the taget drive.
+option is included, the TLVC MBR will replace the current MBR - if any - on the taget drive.
 .PP
 .B sys
 will report progress as it runs, which will take some time if the system is running off of a floppy disk.
@@ -54,6 +54,10 @@ man-page for details).
 performs limited option checking, so some error messages appear to come from 
 .B makeboot
 instead.
+.B sys
+does not work well with FAT filesystems.
+.B sys
+will not create devices for BIOS floppy and disk.
 .SH "SEE ALSO"
 .BR makeboot (8),
 .BR setup (8),

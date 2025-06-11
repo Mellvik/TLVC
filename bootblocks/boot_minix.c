@@ -73,16 +73,21 @@ static void load_file();
 // This must occur right at the start of the payload.  Currently this is done
 // by specifying -fno-toplevel-reorder in the Makefile, which forces GCC to
 // output all functions, variables, and __asm's in the same order as in the
-// source code.  FIXME: find a better way.
+// source code.
 // REALLY running out of space here [HS] 805/2023]
 
 void load_prog()
 {
-	// Avoid reuse of an old copy of /bootopts in memory if we're rebooting w/ no /bootopts */
-	int __far *optseg = _MK_FP(OPTSEG, 0);	/* Expensive, is there a better way? */
+	/* Avoid reuse of an old copy of /bootopts in memory if we're rebooting
+	 * with no /bootopts */
+	int __far *optseg = _MK_FP(OPTSEG, 0);
 	*optseg = i_boot = i_now = 0;
 
-	/* use the BDA_IAC location 0(W) (0x4f:0) to store the actual OPTSEG start */
+	/* use the BDA_IAC location 0(W) (0x4f:0) to store the actual OPTSEG start 
+	 * so setup.S knows where to get it. */
+	/* Not saving %es is safe since this is a standalone program. %ds
+	 * could be used instead (even saving a byte) since it is being reset just
+	 * after the asm statement. */
 	asm("xor %ax,%ax; mov %ax,%es; movw $" STRING(OPTSEG) ",%es:(0x4f0)");
 	load_super();
 	load_file ();
@@ -91,7 +96,6 @@ void load_prog()
 		if (!strcmp((char *)(d_dir + 2 + d), "linux")) {
 			i_boot = i_now = (*(int *)(d_dir + d)) - 1;
 			if (i_boot == -1) continue;
-			//puts("Linux OK");	// shortened message to save space
 			linux_ok();		// Linux OK message
 			loadaddr = LOADSEG << 4;
 			load_file();
