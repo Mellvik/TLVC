@@ -35,7 +35,7 @@ Show system buffer and pipe memory
 Show system task, inode and file memory
 .TP 5
 .B -M
-Show system RAM layout (heap and main memory) in ASCII 'graphics'
+Show system RAM layout (heap and main memory) in 'ASCII graphics'
 .TP 5
 .B -P
 Like -M, but include active processes with code and data segments in the 'picture'
@@ -143,7 +143,8 @@ free
 Unallocated main memory.
 .SH SYSTEM MEMORY LAYOUT
 .B meminfo -M
-displays the physical layout of the heap and the available application memory. When the system boots,
+displays the physical layout of all RAM configured on the system: Main memory, kernel memory, low memory,
+upper memory blocks (UMB), the high memory area (HMA) and XMS. When the system boots,
 initial allocations are made for application and heap memory respectively. After startup completes,
 and depending on the kernel configuration, 
 some code and data may no longer be needed and the memory they occupy is released to either the heap or 
@@ -159,6 +160,11 @@ display and the
 .B -m
 option display.
 .PP
+Memory outside the 'standard' PC RAM of 640k will be displayed automatically if available. 
+I.e. UMBs will always be displayed if found, HMA and XMS will be displayed only if XMS is configured in the
+kernel. This means that HMA may be in use and not showing in 
+.BR meminfo .
+A minor issue since having available XMS and not using it is in most cases a waste of resources. 
 The
 .B -P
 options expands on the display created using 
