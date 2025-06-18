@@ -951,10 +951,27 @@ hmabootopts:
 
 	push	%cs			// ES = our code segment
 	pop	%es
+#ifdef CONFIG_OPTSEG_HIGH
+	xor	%ax,%ax
+	mov	%ax,%ds
+	mov	$BDA_IAC_OPTSEG,%si
+	lodsw
+	mov	%ax,%bx			// optseg segment
+	lodsw
+	mov	%ax,%dx			// optseg offset
+	//lodsw
+	//mov	%bx,%ds
+	//mov	%ax,%bx			// optseg size, currently not used
+					// (no space in boot_minix)
+	mov	%dx,%si
+	mov	%bx,%ds
+#else
 	mov	$DEF_OPTSEG,%ax		// DS:SI = /bootopts in memory
 	mov	%ax,%ds
-
 	xor	%si,%si			// look for hma=kernel in /bootopts segment
+#endif
+
+	mov	%si,%bx
 look:	mov	(%si),%al		// done when NUL seen
 	test	%al,%al
 	jz	1f
@@ -967,12 +984,30 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%si
 	test	%cx,%cx
 	jnz	look			// NZ = no match
+	add	$11,%si			// match, now get the size of the file
+	push	%si
 	mov	$'H',%ax
 	call	putc
-	mov	$1,%ax			// return success
-	jmp	2f
-1:	xor	%ax,%ax			// no HMA
-2:	pop	%es
+	pop	%si
+	mov	$1,%ax			// success return code
+	push	%ax
+3:	mov	(%si),%al
+	inc	%si
+	test	%al,%al
+	jnz	3b
+	jmp	4f
+1:	xor	%ax,%ax
+	push	%ax
+4:			// get the file size, there is no space to get
+			// it (and store it) from the inode in the bootblock 
+	mov	%si,%ax
+	sub	%bx,%ax			// size in AX
+	xor	%bx,%bx
+	mov	%bx,%ds
+	mov	%ax,BDA_IAC_OPTSIZE		// Save size in BDA
+
+	pop	%ax
+	pop	%es
 	pop	%ds
 	ret
 
@@ -1120,17 +1155,19 @@ pc98_int1b:
 	jnc	1f
 0:	mov	$'F',%al	// Fail, not FAT bootopts
 	call	putc
+#ifndef CONFIG_OPTSEG_HIGH	/* Do low mem relocation if needed */
 	xor	%ax,%ax
 	mov	%ax,%es
-	//movw	$DEF_OPTSEG,%es:((BDA_IAC_SEG<<4)+2)  // DEBUG
-	mov	%es:(BDA_IAC_SEG<<4),%ax
+	mov	%es:(BDA_IAC_OPTSEG),%ax
 	//call	hex4
 	cmp	$DEF_OPTSEG,%ax
 	jz	3f
 	call	reloc_opts
 	mov	$'R',%al	// Indicate relocated bootopts
-	call	putc
+	jmp	2f
+#else
 	jmp	3f
+#endif
 1:	mov	$' ',%al
 2:	call	putc
 3:	pop	%es
@@ -1145,6 +1182,7 @@ pc98_int1b:
 # FLAGS = set by caller
 # If moving down -> move from the bottom, if moving up -> move from the top.
 #
+#ifndef CONFIG_OPTSEG_HIGH
 reloc_opts:
 	push	%si
 	push	%di
@@ -1168,6 +1206,7 @@ reloc_up:
 	mov	%ax,%es
 	std
 	jmp	1b
+#endif
 #----
 
 

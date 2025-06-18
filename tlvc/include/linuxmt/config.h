@@ -8,6 +8,8 @@
  * Compile-time configuration
  */
 
+#define CONFIG_OPTSEG_HIGH	/* Load /bootopts (of any size) into high memory */
+				/* Not currently working on FAT boot devices */
 #ifdef CONFIG_ARCH_IBMPC
 #define MAX_SERIAL		4		/* max number of serial tty devices */
 #define MAX_XMS_SIZE		0x7fff		/* Caps XMS-size to 32M (mask - setup.S) */
@@ -105,6 +107,7 @@
 #define DEF_SYSSEG	0x1400		/* kernel copied here by setup.S code */
 #define DEF_SETUPSEG	(DEF_INITSEG + 0x20)
 #define DEF_SYSMAX	0x2F00
+#define DEF_MINHEAP	0x8000		/* minimal kernel heap */
 
 #ifdef CONFIG_ROMCODE
 #if defined(CONFIG_BLK_DEV_BHD) || defined(CONFIG_BLK_DEV_BFD)
@@ -168,10 +171,10 @@
 #endif
 
 #define BDA_IAC_SEG		0x4F	/* BDA 'Intra-Applications Communications Area' */
-					/* 16 bytes, the first (0x4f:0) (W) holds the */
-					/* actual OPTSEG location used by the minix */
-					/* bootloader */
-#define BDA_IAC_OPTSEG		0x0	/* Offset where boot's DEF_OPTSEG is saved */
+					/* 16 bytes */
+#define BDA_IAC_OPTSEG		0x4F0	/* Seg where boot loads /bootopts */
+#define BDA_IAC_OPTOFFS		0x4F2	/* Offset */
+#define BDA_IAC_OPTSIZE		0x4F4	/* Size */
 
 // NOTE: for accomodating the LOADALL 0x80:0 seg (0x80:0-0x87:0),
 // leave OPTSEG in place (its use is over before LOADALL needs it)
