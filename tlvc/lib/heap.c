@@ -101,11 +101,12 @@ static heap_s *free_get(word_t size0, byte_t tag)
 		}
 
 		n = h->free.next;
-	}
+	};
 
 	// Then allocate that free block
 
 	if (best_h) {
+		//debug_heap("got: %x/%u\n", best_h, size0);
 #ifdef HEAP_SEG_OPT
 		if (tag == HEAP_TAG_SEG && best_h == high_free) {
 			best_h = heap_rsplit(size0);
@@ -139,13 +140,17 @@ static void heap_merge(heap_s *h1, heap_s *h2)
 
 void *heap_alloc(word_t size, byte_t tag)
 {
-	heap_s *h = free_get(size, tag);
+	heap_s *h;
+
+	if (!size) return NULL;
+
+	h = free_get(size, tag);
 	if (h) {
-		h++;						// skip header
+		h++;					// skip header
 		if (tag & HEAP_TAG_CLEAR)
 			memset(h, 0, size);
-	}
-	if (!h) printk("HEAP: no memory (%u bytes)\n", size);
+	} else
+		printk("HEAP: no memory (%u bytes)\n", size);
 	return h;
 }
 
@@ -156,6 +161,8 @@ void heap_free(void *data)
 {
 
 	heap_s *h = ((heap_s *)(data)) - 1;  // back to header
+	
+	if (!data) return;
 
 	// Free block will be inserted to free list:
 	//   - tail if merged to previous or next free block
@@ -163,7 +170,7 @@ void heap_free(void *data)
 	//     chance on next allocation of same size
 
 	list_s *i = &_heap_free;
-	debug_heap("free 0x%x/%u; ", h, h->size);
+	debug_heap("free: 0x%x/%u; ", h, h->size);
 
 #ifdef  VALIDATE_HEAPFREE
 	if (h->canary != HEAP_CANARY) {
@@ -171,6 +178,7 @@ void heap_free(void *data)
 		return;
 	}
 #endif
+	h->tag = HEAP_TAG_FREE;
 		
 	// Try to merge with previous block if free
 
@@ -182,8 +190,6 @@ void heap_free(void *data)
 			heap_merge(prev, h);
 			i = _heap_free.prev;
 			h = prev;
-		} else {
-			h->tag = HEAP_TAG_FREE;
 		}
 	}
 
@@ -225,7 +231,7 @@ void heap_add(void *data, word_t size)
 		list_insert_before(&_heap_free, &(h->free));
 #ifdef HEAP_SEG_OPT
 		if (!high_free) high_free = h;	/* only when heap is created */
-					/* ie. ignore later additioons to the heap */
+					/* ie. ignore later additions to the heap */
 		debug_heap("new hf @ %x size %u\n", h, size);
 #endif
 	}
