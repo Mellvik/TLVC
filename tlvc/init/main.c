@@ -110,7 +110,13 @@ static char *argv_init[MAX_INIT_SLEN] = { NULL, bininit, NULL };
 #if ENV
 static char *envp_init[MAX_INIT_ENVS];
 #endif
+
+#define OPTIONS_IN_TOPHEAP
+#ifdef OPTIONS_IN_TOPHEAP	/* working copy of bootopts at top of heap */
+static unsigned char *options = (unsigned char *)(0xfffe - OPTSEGSZ);
+#else
 static unsigned char options[OPTSEGSZ];
+#endif
 
 extern int boot_rootdev;
 extern int dprintk_on;
@@ -370,8 +376,10 @@ static void INITPROC do_init_task(void)
 	seg_add(REL_INITSEG + (fdcache<<6), XD_BOUNCESEG);
 
 #ifdef CONFIG_BOOTOPTS
+#ifndef OPTIONS_IN_TOP_HEAP
     /* Release /bootopts parsing buffers */
     heap_add(options, OPTSEGSZ);
+#endif
 
     /* pass argc/argv/env array to init_command */
 
@@ -577,7 +585,8 @@ static int INITPROC parse_options(void)
 	char *next;
 
 	/* copy /bootops loaded by boot loader, possibly relocated by setup */
-	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, sizeof(options));
+	printk("\nmoving bootopts to %x:%x\n", kernel_ds, line);
+	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, OPTSEGSZ);
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 	/* check file starts with ##, one or two sectors, max 1023 bytes */
@@ -692,9 +701,9 @@ static int INITPROC parse_options(void)
 			heapsize = (int)simple_strtol(line+5, 10) << 10;
 			continue;
 		}
-		if (!strncmp(line,"memsize=", 8)) {
-			unsigned int m = (int)simple_strtol(line+8, 10);
-			/*if (m <= 640)*/ memend = m << 6;
+		if (!strncmp(line,"mem=", 4)) {
+			unsigned int m = (int)simple_strtol(line+4, 10);
+			memend = m << 6;
 			continue;
 		}
 		if (!strncmp(line,"tasks=", 6)) {
