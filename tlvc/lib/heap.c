@@ -101,7 +101,7 @@ static heap_s *free_get(word_t size0, byte_t tag)
 		}
 
 		n = h->free.next;
-	};
+	}
 
 	// Then allocate that free block
 
