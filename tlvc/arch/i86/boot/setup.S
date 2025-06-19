@@ -940,7 +940,7 @@ novga:	mov	%al,14		// CGA 25 rows
 #ifdef CONFIG_BOOTOPTS
 	call	bootopts	// load /bootopts into DEF_OPTSEG
 	call    hmabootopts	// check /bootopts for hma=kernel
-	mov	%al,hma_kernel
+	//mov	%al,hma_kernel
 #endif
 	ret
 
@@ -958,12 +958,7 @@ hmabootopts:
 	lodsw
 	mov	%ax,%bx			// optseg segment
 	lodsw
-	mov	%ax,%dx			// optseg offset
-	//lodsw
-	//mov	%bx,%ds
-	//mov	%ax,%bx			// optseg size, currently not used
-					// (no space in boot_minix)
-	mov	%dx,%si
+	mov	%ax,%si			// optseg offset
 	mov	%bx,%ds
 #else
 	mov	$DEF_OPTSEG,%ax		// DS:SI = /bootopts in memory
@@ -972,6 +967,7 @@ hmabootopts:
 #endif
 
 	mov	%si,%bx
+	xor	%dx,%dx
 look:	mov	(%si),%al		// done when NUL seen
 	test	%al,%al
 	jz	1f
@@ -984,31 +980,23 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%si
 	test	%cx,%cx
 	jnz	look			// NZ = no match
-	add	$11,%si			// match, now get the size of the file
-	push	%si
-	mov	$'H',%ax
+	movb	$1,%dx			// match, set flag
+	mov	$'H',%ax		// ... and notify console
 	call	putc
-	pop	%si
-	mov	$1,%ax			// success return code
-	push	%ax
-3:	mov	(%si),%al
-	inc	%si
-	test	%al,%al
-	jnz	3b
-	jmp	4f
-1:	xor	%ax,%ax
-	push	%ax
-4:			// get the file size, there is no space to get
-			// it (and store it) from the inode in the bootblock 
+	jmp	look			// and continue - to get the file size
+1:	// save file size, there is no space to get
+	// it (and store it) from the inode in the bootblock 
 	mov	%si,%ax
 	sub	%bx,%ax			// size in AX
+	inc	%ax			// include final null byte
 	xor	%bx,%bx
 	mov	%bx,%ds
 	mov	%ax,BDA_IAC_OPTSIZE		// Save size in BDA
 
-	pop	%ax
+	//pop	%ax
 	pop	%es
 	pop	%ds
+	movb	%dl,hma_kernel
 	ret
 
 hma_string:
