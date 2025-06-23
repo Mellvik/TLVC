@@ -956,14 +956,14 @@ hmabootopts:
 	mov	%ax,%ds
 	mov	$BDA_IAC_OPTSEG,%si
 	lodsw
-	mov	%ax,%bx			// optseg segment
+	mov	%ax,%bx			// bootopts segment
 	lodsw
-	mov	%ax,%si			// optseg offset
+	mov	%ax,%si			// bootopts offset
 	mov	%bx,%ds
 #else
 	mov	$DEF_OPTSEG,%ax		// DS:SI = /bootopts in memory
 	mov	%ax,%ds
-	xor	%si,%si			// look for hma=kernel in /bootopts segment
+	xor	%si,%si			// look for hma=kernel in bootopts
 #endif
 
 	mov	%si,%bx
@@ -980,7 +980,7 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%si
 	test	%cx,%cx
 	jnz	look			// NZ = no match
-	movb	$1,%dx			// match, set flag
+	mov	$1,%dx			// match, set flag
 	mov	$'H',%ax		// ... and notify console
 	call	putc
 	jmp	look			// and continue - to get the file size
@@ -991,7 +991,7 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%ax			// include final null byte
 	xor	%bx,%bx
 	mov	%bx,%ds
-	mov	%ax,BDA_IAC_OPTSIZE		// Save size in BDA
+	mov	%ax,BDA_IAC_OPTSIZE	// Save size in BDA
 
 	//pop	%ax
 	pop	%es
@@ -1064,6 +1064,7 @@ putc:	push %ax
 
 
 #ifdef CONFIG_BOOTOPTS
+
 //
 // load /bootopts file for FAT filesystem boot
 //	[NOTE: If we're booting a minix FS, /bootopts - if it exists, 
@@ -1076,9 +1077,18 @@ putc:	push %ax
 // and previous boot sector's buffer which still holds root directory sector.
 // No disk I/O is performed unless /bootopts found.
 // Will fail gracefully on MINIX filesystems, no need for check of fs fstype.
+
+/* Local variables */
+#define setup_bss	-6(%bp)
+#define file_size	-4(%bp)
+#define lba		-2(%bp)
+
 bootopts:
 	push	%ds
 	push	%es
+	push	%bp
+	mov	%sp,%bp
+	sub	$6,%sp		// make space for locals
 
 	// set ES = boot sector (BPB) address in high memory
 	mov	$INITSEG,%ax
@@ -1089,6 +1099,7 @@ bootopts:
 	sub	$0x1000,%ax	// find highest aligned 64K
 	and	$0xf000,%ax
 	mov	%ax,%es		// ES = boot sector w/BPB
+	mov	%ax,setup_bss
 
 	// set DS = boot sector buffer (rootdir) address in high memory
 #ifdef CONFIG_IMG_FD1232
@@ -1096,14 +1107,22 @@ bootopts:
 #else
 	add	$0x20,%ax	// buffer follows boot block in high mem
 #endif
-	mov	%ax,%ds
 
-	// get bootopts logical sector address (LBA)
+	mov	%ax,%ds
+	// get bootopts logical sector address (LBA) in AX
+	// and file size in BX
 	call	get_bootopts_sector
 	and	%ax,%ax
 	jz	0f
+#ifdef CONFIG_OPTSEG_HIGH
+	mov	%ax,lba		// Save LBA
+	mov	$9,%cl
+	shr	%cl,%bx		// file size in sectors
+	inc	%bx		// make the first sector count
+	mov	%bx,file_size	// save filesize
+#endif
+	mov	setup_bss,%dx
 	call	getchs		// convert LBA in AX to CHS in CX,DH
-
 #ifdef CONFIG_ARCH_PC98
 	push	%bp
 	mov	$INITSEG,%ax
@@ -1120,34 +1139,60 @@ bootopts:
 	jz	pc98_int1b
 #ifdef CONFIG_IMG_FD1232
 	mov	$0x03,%ch	// 1024 Bytes per sector
-	inc	%dl		// sector number for PC_98 Floppy Disk
 #else
 	mov	$0x02,%ch	// 512 Bytes per sector
-	inc	%dl		// sector number for PC_98 Floppy Disk
 #endif
+	inc	%dl		// sector number 
 pc98_int1b:
 	int	$0x1B		// BIOS disk interrupt
 	pop	%bp
-#else
+#else				/* PC architecture */
 	mov	$INITSEG,%ax
 	mov	%ax,%ds
-	mov	root_dev,%dl	// DL = boot drive
+	//mov	root_dev,%dl	// DL = boot drive
 
+#ifdef CONFIG_OPTSEG_HIGH
+	mov	setup_bss,%ax
+	add	$0x80,%ax	// bootopts loads here
+#else
 	mov	$DEF_OPTSEG,%ax	// ES:BX = DEF_OPTSEG:0
+#endif
 	mov	%ax,%es
 	xor	%bx,%bx
+	push	%es
+	mov	%bx,%es
+	mov	$BDA_IAC_OPTSEG,%di	// save pointer to bootopts
+	stosw
+	mov	%bx,%ax
+	stosw				// zero offset
+	stosw				// zero size for now
+	pop	%es
+read_more:
+	mov	root_dev,%dl	// DL = boot drive
 	mov	$0x0202,%ax	// BIOS read disk, 2 sectors
 	int	$0x13		// BIOS disk interrupt
+#endif				/* CONFIG_ARCH_PC98 */
+	jc	0f		// Failed
+#ifdef CONFIG_OPTSEG_HIGH
+	sub	$2,file_size
+	jbe	1f
+	add	$0x400,%bx	// 1k steps regardless of file size
+	add	$2,lba		// next LBA to read
+	mov	lba,%ax
+	push	%bx
+	mov	setup_bss,%dx
+	call	getchs
+	pop	%bx
+	jmp	read_more
+#else
+	jmp	1f
 #endif
-
-	jnc	1f
 0:	mov	$'F',%al	// Fail, not FAT bootopts
 	call	putc
 #ifndef CONFIG_OPTSEG_HIGH	/* Do low mem relocation if needed */
 	xor	%ax,%ax
 	mov	%ax,%es
 	mov	%es:(BDA_IAC_OPTSEG),%ax
-	//call	hex4
 	cmp	$DEF_OPTSEG,%ax
 	jz	3f
 	call	reloc_opts
@@ -1158,7 +1203,9 @@ pc98_int1b:
 #endif
 1:	mov	$' ',%al
 2:	call	putc
-3:	pop	%es
+3:	mov	%bp,%sp
+	pop	%bp
+	pop	%es
 	pop	%ds
 	ret
 
@@ -1270,6 +1317,7 @@ find:	add	$0x20,%si		// look for /bootopts in root directory at DS:SI
 #endif
 	shr	%cl,%ax			// AX = # sectors of root directory
 	add	%bx,%ax			// AX = sector of /bootopts file
+	mov	0x1c(%si),%bx		// BX = File size (lower half)
 
 	pop	%es
 	ret
@@ -1284,13 +1332,20 @@ bootopts_name:
 	.ascii	"BOOTOPTS   "
 
 // translate LBA in AX to CHS in CX,DH (for IBM PC)
+// input DX -> ES
 getchs:
+	push	%ds
+	push	%es
 	push	%ax
+
+	mov	$INITSEG,%ax
+	mov	%ax,%ds
 	mov	$'L',%ax
 	call	putc
 	pop	%ax
 	call	hex4
 
+	mov	%dx,%es
 	xchg	%ax,%bx			// BX = LBA
 	mov	%es:num_heads,%cl	// head max
 	mov	%es:sec_per_trk,%al	// sect max
@@ -1334,6 +1389,8 @@ getchs:
 	mov	%cl,%al
 	call	hex2
 
+	pop	%es
+	pop	%ds
 	ret
 #endif /* ifdef CONFIG_BOOTOPTS */
 
