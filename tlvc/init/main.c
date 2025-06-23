@@ -246,6 +246,27 @@ static void INITPROC early_kernel_init(void)
 
 }
 
+#define LINES 24
+#define COLS 80
+
+/* copy pre-boot and early boot system messages from physical to serial console */
+void INITPROC copycon(void)
+{
+    unsigned short __far *conchar = _MK_FP(0xb800, 0);
+    unsigned char buf[80];
+    int i;
+
+    for (i = 0; i < LINES; i++) {
+    	int j;
+	for (j = 0; j < COLS; j++)
+	    buf[j] = *conchar++;
+	while (buf[--j] == 0x20 && j) buf[j] = 0;
+	if (!j) break;
+	printk("\n%s", buf);
+    }
+    printk("\n\n");
+}
+
 void INITPROC kernel_init(void)
 {
     int i;
@@ -266,6 +287,7 @@ void INITPROC kernel_init(void)
 
     /* set console from /bootopts console= or 0=default */
     set_console(boot_console);
+    if (boot_console) copycon();
     console_init();	/* init direct, bios or headless console */
 
 #ifdef CONFIG_CHAR_DEV_RS
