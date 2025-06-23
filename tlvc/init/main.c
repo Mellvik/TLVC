@@ -111,9 +111,9 @@ static char *argv_init[MAX_INIT_SLEN] = { NULL, bininit, NULL };
 static char *envp_init[MAX_INIT_ENVS];
 #endif
 
-#define OPTIONS_IN_TOPHEAP
-#ifdef OPTIONS_IN_TOPHEAP	/* working copy of bootopts at top of heap */
-static unsigned char *options = (unsigned char *)(0xfffe - OPTSEGSZ);
+#ifdef CONFIG_OPTSEG_HIGH	/* working copy of bootopts in heap */
+static unsigned char *options;
+void INITPROC val_heapsize(void);
 #else
 static unsigned char options[OPTSEGSZ];
 #endif
@@ -124,7 +124,7 @@ static char * INITPROC root_dev_name(int dev);
 static int INITPROC parse_options(void);
 static void INITPROC finalize_options(void);
 static char * INITPROC option(char *s);
-static void add_env(char *);
+static void INITPROC add_env(char *);
 
 #endif
 
@@ -176,6 +176,9 @@ void start_kernel(void)
     /* fork and run procedure init_task() as task #1 */
     kfork_proc(init_task);
     wake_up_process(&task[1]);
+#ifdef CONFIG_OPTSEG_HIGH
+    heap_free(options);
+#endif
 
     /*
      * We are now the idle task. We won't run unless no other process can run.
@@ -202,14 +205,26 @@ static void INITPROC early_kernel_init(void)
 #endif
     ROOT_DEV = SETUP_ROOT_DEV;      /* default root device from boot loader */
 
+    /* create near heap at end of kernel bss */
+    heap_init();                    /* init near memory allocator */
+    endbss = setup_arch();          /* sets membase and memend globals, cpu type */
+#ifdef CONFIG_OPTSEG_HIGH
+    heap_add((void *)endbss, DEF_MINHEAP);
+#endif
 #ifdef CONFIG_BOOTOPTS
     hasopts = parse_options();
 #endif
 
-    /* create near heap at end of kernel bss */
-    heap_init();                    /* init near memory allocator */
-    endbss = setup_arch();          /* sets membase and memend globals, cpu type */
+#ifdef CONFIG_OPTSEG_HIGH
+    val_heapsize();	/* heapsize is set by setup_arch, possibly changed in bootopts */
+    if (heapsize > DEF_MINHEAP)  {
+    	heap_add((void *)(endbss+DEF_MINHEAP), heapsize - DEF_MINHEAP);
+    	heap_free(heap_alloc(100,HEAP_TAG_OPTSEG));   /* merge with the previously added heap */
+    }
+#else
     heap_add((void *)endbss, heapsize);
+#endif
+
     if (memend == umbvec[0].seg) {  /* if UMB is avail just above main mem, add it */
 	    memend += umbvec[0].size;
 	    umbvec[0].size = 1;	    /* flag that we've used it */
@@ -376,9 +391,9 @@ static void INITPROC do_init_task(void)
 	seg_add(REL_INITSEG + (fdcache<<6), XD_BOUNCESEG);
 
 #ifdef CONFIG_BOOTOPTS
-#ifndef OPTIONS_IN_TOP_HEAP
+#ifndef CONFIG_OPTSEG_HIGH
     /* Release /bootopts parsing buffers */
-    heap_add(options, OPTSEGSZ);
+    heap_add(options, sizeof(options));
 #endif
 
     /* pass argc/argv/env array to init_command */
@@ -581,16 +596,31 @@ static void INITPROC parse_nic(char *line, struct netif_parms *parms)
  */
 static int INITPROC parse_options(void)
 {
-	char *line = (char *)options;
-	char *next;
+	char *next, *line;
+	word_t __far *optseg = _MK_FP(0x4f, 0); 
+#ifdef CONFIG_OPTSEG_HIGH	/* load bootopts just below the heap top less 8k */
+	options = heap_alloc(*(optseg+2), HEAP_TAG_OPTSEG|HEAP_TAG_CLEAR);
+#endif
+	line = (char *)options;
 
 	/* copy /bootops loaded by boot loader, possibly relocated by setup */
-	printk("\nmoving bootopts to %x:%x\n", kernel_ds, line);
+#ifdef CONFIG_OPTSEG_HIGH
+	printk("\nmoving bootopts (size %d) from %x:%x to %x:%x\n", *(optseg+2), *optseg, 
+				*(optseg+1), kernel_ds, line);
+	fmemcpyb(options, kernel_ds, (void *) *(optseg+1), *optseg, *(optseg+2));
+#else
+	printk("\nmoving bootopts (size %d) from %x:%x to %x:%x\n", OPTSEGSZ, DEF_OPTSEG,
+				0, kernel_ds, line);
 	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, OPTSEGSZ);
+#endif
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 	/* check file starts with ##, one or two sectors, max 1023 bytes */
-	if (*(unsigned short *)options != 0x2323 || (options[511] && options[OPTSEGSZ-1]))
+	if (*(unsigned short *)options != 0x2323 
+#ifndef CONFIG_OPTSEG_HIGH
+			|| (options[511] && options[OPTSEGSZ-1])
+#endif
+		)
 		return 0;
 
 #if DEBUG > 1
@@ -774,7 +804,7 @@ static int INITPROC parse_options(void)
 	return 1;	/* success*/
 }
 
-static void add_env(char *line)
+static void INITPROC add_env(char *line)
 {
 	if (envs >= MAX_INIT_ENVS)
 		panic(errmsg_initenvs);

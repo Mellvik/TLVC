@@ -15,10 +15,11 @@ seg_t membase, memend;  /* start and end segment of available main memory */
 unsigned int heapsize;	/* max size of kernel near heap */
 byte_t sys_caps;	/* system capabilities bits */
 unsigned char arch_cpu; /* CPU type from cputype.S */
+void INITPROC val_heapsize(void); /* validate heapsize from config or bootopts */
 
 unsigned int INITPROC setup_arch(void)
 {
-	unsigned int endbss, heapsegs;
+	unsigned int endbss;
 
 #ifdef CONFIG_HW_COMPAQFAST
 	outb_p(1,0xcf);	/* Switch COMPAQ Deskpro to high speed */
@@ -48,13 +49,12 @@ unsigned int INITPROC setup_arch(void)
 	if (!heapsize)
 	    heapsize = SETUP_HEAPSIZE;
 #endif
+#ifndef CONFIG_OPTSEG_HIGH
 	if (heapsize) {			/* may be set via heap= in /bootopts */
-            heapsegs = (1 + ~endbss) >> 4;  /* max possible heap in segments */
-            if ((heapsize >> 4) < heapsegs) /* allow if less than max */
-        	heapsegs = heapsize >> 4;
-            membase = kernel_ds + heapsegs + (((unsigned int) (_endbss+15)) >> 4);
-            heapsize = heapsegs << 4;
-	} else {
+		val_heapsize();
+	} else
+#endif
+	{
            membase = kernel_ds + 0x1000;
            heapsize = 1 + ~endbss;
 	}
@@ -80,6 +80,16 @@ unsigned int INITPROC setup_arch(void)
 #endif
 	return endbss;		/* used as start address in near heap init */
 
+}
+void INITPROC val_heapsize(void) {
+	unsigned int heapsegs;
+	unsigned int endbss = (unsigned int)(_endbss + 1) & ~1;
+
+	heapsegs = (1 + ~endbss) >> 4;  /* max possible heap in segments */
+	if ((heapsize >> 4) < heapsegs) /* allow if less than max */
+		heapsegs = heapsize >> 4;
+	membase = kernel_ds + heapsegs + (((unsigned int) (_endbss+15)) >> 4);
+	heapsize = heapsegs << 4;
 }
 
 /*

@@ -27,6 +27,7 @@
 #define HEAP_TAG_FILE	 0x08
 #define HEAP_TAG_CACHE	 0x09
 #define HEAP_TAG_NETWORK 0x0A	/* packet buffer allocations */
+#define HEAP_TAG_OPTSEG	 0x0B
 
 
 // TODO: move free list node from header to body

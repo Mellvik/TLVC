@@ -104,7 +104,7 @@ entry1:
 	// Move to the highest & aligned 64K
 
 	// Some BIOSes are intolerant to unaligned buffer for INT 13h
-	// so the 64K is the safest possible alignement in all cases
+	// so the 64K is the safest possible alignment in all cases
 
 	sub $0x1000,%ax
 	and $0xF000,%ax
@@ -574,7 +574,7 @@ boot_it:
 
 	.global linux_ok
 linux_ok:
-	mov $msg_load,%bx;
+	mov $msg_load,%bx
 	jmp _puts
 
 msg_boot:

@@ -940,7 +940,7 @@ novga:	mov	%al,14		// CGA 25 rows
 #ifdef CONFIG_BOOTOPTS
 	call	bootopts	// load /bootopts into DEF_OPTSEG
 	call    hmabootopts	// check /bootopts for hma=kernel
-	mov	%al,hma_kernel
+	//mov	%al,hma_kernel
 #endif
 	ret
 
@@ -951,10 +951,23 @@ hmabootopts:
 
 	push	%cs			// ES = our code segment
 	pop	%es
+#ifdef CONFIG_OPTSEG_HIGH
+	xor	%ax,%ax
+	mov	%ax,%ds
+	mov	$BDA_IAC_OPTSEG,%si
+	lodsw
+	mov	%ax,%bx			// optseg segment
+	lodsw
+	mov	%ax,%si			// optseg offset
+	mov	%bx,%ds
+#else
 	mov	$DEF_OPTSEG,%ax		// DS:SI = /bootopts in memory
 	mov	%ax,%ds
-
 	xor	%si,%si			// look for hma=kernel in /bootopts segment
+#endif
+
+	mov	%si,%bx
+	xor	%dx,%dx
 look:	mov	(%si),%al		// done when NUL seen
 	test	%al,%al
 	jz	1f
@@ -967,13 +980,23 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%si
 	test	%cx,%cx
 	jnz	look			// NZ = no match
-	mov	$'H',%ax
+	movb	$1,%dx			// match, set flag
+	mov	$'H',%ax		// ... and notify console
 	call	putc
-	mov	$1,%ax			// return success
-	jmp	2f
-1:	xor	%ax,%ax			// no HMA
-2:	pop	%es
+	jmp	look			// and continue - to get the file size
+1:	// save file size, there is no space to get
+	// it (and store it) from the inode in the bootblock 
+	mov	%si,%ax
+	sub	%bx,%ax			// size in AX
+	inc	%ax			// include final null byte
+	xor	%bx,%bx
+	mov	%bx,%ds
+	mov	%ax,BDA_IAC_OPTSIZE		// Save size in BDA
+
+	//pop	%ax
+	pop	%es
 	pop	%ds
+	movb	%dl,hma_kernel
 	ret
 
 hma_string:
@@ -1120,17 +1143,19 @@ pc98_int1b:
 	jnc	1f
 0:	mov	$'F',%al	// Fail, not FAT bootopts
 	call	putc
+#ifndef CONFIG_OPTSEG_HIGH	/* Do low mem relocation if needed */
 	xor	%ax,%ax
 	mov	%ax,%es
-	//movw	$DEF_OPTSEG,%es:((BDA_IAC_SEG<<4)+2)  // DEBUG
-	mov	%es:(BDA_IAC_SEG<<4),%ax
+	mov	%es:(BDA_IAC_OPTSEG),%ax
 	//call	hex4
 	cmp	$DEF_OPTSEG,%ax
 	jz	3f
 	call	reloc_opts
 	mov	$'R',%al	// Indicate relocated bootopts
-	call	putc
+	jmp	2f
+#else
 	jmp	3f
+#endif
 1:	mov	$' ',%al
 2:	call	putc
 3:	pop	%es
@@ -1145,6 +1170,7 @@ pc98_int1b:
 # FLAGS = set by caller
 # If moving down -> move from the bottom, if moving up -> move from the top.
 #
+#ifndef CONFIG_OPTSEG_HIGH
 reloc_opts:
 	push	%si
 	push	%di
@@ -1168,6 +1194,7 @@ reloc_up:
 	mov	%ax,%es
 	std
 	jmp	1b
+#endif
 #----
 
 

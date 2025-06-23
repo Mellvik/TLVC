@@ -397,7 +397,7 @@ void mem_map(void)
 	    p_subdiv(heap[1].base, "", 1);
 	    p_block(1, (long_t)(heap[1].base - (heap[0].base - bss_size)), "Kernel bss", "");
 	} else
-	    p_block(2, (long_t)bss_size, "Kernel bss", "");
+	    p_block(1, (long_t)bss_size, "Kernel bss", "");
 
 	p_subdiv(heap[0].base - bss_size, "BSS start", 1);
 	p_block(1, (long_t)heap[0].base - bss_size, "Kernel data", "");
@@ -495,7 +495,7 @@ void dump_heap(void)
 	word_t total_size = 0;
 	word_t total_free = 0;
 	static char *heaptype[] = { "free", "MEM ", "DRVR", "TTY ", "TASK", "BUFH", "PIPE",
-				    "INOD", "FILE", "CACH", "NETB" };
+				    "INOD", "FILE", "CACH", "NETB", "OPTS" };
 
 	printf("  HEAP   TYPE  SIZE    SEG   STYPE   SSIZE CNT  NAME\n");
 
