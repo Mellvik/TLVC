@@ -980,23 +980,12 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%si
 	test	%cx,%cx
 	jnz	look			// NZ = no match
-	mov	$1,%dx			// match, set flag
+	movb	$1,hma_kernel
 	mov	$'H',%ax		// ... and notify console
 	call	putc
-	jmp	look			// and continue - to get the file size
-1:	// save file size, there is no space to get
-	// it (and store it) from the inode in the bootblock 
-	mov	%si,%ax
-	sub	%bx,%ax			// size in AX
-	inc	%ax			// include final null byte
-	xor	%bx,%bx
-	mov	%bx,%ds
-	mov	%ax,BDA_IAC_OPTSIZE	// Save size in BDA
-
-	//pop	%ax
+1:
 	pop	%es
 	pop	%ds
-	movb	%dl,hma_kernel
 	ret
 
 hma_string:
@@ -1149,7 +1138,6 @@ pc98_int1b:
 #else				/* PC architecture */
 	mov	$INITSEG,%ax
 	mov	%ax,%ds
-	//mov	root_dev,%dl	// DL = boot drive
 
 #ifdef CONFIG_OPTSEG_HIGH
 	mov	setup_bss,%ax
@@ -1165,7 +1153,6 @@ pc98_int1b:
 	stosw
 	mov	%bx,%ax
 	stosw				// zero offset
-	stosw				// zero size for now
 	pop	%es
 read_more:
 	mov	root_dev,%dl	// DL = boot drive
@@ -1318,6 +1305,9 @@ find:	add	$0x20,%si		// look for /bootopts in root directory at DS:SI
 	shr	%cl,%ax			// AX = # sectors of root directory
 	add	%bx,%ax			// AX = sector of /bootopts file
 	mov	0x1c(%si),%bx		// BX = File size (lower half)
+	xor	%cx,%cx
+	mov	%cx,%es
+	mov	%bx,%es:(BDA_IAC_OPTSIZE) // Save filesize
 
 	pop	%es
 	ret

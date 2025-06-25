@@ -31,7 +31,7 @@ static unsigned loadaddr;
 static int ib_first;                 // inode first block
 
 // locals made global to save code space
-//static int i_size;
+static int i_size;
 static unsigned seg;
 
 static byte_t i_block[BLOCK_SIZE];  // inode block buffer
@@ -62,7 +62,7 @@ void linux_ok(void);
 
 static int strcmp(const char *s, const char *d);
 //static void load_super();
-static void load_inode();
+//static void load_inode();
 static void load_zone(int level, zone_nr *z_start, zone_nr *z_end);
 static void load_file();
 
@@ -96,9 +96,7 @@ void load_prog()
 	asm("xor %ax,%ax; mov %ax,i_boot; mov %ax,i_now;");
 
 #ifdef CONFIG_OPTSEG_HIGH
-	/* save size and location (seg:offs) where bootopts was loaded */
-	asm("mov %ax,options; mov %ax,%es; mov %ds,%ax");
-	asm("mov $" STRING(BDA_IAC_OPTSEG) ",%di; stosw; mov $options,%ax; stosw");
+	asm("mov %ax,options; mov %ax,%es");
 #else
 	asm("mov %ax,%es; movw $" STRING(OPTSEG) ",%es:(" STRING(BDA_IAC_OPTSEG) ")");
 
@@ -115,7 +113,7 @@ void load_prog()
 	disk_read(2, 1, sb_block, seg_data());
 	ib_first = 2 + sb_data->s_imap_blocks + sb_data->s_zmap_blocks;
 #endif
-	load_file ();
+	load_file();
 
 	for (int d = 0; d < BLOCK_SIZE /*(int)i_data->i_size*/; d += DIRENT_SIZE) {
 		seg = 0;
@@ -134,11 +132,18 @@ void load_prog()
 				//loadaddr = (unsigned)options;
 				//seg = seg_data();
 				asm("movw $options,loadaddr; mov %ss,seg");
+				load_file();
+					/* save size and location (seg:offs) where
+					 * bootopts was loaded - in BDA_IAC. ES & DI
+					 * already set. */
+				asm("mov $" STRING(BDA_IAC_OPTSEG) ",%di");
+				asm("mov %ds,%ax; stosw");
+				asm("mov $options,%ax; stosw");
+				asm("mov i_size,%ax; stosw");
 #else
 				loadaddr = OPTSEG << 4;
-#endif
-				//puts("opts ");
 				load_file();
+#endif
 			}
 			continue;
 		}
@@ -188,7 +193,7 @@ static void load_super ()
 }
 #endif
 //------------------------------------------------------------------------------
-
+#ifdef USE_LOAD_INODE
 static void load_inode ()
 {
 	// Compute inode block and load if not cached
@@ -200,6 +205,7 @@ static void load_inode ()
 
 	i_data = (struct inode_s *) i_block + i_now % INODES_PER_BLOCK;
 }
+#endif
 
 //------------------------------------------------------------------------------
 
@@ -230,7 +236,16 @@ static void load_zone(int level, zone_nr *z_start, zone_nr *z_end)
 
 static void load_file ()
 {
+#ifdef USE_LOAD_INODE
 	load_inode ();
+#else
+	// Compute inode block and load if not cached
+	int ib = ib_first + i_now / INODES_PER_BLOCK;
+	disk_read (ib << 1, 2, i_block, seg_data ());
+
+	// Get inode data
+	i_data = (struct inode_s *) i_block + i_now % INODES_PER_BLOCK;
+#endif
 
 	/*
 	puts ("size=");
@@ -238,7 +253,7 @@ static void load_file ()
 	puts ("\r\n");
 	*/
 	f_pos = 0;
-	//i_size = i_data->i_size;
+	i_size = i_data->i_size;
 
 	// Direct zones
 	load_zone (0, &(i_data->i_zone [ZONE_IND_L0]), &(i_data->i_zone [ZONE_IND_L1]));

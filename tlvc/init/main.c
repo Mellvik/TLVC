@@ -620,35 +620,37 @@ static int INITPROC parse_options(void)
 {
 	char *next, *line;
 	word_t __far *optseg = _MK_FP(0x4f, 0); 
-#ifdef CONFIG_OPTSEG_HIGH	/* load bootopts just below the heap top less 8k */
-	options = heap_alloc(*(optseg+2), HEAP_TAG_OPTSEG|HEAP_TAG_CLEAR);
-#endif
-	line = (char *)options;
 
-	/* copy /bootops loaded by boot loader, possibly relocated by setup */
-#ifdef CONFIG_OPTSEG_HIGH
+	if (!*optseg) return 0;
+	/* copy /bootops loaded by boot loader or setup */
+
+#ifdef CONFIG_OPTSEG_HIGH	/* load bootopts just below the heap top less 8k */
+	options = heap_alloc(*(optseg+2)+1, HEAP_TAG_OPTSEG|HEAP_TAG_CLEAR);
+
 	printk("\nmoving bootopts (size %d) from %x:%x to %x:%x\n", *(optseg+2), *optseg, 
-				*(optseg+1), kernel_ds, line);
+				*(optseg+1), kernel_ds, options);
 	fmemcpyb(options, kernel_ds, (void *) *(optseg+1), *optseg, *(optseg+2));
 #else
 	printk("\nmoving bootopts (size %d) from %x:%x to %x:%x\n", OPTSEGSZ, DEF_OPTSEG,
-				0, kernel_ds, line);
+				0, kernel_ds, options);
 	fmemcpyb(options, kernel_ds, 0, DEF_OPTSEG, OPTSEGSZ);
 #endif
 
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
-	/* check file starts with ##, one or two sectors, max 1023 bytes */
+	/* check if file starts with ## and - unless CONFIG_OPTSEG_HIGH is defined,
+	 * one or two sectors, max 1023 bytes */
 	if (*(unsigned short *)options != 0x2323 
 #ifndef CONFIG_OPTSEG_HIGH
 			|| (options[511] && options[OPTSEGSZ-1])
 #endif
-		)
-		return 0;
+		) return 0;
 
 #if DEBUG > 1
 	printk("/bootopts: %s", &options[3]);
 #endif
+	line = (char *)options;
 	next = line;
+
 	while ((line = next) != NULL && *line) {
 		if ((next = option(line)) != NULL) {
 			if (*line == '#') {	/* skip line after comment char */
