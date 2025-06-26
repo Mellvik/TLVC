@@ -1,5 +1,5 @@
-# ELKSCMD Application Installation Table
-#	3/13/20 Greg Haerr
+# TLVCCMD Application Installation Table
+# Created 3/13/20 Greg Haerr for ELKS
 #
 # This file is used to specify when each application in elkscmd/ should
 # be installed to $(DESTDIR).
@@ -14,7 +14,7 @@
 # to specify the set of files to be installed.
 # The applications are installed from their build directory to $(DESTDIR).
 #
-# Following are the current ELKS application packages and description,
+# Following are the current application packages and description,
 # see Make.install for more details.
 #	Tag			Description									Directory
 #	--------	-----------------------------------------	-----------
@@ -26,7 +26,7 @@
 #	:1200k		Set of apps to fit on 1200 disks (almost all of 1440k)
 #	:1440k		All apps selected for 1440k disks
 #	:ash		Ash (bash) shell							ash
-#	:sash		Sash (standalone very small) shell			sash
+#	:sash		Sash (standalone very small) shell		sash
 #	:defsash	Use sash as default shell                   sash
 #	:sysutil	System utilities							sys_utils
 #	:fileutil	File handling utilies						file_utils
@@ -34,13 +34,14 @@
 #	:diskutil	Disk utilities								disk_utils
 #	:miscutil	Miscellaneous utilities						misc_utils
 #	:minix1,2,3	Minix utilities								minix{1,2,3}
-#   :tui        Text user interface library programs        tui
+#	:tui		Text user interface library programs        tui
 #	:mtools		MSDOS utilities								mtools
 #	:elvis		Elvis vi editor								elvis
 #	:net		Networking apps								ktcp,inet
 #	:nanox		Nano-X graphical apps						nano-X
 #	:other		Other apps
-#	:busyelks	Busyelks									busyelks
+#	:busyelks	Busyelks								busyelks
+#	:debug		Debugging tools
 #	:be-*		File created as symlink if busyelks option 'B' set
 #	::path/file	path/file to install file as on $(DESTDIR)
 # 
@@ -87,11 +88,11 @@ sys_utils/man					:sysutil			:1200k	:1440k
 sys_utils/meminfo		:sash	:sysutil		:360k   :128k
 sys_utils/mouse					:sysutil			:1200k	:1440k
 sys_utils/passwd				:sysutil			:1200k	:1440k
-sys_utils/poweroff				:sysutil		:720k
+#sys_utils/poweroff				:sysutil		:720k
 sys_utils/sercat				:sysutil			:1200k	:1440k
 sys_utils/console				:sysutil			:1200k	:1440k
 #sys_utils/who					:sysutil			:1200k	:1440k
-sys_utils/unreal16				:sysutil
+#sys_utils/unreal16				:sysutil
 #screen/screen					:screen				:1200k	:1440k
 cron/cron   					:cron				:1200k	:1440k
 sh_utils/basename				:be-shutil		:720k
@@ -111,7 +112,8 @@ sh_utils/tr					:shutil			:720k
 #sh_utils/whoami				:shutil				:1200k	:1440k
 sh_utils/xargs					:shutil				:1200k	:1440k
 sh_utils/yes					:shutil			:720k
-misc_utils/float				:miscutil				:1440k
+#misc_utils/float				:miscutil				:1440k
+debug/disasm					:debug					:1440k
 misc_utils/compress				:miscutil				:1440k
 misc_utils/miniterm				:miscutil		:720k
 misc_utils/fdtest				:miscutil			:1200k	:1440k
@@ -119,7 +121,7 @@ misc_utils/tar					:miscutil			:1200k	:1440k
 misc_utils/od					:miscutil			:1200k	:1440k
 misc_utils/hd					:miscutil			:1200k	:1440k
 misc_utils/time					:miscutil		:720k
-misc_utils/kilo					:miscutil			:1200k	:1440k
+#misc_utils/kilo					:miscutil			:1200k	:1440k
 misc_utils/mined ::bin/edit		:miscutil				:1200k	:1440k
 misc_utils/sleep				:miscutil			:1200k	:1440k
 misc_utils/tty					:miscutil			:1200k	:1440k
@@ -145,7 +147,7 @@ minix2/remsync					:other
 minix2/synctree					:other
 #minix2/tget					:minix2							:1440k
 #minix2/man					:minix2				:1200k	:1440k
-minix3/sed					:minix3			:720k
+minix3/sed					:minix3			:360
 minix3/file					:minix3			:720k
 minix3/head					:minix3			:720k
 minix3/sort					:minix3			:720k
@@ -157,7 +159,7 @@ minix3/find					:be-minix3		:720k
 disk_utils/fsck					:diskutil			:1200k	:1440k
 disk_utils/mkfs					:diskutil	:360k
 disk_utils/mkfat				:diskutil	:360k
-disk_utils/partype				:diskutil			:1200k	:1440k
+#disk_utils/partype				:diskutil			:1200k	:1440k
 disk_utils/ramdisk				:diskutil			:1200k	:1440k
 disk_utils/fdisk				:be-diskutil	:360k
 #tui/fm                          :tui                            :1440k

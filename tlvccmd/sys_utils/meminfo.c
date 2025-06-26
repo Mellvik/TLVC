@@ -361,7 +361,7 @@ void mem_map(void)
 	}
 	if (hma) {	/* HMA available */
 	    p_divider_l(0x11000L, "HMA top/XMS start");
-	    p_block(4, (long_t)0x10000, (cs == 0xffff)? "   Kernel text":"   Available", "");
+	    p_block(3, (long_t)0x10000, (cs == 0xffff)? "   Kernel text":"   Available", "");
 	    p_divider_l((long)cs+1, "HMA start");
 	    printf("\n");
 	}
