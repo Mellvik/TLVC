@@ -103,49 +103,37 @@ struct passwd *getpwuid(uid_t uid)
 	return NULL;
 }
 
-/*
- * Caveat: A device may have many names, we're using the first occurence in the directory
- *	   - with the 'tty' prefix.
- */
+/* fast cached version of devname() */
 char *dev_name(unsigned int minor)
 {
 	struct dirent *d;
 	dev_t ttydev = MKDEV(TTY_MAJOR, minor);
-	struct stat st;
-	static char dev[] = "/dev/";
-	static char name[MAXNAMLEN+1];
+	static dev_t prevdev = -1;
 	static DIR *fp = NULL;
-	static long loc = 0;
-	static int prevdev = 0;
+	struct stat st;
+	static char path[MAXNAMLEN+6] = _PATH_DEVSL;    /* /dev/ */
+#define NAMEOFF		(sizeof(_PATH_DEVSL) - 1)
 
-	if (prevdev == ttydev) return name+8; 	
+	if (prevdev == ttydev) return path+NAMEOFF+3;
 	if (!fp) {
-		if (!(fp = opendir(dev)))	/* open only first time */
+		if (!(fp = opendir(_PATH_DEV)))
 			return "??";
-	} else
-		rewinddir(fp);
+	} else rewinddir(fp);
 
-	strcpy(name, dev);
-
-	if (loc) seekdir(fp, loc);	/* crude optimization */
 	while ((d = readdir(fp)) != 0) {
-		if (strlen(d->d_name) > sizeof(name) - sizeof(dev) - 2)
-			continue;
 		if (d->d_name[0] == '.')
 			continue;
 		if (strncmp(d->d_name, "tty", 3))
 			continue;
-		else if (!loc)
-			loc = telldir(fp) - 16; /* so getdir will get this one */
-		strcpy(name + sizeof(dev) - 1, d->d_name);
-		if (!stat(name, &st) && st.st_rdev == ttydev) {
-			prevdev = st.st_rdev;
-			return name+8;
+		strcpy(&path[NAMEOFF], d->d_name);
+		if (!stat(path, &st) && st.st_rdev == ttydev) {
+			prevdev = ttydev;
+			return path+NAMEOFF+3;
 		}
 	}
-	printf("\n");
 	return "?";
 }
+
 
 char *tty_name(int fd, unsigned int off, unsigned int seg)
 {
