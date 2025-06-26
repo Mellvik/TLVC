@@ -258,8 +258,10 @@ void INITPROC copycon(void)
 
     for (i = 0; i < LINES; i++) {
     	int j;
-	for (j = 0; j < COLS; j++)
+	for (j = 0; j < COLS; j++) {
 	    buf[j] = *conchar++;
+	    if (buf[j] > 0x7f) buf[j] = '+';
+	}
 	while (buf[--j] == 0x20 && j) buf[j] = 0;
 	if (!j) break;
 	printk("\n%s", buf);
