@@ -1867,7 +1867,7 @@ void INITPROC floppy_init(void)
 
 #if CONFIG_FLOPPY_CACHE
     cache_size = fdcache<<1;	/* cache_size is sectors, fdcache is Kbytes */
-    printk("Floppy cache %dk, available %dk\n", cache_size>>1, FD_CACHESEGSZ>>10);
+    printk("Floppy cache: %dk/%dk\n", cache_size>>1, FD_CACHESEGSZ>>10);
 	
 #endif
 }
