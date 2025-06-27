@@ -25,6 +25,7 @@
 #include "netconf.h"
 
 timeq_t Now;
+unsigned long __far *jp;
 
 #if DEBUG_TCPPKT
 static char *tcp_flags(int flags)
@@ -46,7 +47,7 @@ static char *tcp_flags(int flags)
 void tcp_print(struct iptcp_s *head, int recv, struct tcpcb_s *cb)
 {
 #if DEBUG_TCPPKT
-    debug_tcppkt("tcp: %s ", recv? "recv": "send");
+    debug_tcppkt("[%lu]tcp: %s ", *jp, recv? "recv": "send");
     debug_tcppkt("%u->%u ", ntohs(head->tcph->sport), ntohs(head->tcph->dport));
     debug_tcppkt("[%s] ", tcp_flags(head->tcph->flags));
     if (cb) {
@@ -84,7 +85,8 @@ int tcp_init(void)
 
 static __u32 choose_seq(void)
 {
-    return timer_get_time();
+    //return timer_get_time();
+    return *jp;
 }
 
 void tcp_send_reset(struct tcpcb_s *cb)
@@ -222,9 +224,9 @@ static void tcp_listen(struct iptcp_s *iptcp, struct tcpcb_s *lcb)
 
 /*
  * This function is called from other states also to do the standard
- * processing. The only thing to matter is that the state that calls it,
- * must process and remove the FIN flag. The only flag that causes a
- * state change here in this function
+ * processing. The only thing to note is that the state that calls it,
+ * must process and remove the FIN flag, the only flag that causes a
+ * state change in this function.
  */
 
 static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
@@ -257,6 +259,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	return;
     }
 
+    /* this actually happens some times, on slow systems ... */
     if (cb->unaccepted && (h->flags & TF_FIN)) {
 	debug_tcp("tcp: FIN received before accept, dropping packet\n");
 	netstats.tcpdropcnt++;
@@ -267,7 +270,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 
     datasize = iptcp->tcplen - TCP_DATAOFF(h);
     if (datasize != 0) {
-	debug_window("tcp: recv data len %u avail %u\n", datasize, CB_BUF_SPACE(cb));
+	debug_window("[%lu]tcp: recv data len %u avail %u\n", *jp, datasize, CB_BUF_SPACE(cb));
 	/* Process the data */
 	data = (__u8 *)h + TCP_DATAOFF(h);
 
@@ -291,13 +294,18 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 
     if (h->flags & TF_ACK) {		/* update unacked*/
 	acknum = ntohl(h->acknum);
-	if (SEQ_LT(cb->send_una, acknum))
+	if (SEQ_LT(cb->send_una, acknum)) {
 	    cb->send_una = acknum;
+	    if (cb->cwnd <= cb->ssthresh && !cb->retrans_act) cb->cwnd++;  /* adjust congestion win */
+	    cb->inflight--;
+	    ////write(1,"A",1);
+	}
     }
 
     if (h->flags & TF_FIN) {
 	cb->rcv_nxt++;
-	debug_close("tcp[%p] packet in established, fin: 1, data: %d, setting state to CLOSE_WAIT\n", cb->sock, datasize);
+	debug_close("tcp[%p] packet in established, fin: 1, data: %d, setting state to CLOSE_WAIT\n",
+					cb->sock, datasize);
 
 	cb->state = TS_CLOSE_WAIT;
 	cb->time_wait_exp = Now;	/* used for debug output only*/
@@ -310,7 +318,8 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	return; /* ACK with no data received - so don't answer*/
 
     cb->rcv_nxt += datasize;
-    debug_window("tcp: ACK seq %ld len %d\n", cb->rcv_nxt - cb->irs, datasize);
+    debug_window("[%lu]tcp: ACK seq %ld len %d\n", *jp, cb->rcv_nxt - cb->irs, datasize);
+    ////write(1,"a",1);
     tcp_send_ack(cb);
 }
 

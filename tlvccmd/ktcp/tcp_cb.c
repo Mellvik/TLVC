@@ -76,18 +76,19 @@ struct tcpcb_list_s *tcpcb_new(int bufsize)
     //printf("Alloc CB %d bytes (0x%04x)\n", sizeof(struct tcpcb_list_s) + bufsize, (unsigned int)n);
 
     memset(n, 0, sizeof(struct tcpcb_list_s));
-    //memset(&n->tcpcb, 0, sizeof(struct tcpcb_s));
     n->tcpcb.buf_size = bufsize;
     n->tcpcb.rtt = TIMEOUT_INITIAL_RTT;
+    n->tcpcb.cwnd = TCP_INIT_CWND;
+    n->tcpcb.ssthresh = TCP_INIT_SSTHRESH;
+    n->tcpcb.sstimer = Now;
 
     /* Link it to the list */
     if (tcpcbs) {
 	n->next = tcpcbs;
 	n->prev = NULL;
 	tcpcbs->prev = n;
-	tcpcbs = n;
-    } else
-	tcpcbs = n;
+    } 
+    tcpcbs = n;
     tcpcb_num++;	/* for netstat*/
 
     return n;
@@ -298,4 +299,20 @@ void tcpcb_buf_read(struct tcpcb_s *cb, unsigned char *data, int len)
 	cb->buf_used--;
     }
     cb->buf_head = head;
+}
+
+/* congestion avoidance: increment cwnd once per rtt */
+void tcpcb_update_sstimer(void) 
+{
+	struct tcpcb_list_s *cb = tcpcbs;
+
+	while (cb) {
+	    if ((cb->tcpcb.cwnd > cb->tcpcb.ssthresh) &&
+				(unsigned)(Now - cb->tcpcb.sstimer) > cb->tcpcb.rtt) {
+		if (cb->tcpcb.cwnd < 100)	/* for now, FIX when we change to bytes */
+		    cb->tcpcb.cwnd++;		/* instead of packets */
+		cb->tcpcb.sstimer = Now;
+	    }
+	    cb = cb->next;
+	}
 }

@@ -71,13 +71,15 @@ void ktcp_run(void)
     struct timeval timeint, *tv;
     int count;
     int loopagain = 0;
+    //int i = 0;
 
     while (1) {
 	if (tcp_timeruse > 0 || tcpcb_need_push > 0 || loopagain ||
 	    cbs_in_time_wait > 0 || cbs_in_user_timeout > 0) {
 
 	    //printf("tcp: timer %d needpush %d timewait %d usertime %d\n", tcp_timeruse,
-		//tcpcb_need_push, cbs_in_time_wait, cbs_in_user_timeout);
+	    //printf("t %d n %d w %d u %d l %d\n", tcp_timeruse,
+		//tcpcb_need_push, cbs_in_time_wait, cbs_in_user_timeout, loopagain);
 
 	    /* don't wait long if data needs pushing to tcpdev */
 	    if (tcpcb_need_push || loopagain) {
@@ -103,7 +105,15 @@ void ktcp_run(void)
 		return;
 	}
 
-	Now = timer_get_time();
+	//Now = timer_get_time();
+	Now = *jp/6;
+#if 0
+	i++;
+	if (i > 10) {
+		fprintf(stderr, "%lu;", Now);
+		i = 0;
+	}
+#endif
 
 	/* expire timeouts*/
 	if (cbs_in_time_wait > 0 || cbs_in_user_timeout > 0) {
@@ -132,22 +142,23 @@ void ktcp_run(void)
 		loopagain = 1;
 	}
 
-	/* process application socket actions*/
+	/* process application socket actions */
 	if (FD_ISSET(tcpdevfd, &fdset)) {
 		tcpdev_process();
 		loopagain = 1;
 	}
 
+	tcpcb_update_sstimer();	
 
-	/* check for expired retrans packets and free them*/
+	/* check for expired retrans packets and free them */
 	if (tcp_timeruse > 0)
 		tcp_retrans_expire();
 
-	/* read all packets and sockets before handling retransmits*/
+	/* read all packets and sockets before handling retransmits */
 	if (loopagain)
 		continue;
 
-	/* check for retransmit packets required*/
+	/* check for retransmit packets required */
 	if (tcp_timeruse > 0)
 		tcp_retrans_retransmit();
 
@@ -213,6 +224,7 @@ int main(int argc,char **argv)
 			   !strcmp(optarg, "wd0")? LINK_ETHER :
 			   !strcmp(optarg, "3c0")? LINK_ETHER :
 			   !strcmp(optarg, "ee0")? LINK_ETHER :
+			   !strcmp(optarg, "le0")? LINK_ETHER :
 			   !strcmp(optarg, "slip")? LINK_SLIP :
 			   !strcmp(optarg, "cslip")? LINK_CSLIP:
 			   -1;
@@ -232,6 +244,8 @@ int main(int argc,char **argv)
 	}
     }
 
+    if (timer_init() < 0)
+	exit(1);
     /*
      * Default IP, gateway and netmask set by env variables in
      * /bootopts or /etc/profile. They can be IP addresses or
