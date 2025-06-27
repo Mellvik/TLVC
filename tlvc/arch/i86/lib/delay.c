@@ -9,7 +9,7 @@ unsigned sys_dly_base;
 void u10delay(unsigned);
 void printk(const char *, ...);
 
-#define TEST_DELAY 0
+#define TEST_DELAY 1
 /* Create calibration constants for a system independent delay loop.
  * NOTE: The calibration does not work with BIOS IO!
  * The delay function (arch/i86/lib/udelay.S) has 3 parts to be accounted for
@@ -64,7 +64,6 @@ void printk(const char *, ...);
 void calibrate_delay(void)
 {
 	unsigned d0, d1, adj, i, l;
-	unsigned long temp = 0;
 
 	//sys_dly_base = 1;
 	//sys_dly_index = 0;
@@ -102,7 +101,7 @@ void calibrate_delay(void)
 	l >>= 2;
 	d0 >>= 2;
 	d1 >>= 2;
-	printk("adj %u, l=%u (%k)", adj, l, l);
+	//printk("adj %u, l=%u (%k)", adj, l, l);
 	if (l <= adj) {	/* If running QEMU w/HW accel, results are nonsensical */
 		adj = l>>1;
 
@@ -110,8 +109,8 @@ void calibrate_delay(void)
 	l -= adj;
 	d0 -= adj;
 	d1 -= adj;
-	printk(" d0=%u (%k)", d0, d0);
-	printk(" d1=%u (%k)\n", d1, d1);
+	//printk(" d0=%u (%k)", d0, d0);
+	//printk(" d1=%u (%k)\n", d1, d1);
 	if (d1 < d0) d1 = d0;	/* for QEMU */
 	if (d0 >= 12) {		/* on systems running at <10MHz XT, the call itself 
 				 * takes more than 10us
@@ -129,13 +128,15 @@ void calibrate_delay(void)
 		sys_dly_base = d0*838/10000;	/* tare, the 'weight' of u10delay()
 					   * sans the inner loop. Notice the 
 					   * extra 0 to scale to 10us */
-		printk("%u, %u, %u, %u, ", l, adj, d0, d1);
+		//printk("%u, %u, %u, %u, ", l, adj, d0, d1);
 	}
 
 	printk("Delay calibration index: %d, skew: %d\n", sys_dly_index, sys_dly_base);
 
 #if TEST_DELAY
 	/* verify */
+	unsigned long temp;
+
 	d1 = 5;				/* start off with 5*10us */
 	for (d0 = 0; d0 < 4; d0++) {
 		int diff, d;
@@ -152,10 +153,12 @@ void calibrate_delay(void)
 		t = (temp*838UL)/1000UL;	/* convert to microseconds */
 		d1 *= 10;	/* scale to 10us - and increment for next loop */
 		diff = t - d1;	/* diff in us */
+		//printk("\n%k (%u) diff %d, d1=%ld;", temp, t, diff, (long)d1);
 		printk("\n%lk (%u) diff %d, d1=%ld;", temp, t, diff, (long)d1);
 		d = -diff * 100/d1;
 		//if (d < 0) d = -d;
-		printk("\n%lk (%u) diff %d (%d%%);", temp, t, diff, d);
+		//printk("\n%k (%u) diff %d (%d%%);", temp, t, diff, d);
+		printk("\n%#lk (%u) diff %d (%d%%);", temp, t, diff, d);
 	}
 #endif
 	printk("\n");

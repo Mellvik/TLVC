@@ -940,7 +940,7 @@ novga:	mov	%al,14		// CGA 25 rows
 #ifdef CONFIG_BOOTOPTS
 	call	bootopts	// load /bootopts into DEF_OPTSEG
 	call    hmabootopts	// check /bootopts for hma=kernel
-	//mov	%al,hma_kernel
+	mov	%al,hma_kernel
 #endif
 	ret
 
@@ -967,7 +967,6 @@ hmabootopts:
 #endif
 
 	mov	%si,%bx
-	xor	%dx,%dx
 look:	mov	(%si),%al		// done when NUL seen
 	test	%al,%al
 	jz	1f
@@ -980,9 +979,9 @@ look:	mov	(%si),%al		// done when NUL seen
 	inc	%si
 	test	%cx,%cx
 	jnz	look			// NZ = no match
-	movb	$1,hma_kernel
 	mov	$'H',%ax		// ... and notify console
 	call	putc
+	mov	$1,%al
 1:
 	pop	%es
 	pop	%ds
