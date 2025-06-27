@@ -254,16 +254,17 @@ void INITPROC copycon(void)
 {
     unsigned short __far *conchar = _MK_FP(0xb800, 0);
     unsigned char buf[80];
-    int i;
+    int i, blank, j;
 
+    blank = 0;
     for (i = 0; i < LINES; i++) {
-    	int j;
 	for (j = 0; j < COLS; j++) {
 	    buf[j] = *conchar++;
 	    if (buf[j] > 0x7f) buf[j] = '+';
 	}
 	while (buf[--j] == 0x20 && j) buf[j] = 0;
-	if (!j) break;
+	if (!j) blank++;
+	if (blank > 1) break;	// Allow one blank line
 	printk("\n%s", buf);
     }
     printk("\n\n");

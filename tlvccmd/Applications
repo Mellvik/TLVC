@@ -38,10 +38,10 @@
 #	:mtools		MSDOS utilities								mtools
 #	:elvis		Elvis vi editor								elvis
 #	:net		Networking apps								ktcp,inet
+#	:debug		Debugging tools				debug
 #	:nanox		Nano-X graphical apps						nano-X
 #	:other		Other apps
 #	:busyelks	Busyelks								busyelks
-#	:debug		Debugging tools
 #	:be-*		File created as symlink if busyelks option 'B' set
 #	::path/file	path/file to install file as on $(DESTDIR)
 # 
@@ -140,7 +140,7 @@ minix1/wc					:minix1				:1200k	:1440k
 minix1/cut					:be-minix1		:720k
 #minix1/cksum					:be-minix1			:1200k	:1440k
 minix1/du					:be-minix1			:1200k	:1440k
-#minix2/env					:minix2				:1200k	:1440k
+minix2/env					:minix2				:1200k	:1440k
 #minix2/lp					:minix2				:1200k	:1440k
 #minix2/pwdauth					:minix2					:1440k
 minix2/remsync					:other
@@ -156,7 +156,7 @@ minix3/tee					:minix3				:1200k	:1440k
 minix3/cal					:be-minix3			:1200k	:1440k
 minix3/diff					:be-minix3		:720k
 minix3/find					:be-minix3		:720k
-disk_utils/fsck					:diskutil			:1200k	:1440k
+disk_utils/fsck					:diskutil		:720k	:1200k	:1440k
 disk_utils/mkfs					:diskutil	:360k
 disk_utils/mkfat				:diskutil	:360k
 #disk_utils/partype				:diskutil			:1200k	:1440k
