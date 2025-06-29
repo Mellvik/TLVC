@@ -44,7 +44,7 @@ int deveth_init(char *fdev)
     }
 
     /* read mac of nic */
-    if (ioctl (devfd, IOCTL_ETH_ADDR_GET, eth_local_addr) < 0) {
+    if (ioctl(devfd, IOCTL_ETH_ADDR_GET, eth_local_addr) < 0) {
         printf("ktcp: IOCTL_ETH_ADDR_GET fail\n");
 
         /* MAC not available is a fatal error */
@@ -64,9 +64,10 @@ int deveth_init(char *fdev)
 void eth_process(void)
 {
   eth_head_t * eth_head;
-  int len = read (devfd, sbuf, MAX_PACKET_ETH);
+  int len = read(devfd, sbuf, MAX_PACKET_ETH);
   if (len < (int)sizeof(eth_head_t)) {
-	if (len < 0) printf("ktcp: eth_process error %d (errno %d), discarding packet\n", len, errno); //FIXME
+	/* FIXME: Is this really a 'tryagain' situation? It's always non-fatal, do we need the message? */
+	if (len < 0) printf("ktcp: eth_process error %d (errno %d), discarding packet\n", len, errno); 
 	return;
   }
 
@@ -74,8 +75,8 @@ void eth_process(void)
 
 #if 0
   /* Filter on MAC addresses in case of promiscuous mode*/
-  if (memcmp (eth_head->eth_dst, broad_addr, sizeof (eth_addr_t))
-    && memcmp (eth_head->eth_dst, eth_local_addr, sizeof (eth_addr_t)))
+  if (memcmp (eth_head->eth_dst, broad_addr, sizeof(eth_addr_t))
+    && memcmp (eth_head->eth_dst, eth_local_addr, sizeof(eth_addr_t)))
       return;
 #endif
 
@@ -87,7 +88,7 @@ void eth_process(void)
 	  break;
 
   case ETH_TYPE_ARP:
-	  arp_recvpacket (sbuf, len);
+	  arp_recvpacket(sbuf, len);
 	  break;
   }
   netstats.ethrcvcnt++;
@@ -105,7 +106,7 @@ void eth_route(unsigned char *packet, int len, ipaddr_t ip_addr)
 	unsigned char *p;
 
 	/* try to get cached ethernet address and send packet*/
-	if (arp_cache_get (ip_addr, eth_addr, ARP_VALID)) {
+	if (arp_cache_get(ip_addr, eth_addr, ARP_VALID)) {
 		eth_sendpacket(packet, len, eth_addr);
 		return;
 	}

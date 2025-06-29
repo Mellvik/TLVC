@@ -31,7 +31,7 @@ static void arp_prep_request(struct arp *, ipaddr_t);
 
 int arp_init (void)
 {
-	memset (arp_cache, 0, ARP_CACHE_MAX * sizeof (struct arp_cache));
+	memset(arp_cache, 0, ARP_CACHE_MAX * sizeof (struct arp_cache));
 	return 0;
 }
 
@@ -44,14 +44,15 @@ struct arp_cache *arp_cache_get(ipaddr_t ip_addr, eth_addr_t eth_addr, int flags
 		if (!entry->ip_addr)
 		    break;
 		if (entry->ip_addr == ip_addr) {
+			if (flags == -1) return entry; /* Already waiting for reply */
 			if ((flags & ARP_VALID) && !entry->valid)
 				return NULL;	/* not yet valid - awaiting ARP reply*/
 			if (flags & ARP_UPDATE) {
-				memcpy (entry->eth_addr, eth_addr, sizeof (eth_addr_t));
+				memcpy(entry->eth_addr, eth_addr, sizeof (eth_addr_t));
 				debug_arp("arp: merging cached entry for %s (%s)\n",
 					in_ntoa(ip_addr), mac_ntoa(entry->eth_addr));
 			} else {
-				memcpy (eth_addr, entry->eth_addr, sizeof (eth_addr_t));
+				memcpy(eth_addr, entry->eth_addr, sizeof (eth_addr_t));
 				debug_arp("arp: using cached entry for %s (%s)\n",
 					in_ntoa(ip_addr),mac_ntoa(entry->eth_addr));
 			}
@@ -70,7 +71,7 @@ struct arp_cache *arp_cache_update(ipaddr_t ip_addr, eth_addr_t eth_addr)
 	eth_addr_t existing_addr;
 
 	if ((entry = arp_cache_get(ip_addr, existing_addr, 0))) {
-		memcpy (entry->eth_addr, eth_addr, sizeof (eth_addr_t));
+		memcpy(entry->eth_addr, eth_addr, sizeof (eth_addr_t));
 		debug_arp("arp: updating cached entry for %s (%s)\n",
 			in_ntoa(entry->ip_addr), mac_ntoa(entry->eth_addr));
 		entry->valid = 1;
@@ -83,21 +84,26 @@ struct arp_cache *arp_cache_add(ipaddr_t ip_addr, eth_addr_t eth_addr)
 {
 	struct arp_cache *entry;
 
+	/* Check if we're already waiting for a reply for this address */
+	if ((entry = arp_cache_get(ip_addr, eth_addr, -1))) {
+		debug_arp("arp: reusing unresolved entry for %s\n", in_ntoa(ip_addr));
+		return entry;
+	}
 	/* Shift the whole cache */
 	entry = arp_cache + ARP_CACHE_MAX - 1;
 	while (entry > arp_cache) {
-		memcpy (entry, entry - 1, sizeof (struct arp_cache));
+		memcpy(entry, entry - 1, sizeof (struct arp_cache));
 		entry--;
 	}
 
 	/* Set the first entry as the more recent */
 	entry->ip_addr = ip_addr;
 	if (eth_addr) {
-		memcpy (entry->eth_addr, eth_addr, sizeof (eth_addr_t));
+		memcpy(entry->eth_addr, eth_addr, sizeof (eth_addr_t));
 		entry->valid = 1;
 	} else {
 		entry->valid = 0;	/* no MAC address yet, awaiting ARP reply*/
-		memset (entry->eth_addr, 0, sizeof(eth_addr_t));
+		memset(entry->eth_addr, 0, sizeof(eth_addr_t));
 	}
 	entry->qpacket = NULL;
 	debug_arp("arp: adding cache entry for %s, valid=%d\n", in_ntoa(ip_addr), entry->valid);

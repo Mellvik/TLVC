@@ -12,7 +12,7 @@
 
 /* Ethernet header (no VLAN tag) */
 
-typedef __u8 eth_addr_t [6];
+typedef __u8 eth_addr_t[6];
 
 struct eth_head_s {
 	eth_addr_t eth_dst;  /* MAC destination address */

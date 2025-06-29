@@ -10,7 +10,7 @@
 #define DEBUG_TCP	0	/* TCP ops*/
 #define DEBUG_TCPPKT	0	/* TCP packets info*/
 #define DEBUG_TCPDATA	0	/* TCP packet data display*/
-#define DEBUG_TUNE	1	/* tuning options*/
+#define DEBUG_TUNE	0	/* tuning options*/
 #define DEBUG_RETRANS	0	/* TCP retransmissions*/
 #define DEBUG_WINDOW	0	/* TCP window size*/
 #define DEBUG_ACCEPT	0	/* TCP accept*/
