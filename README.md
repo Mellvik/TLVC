@@ -9,28 +9,18 @@ Curious? Interested? Please check out the growing collection of really detailed 
 
 TLVC is ready to run. TCP/IP and many of your familiar Linux/Unix applications are included. The system is also in continuous development. Check it out, let us know what you think. You may not find the pre-configured binaries/images you'd like, so make a request. 
 
-_The screen dump below (with a lot of debug info) shows the boot sequence for an early version of TLVC:_
+_The screen dump below (which includes output from the BIOS and the boot process) shows the boot sequence for version 0.8.0 of TLVC:_
 
-<img width="836" alt="Skjermbilde 2023-07-11 kl  13 35 27" src="https://github.com/Mellvik/TLVC/assets/3629880/b3e6c735-4311-483d-a626-14ee214b820b">
+<img width="676" alt="Skjermbilde 2025-06-29 kl  13 53 10" src="https://github.com/user-attachments/assets/2f1d3ee2-8c89-49c9-bba3-38113f1dc3b1" />
 
 ### What TLVC is not
 - … plug and play: You're expected to have some technical proficiency and experience with basic command line tools and development tools, like running menuconfig and familiarity with the make command.
-- … covering all PC variants. TLVC is continuously being tested on several hardware platforms and QEMU but there will always be holes. In particular, pre-AT PCs are hard to come by, i.e. no testing thus far. Contributions welcome.
+- … covering all PC variants. TLVC is continuously being tested on several hardware platforms - XT, AT and later, plus QEMU, but there will always be holes.
 - … a gaming platform. Graphics support is not a priority in TLVC, consider it a text/terminal/command line system.
 
-### Summary of enhancements since ELKS 0.6.0 (as of July 2023)
-- Numerous bug fixes in the kernel and boot code
-- Many fixes and enhancements to utilities
-- A number of new and enhanced man pages
-- New Ethernet drivers: Intel EtherExpress 16 and AMD Lance, the latter is under deveoplment
-- Some Ethernet drivers have optional IO buffering which enables then to be completely interrupt driven: Increased stability and performance
-- Many enhancements and bug fixes in ktcp, the user-space TCP/IP implementation.
-- New 'direct' drivers replace the BIOS hd/floppy driver, making block IO completely interrupt driven. This improvement has improved the general percieved performance of the system as well as the performance and stability of the networking subsystem: No more long delays (while waiting for disk or floppy) which used to cause lots of retransmissions and lost packets.
-- The cross-development system has been updated to run on Apple M- (native ARM) platforms.
-- Command history has been added to the main shell (ash).
-- Raw/char drivers have been added for disk/floppy IO, an important enhancement for both diagnostics and system utilities.
-- Support for XT type disks (MFM, pre-IDE).
-- Support for XT-IDE type disks.
-- Improved user and developer documentation in the Wiki.
+### Summary of enhancements 
+Check out the v0.8.0 release notes for a comprehensive run-through of the changes, enhancements and fixes since the fork.
 
-If you're coming from ELKS, you'll be delighted by the responsiveness of the system. If not, you'll just like the feeling - maybe be impressed by what an old klunker can deliver.
+Also, check out the [Wiki](https://github.com/Mellvik/TLVC/wiki) - lots of updated (and some not quite bnut almost update) reading about the system, the tools and the experience.
+
+If you're coming from ELKS and running on real hardware, you'll probably be delighted by the responsiveness of the system. If not, you'll just like the feeling - maybe be impressed by what an old klunker can deliver.
