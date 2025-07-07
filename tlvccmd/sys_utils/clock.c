@@ -138,9 +138,15 @@
  *
  * v1.6 Work with RTC localtime as well as UTC
  *
- * v1.7 (april 2024 hs/@mellvik TLVC): Add support for ASTCLOCK
+ ******
+ * v1.7 TLVC 
+ * (april 2024 hs/@mellvik): Add support for ASTCLOCK
  * (AST SixPackPlus), seemingly the common choice in pre-AT
  * systems. Supports both NS and Ricoh chips.
+ * Now works even if the CMOS clock is completely uninitialized which previously 
+ * would be considered error: Old computers may get brand new clocks ...
+ * Note however: This does not apply to AST clocks. It must be initialized via
+ * DOS after battery change.
  */
 
 #define errmsg(str) write(STDERR_FILENO, str, sizeof(str) - 1)
@@ -314,7 +320,7 @@ void ast_put_rbcd(int addr, int value)
 
 int ast_getreg(int reg)
 {
-    outb(reg, AST_CMDREG);
+    outb_p(reg, AST_CMDREG);
     return (inb(AST_IOREG));
 }
 
@@ -341,7 +347,7 @@ int ast_chiptype(void)
     /* 86box - when told to emulate ASTCLOCK, returns 2 from all registers */
     /* Otherwise (all hw) returns 0xff */
 
-    if ((ast_getreg(1) + ast_getreg(2) + ast_getreg(3) + ast_getreg(4)) / 4 == ast_getreg(1))
+    if (((ast_getreg(1) + ast_getreg(2) + ast_getreg(3) + ast_getreg(4)) / 4) == ast_getreg(1))
 	return AST_CHIP_NONE;
 
     ast_putreg(AST_CHIPTYPE, tmp);
