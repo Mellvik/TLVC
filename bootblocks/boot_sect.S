@@ -453,7 +453,7 @@ pc98_1b:
 #endif
 	pop %es
 	jnc dr_cont
-	cmp $0x11,%al	// accept soft errors (MFM drives)
+	cmp $0x11,%ah	// accept soft errors (MFM drives)
 	jz dr_cont
 	//mov %ah,%al	// Print error code, comment out the '*' putc
 	//add $0x20,%al	// below to make space
@@ -464,8 +464,8 @@ pc98_1b:
 	int $0x13
 #endif
 	// PATCH: failure trace
-	// Early Compaqs return 0xC1 every 12th block when reading 360k floppies
-	// First retry is fine
+	// Note: Early Compaqs return timeout every 12th block
+	// when reading 360k floppies using FAST_READ
 
 	mov $'*',%al
 	call _putc
