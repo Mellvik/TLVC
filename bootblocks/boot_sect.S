@@ -453,12 +453,19 @@ pc98_1b:
 #endif
 	pop %es
 	jnc dr_cont
+	cmp $0x11,%ah	// accept soft errors (MFM drives)
+	jz dr_cont
+	//mov %ah,%al	// Print error code, comment out the '*' putc
+	//add $0x20,%al	// below to make space
+	//call _putc
 
 #ifndef CONFIG_ARCH_PC98
 	xor %ah,%ah       // BIOS reset disk
 	int $0x13
 #endif
 	// PATCH: failure trace
+	// Note: Early Compaqs return timeout every 12th block
+	// when reading 360k floppies using FAST_READ
 
 	mov $'*',%al
 	call _putc
