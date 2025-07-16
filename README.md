@@ -68,13 +68,13 @@ Sun Jun 29 13:33:43 2025
 login:
 ```
 ### What TLVC is not
-- … plug and play: You're expected to have some technical proficiency and experience with basic command line tools and development tools, like running menuconfig and familiarity with the make command.
-- … covering all PC variants. TLVC is continuously being tested on several hardware platforms - XT, AT and later, plus QEMU, but there will always be holes.
+- … plug and play: You're expected to have some technical proficiency and experience with basic command line tools and development tools, like running `menuconfig` and familiarity with the `make` command. Some understanding of hardware in general and the PC hardware platform in particular is a big plus.
+- … covering all PC variants. TLVC is continuously being tested on several hardware platforms - XT, AT and later, plus QEMU and other emulators, but there will always be holes.
 - … a gaming platform. Graphics support is not a priority in TLVC, consider it a text/terminal/command line system.
 
 ### Summary of enhancements 
 Check out the [v0.8.0 release notes](https://github.com/Mellvik/TLVC/releases/tag/v0.8.0) for a comprehensive run-through of the changes, enhancements and fixes since the fork.
 
-Also, check out the [Wiki](https://github.com/Mellvik/TLVC/wiki) - lots of updated (and some not quite bnut almost update) reading about the system, the tools and the experience.
+Also, check out the [Wiki](https://github.com/Mellvik/TLVC/wiki) - lots of updated (and some not quite up to date) reading about the system, the tools and the experience.
 
 If you're coming from ELKS and running on real hardware, you'll probably be delighted by the responsiveness of the system. If not, you'll just like the feeling - maybe be impressed by what an old klunker can deliver.
