@@ -1,5 +1,5 @@
 /*
- * Telnet for ELKS 
+ * Telnet for ELKS - TLVC
  *
  * Based on minix telnet client.
  * (c) 2001 Harry Kalogirou <harkal@rainbow.cs.unipi.gr>
@@ -25,6 +25,7 @@
 
 //#define DEBUG 1
 //#define RAWTELNET	/* set in telnet and telnetd for raw telnet without IAC*/
+#define ESCAPE 0x1d	/* escape session, effectively terminate */
 
 #if DEBUG
 #define where() (fprintf(stderr, "%s %d:", __FILE__, __LINE__))
@@ -37,6 +38,7 @@ static char *term_env;
 static struct termios def_termios;
 static int writeall (int fd, char *buffer, int buf_size);
 static int process_opt (char *bp, int count);
+static int escape;
 
 void finish()
 {
@@ -51,8 +53,12 @@ static void keybd(void)
 	int count;
 	char buffer[BUFSIZE];
 
-		count= read(0, buffer, sizeof(buffer));
-		if (count <= 0) {
+		count = read(0, buffer, sizeof(buffer));
+		//fprintf(stderr, "got %d (%x)\r\n", count, *buffer);
+		if (count <= 0 || *buffer == escape) { 
+			char *msg = NULL;
+			if (count <= 0) msg = "read error, ";
+			fprintf(stderr, "\r\ntelnet: %ssession terminated\r\n", msg);
 			finish();
 			return;
 		}
@@ -60,7 +66,7 @@ static void keybd(void)
  { where(); fprintf(stderr, "writing %d bytes\r\n", count); }
 #endif
 		count = write(tcp_fd, buffer, count);
-		if (count<0)
+		if (count < 0)
 		{
 			perror("Connection closed");
 			finish();
@@ -130,10 +136,25 @@ int main(int argc, char **argv)
 	int nonblock;
 	ipaddr_t ipaddr;
 
-	if (argc < 2 || argc > 3) {
-		fprintf(stderr, "Usage: %s host <port>\r\n", argv[0]);
+	if (argc < 2) {
+		printf("Usage: %s [-e esc_char] host <port>\n", argv[0]);
 		return 1;
 	}
+	escape = ESCAPE;
+
+	if (*argv[1] == '-') {
+		if (*(argv[1]+1) != 'e') {
+			printf("Usage: %s [-e esc_char] host <port>\n", argv[0]);
+			return 1;
+		}
+		if (*argv[2] != '^')
+			escape = *argv[2];
+		else
+			escape = *(argv[2]+1);
+		escape = (escape&0xdf) - '@';
+		argv += 2;
+	}
+		
 	tcgetattr(0, &def_termios);
 	signal(SIGINT, finish);
 
@@ -166,18 +187,19 @@ int main(int argc, char **argv)
 		perror(argv[1]);
 		return 1;
 	}
-	port = (argc >= 3)? atoi(argv[2]): 23;
+	port = argv[2] ? atoi(argv[2]): 23;
 
 	remadr.sin_family = AF_INET;
 	remadr.sin_port = htons(port);
 	remadr.sin_addr.s_addr = ipaddr;
 
-	printf("Connecting to %s (%s:%u)\n", argv[1], in_ntoa(ipaddr), port);
+	printf("Trying %s (%s:%u)...\n", argv[1], in_ntoa(ipaddr), port);
 	if (in_connect(tcp_fd, (struct sockaddr *)&remadr, sizeof(struct sockaddr_in), 10) < 0) {
 		perror("Connection failed");
 		return 1;
 	}
-	printf("Connected\r\n");
+	printf("Connected\n");
+	printf("Escape character is '^%c'.\n", escape + '@');
 
 #ifdef RAWTELNET
 	{
@@ -216,7 +238,7 @@ int main(int argc, char **argv)
 	if (offset < count) { (var) = bp[offset++]; } \
 	else { if (read(tcp_fd, (char *)&(var), 1) != 1) printf("TELNET BAD READ2\n"); exit(1); }
 
-static void do_option (int optsrt)
+static void do_option(int optsrt)
 {
 	int result;
 	unsigned char reply[3];
@@ -257,7 +279,7 @@ static void do_option (int optsrt)
 		perror("write");
 }
 
-static void will_option (int optsrt)
+static void will_option(int optsrt)
 {
 	int result;
 	unsigned char reply[3];
@@ -325,7 +347,7 @@ static void will_option (int optsrt)
 	}
 }
 
-static int writeall (int fd, char *buffer, int buf_size)
+static int writeall(int fd, char *buffer, int buf_size)
 {
 	int result;
 
@@ -341,7 +363,7 @@ assert (result <= buf_size);
 	return 0;
 }
 
-static void dont_option (int optsrt)
+static void dont_option(int optsrt)
 {
 	switch (optsrt)
 	{
@@ -353,7 +375,7 @@ static void dont_option (int optsrt)
 	}
 }
 
-static void wont_option (int optsrt)
+static void wont_option(int optsrt)
 {
 	switch (optsrt)
 	{
@@ -365,7 +387,7 @@ static void wont_option (int optsrt)
 	}
 }
 
-static int sb_termtype (char *bp, int count)
+static int sb_termtype(char *bp, int count)
 {
 	unsigned char command, iac, optsrt;
 	unsigned char buffer[4];
@@ -434,10 +456,10 @@ ret:
 }
 
 
-static int process_opt (char *bp, int count)
+static int process_opt(char *bp, int count)
 {
 	unsigned char iac, command, optsrt, sb_command;
-	int offset, result;	;
+	int offset, result;
 #if DEBUG
  { where(); fprintf(stderr, "process_opt(bp= 0x%x, count= %d)\r\n",
 	bp, count); }
