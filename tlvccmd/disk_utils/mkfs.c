@@ -318,8 +318,8 @@ int main(int argc, char ** argv)
 	if (!(buf = malloc(512))) 
 		die("Cannot malloc buffer memory"); 
 	if (((BLOCKS -1)<<10) > statbuf.st_size) {
-		printf("Requested blockcount (%lu) exceeds device size (%lu)\n", 
-			BLOCKS, statbuf.st_size);
+		printf("Requested blockcount (%lu) exceeds device size (%luk)\n", 
+			BLOCKS, statbuf.st_size>>10);
 		exit(-1);
 	}
 
