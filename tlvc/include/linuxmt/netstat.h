@@ -46,7 +46,7 @@ struct netif_stat {
 /* The lower nibble has the autodetected buffer memory size,
  * 1=4k, 2=8k, 3=16k etc. */
 #define	NETIF_AUTO_8BIT	0x10	
-#define NETIF_IS_QEMU	0x20
+#define NETIF_IS_QEMU	0x20	/* unused */
 
 /* Config flags 
  * The first 3 make a number - for coding simplicity (a power of two),
