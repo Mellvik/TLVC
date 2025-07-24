@@ -608,7 +608,7 @@ usage:
 	}
 	/* allow image files and raw devices */
 	if (!S_ISREG(sbuf.st_mode) && !S_ISCHR(sbuf.st_mode)) {
-		printf("Must be image file or raw device");
+		printf("Must be image file or raw device\n");
 		exit(1);
 	}
 	blocks = atol(av[2]);

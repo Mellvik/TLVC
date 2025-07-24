@@ -147,7 +147,7 @@ minix2/remsync					:other
 minix2/synctree					:other
 #minix2/tget					:minix2							:1440k
 #minix2/man					:minix2				:1200k	:1440k
-minix3/sed					:minix3			:360
+minix3/sed					:minix3			:360k
 minix3/file					:minix3			:720k
 minix3/head					:minix3			:720k
 minix3/sort					:minix3			:720k
