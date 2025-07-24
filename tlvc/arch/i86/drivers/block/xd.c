@@ -21,8 +21,8 @@
  *
  * - Using a MFM controller on a AT or later machine may or may not work. 1st gen
  *   AT machines emulate MFM controllers @ 0x320 for compatibility, masking the fact that
- *   the disk(s) are IDE/ATA. Adding a physical mfm controller at that address
- *   may or may not work.
+ *   the disk(s) are really IDE/ATA. Adding a physical mfm controller at that address
+ *   will most likely cause a hang during initialization.
  *
  * - There is no 'standard' MFM controller. All have the same basic command set, most
  *   have extensions and the behaviour of the 'state machine' governing the command
@@ -31,13 +31,17 @@
  *   type and details. We don't have space for that, and assume the default 10MB CHS
  *   values (304/4/17/128) unless /bootopts is used to define the size.
  *   The last value in the bootopts parameter quadruple is the Write Precompensation
- *   track, aka WPCOM, which seems to  be important only for the oldest drives.
- *   A good thing n this mess is that since all drives in this category have (or emulate) 17
+ *   track, aka WPCOM, which seems to be important only for the oldest drives.
+ *   A good thing in this mess is that since all drives in this category have (or emulate) 17
  *   sectors, there is no problem booting even if the real size of the drive is unknown
  *   at that point. After booting, TLVC can make its own assumptions about size.
  *   Note however, that the controller needs to be told the CHS values we plan to use
  *   in order to provide access to the entire drive w/o errors (see the xd_setparam()
  *   function).
+ *
+ * - SOME CONTROLLERS CAN NEVER WORK: Some 3rd gen MFM controllers, like the Longshine LCS6210D,
+ *   work only via the embedded BIOS. No API, no IOports, no IRQ lines, no DMA ACK lines etc.
+ *   The driver will just not find such controllers. Use BIOS HD instead.
  *
  * - A drive 'works' only with the type of controller with which it was formatted. 
  *   IOW moving drives around is a no-go. Newer controllers (actually most except the 
@@ -45,16 +49,16 @@
  *   started from MSDOS DEBUG, typically at C800:5. For the older controllers, other
  *   tricks are required.
  *
- * - Pending the availability of a MFM formatting utility for TLVC, a crude formatter is
- *   included in the driver. If compiled in (#define ALLOW_FORMATTING), set the /bootopts
- *   sector count for the drive to 0, and a drive format will be attempted.
+ * - FORMATTING: Pending the availability of a MFM formatting utility for TLVC, a crude 
+ *   formatter is included in the driver. If compiled in (#define ALLOW_FORMATTING), 
+ *   set the /bootopts sector count for the drive to -1, and a drive format will be attempted.
  *   [Obviously, the sector count needs to be reset to normal before the next boot.]
  *   There is no safe way (at this point) to detect the completion of the format process
  *   other than keeping an eye on the activity LED. No LED activity means formatting has 
  *   stopped - completed or failed. Check the status code returned to find out which. 
  *   It's important to set the correct CHSW parameters before the formatting. Also notice
  *   that the interleave is preset to 5, which is good for <8MHz machines, otherwise use 4.
- *   It is also worth noticing that neither the set drive parameter nor the format command 
+ *   It is also worth noticing that neither the 'set drive' parameter nor the format command 
  *   take a sector count parameter, it is apparently assumed that the sector count is always 17. 
  *
  * - INTERLEAVE: The Hard Drive Bible disagrees with the above (which comes from a WD document).
@@ -70,10 +74,6 @@
  *   is not hard-disk bootable though (floppy OK).
  *
  * - RESET: On some controllers, the drive parameters must be re-programmed after a reset.
- *
- * - SOME CONTROLLERS CAN NEVER WORK: Some 3rd gen MFM controllers, like the Longshine LCS6210D,
- *   work only via the embedded BIOS. No API, no IOports, no IRQ lines, no DMA ACK lines etc.
- *   The driver will just not find such controllers. Use BIOS HD instead.
  */
 
 /*
@@ -81,7 +81,7 @@
  * - Add ioctl to manipulate runtime parameters, such as automatic retries -
  *   to be able to continue after hard errors and to support real performance 
  *   testing.
- * - Add format utility.
+ * - Add a real format capability via IOCTL
  */
 
 #include <linuxmt/config.h>
@@ -151,7 +151,7 @@
 #define XD_RESET	(MHD_PORT + 0x01)	/* reset WO register */
 #define XD_STATUS	(MHD_PORT + 0x01)	/* status RO register */
 #define XD_SELECT	(MHD_PORT + 0x02)	/* select WO register */
-#define XD_JUMPER	(MHD_PORT + 0x02)	/* jumper RO register */
+#define XD_JUMPER	(MHD_PORT + 0x02)	/* jumper RO register (not used) */
 #define XD_CONTROL	(MHD_PORT + 0x03)	/* DMAE/INTE WO register */
 
 /* Bits for command status byte */
@@ -224,11 +224,12 @@ static void setup_DMA(void);
 static void deverror(int, byte_t *);
 //static int get_drive_type(int); 
 static void do_xdintr(int, struct pt_regs *);
-static int xd_waitport(byte_t, byte_t, int);
+static int xd_waitstat(byte_t, byte_t, int);
 static void redo_xd_request(void);
 static void xd_build (byte_t *, byte_t, byte_t, byte_t, word_t, byte_t, byte_t, byte_t);
 static int xd_recal(int);
 static word_t xd_command(byte_t *, byte_t, byte_t *, byte_t *, byte_t *, int);
+static int INITPROC xd_drive_rdy(int);
 
 /* Externals */
 size_t block_wr(struct inode *, struct file *, char *, size_t);
@@ -237,7 +238,7 @@ size_t block_rd(struct inode *, struct file *, char *, size_t);
 //#define ALLOW_FORMATTING	/* comment out to avoid accidental disasters */
 
 #ifdef ALLOW_FORMATTING
-static void xd_format(int);
+static void INITPROC xd_format(int);
 #endif
 
 //#define DEBUG
@@ -513,7 +514,7 @@ static void do_xdintr(int irq, struct pt_regs *regs)
 			cmd[0] = CMD_SENSE;
 			cmd[1] = drive << 5;
 			//if (xdcmd(CMD_SENSE, PIO_MODE, drive))
-			//if (!xdcmd(cmd, PIO_MODE) && !xd_waitport(STAT_READY, STAT_READY, 20))
+			//if (!xdcmd(cmd, PIO_MODE) && !xd_waitstat(STAT_READY, STAT_READY, 20))
 			    //j = inb_p(XD_DATA) & 0x3f;	/* get 1st byte of SENSE data */
 
 			/* get error code */
@@ -572,8 +573,6 @@ void xd_release(struct inode *inode, struct file *filp)
 
 static int INITPROC xd_reset(void)
 {
-	int in, i = 100;
-
 #if 1
 	int prev;
 	outb_p(0, XD_RESET);
@@ -587,24 +586,26 @@ static int INITPROC xd_reset(void)
 #else
 	printk(" DEBUG: not resetting controller;");
 #endif
-	/* FIXME: Use xd_waitport() */
+
+#if 0
+	int in, i = 100;
 	do {
 		mdelay(100);		/* may not be needed */
 		outb(0, XD_SELECT);
 		in = inb_p(XD_STATUS);
-		//if (in != prev) {
-			//printk("%x;", in);
-			//prev = in;
-		//}
 	} while (!(in & STAT_SELECT) && i--);
 
 	/* Compaq controller returns 0xc8, 86box emulating 'IBM Fixed Disk Controller'
 	 * returns 0x0d (SELECT, COMMAND, READY) */
 	//printk(" xd reset returned %x;", in);
 	return(!i);
+#else
+	outb(0, XD_SELECT);
+	return(xd_waitstat(STAT_SELECT, STAT_SELECT, HZ));
+#endif
 }
 
-/* INITPROC for now. Eventually, this function will be called from ioctl too. */
+/* INITPROC for now. Eventually, this function may be called from ioctl */
 static void INITPROC xd_setparam(byte_t drive, byte_t heads, word_t cyls, 
 						word_t wprecomp)
 {
@@ -643,31 +644,37 @@ void INITPROC xd_init(void)
 
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
-    err = request_irq(MHD_IRQ, do_xdintr, INT_GENERIC);
-    if (err) {
-    	printk("Unable to grab IRQ%d for XD driver\n", MHD_IRQ);
-	return;
-    }
     if (request_dma(MHD_DMA, (void *)DEVICE_NAME)) {
     	printk("md: Unable to get DMA%d for XD driver\n", MHD_DMA);
 	return;
+    }
+
+    /* it would be cleaner to not allocate DMA & IRQ until we know we have a controller
+     * and at least one drive, but the reset may trigger interrupts and it's useful to
+     * know when that happens and where they're coming from
+     */
+    err = request_irq(MHD_IRQ, do_xdintr, INT_GENERIC);
+    if (err) {
+    	printk("Unable to grab IRQ%d for XD driver\n", MHD_IRQ);
+	return;		/* sould release the DMA chan, but it doesn't matter much */
     }
 
     printk("xd: MFM disk controller @ 0x%x, irq %d, DMA %d", MHD_PORT, MHD_IRQ, MHD_DMA);
 
     if (xd_reset()) {	/* works as a probe */
 	printk(" not found\n");
+	free_irq(MHD_IRQ);	/* don't lock up this irq if there is no controller */
 	return;
     }
-    printk("\n");	/* controller found, are there any drives attached? */
+    printk("\n");	/* controller found, any drives attached? */
 
     for (drive = 0; drive < MAX_XD_DRIVES; drive++) { /* initialize 1 until probe works */
     	struct drive_infot *dp = &drive_info[drive];
 	int chs_src;
 
 	/* Check if drive is present */
-	if (xd_recal(drive)) {
-		//printk("xd%d: no drive\n", drive); 	/* DEBUG - remove */
+	if (xd_drive_rdy(drive)) {
+		//printk("xd%c: no drive\n", drive+'a'); 	/* DEBUG - remove */
 		continue;
 	}
 
@@ -684,7 +691,7 @@ void INITPROC xd_init(void)
 	 * smart choice.
 	 * Note: Old BIOSes will happily respond to CHS queries for non-existent drives!
 	 */
-	i = drive*4;
+	i = drive*4;		/* hdparms[] has 4 entries per drive */
 	if (hdparms[i]) {
 	    chs_src = 1;
 	    dp->cylinders = hdparms[i];
@@ -723,6 +730,7 @@ void INITPROC xd_init(void)
     }
     if (!hdcount) {
     	printk("xd: No drives found\n");
+	free_irq(MHD_IRQ);
 	return;
     }
     xd_gendisk.nr_real = hdcount;
@@ -783,7 +791,7 @@ static void deverror(int drive, byte_t *sense)
 }
 
 /* crude status wait loop */
-static int xd_waitport(byte_t flags, byte_t mask, int timeout)
+static int xd_waitstat(byte_t flags, byte_t mask, int timeout)
 {
 	unsigned long expiry = jiffies + (unsigned long)timeout;
 
@@ -808,22 +816,22 @@ static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 	word_t csb;
 	byte_t complete = 0;
 
-	debug_xd("xd_command: cmd = 0x%X, mode = 0x%X, indata = 0x%X, outdata = 0x%X, sense = 0x%X\n",
-			*command, mode, indata, outdata, sense);
+	debug_xd("xd_command: cmd = 0x%X, drv = %d, mode = 0x%X, indata = 0x%X, outdata = 0x%X, sense = 0x%X\n",
+			*command, *(command+1)>>5, mode, indata, outdata, sense);
 
 	//printk("Cm0x%x;", command[0]);
 	outb(0, XD_SELECT);
 	outb(mode, XD_CONTROL);
 
-	if (xd_waitport(STAT_SELECT, STAT_SELECT, timeout))
+	if (xd_waitstat(STAT_SELECT, STAT_SELECT, timeout))
 		return 1;
 
 	while (!complete) {
-		if (xd_waitport(STAT_READY, STAT_READY, timeout))
+		if (xd_waitstat(STAT_READY, STAT_READY, timeout))
 			return 10;
 
 		switch (inb(XD_STATUS) & (STAT_COMMAND | STAT_INPUT)) {
-			case 0:
+			case 0:		/* mode: data out (to drive) */
 				if (mode == DMA_MODE) {
 					/* write via DMA command issued */
 					complete++;
@@ -864,7 +872,7 @@ static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 	
 	//if (csb == 0xff) csb = 0;	/* DEBUG FIXME (for 86Box) */
 
-	if (xd_waitport(0, STAT_SELECT, timeout))	/* wait until deselected */
+	if (xd_waitstat(0, STAT_SELECT, timeout))	/* wait until deselected */
 		return 3;
 
 	/* Error processing for non-DMA commands */
@@ -892,7 +900,9 @@ static void xd_build(byte_t *cmdblk, byte_t command, byte_t drive, byte_t head,
 	cmdblk[5] = control;
 }
 
+#ifdef UNUSED
 /* xd_recal: recalibrate a given drive and reset controller if necessary */
+/* Notice: RECAL is very slow on some early controllers, up to 3.5 secs  */
 static int xd_recal(int drive)
 {
 	byte_t cmd[6];
@@ -901,6 +911,14 @@ static int xd_recal(int drive)
 
 	/* RECAL simply tells the drive to return to track zero */
 	xd_build(cmd, CMD_RECAL, drive, 0, 0, 0, 0, XD_CNTF);
+	return(xd_command(cmd, PIO_MODE, NULL, NULL, NULL, XD_TIMEOUT * 8));
+}
+#endif
+
+static int INITPROC xd_drive_rdy(int drive)
+{
+	byte_t cmd[6];
+	xd_build(cmd, CMD_TESTREADY, drive, 0, 0, 0, 0, XD_CNTF);
 	return(xd_command(cmd, PIO_MODE, NULL, NULL, NULL, XD_TIMEOUT * 8));
 }
 
@@ -912,7 +930,7 @@ static int xd_recal(int drive)
  * write a utility to use it. Useful because a drive will have to be formatted
  * by the controller in use, there is no swapping drives around.
  */
-static void xd_format(int drive)
+static void INITPROC xd_format(int drive)
 {
 	byte_t cmd[6], sense[4];
 
