@@ -115,8 +115,9 @@
 #define EE16_FLAGS	0x80
 
 /* AMD LANCE (7990) and some later variants, like th 79C760 */
-#define LANCE_PORT	0x350
-#define LANCE_IRQ	11
+#define LANCE_PORT	0x340
+#define LANCE_IRQ	9
+#define LANCE_DMA	5
 #define LANCE_FLAGS	0x80
 
 /* IDE hard drive, directhd.c */

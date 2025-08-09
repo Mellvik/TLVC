@@ -158,7 +158,8 @@
 */
 
 #if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
-#define XD_BOUNCESEGSZ		0x400
+//#define XD_BOUNCESEGSZ		0x400
+#define XD_BOUNCESEGSZ		0x610	/* must hold a complete packet */
 #else
 #define XD_BOUNCESEGSZ		0
 #endif

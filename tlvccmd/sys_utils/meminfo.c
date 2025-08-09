@@ -63,7 +63,7 @@ struct proc_list_s {
 
 static long_t total_segsize = 0;
 static char *segtype[] =
-    { "free", "CSEG", "DSEG", "DDAT", "FDAT", "BUF ", "RDSK", "BUFH" };
+    { "free", "CSEG", "DSEG", "DDAT", "FDAT", "EBUF", "RDSK", "BUFH", "NBUF" };
 struct pseg_s { seg_t base, end; } heap[MAX_BLOCKS], segs[MAX_BLOCKS], extbuf;
 unsigned int free_cnt[MAX_BLOCKS];
 
@@ -427,7 +427,7 @@ void mem_map(void)
 		p_block(5, (long_t)s_size<<4, "Kernel text", "");
 		p_divider(cs, "");
 	} else cs = ftext;
-	if (XD_BOUNCESEGSZ) {	/* bounce buffer for MFM/Lance configured, 1k */
+	if (XD_BOUNCESEGSZ) {	/* bounce buffer for MFM/Lance configured */
 	    p_block(1, (long_t)XD_BOUNCESEGSZ, "XD/Lance bounce", "");
 	    start = cs - (XD_BOUNCESEGSZ>>4);
 	    p_divider(start, "");

@@ -81,7 +81,7 @@ int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
 int xms_size, xms_avail, xms_start, hma_avail;	/* descriptions in xms.c */
 int xms_mode;
-unsigned char macaddr[6];
+unsigned char macaddr[6];	/* if set in bootopts */
 
 static int boot_console;
 static char bininit[] = "/bin/init";
