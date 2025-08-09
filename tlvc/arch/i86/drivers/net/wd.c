@@ -73,9 +73,9 @@
 #define net_ram		(netif_parms[ETH_WD].ram)
 #define net_flags	(netif_parms[ETH_WD].flags)
 
-#define WD_STAT_RX	0x0001U	/* packet received */
-#define WD_STAT_TX	0x0002U	/* packet sent */
-#define WD_STAT_OF	0x0010U	/* RX ring overflow */
+#define WD_STAT_RX	0x0001	/* packet received */
+#define WD_STAT_TX	0x0002	/* packet sent */
+#define WD_STAT_OF	0x0010	/* RX ring overflow */
 
 #define WD_START_PG	0x00U	/* First page of TX buffer */
 #define WD_STOP_PG4	0x10U	/* Only used for arithmetic */
@@ -92,8 +92,8 @@
 
 #define WD_RESET	0x80U	/* Board reset */
 #define WD_MEMENB	0x40U	/* Enable the shared memory */
-#define WD_IO_EXTENT	32U
-#define WD_8390_OFFSET	16U
+#define WD_IO_EXTENT	32
+#define WD_8390_OFFSET	16
 #define WD_8390_PORT	(net_port + WD_8390_OFFSET)
 #define WD_CMDREG5	5	/* Offset to 16-bit-only ASIC register 5. */
 
@@ -119,32 +119,32 @@
 #define E8390_RX_IRQ_MASK	0x05U
 
 /* Page 0 register offsets. */
-#define EN0_CLDALO	0x01U	/* Low byte of current local dma addr  RD */
-#define EN0_STARTPG	0x01U	/* Starting page of ring bfr WR */
-#define EN0_CLDAHI	0x02U	/* High byte of current local dma addr  RD */
-#define EN0_STOPPG	0x02U	/* Ending page +1 of ring bfr WR */
-#define EN0_BOUNDARY	0x03U	/* Boundary page of ring bfr RD WR */
-#define EN0_TSR		0x04U	/* Transmit status reg RD */
-#define EN0_TPSR	0x04U	/* Transmit starting page WR */
-#define EN0_NCR		0x05U	/* Number of collision reg RD */
-#define EN0_TCNTLO	0x05U	/* Low  byte of tx byte count WR */
-#define EN0_FIFO	0x06U	/* FIFO RD */
-#define EN0_TCNTHI	0x06U	/* High byte of tx byte count WR */
-#define EN0_ISR		0x07U	/* Interrupt status reg RD WR */
-#define EN0_CRDALO	0x08U	/* low byte of current remote dma address RD */
-#define EN0_RSARLO	0x08U	/* Remote start address reg 0 */
-#define EN0_CRDAHI	0x09U	/* high byte, current remote dma address RD */
-#define EN0_RSARHI	0x09U	/* Remote start address reg 1 */
-#define EN0_RCNTLO	0x0aU	/* Remote byte count reg WR */
-#define EN0_RCNTHI	0x0bU	/* Remote byte count reg WR */
-#define EN0_RSR		0x0cU	/* rx status reg RD */
-#define EN0_RXCR	0x0cU	/* RX configuration reg WR */
-#define EN0_TXCR	0x0dU	/* TX configuration reg WR */
-#define EN0_COUNTER0	0x0dU	/* Rcv alignment error counter RD */
-#define EN0_DCFG	0x0eU	/* Data configuration reg WR */
-#define EN0_COUNTER1	0x0eU	/* Rcv CRC error counter RD */
-#define EN0_IMR		0x0fU	/* Interrupt mask reg WR */
-#define EN0_COUNTER2	0x0fU	/* Rcv missed frame error counter RD */
+#define EN0_CLDALO	0x01	/* Low byte of current local dma addr  RD */
+#define EN0_STARTPG	0x01	/* Starting page of ring bfr WR */
+#define EN0_CLDAHI	0x02	/* High byte of current local dma addr  RD */
+#define EN0_STOPPG	0x02	/* Ending page +1 of ring bfr WR */
+#define EN0_BOUNDARY	0x03	/* Boundary page of ring bfr RD WR */
+#define EN0_TSR		0x04	/* Transmit status reg RD */
+#define EN0_TPSR	0x04	/* Transmit starting page WR */
+#define EN0_NCR		0x05	/* Number of collision reg RD */
+#define EN0_TCNTLO	0x05	/* Low  byte of tx byte count WR */
+#define EN0_FIFO	0x06	/* FIFO RD */
+#define EN0_TCNTHI	0x06	/* High byte of tx byte count WR */
+#define EN0_ISR		0x07	/* Interrupt status reg RD WR */
+#define EN0_CRDALO	0x08	/* low byte of current remote dma address RD */
+#define EN0_RSARLO	0x08	/* Remote start address reg 0 */
+#define EN0_CRDAHI	0x09	/* high byte, current remote dma address RD */
+#define EN0_RSARHI	0x09	/* Remote start address reg 1 */
+#define EN0_RCNTLO	0x0a	/* Remote byte count reg WR */
+#define EN0_RCNTHI	0x0b	/* Remote byte count reg WR */
+#define EN0_RSR		0x0c	/* rx status reg RD */
+#define EN0_RXCR	0x0c	/* RX configuration reg WR */
+#define EN0_TXCR	0x0d	/* TX configuration reg WR */
+#define EN0_COUNTER0	0x0d	/* Rcv alignment error counter RD */
+#define EN0_DCFG	0x0e	/* Data configuration reg WR */
+#define EN0_COUNTER1	0x0e	/* Rcv CRC error counter RD */
+#define EN0_IMR		0x0f	/* Interrupt mask reg WR */
+#define EN0_COUNTER2	0x0f	/* Rcv missed frame error counter RD */
 
 /* Page 1 register offsets. */
 #define EN1_PHYS	0x01U	/* This board's physical enet addr RD WR */
@@ -215,6 +215,7 @@ static word_t wd_rx_stat(void);
 static word_t wd_tx_stat(void);
 static void wd_int(int irq, struct pt_regs * regs);
 static void fmemcpy(void *, seg_t, void *, seg_t, size_t, int);
+static void wd_stop(void);
 
 extern struct eth eths[];
 
@@ -283,6 +284,7 @@ static int INITPROC wd_probe(void) {
 #if DEBUG
 	printk("net_flags %04x stop_page %02x verbose %d\n", net_flags, stop_page, verbose);
 #endif
+	wd_stop();	/* make sure interrupts are off */
 
 	return 0;
 }
@@ -332,8 +334,8 @@ static void wd_init_8390(int strategy)
 	outb(E8390_TXOFF, WD_8390_PORT + EN0_TXCR);
 
 	/* Clear the pending interrupts and mask. */
-	outb(0xffU, WD_8390_PORT + EN0_ISR);
-	outb(0x00U, WD_8390_PORT + EN0_IMR);
+	outb(0xff, WD_8390_PORT + EN0_ISR);
+	outb(0x00, WD_8390_PORT + EN0_IMR);
 
 	if (strategy == 0) {	/* full initialization */
 		/* Set the transmit page and receive ring. */
@@ -433,7 +435,7 @@ static size_t wd_pack_get(char *data, size_t len)
 	size_t res = -EIO;
 
 	//clr_irq();	// EXPERIMENTAL
-	outb(0x00U, WD_8390_PORT + EN0_IMR);	// Block interrupts
+	outb(0x00, WD_8390_PORT + EN0_IMR);	// Block interrupts
 	do {
 		/* Remove one frame from the ring. */
 		/* Boundary is always a page behind. */
@@ -443,10 +445,10 @@ static size_t wd_pack_get(char *data, size_t len)
 		if (this_frame != current_rx_page)	/* Very useful for debugging ! */
 			printk("eth: mismatched read page pointers %2x vs %2x.\n",
 				this_frame, current_rx_page);
-		hdr_start = (this_frame - WD_START_PG) << 8U;
+		hdr_start = (this_frame - WD_START_PG) << 8;
 		rxhdr = _MK_FP(net_ram, hdr_start);
 
-		if ((rxhdr->count < 64U) ||
+		if ((rxhdr->count < 64) ||
 		    (rxhdr->count > (MAX_PACKET_ETH + sizeof(e8390_pkt_hdr)))) {
 
 			/* This should not happen! The NIC is programmed to drop

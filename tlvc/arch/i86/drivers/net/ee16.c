@@ -815,20 +815,19 @@ static int ee16_open(struct inode *inode, struct file *file)
 	if (!found) 
 		return -ENODEV;
 
-	if (usecount != 0)
-		return 0;		// Already open, success
-
-	err = request_irq(net_irq, ee16_int, INT_GENERIC);
-	if (err) {
-		printk(EMSG_IRQERR, model_name, net_irq, err);
-		return err;
+	if (!usecount) {
+		err = request_irq(net_irq, ee16_int, INT_GENERIC);
+		if (err) {
+			printk(EMSG_IRQERR, model_name, net_irq, err);
+			return err;
+		}
+		if ((err = ee16_hw_init586(net_port))) {
+			free_irq(net_irq);
+			printk("%s: initialization failed (%d)\n", dev_name, err);
+			return -ENODEV;
+		}
+ 		ee16_hw_set_interface();	/* set conn type from flags	*/
 	}
-	if ((err = ee16_hw_init586(net_port))) {
-		free_irq(net_irq);
-		printk("%s: initialization failed (%d)\n", dev_name, err);
-		return -ENODEV;
-	}
- 	ee16_hw_set_interface();	/* set conn type from flags	*/
 	usecount++;
 	return 0;
 }

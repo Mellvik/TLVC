@@ -505,23 +505,32 @@ void ne2k_display_status(void)
 
 void INITPROC ne2k_drv_init(void)
 {
-	int i, j, k;
+	int i;
 	word_t prom[16];/* PROM containing HW MAC address and more 
 			 * (aka SAPROM, Station Address PROM).
 			 * PROM size is 16 words, the low byte holding the info
 			 * (newer cards may have proprietary info in the high byte).
 			 *
-			 * QEMU duplicates the low byte to the high byte, which we use
-			 * to set the QEMU flag (for ftp). This feature is currently
-			 * unused as there is no way to pass that info up to ftp.
-			 *
 			 * The MAC address occupies the first 6 words, followed by a 'card signature'
-			 * which is usually empty except for bytes 28 and 30, which contain
-			 * a 'B' if it's an 8bit card, 'W' if it's a 16bit card.
-			 * If a NIC doesn't implement this feature, 16-bit mode
-			 * may be forced using the flag field in /bootopts - just like a 16bit
-			 * card may be forced to run in 8bit mode.
+			 * which is usually empty except for bytes 28 and 30 (*words* 14 and 15), 
+			 * which contain a 'B' if it's an 8bit card, 'W' if it's a 16bit card.
+			 *
+			 * BUT - if it's a 8bit card, there is only 16 bytes to read. So the reading
+			 * delivers different results depending on system bus width, card bus width 
+			 * and whether an INB or INW instruction is used for reading.
+			 * The only way (AFAIK) to generalize this is to always use byte-read (INB).
+			 * This will deliver a 32 byte array/16 words where the upper byte 
+			 * is either 00 or a duplicate of the lower byte, and can be discarded.
+			 *
+			 * From this point on it's simple: Set word mode if the system and the card
+			 * are both 16 bit, otherwise keep byte mode.
+			 *
+			 * If for some reason this autodetect procedure doesn't work, the bus width 
+			 * may be set via the FLAGS. In such cases, the driver may
+			 * not be able to collect the correct MAC address for the interface, and the 
+			 * mac= setting in /bootopts must be used.
 			 */
+
 	byte_t *cprom, *mac_addr;
 
 	netif_stat.oflow_keep = 0;	/* Default - clear buffer if overflow.
@@ -542,37 +551,37 @@ void INITPROC ne2k_drv_init(void)
 		printk(" not found\n");
 		return;
 	}
-
-	found = 1;
 	cprom = (byte_t *)prom;
+	ne2k_flags = ETHF_8BIT_BUS;	/* Force byte size PROM read */
 	ne2k_get_hw_addr(prom);
-
-	j = k = 0;
-
 #if 0
 	for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
 	printk("\n");
 #endif
 
+#if 0	/* MAC address sanity check */
+	int j = 0;
 	for (i = 0; i < 12; i += 2) {
-		k += cprom[i]-cprom[i+1];	/* QEMU test */
-		j += cprom[i];			/* All zero test */
+		j += cprom[i];
 	}
+	if (j == (cprom[0]*6) || !j) {
+		printk("ne0: MAC address error, sum is %x\n", j);
+		return;
+	}
+#endif
+	found = 1;
 
-					// FIX THIS, read EPROM consistently
-	if (!(net_flags&ETHF_16BIT_BUS) && ((cprom[28] == 'B' && cprom[30] == 'B') ||
-					    (cprom[14] == 'B' && cprom[15] == 'B'))) {
-		ne2k_flags = ETHF_8BIT_BUS;
-		model_name[2] = '1';
-		netif_stat.if_status |= NETIF_AUTO_8BIT; 
+	if (net_flags&ETHF_16BIT_BUS || (arch_cpu > 2 && cprom[28] == 'W' && cprom[30] == 'W')) {
+		ne2k_flags = 0;		/* 16 bit NIC in 16 bit machine */
 	} else {
-		for (i = 0; i < 16; i++) cprom[i] = (char)prom[i]&0xff;
-		ne2k_flags = 0;
+		if (cprom[28] == 'B') model_name[2] = '1';
+		netif_stat.if_status |= NETIF_AUTO_8BIT; 
 	}
-	if (!k && j) {
-		netif_stat.if_status |= NETIF_IS_QEMU;
-		running_qemu = 1;
-	}
+#define PICOMEM_HACK	/* get around bug in PicoMem ne1k emulator */
+#ifdef PICOMEM_HACK
+	if (cprom[12] != 'W')
+#endif
+	for (i = 0; i < 16; i++) cprom[i] = (byte_t)prom[i]&0xff;
 #if 0
 	for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
 	printk("\n");
@@ -581,23 +590,20 @@ void INITPROC ne2k_drv_init(void)
 		cprom = macaddr;
 
 	memcpy(mac_addr, cprom, 6);
-	printk(", (%s) MAC %02x%s", model_name, mac_addr[0], cprom==macaddr? " (from bootopts)":"");
+	printk(", (%s) MAC %s%02x", model_name, cprom==macaddr? "(from bootopts) ":"", mac_addr[0]);
 	ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works from ktcp */
 
 	i = 1;
 	while (i < 6) printk(":%02x", mac_addr[i++]);
 	if (net_flags&ETHF_8BIT_BUS) {
 		/* flag that we're forcing 8 bit bus on 16 NIC */
-		if (!ne2k_flags) printk(" (8bit)");
+		if (!ne2k_flags || cprom[28] == 'W') printk(" (8bit)");
 		ne2k_flags = ETHF_8BIT_BUS; 	/* Forced 8bit */
 	} else if (net_flags&ETHF_16BIT_BUS) {
-		ne2k_flags = 0;	/* no other flags set yet */
 		printk(" (16bit)");
 	}
 	if (!(ne2k_flags&ETHF_8BIT_BUS))
-		netif_stat.oflow_keep = 3;	// Experimental: use 3 if 16k buffer
-	if (netif_stat.if_status & NETIF_IS_QEMU) 
-		printk(" (QEMU)");
+		netif_stat.oflow_keep = 3;	// Experimental: keep 3 if 16k buffer
 
 	/* The _BUF flags indicate forced NIC buffer size, ZERO means use defaults */
 	if (net_flags&(ETHF_4K_BUF|ETHF_8K_BUF|ETHF_16K_BUF)) {

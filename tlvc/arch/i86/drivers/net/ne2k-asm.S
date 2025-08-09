@@ -5,12 +5,9 @@
 //	. pick up MAC address from prom
 //	. fixed read ring buffer wrap around errors
 //	. added ring buffer overflow handling
-//	. use word I/O
-// oct-2021: Pick up I/O port # from init/bootopts (HS)
-// Updated by Santiago Hormazabal on Dec 2021:
-//  . 8 bit access if CONFIG_ETH_BYTE_ACCESS is set, using a ne1k patch from
-//    NCommander.
-// apr-2022 (HS) : Support auto detection of 8bit mode, set 8k buffer size when in 8bit mode.
+//	. use word I/O when possible
+// oct-2021 (HS): Pick up I/O port # from init/bootopts 
+// apr-2022 (HS): Support auto detection of 8bit mode, set 8k buffer size when in 8bit mode.
 //	     Rewrote overflow handler, added direct access to many registers from C code
 //	     Cleaned up initialization code, optimized 8bit I/O
 //
@@ -28,8 +25,6 @@
 //
 //-----------------------------------------------------------------------------
 
-//#include <linuxmt/config.h>
-//#include "arch/ports.h"
 #include <arch/asm-offsets.h>
 #include <linuxmt/netstat.h>
 #include "netbuf.h"
@@ -62,9 +57,9 @@ io_ne2k_tx_conf    = 0x0D  // page 0 - write
 io_ne2k_data_conf  = 0x0E  // page 0 - write
 io_ne2k_int_mask   = 0x0F  // page 0 - write
 
-io_ne2k_frame_errs = 0x0D	// page 0 read - Frame Alignment Error counter
-io_ne2k_crc_errs   = 0x0E	// page 0 read - CRC error counter
-io_ne2k_lost_pkts  = 0x0F	// page 0 read - Lost packet counter
+io_ne2k_frame_errs = 0x0D  // page 0 read - Frame Alignment Error counter
+io_ne2k_crc_errs   = 0x0E  // page 0 read - CRC error counter
+io_ne2k_lost_pkts  = 0x0F  // page 0 read - Lost packet counter
 
 io_ne2k_unicast    = 0x01  // page 1 - 6 bytes
 io_ne2k_rx_put     = 0x07  // page 1
@@ -72,7 +67,7 @@ io_ne2k_multicast  = 0x08  // page 1 - 8 bytes
 
 io_ne2k_data_io    = 0x10  // 2 bytes
 
-io_ne2k_reset      = 0x1F	// Really a port, not a register, force HW reset of the chip
+io_ne2k_reset      = 0x1F  // Really a port, not a register, force HW reset of the chip
 
 
 // Ring segmentation
@@ -80,7 +75,7 @@ io_ne2k_reset      = 0x1F	// Really a port, not a register, force HW reset of th
 tx_head		   = 0x40
 rx_head		   = 0x46
 rx_last_16	   = 0x80
-rx_last_8	   = 0x60	// For 8k buffer in 8 bit mode - per spec. 
+rx_last_8	   = 0x60  // For 8k buffer in 8 bit mode - per spec. 
 
 // Flags
 
@@ -1004,9 +999,10 @@ ne2k_get_hw_addr:
 
 	// Effectively a soft reset of the NIC, required in order to get access to the
 	// address PROM. The PROM is 16 or 32 bytes depending on the bus width. We read
-	// it in word mode and always get 32 back.
-	// The MAC address is in the first 6 bytes.
-	// The remaining 10 bytes sometimes identify the card type. The PROM content from 
+	// it in word mode and always return 16 words. Whether the upper byte of each 
+	// word has any content of value is card dependent.
+	// The MAC address is in the first 6 words.
+	// The remaining 10 words sometimes identify the card type. The PROM content from 
 	// an 8 bit Weird Electronics (RTL8019AS) card looks like this:
 	// 001f1102602d49534138455448204242, the last 10 bytes being 'ISA8ETH BB'.
 	// The BB means it's an 8bit card, WW would indicate 16bit bus support.
