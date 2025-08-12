@@ -57,7 +57,7 @@ struct netif_parms netif_parms[MAX_ETHS] = {
     { WD_IRQ, WD_PORT, WD_RAM, WD_FLAGS },
     { EL3_IRQ, EL3_PORT, 0, EL3_FLAGS },
     { EE16_IRQ, EE16_PORT, EE16_RAM, EE16_FLAGS },
-    { LANCE_IRQ, LANCE_PORT, 0, LANCE_FLAGS },
+    { LANCE_IRQ, LANCE_PORT, LANCE_DMA, LANCE_FLAGS },
 };
 seg_t kernel_cs, kernel_ds;
 int tracing;
@@ -605,7 +605,7 @@ static void INITPROC parse_nic(char *line, struct netif_parms *parms)
         if ((p = strchr(p+1, ','))) {
             parms->ram = (int)simple_strtol(p+1, 16);
             if ((p = strchr(p+1, ',')))
-                parms->flags = (int)simple_strtol(p+1, 0);
+                parms->flags = (unsigned)simple_strtol(p+1, 0);
         }
     }
 }

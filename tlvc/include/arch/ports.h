@@ -98,9 +98,9 @@
 #define NE2K_FLAGS	0x80
 
 /* wd, wd.c*/
-#define WD_PORT		0x240
-#define WD_IRQ		2
-#define WD_RAM		0xC800
+#define WD_PORT		0x340
+#define WD_IRQ		15
+#define WD_RAM		0xCC00
 #define WD_FLAGS	0x80
 
 /* el3/3C509, el3.c */

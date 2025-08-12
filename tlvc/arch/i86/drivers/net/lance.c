@@ -133,6 +133,7 @@ extern struct eth eths[];
 /* runtime configuration set in /bootopts or defaults in ports.h */
 #define net_irq     (netif_parms[ETH_LANCE].irq)
 #define net_port    (netif_parms[ETH_LANCE].port)
+#define net_dma	    (netif_parms[ETH_LANCE].ram)
 #define net_flags   (netif_parms[ETH_LANCE].flags)
 
 static struct netif_stat netif_stat;
@@ -222,6 +223,7 @@ struct lance_init_block {
     unsigned long tx_ring;		/* includes length in the high byte */
 };
 
+#if 0
 /* Ethernet statistics collection data. */	/* FIX: COMPACT this */
 struct enet_statistics {
   int	rx_packets;			/* total packets received	*/
@@ -248,6 +250,7 @@ struct enet_statistics {
   int	tx_heartbeat_errors;
   int	tx_window_errors;
 };
+#endif
 
 struct lance_private {
     /* These must aligned on 8-byte boundaries. */
@@ -258,8 +261,8 @@ struct lance_private {
     unsigned tx_buffs;
     int	cur_rx, cur_tx;		/* The next free ring entry */
     int dirty_tx;		/* The ring entries to be free()ed. */
-    int dma;
-    struct enet_statistics stats;	/* FIXME: Eliminate! */
+    //int dma;
+    //struct enet_statistics stats;	/* FIXME: Eliminate! */
     char old_lance;
     long pad0, pad1;		/* Used for alignment */
 };
@@ -274,7 +277,7 @@ static byte_t tbusy, dev_interrupt;
 static unsigned long tstart;
 static seg_t ring_seg;
 
-static int INITPROC lance_probe1(void);
+static int INITPROC lance_probe1(word_t);
 static int lance_open(struct inode *inode, struct file *filp);
 static size_t lance_read(struct inode *, struct file *, char *, size_t);
 static size_t lance_write(struct inode *, struct file *, char *, size_t);
@@ -304,20 +307,22 @@ struct file_operations lance_fops =
 	lance_release
 };
 
+static int port_list[] = {0x300, 0x320, 0x340, 0x360, 0};
 void INITPROC lance_drv_init(void) {
 
-	int err, ioaddr;
-	int *port, ports[] = {0x320, 0x340, 0x360, 0x300, 0};
+	int err;
+	word_t ioaddr;
+	int *port;
 
 	if (arch_cpu < 6) {
-		printk("le0: needs 286 or higher\n");
-		return;
+	    printk("le0: needs 286 or higher\n");
+	    return;
 	}
         if (!net_port) {	/* interface may be turned off in bootopts */
-                printk("le0: no port, ignored\n");
-                return;
+            printk("le0: no port, ignored\n");
+            return;
         }
-	for (port = &ports[0]; *port; port++) {
+	for (port = &port_list[0]; *port; port++) {
 	    ioaddr = *port;
 
 	    /* ne2k style: Look for 2x'W' (for 'word') at the end of the PROM */
@@ -325,10 +330,10 @@ void INITPROC lance_drv_init(void) {
 		break;
 	}
         verbose = !!(net_flags&ETHF_VERBOSE);
-	if (!(net_port = ioaddr))
+	if (!ioaddr)
 	    err = -NODEV;
 	else
-            err = lance_probe1();
+            err = lance_probe1(ioaddr);
 
 	if (err) 
             printk("eth: le0 not %s\n", err == -ENODEV ? "found":"available");
@@ -337,36 +342,24 @@ void INITPROC lance_drv_init(void) {
             eths[ETH_LANCE].stats = &netif_stat;
         }
 }
-#if 0
-static word_t INITPROC lance_find(void)
+
+static int INITPROC ind(char *arr, int val)
 {
-
-    for (port = &ports[0]; *port; port++) {
-	int ioaddr = *port;
-
-	/* Classic ne2k style: Look for 2x'W' (for 'word') at the end of the PROM */
-	if (inb(ioaddr + 14) == 0x57 && inb(ioaddr + 15) == 0x57) {
-	   return ioaddr;
-	}
+    int i = 0;
+    while (arr[i]) {
+	if (arr[i] == (char)val) return i;
+	i++;
     }
-    return 0;   
+    return 0;
 }
-#endif
 
-static int INITPROC lance_probe1(void)
+static int INITPROC lance_probe1(word_t ioaddr)
 {
     struct lance_private *lp;
-    word_t ioaddr;
-    unsigned long initblk;
-    int hpJ2405A = 0;
-    int i, reset_val;
+    //unsigned long initblk;
+    int i, hpJ2405A = 0;
+    unsigned reset_val;
     byte_t *mac_addr = (byte_t *)&netif_stat.mac_addr;
-
-#if 0
-    if (!(ioaddr = lance_find()))
-	return -ENODEV;
-#endif
-    ioaddr = net_port;
 
     /* There is a 16 byte station address PROM at the base address.
        The first six bytes are the station address. */
@@ -388,6 +381,35 @@ static int INITPROC lance_probe1(void)
     outw(0x0000, ioaddr+LANCE_ADDR);	/* Reset -> STOP-bit in crs0 is set. */
     if (inw(ioaddr+LANCE_DATA) != 0x0004) /* If not, this is likely something else */
 	return -NODEV;
+
+    /* Match up J2405A settings with bootopts settings, reprogram device if mismatch */
+    /* Reset register: */
+    /* 7-----6-----5-----4-----3-----2-----1-----0
+    | BSY |     IRQ         |    DMA    |    PORT  |
+    ------------------------------------------------   */
+
+    if (hpJ2405A) {	/* may override configured values */
+	char dma_tbl[] = {3, 5, 6, 7, 0};
+	char irq_tbl[] = {3, 4, 5, 9, 10, 11, 12, 15, 0};
+	unsigned int cfg_val = 0xff00 | ind(dma_tbl, net_dma)<<2 | ind(irq_tbl,net_irq)<<4 | ((net_port>>5)&3);
+	reset_val = inw(ioaddr+LANCE_RESET);
+        //printk("(settings: b: %02x(%x/%d/%d), c: %02x)\n", cfg_val, net_port, net_irq, net_dma, reset_val);
+	if (cfg_val != reset_val) {
+		outw(cfg_val, ioaddr+LANCE_RESET);
+		if (verbose) printk("eth: %s: saving new settings %x (%x/%d/%d)-> %x (%x/%d/%d)\n", dev_name, reset_val, 
+			ioaddr, irq_tbl[(reset_val >> 4) & 7], dma_tbl[(reset_val >> 2) & 3], cfg_val,
+			net_port, net_irq, net_dma);
+	}
+    }
+
+    /* FIXME: There are comprehensive mechanisms for chiptype and settings detection
+     * in the 'big linux' version, add as required. The current setup will work for
+     * most cards as long as bootopts matches the card settings. */
+
+    printk("eth: %s at %#3x, irq %d, DMA %d, MAC %02x", dev_name, ioaddr, net_irq,
+		net_dma, mac_addr[0]);
+    i = 1;  
+    while (i < 6) printk(":%02x", (mac_addr[i++]&0xff));
 
     /* Should move this to open, so we can release it on close, but we need it 
      * to complete initialization. Or do we? FIXME!  */
@@ -412,10 +434,6 @@ static int INITPROC lance_probe1(void)
     }
 #endif
 
-    printk("eth: %s at %#3x, MAC %02x", dev_name, ioaddr, mac_addr[0]);
-    i = 1;  
-    while (i < 6) printk(":%02x", (mac_addr[i++]&0xff));
-
     /* Make certain the data structures used by the LANCE are aligned. */
     thisdev = (void *)(((int)thisdev + 7) & ~7);
     lp = thisdev;
@@ -438,9 +456,11 @@ static int INITPROC lance_probe1(void)
     lp->old_lance = (inw(ioaddr+LANCE_DATA) != 0x3003);
 
     if (verbose) 
-	printk("\n     %s %s", lp->old_lance ? "original LANCE" : "PCnet-ISA LANCE",
-			       hpJ2405A ? "(HP J2405A)":"");
+	printk(", %s (%x) %s\n", lp->old_lance ? "original LANCE" : "PCnet-ISA LANCE",
+			       inw(ioaddr+LANCE_DATA), hpJ2405A ? "(HP J2405A)":"");
 
+#if 0	/* this entire block is repeated in _open(), and isn't needed for the J2405A */
+	/* Need more exposure to determine. Likely, the 79c960 doesn't need this */
     lp->init_block.mode = 0x0003;	/* Disable Rx and Tx. */
     lance_load_iblock(lp);
     initblk = _MK_LINADDR(kernel_ds, &lp->init_block);
@@ -451,20 +471,6 @@ static int INITPROC lance_probe1(void)
     outw(initblk >> 16, ioaddr+LANCE_DATA);
     outw(0x0000, ioaddr+LANCE_ADDR);
 
-    if (hpJ2405A) {	/* overriding configured values */
-	char dma_tbl[4] = {3, 5, 6, 7};
-	char irq_tbl[8] = {3, 4, 5, 9, 10, 11, 12, 15};
-	reset_val = inw(ioaddr+LANCE_RESET);
-	lp->dma = dma_tbl[(reset_val >> 2) & 3];
-	net_irq = irq_tbl[(reset_val >> 4) & 7];
-    } else
-	lp->dma = LANCE_DMA;
-    /* FIXME: There are comprehensive mechanisms for chiptype and settings detection
-     * in the 'big linux' version, add as required. The current setup will work for
-     * most cards as long as bootopts matches the card settings. */
-
-    printk(", IRQ %d DMA %d.\n", net_irq, lp->dma);
-
     if (!lp->old_lance) {
 	/* Turn on auto-select of media (10baseT or BNC) so that the user
 	   can watch the LEDs even if the board isn't opened. */
@@ -472,8 +478,9 @@ static int INITPROC lance_probe1(void)
 	outw(0x0002, ioaddr+LANCE_BUS_IF);
     }
     /* Note: The NIC is initialized but not started. Much of this initialization is repeated 
-     * in _open(). Thus there may be significant simplification potential here. */
+     * in _open(). Thus there may be simplification potential here. */
 
+#endif
     return 0;
 }
 
@@ -494,18 +501,18 @@ int lance_open(struct inode *inode, struct file *filp)
 	    return i;
 	}
 
-	if ((i = request_dma(lp->dma, (void *)model_name))) {
+	if ((i = request_dma(net_dma, (void *)model_name))) {
 	    free_irq(net_irq);
-	    printk("%s: Cannot allocate DMA chan %d\n", dev_name, lp->dma);
+	    printk("%s: Cannot allocate DMA chan %d\n", dev_name, net_dma);
 	    return i;
 	}
 
-	/* Reset the LANCE */
+	/* Reset the LANCE. This will activate config-changes made in probe1()  */
 	inw(ioaddr+LANCE_RESET);
 
 	/* The DMA controller is used as a no-operation slave, "cascade mode". */
-	set_dma_mode(lp->dma, DMA_MODE_CASCADE);
-	enable_dma(lp->dma);
+	set_dma_mode(net_dma, DMA_MODE_CASCADE);
+	enable_dma(net_dma);
 
 	/* Un-Reset the LANCE, needed only for the NE2100. */
 	if (lp->old_lance)
@@ -520,11 +527,11 @@ int lance_open(struct inode *inode, struct file *filp)
 #if LANCE_DEBUG
 	if (lance_debug > 1) {
 	    printk("%s: lance_open() irq %d dma %d buftype %s, tx/rx rings %#x/%#x init %#.x.\n",
-	       dev_name, net_irq, lp->dma, mem[memtype], lp->tx_ring, lp->rx_ring,
+	       dev_name, net_irq, net_dma, mem[memtype], lp->tx_ring, lp->rx_ring,
 	       &lp->init_block);
 	} else
 #endif
-	    printk("%s: using %d rx, %d tx %s-buffers\n", dev_name, RX_RING_SIZE,
+	    printk("%s: using %drx/%dtx %s-buffers\n", dev_name, RX_RING_SIZE,
 		TX_RING_SIZE, mem[memtype]);
 
 	/* Re-initialize the LANCE, and start it when done. */
@@ -557,7 +564,7 @@ int lance_open(struct inode *inode, struct file *filp)
 	 * send the ARP packet twice in ktcp. */
 
 	tstart = jiffies;
-	while (jiffies < (tstart + 6)) asm("nop");
+	while (jiffies < (tstart + 7)) asm("nop");
 
 	outw(0x0000, ioaddr+LANCE_ADDR);
 	outw(0x0001, ioaddr+LANCE_DATA);	/* let the NIC initialize */
@@ -655,7 +662,7 @@ static int lance_start_xmit(char *data, size_t len)
 	printk("%s: transmit timed out, status %4x, resetting.\n",
 	       dev_name, inw(ioaddr+LANCE_DATA));
 	outw(0x0001, ioaddr+LANCE_DATA);
-	lp->stats.tx_errors++;
+	netif_stat.tx_errors++;
 #ifndef final_version
 	{
 	    int i;
@@ -780,9 +787,9 @@ static void lance_interrupt(int irq, struct pt_regs *regs)
     if (lance_debug > 4)
 	printk("%s: interrupt  csr0=%04x new csr=%04x.\n",
 	       dev_name, csr0, inw(ioaddr + LANCE_DATA));
-    //else if (lance_debug)
+    else if (lance_debug)
+	printk("I%04x;", csr0);
 #endif
-	//printk("I%04x;", csr0);
 
     if (csr0 & 0x0400)		/* Rx interrupt */
 	wake_up(&rxwait);
@@ -802,16 +809,19 @@ static void lance_interrupt(int irq, struct pt_regs *regs)
 	/* FIXME: use the TLVC stats struct, simplify ... */
 	    if (status & 0x4000) { /* There was an major error, log it. */
 		int err_status = lp->tx_ring[entry].misc;
-		lp->stats.tx_errors++;
-		if (err_status & 0x0400) lp->stats.tx_aborted_errors++;
-		if (err_status & 0x0800) lp->stats.tx_carrier_errors++;
-		if (err_status & 0x1000) lp->stats.tx_window_errors++;
-		if (err_status & 0x4000) lp->stats.tx_fifo_errors++;
+		netif_stat.tx_errors++;
+		//if (err_status & 0x0400) lp->stats.tx_aborted_errors++;
+		//if (err_status & 0x0800) lp->stats.tx_carrier_errors++;
+		//if (err_status & 0x1000) lp->stats.tx_window_errors++;
+		//if (err_status & 0x4000) lp->stats.tx_fifo_errors++;
+		if (err_status & 0x4000) netif_stat.oflow_errors++;
 		/* Perhaps we should re-init() after the FIFO error. */
+#if 0
 	    } else {
 		if (status & 0x1800)
 		    lp->stats.collisions++;
 		lp->stats.tx_packets++;
+#endif
 	    }
 	    dirty_tx++;
 	}
@@ -834,8 +844,8 @@ static void lance_interrupt(int irq, struct pt_regs *regs)
     }
 
     if (csr0 & 0x8000) {
-	if (csr0 & 0x4000) lp->stats.tx_errors++;
-	if (csr0 & 0x1000) lp->stats.rx_errors++;
+	//if (csr0 & 0x4000) lp->stats.tx_errors++;	/* already counted */
+	if (csr0 & 0x1000) netif_stat.rx_errors++;
     }
 
     /* Clear the interrupts we've handled. */
@@ -892,11 +902,13 @@ static int lance_rx(char *data, size_t len)
 	       buffers it's possible for a jabber packet to use two
 	       buffers, with only the last correctly noting the error. */
 	    if (status & 0x01)	/* Only count a general error at the */
-		lp->stats.rx_errors++; /* end of a packet.*/
-	    if (status & 0x20) lp->stats.rx_frame_errors++;
-	    if (status & 0x10) lp->stats.rx_over_errors++;
-	    if (status & 0x08) lp->stats.rx_crc_errors++;
-	    if (status & 0x04) lp->stats.rx_fifo_errors++;
+		netif_stat.rx_errors++; /* end of a packet.*/
+	    //if (status & 0x20) lp->stats.rx_frame_errors++;
+	    //if (status & 0x10) lp->stats.rx_over_errors++;
+	    if (status & 0x10) netif_stat.oflow_errors++;
+	    //if (status & 0x08) lp->stats.rx_crc_errors++;
+	    //if (status & 0x04) lp->stats.rx_fifo_errors++;
+	    if (status & 0x04) netif_stat.oflow_errors++;
 	} else {
 	    /* no errors, move data to user space */
 	    pkt_len = lp->rx_ring[entry].msg_length;
@@ -926,7 +938,7 @@ static int lance_rx(char *data, size_t len)
 
 
 	    // FIXME - handle overruns here ??? -----------------------------------
-	    lp->stats.rx_packets++;
+	    //lp->stats.rx_packets++;
 	}
 
 	lp->rx_ring[entry].base |= 0x80000000;
@@ -943,14 +955,15 @@ static int lance_rx(char *data, size_t len)
 static void lance_release(struct inode *inode, struct file *file)
 {
     int ioaddr = net_port;
-    struct lance_private *lp = thisdev;
 
     if (--usecount) return;
 
     tbusy = 1;
-
+#if 0
+    struct lance_private *lp = thisdev;
     outw(112, ioaddr+LANCE_ADDR);
     lp->stats.rx_missed_errors = inw(ioaddr+LANCE_DATA);
+#endif
 
     outw(0, ioaddr+LANCE_ADDR);
 
@@ -966,8 +979,8 @@ static void lance_release(struct inode *inode, struct file *file)
 
     free_irq(net_irq);
 
-    disable_dma(lp->dma);
-    free_dma(lp->dma);	// FIXME: Don't need this - move request_dma to _init */
+    disable_dma(net_dma);
+    free_dma(net_dma);
 
     return;
 }
