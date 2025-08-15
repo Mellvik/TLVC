@@ -21,7 +21,7 @@ fi
 #
 # check /bootopts "NET=" env variable
 case "$NET" in
-ee0|ne0|wd0|3c0)
+ee0|ne0|wd0|3c0|le0)
 	net start $NET
 	;;
 slip)

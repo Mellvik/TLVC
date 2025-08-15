@@ -11,3 +11,4 @@
 #define EMSG_DMGPKT	"%s: Damaged packet, hdr 0x%x %u, buffer cleared\n"
 #define EMSG_BGSPKT	"%s: Bogus packet: status %x nxpg 0x%x size %d\n"
 #define EMSG_ERROR	"%s: NIC under-/overrun, status 0x%x\n"
+#define EMSG_NODEV	"%s: Not found\n"

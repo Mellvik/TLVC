@@ -63,6 +63,7 @@ extern void INITPROC ne2k_drv_init(void);
 extern void INITPROC el3_drv_init(void);
 extern void INITPROC wd_drv_init(void);
 extern void INITPROC ee16_drv_init(void);
+extern void INITPROC lance_drv_init(void);
 extern void INITPROC lp_init(void);
 extern void INITPROC mem_dev_init(void);
 extern void INITPROC meta_init(void);

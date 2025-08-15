@@ -98,9 +98,9 @@
 #define NE2K_FLAGS	0x80
 
 /* wd, wd.c*/
-#define WD_PORT		0x240
-#define WD_IRQ		2
-#define WD_RAM		0xC800
+#define WD_PORT		0x340
+#define WD_IRQ		15
+#define WD_RAM		0xCC00
 #define WD_FLAGS	0x80
 
 /* el3/3C509, el3.c */
@@ -115,8 +115,9 @@
 #define EE16_FLAGS	0x80
 
 /* AMD LANCE (7990) and some later variants, like th 79C760 */
-#define LANCE_PORT	0x350
-#define LANCE_IRQ	11
+#define LANCE_PORT	0x340
+#define LANCE_IRQ	9
+#define LANCE_DMA	5
 #define LANCE_FLAGS	0x80
 
 /* IDE hard drive, directhd.c */

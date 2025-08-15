@@ -147,7 +147,7 @@ void xms_fmemcpyb(void *dst_off, ramdesc_t dst_seg, void *src_off, ramdesc_t src
 	int	need_xms_dst = dst_seg >> 16;
 
 	if (need_xms_src || need_xms_dst) {
-		if (!xms_avail) panic("xms_fmemcpyb");
+		if (!xms_size) panic("xms_fmemcpyb");
 		if (!need_xms_src) src_seg <<= 4;
 		if (!need_xms_dst) dst_seg <<= 4;
 

@@ -57,7 +57,7 @@ struct netif_parms netif_parms[MAX_ETHS] = {
     { WD_IRQ, WD_PORT, WD_RAM, WD_FLAGS },
     { EL3_IRQ, EL3_PORT, 0, EL3_FLAGS },
     { EE16_IRQ, EE16_PORT, EE16_RAM, EE16_FLAGS },
-    { LANCE_IRQ, LANCE_PORT, 0, LANCE_FLAGS },
+    { LANCE_IRQ, LANCE_PORT, LANCE_DMA, LANCE_FLAGS },
 };
 seg_t kernel_cs, kernel_ds;
 int tracing;
@@ -81,7 +81,7 @@ int xtideparms[6];		/* config data for xtide controller if present */
 int fdcache = -1;		/* floppy sector cache size(KB), -1: not configured */
 int xms_size, xms_avail, xms_start, hma_avail;	/* descriptions in xms.c */
 int xms_mode;
-unsigned char macaddr[6];
+unsigned char macaddr[6];	/* if set in bootopts */
 
 static int boot_console;
 static char bininit[] = "/bin/init";
@@ -605,7 +605,7 @@ static void INITPROC parse_nic(char *line, struct netif_parms *parms)
         if ((p = strchr(p+1, ','))) {
             parms->ram = (int)simple_strtol(p+1, 16);
             if ((p = strchr(p+1, ',')))
-                parms->flags = (int)simple_strtol(p+1, 0);
+                parms->flags = (unsigned)simple_strtol(p+1, 0);
         }
     }
 }

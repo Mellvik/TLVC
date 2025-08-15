@@ -143,22 +143,26 @@
 
  | kernel text     |
  +-----------------+ Kernel CS = REL_SYSSEG = (XD_BOUNCESEG + (XD_BOUNCESEGSZ>>4))
- | Other bounce    |  Optional, 1k
- | (MFM, Lance)    |
+ | Other bounce    |  Optional, 1k-1.6k
+ | (MFM, LANCE)    |
  +-----------------+ XD_BOUNCESEG = REL_INITSEG + (HAS_FDCACHE ? (FD_CACHESEGSZ>>4):0x10)
  | Floppy cache    |  Optional, variable, max 6.5 + 0.5k
  | setup data      |  Mandatory, 512B
  +-----------------+ 0x90 REL_INITSEG = FD_CACHESEG = DMASEG
- | Floppy bounce   |  1k
- | bootopts buffer | 
+ | Floppy bounce   |  1k (mandatory)
+ | bootopts buffer |  (deprecated)
  +-----------------+ 0x50 DEF_OPTSEG FD_BOUNCESEG
- | IRQ vectors/BDA |	  If XMS_LOADALL, this segment is expanded to 0x90
+ | IRQ vectors/BDA |  NOTE:  If XMS_LOADALL, this segment is expanded to 0x90
  +-----------------+ 000
 
 */
 
 #if defined(CONFIG_BLK_DEV_XD) || defined(CONFIG_ETH_LANCE)
 #define XD_BOUNCESEGSZ		0x400
+#ifdef CONFIG_ETH_LANCE
+#undef XD_BOUNCESEGSZ
+#define XD_BOUNCESEGSZ		0x610	/* must hold a complete packet */
+#endif
 #else
 #define XD_BOUNCESEGSZ		0
 #endif

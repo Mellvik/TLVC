@@ -76,10 +76,11 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 #ifdef ALLOW_TOPDWN_ALLOC
 	if (type & SEG_FLAG_ALIGN1K) {	/* allocate from the top, always 1kaligned */
 	    n = _seg_all.prev;
+	    size00 = (size0 + 0x3f) & ~0x3f;	/* keep the alignment */
 	    while (n != &_seg_all) {
 		seg = structof(n, segment_s, all);
-		if (seg->flags == SEG_FLAG_FREE && seg->size >= size0) {
-		    best_seg = seg_split(seg, seg->size - size0);
+		if (seg->flags == SEG_FLAG_FREE && seg->size >= size00) {
+		    best_seg = seg_split(seg, seg->size - size00);
 		    goto OK;	/* split the seg, use the upper */
 		}
 		n = seg->all.prev;
