@@ -46,6 +46,8 @@ create_dev_dir()
 	mknod $MNT/dev/ne0	c 9 0
 	mknod $MNT/dev/wd0	c 9 1
 	mknod $MNT/dev/3c0	c 9 2
+	mknod $MNT/dev/ee0	c 9 3
+	mknod $MNT/dev/le0	c 9 4
 	mknod $MNT/dev/ptyp0	c 11 8
 	mknod $MNT/dev/ttyp0	c 4 8
 	mknod $MNT/dev/tty1	c 4 0
