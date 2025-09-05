@@ -225,7 +225,7 @@ int ask(char *source, char *name) {
  * control message will arrive before any data and be read as part of the previous
  * command response. Multiline control responses (typically at login), will sometimes
  * arrive in several packets and must be assembled properly.
- * Not elegant, but very memory efficiant (abusing the *buf parameter for all the work).
+ * Not elegant, but very memory efficient (abusing the *buf parameter for all the work).
  *
  * DO NOT call get_reply with a buf size less than BUF_SIZ (512b).
  */
@@ -317,7 +317,7 @@ int send_cmd(int cmdfd, char *cmd) {
 		if (debug > 1) printf("---> %s", cmd);
 	return s;
 }
-	
+
 /* Read and process user commands */
 
 int get_cmd(char *buffer, int len, char **argv) {
@@ -1289,7 +1289,7 @@ int main(int argc, char **argv) {
 				connected++;
 			break;
 
-		case CMD_CLOSE:
+		case CMD_CLOSE:		/* close connection, stay in the program */
 			do_close(controlfd, str, sizeof(str));
 			connected = 0;
 			server_port = DFLT_PORT;
@@ -1374,9 +1374,9 @@ int main(int argc, char **argv) {
 			get_reply(controlfd, command, sizeof(command), 0);
 			break;
 
-		case CMD_QUIT:
-			do_close(controlfd, command, sizeof(command));
-			connected = 0;
+		case CMD_QUIT:		/* close connection, leave program */
+			//do_close(controlfd, command, sizeof(command));
+			//connected = 0;
 			goto out;
 
 #ifdef BLOATED
@@ -1528,6 +1528,8 @@ int main(int argc, char **argv) {
 		}
 	}
 out:
-	if (connected) close(controlfd);	
+	/* ^D at the prompt will end up here, cleanup and leave */
+	if (connected)
+		do_close(controlfd, command, sizeof(command));
 	return TRUE;
 }
