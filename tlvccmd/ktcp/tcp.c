@@ -249,7 +249,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	rmv_all_retrans_cb(cb);
 
 	if (cb->state == TS_CLOSE_WAIT) {
-	    cbs_in_user_timeout--;
+	    //cbs_in_user_timeout--;	/* CLOSE_WAIT does not have a timeout */
 	    ENTER_TIME_WAIT(cb);
 	    notify_sock(cb->sock, TDT_CHG_STATE, SS_DISCONNECTING);
 	} else {
@@ -292,7 +292,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	}
     }
 
-    if (h->flags & TF_ACK) {		/* update unacked*/
+    if (h->flags & TF_ACK) {		/* update unacked */
 	acknum = ntohl(h->acknum);
 	if (SEQ_LT(cb->send_una, acknum)) {
 	    cb->send_una = acknum;
@@ -308,7 +308,8 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 					cb->sock, datasize);
 
 	cb->state = TS_CLOSE_WAIT;
-	cb->time_wait_exp = Now;	/* used for debug output only*/
+	cb->time_wait_exp = Now;	/* used for debug output only */
+	
 	debug_tcp("tcp: got FIN with data %d buffer %d\n", datasize, cb->buf_used);
 	if (cb->bytes_to_push <= 0)
 	    notify_sock(cb->sock, TDT_CHG_STATE, SS_DISCONNECTING);
@@ -328,7 +329,7 @@ static void tcp_synrecv(struct iptcp_s *iptcp, struct tcpcb_s *cb)
     struct tcphdr_s *h = iptcp->tcph;
 
     if (h->flags & TF_RST)
-	cb->state = TS_LISTEN;		/* FIXME: not valid, should dealloc extra CB*/
+	cb->state = TS_LISTEN;		/* FIXME: not valid, should dealloc extra CB */
     else if ((h->flags & TF_ACK) == 0)
 	debug_tcp("tcp: NO ACK IN SYNRECV\n");
     else {
@@ -355,7 +356,7 @@ static void tcp_fin_wait_1(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	iptcp->tcph->flags &= ~TF_FIN;
 	debug_close("tcp[%p] setting state to CLOSING\n", cb->sock);
 
-	cb->state = TS_CLOSING; 	/* cbs_in_user_timeout stays unchanged */
+	cb->state = TS_CLOSING; 	/* cbs_in_user_timeout stays unchanged (set) */
 	cb->time_wait_exp = Now;
 	needack = 1;
     }
@@ -394,7 +395,7 @@ static void tcp_fin_wait_2(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 
     cb->time_wait_exp = Now;
     if (iptcp->tcph->flags & TF_FIN) {
-	cb->rcv_nxt ++;
+	cb->rcv_nxt++;
 
 	/* Remove the flag */
 	iptcp->tcph->flags &= ~TF_FIN;
@@ -528,10 +529,10 @@ void tcp_process(struct iphdr_s *iph)
     if (cb->state != TS_LISTEN && cb->state != TS_SYN_SENT
 			       && cb->state != TS_SYN_RECEIVED) {
 	if (cb->rcv_nxt != ntohl(tcph->seqnum)) {
-	    int datalen = iptcp.tcplen - TCP_DATAOFF(iptcp.tcph);
 
 	    debug_tune("tcp: dropping packet, bad seqno: need %ld got %ld size %d\n",
-		cb->rcv_nxt - cb->irs, ntohl(tcph->seqnum) - cb->irs, datalen);
+		cb->rcv_nxt - cb->irs, ntohl(tcph->seqnum) - cb->irs, 
+		iptcp.tcplen - TCP_DATAOFF(iptcp.tcph));
 	    netstats.tcpdropcnt++;
 
 	    if (cb->rcv_nxt != ntohl(tcph->seqnum) + 1)
@@ -541,7 +542,7 @@ void tcp_process(struct iphdr_s *iph)
 	}
 
 	/*
-	 * TODO queue up datagramms not in
+	 * TODO: Queue up datagrams not in
 	 * order and process them in order
 	 */
     }

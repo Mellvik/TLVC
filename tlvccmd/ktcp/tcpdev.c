@@ -47,9 +47,10 @@ void notify_sock(void *sock, int type, int value)
     return_data.sock = sock;
     return_data.size = 0;
     write(tcpdevfd, &return_data, sizeof(return_data));
+    //printf("Notify sock: %d %d\n", type, value);
 }
 
-/* inform kernel of socket data bytes available*/
+/* inform kernel of socket data bytes available */
 void notify_data_avail(struct tcpcb_s *cb)
 {
     //if (cb->bytes_to_push <= 0)	/* always checked before call */
@@ -63,10 +64,10 @@ void retval_to_sock(void *sock, int retval)
     notify_sock(sock, TDT_RETURN, retval);
 }
 
-/* called every ktcp cycle when tcpdevfd data is ready*/
+/* called every ktcp cycle when tcpdevfd data is ready */
 static void tcpdev_bind(void)
 {
-    struct tdb_bind *db = (struct tdb_bind *)sbuf; /* read from sbuf*/
+    struct tdb_bind *db = (struct tdb_bind *)sbuf; /* read from sbuf */
     struct tcpcb_list_s *n;
     int size;
     __u16 port;
@@ -77,7 +78,7 @@ static void tcpdev_bind(void)
 	return;
     }
 
-    /* SO_RCVBUF currently only sets listen or connect buffer size, NOT accept size!*/
+    /* SO_RCVBUF currently only sets listen or connect buffer size, NOT accept size! */
     size = db->rcv_bufsiz? db->rcv_bufsiz: CB_NORMAL_BUFSIZ;
     n = tcpcb_new(size);
     if (n == NULL) {
@@ -202,7 +203,8 @@ void tcpdev_notify_accept(struct tcpcb_s *cb)
     accept_ret.addr_ip = cb->remaddr;
     accept_ret.addr_port = htons(cb->remport);
 
-    debug_accept("tcpdev notify_accept: ACCEPT (SYN received before accept) sock[%p] newsock[%p]\n", listencb->sock, listencb->newsock);
+    debug_accept("tcpdev notify_accept: ACCEPT (SYN received before accept) sock[%p] newsock[%p]\n",
+						listencb->sock, listencb->newsock);
 
     cb->unaccepted = 0;
     cb->sock = listencb->newsock;
@@ -214,7 +216,7 @@ void tcpdev_notify_accept(struct tcpcb_s *cb)
 
 static void tcpdev_connect(void)
 {
-    struct tdb_connect *db = (struct tdb_connect *)sbuf; /* read from sbuf*/
+    struct tdb_connect *db = (struct tdb_connect *)sbuf; /* read from sbuf */
     struct tcpcb_list_s *n;
     ipaddr_t addr;
 
@@ -234,14 +236,14 @@ static void tcpdev_connect(void)
     if (n->tcpcb.remport == NETCONF_PORT && n->tcpcb.remaddr == 0) {
 	n->tcpcb.state = TS_ESTABLISHED;
 	//write(1,"TCN;", 4);
-	notify_sock(n->tcpcb.sock, TDT_CONNECT, 0);	/* success*/
+	notify_sock(n->tcpcb.sock, TDT_CONNECT, 0);	/* success */
     } else
 	tcp_connect(&n->tcpcb);
 }
 
 static void tcpdev_listen(void)
 {
-    struct tdb_listen *db = (struct tdb_listen *)sbuf; /* read from sbuf*/
+    struct tdb_listen *db = (struct tdb_listen *)sbuf; /* read from sbuf */
     struct tcpcb_list_s *n;
 
     n = tcpcb_find_by_sock(db->sock);
@@ -256,10 +258,10 @@ static void tcpdev_listen(void)
     retval_to_sock(db->sock, 0);
 }
 
-/* kernel read data from ktcp (network)*/
+/* kernel read data from ktcp (network) */
 static void tcpdev_read(void)
 {
-    struct tdb_read *db = (struct tdb_read *)sbuf; /* read/write from sbuf*/
+    struct tdb_read *db = (struct tdb_read *)sbuf; /* read/write from sbuf */
     struct tdb_return_data *ret_data;
     struct tcpcb_list_s *n;
     struct tcpcb_s *cb;
@@ -289,8 +291,8 @@ static void tcpdev_read(void)
 	} else if (db->nonblock)
 	    retval_to_sock(sock, -EAGAIN);
 	else {
-	    //cb->wait_data = db->size;	  /* wait_data use removed, no async reads*/
-	    retval_to_sock(sock, -EINTR); /* don't set wait_data, return -EINTR instead*/
+	    //cb->wait_data = db->size;	  /* wait_data use removed, no async reads */
+	    retval_to_sock(sock, -EINTR); /* don't set wait_data, return -EINTR instead */
 	}
 	return;
     }
@@ -309,7 +311,7 @@ static void tcpdev_read(void)
     tcpcb_buf_read(cb, ret_data->data, data_avail);
     write(tcpdevfd, sbuf, sizeof(struct tdb_return_data) + data_avail);
 
-    /* if remote closed and more data, update data avail then indicate disconnecting*/
+    /* if remote closed and more data, update data avail then indicate disconnecting */
     if (cb->state == TS_CLOSE_WAIT) {
 	if (cb->bytes_to_push <= 0) {
 	    debug_tcp("tcp: disconnecting after final read %d\n", data_avail);
@@ -381,7 +383,9 @@ static void tcpdev_write(void)
 
     cb = &n->tcpcb;
 
-    if (cb->state != TS_ESTABLISHED && cb->state != TS_CLOSE_WAIT) {
+    if (cb->state != TS_ESTABLISHED 
+		/*&& cb->state != TS_CLOSE_WAIT*/) {	// No write data if in CLOSE_WAIT
+	/* FIXME: May want to delete (or 'debugify') the printf below, this is not uncommon */
 	printf("tcpdev_write: write to socket in improper state %d\n", cb->state);
 	retval_to_sock(sock, -EPIPE);
 	return;
@@ -431,17 +435,17 @@ static void tcpdev_write(void)
 
 static void tcpdev_release(void)
 {
-    struct tdb_release *db = (struct tdb_release *)sbuf; /* read from sbuf*/
+    struct tdb_release *db = (struct tdb_release *)sbuf; /* read from sbuf */
     struct tcpcb_list_s *n;
     struct tcpcb_s *cb;
-    void * sock = db->sock;
+    void *sock = db->sock;
 
     n = tcpcb_find_by_sock(sock);
     if (n) {
 	cb = &n->tcpcb;
 	debug_close("tcpdev release: close socket %p, state is %s\n",
 	    sock, tcp_states[cb->state]);
-	//printf("_release btp: %d\n", cb->bytes_to_push);
+	//printf("_release btp: %d, state %d\n", cb->bytes_to_push, cb->state);
 	if (cb->bytes_to_push > 0) /* transfer aborted with more data in the pipe */
 		tcpcb_need_push--;
 
