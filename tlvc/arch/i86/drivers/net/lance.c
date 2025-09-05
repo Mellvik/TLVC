@@ -311,15 +311,16 @@ static int port_list[] = {0x300, 0x320, 0x340, 0x360, 0};
 void INITPROC lance_drv_init(void) {
 
 	int err;
-	word_t ioaddr;
+	word_t ioaddr = 0;	/* initialize to keep gcc happy */
 	int *port;
 
+	printk("eth: %s ", dev_name);
 	if (arch_cpu < 6) {
-	    printk("le0: needs 286 or higher\n");
+	    printk("needs 286 or higher\n");
 	    return;
 	}
         if (!net_port) {	/* interface may be turned off in bootopts */
-            printk("le0: no port, ignored\n");
+            printk("null-port in bootopts, ignored\n");
             return;
         }
 	for (port = &port_list[0]; *port; port++) {
@@ -329,14 +330,17 @@ void INITPROC lance_drv_init(void) {
 	    if (inb(ioaddr + 14) == 0x57 && inb(ioaddr + 15) == 0x57)
 		break;
 	}
-        verbose = !!(net_flags&ETHF_VERBOSE);
-	if (!ioaddr)
-	    err = -NODEV;
-	else
-            err = lance_probe1(ioaddr);
+	if (!*port)
+	    err = -ENODEV;
+	else {
+	    if (!ioaddr)
+		err = -ENODEV;
+	    else
+		err = lance_probe1(ioaddr);
+	}
 
 	if (err) 
-            printk("eth: le0 not %s\n", err == -ENODEV ? "found":"available");
+            printk("not %s\n", err == -ENODEV ? "found":"available");
 	else {
             found++;
             eths[ETH_LANCE].stats = &netif_stat;
@@ -361,6 +365,8 @@ static int INITPROC lance_probe1(word_t ioaddr)
     unsigned reset_val;
     byte_t *mac_addr = (byte_t *)&netif_stat.mac_addr;
 
+    verbose = !!(net_flags&ETHF_VERBOSE);
+
     /* There is a 16 byte station address PROM at the base address.
        The first six bytes are the station address. */
     for (i = 0; i < 6; i++)
@@ -380,7 +386,7 @@ static int INITPROC lance_probe1(word_t ioaddr)
 
     outw(0x0000, ioaddr+LANCE_ADDR);	/* Reset -> STOP-bit in crs0 is set. */
     if (inw(ioaddr+LANCE_DATA) != 0x0004) /* If not, this is likely something else */
-	return -NODEV;
+	return -ENODEV;
 
     /* Match up J2405A settings with bootopts settings, reprogram device if mismatch */
     /* Reset register: */
@@ -391,22 +397,28 @@ static int INITPROC lance_probe1(word_t ioaddr)
     if (hpJ2405A) {	/* may override configured values */
 	char dma_tbl[] = {3, 5, 6, 7, 0};
 	char irq_tbl[] = {3, 4, 5, 9, 10, 11, 12, 15, 0};
-	unsigned int cfg_val = 0xff00 | ind(dma_tbl, net_dma)<<2 | ind(irq_tbl,net_irq)<<4 | ((net_port>>5)&3);
+	unsigned int cfg_val = 
+		0xff00 | ind(dma_tbl, net_dma)<<2 | ind(irq_tbl,net_irq)<<4 | ((net_port>>5)&3);
+
 	reset_val = inw(ioaddr+LANCE_RESET);
-        //printk("(settings: b: %02x(%x/%d/%d), c: %02x)\n", cfg_val, net_port, net_irq, net_dma, reset_val);
+        //printk("(settings: b: %02x(%x/%d/%d), c: %02x) ", 
+		//cfg_val, net_port, net_irq, net_dma, reset_val);
 	if (cfg_val != reset_val) {
-		outw(cfg_val, ioaddr+LANCE_RESET);
-		if (verbose) printk("eth: %s: saving new settings %x (%x/%d/%d)-> %x (%x/%d/%d)\n", dev_name, reset_val, 
-			ioaddr, irq_tbl[(reset_val >> 4) & 7], dma_tbl[(reset_val >> 2) & 3], cfg_val,
-			net_port, net_irq, net_dma);
+	    outw(cfg_val, ioaddr+LANCE_RESET);
+	    if (verbose) printk("saving new settings %x (%x/%d/%d)-> %x (%x/%d/%d)\neth: %s ", reset_val, 
+		ioaddr, irq_tbl[(reset_val >> 4) & 7], dma_tbl[(reset_val >> 2) & 3], cfg_val,
+		net_port, net_irq, net_dma, dev_name);
 	}
+    } else if (ioaddr != net_port) {
+	printk("IOaddress mismatch, using %x\neth: %s ", ioaddr, dev_name);
+	net_port = ioaddr;
     }
 
     /* FIXME: There are comprehensive mechanisms for chiptype and settings detection
      * in the 'big linux' version, add as required. The current setup will work for
      * most cards as long as bootopts matches the card settings. */
 
-    printk("eth: %s at %#3x, irq %d, DMA %d, MAC %02x", dev_name, ioaddr, net_irq,
+    printk("at %#3x, irq %d, DMA %d, MAC %02x", ioaddr, net_irq,
 		net_dma, mac_addr[0]);
     i = 1;  
     while (i < 6) printk(":%02x", (mac_addr[i++]&0xff));
@@ -422,11 +434,14 @@ static int INITPROC lance_probe1(word_t ioaddr)
     thisdev = (struct lance_private *)heap_alloc(sizeof(struct lance_private), 
 		HEAP_TAG_NETWORK);
     if (!thisdev) return -ENOMEM;
+#ifdef CONFIG_FS_XMS
     if (xms_avail && (xmsbase = xms_alloc((unsigned)(PKT_BUF_SZ*(RX_RING_SIZE +
 		TX_RING_SIZE)+0x3ff)>>10))) {
 	ring_seg = 0;
 	memtype = XMS;		// MAY USE ring_seg == 0 as flag for xms 
-    } else {
+    } else
+#endif
+    {
 	segment_s *rseg = seg_alloc((PKT_BUF_SZ*(RX_RING_SIZE + TX_RING_SIZE)+0xf)>>4, 
 		SEG_FLAG_NETBUF);
 	if (!rseg) return -ENOMEM;
@@ -477,10 +492,8 @@ static int INITPROC lance_probe1(word_t ioaddr)
 	outw(0x0002, ioaddr+LANCE_ADDR);
 	outw(0x0002, ioaddr+LANCE_BUS_IF);
     }
-    /* Note: The NIC is initialized but not started. Much of this initialization is repeated 
-     * in _open(). Thus there may be simplification potential here. */
-
 #endif
+
     return 0;
 }
 
@@ -881,20 +894,18 @@ static void dump_data(unsigned long data, int len)
 }
 #endif
 
-/* move data from the ring buffer to user_space, return actual byte count or error code */
+/* move data from the ring buffer to user_space, return actual byte count. */
+/* 0 means 'no data available' */
 static int lance_rx(char *data, size_t len)
 {
     struct lance_private *lp = thisdev;
     int entry = lp->cur_rx & RX_RING_MOD_MASK;
-    int pkt_len = 0;
+    int status, pkt_len = 0;
 	
     /* If we own the next entry, it's a new packet. Check for errors, send
      * data up, free buffer */
-    if (lp->rx_ring[entry].base & 0x80000000) 	// No data in buffer
-	return -1;		// lance_read depends on this for status check
-
     while (lp->rx_ring[entry].base >= 0) {
-	int status = lp->rx_ring[entry].base >> 24;
+	status = lp->rx_ring[entry].base >> 24;
 
 	if (status != 0x03) {		/* There was an error. */
 	    /* There is an tricky error noted by John Murphy,
@@ -909,6 +920,7 @@ static int lance_rx(char *data, size_t len)
 	    //if (status & 0x08) lp->stats.rx_crc_errors++;
 	    //if (status & 0x04) lp->stats.rx_fifo_errors++;
 	    if (status & 0x04) netif_stat.oflow_errors++;
+	    printk("le0: rx error %x\n", status);
 	} else {
 	    /* no errors, move data to user space */
 	    pkt_len = lp->rx_ring[entry].msg_length;
@@ -935,20 +947,12 @@ static int lance_rx(char *data, size_t len)
 #if LANCE_DEBUG
 	    if (lance_debug > 4) dump_data(base, pkt_len < 64 ? pkt_len:64);
 #endif
-
-
-	    // FIXME - handle overruns here ??? -----------------------------------
-	    //lp->stats.rx_packets++;
 	}
 
-	lp->rx_ring[entry].base |= 0x80000000;
-	entry = (++lp->cur_rx) & RX_RING_MOD_MASK;
-	break;	/* TLVC - only one packet per call */
+	lp->rx_ring[entry].base |= 0x80000000;		/* release buffer */
+	lp->cur_rx++;
+	if (pkt_len) break;
     }
-
-    /* We should check that at least two ring entries are free.  If not,
-       we should free one and mark stats->rx_dropped++. */
-
     return pkt_len;
 }
 
