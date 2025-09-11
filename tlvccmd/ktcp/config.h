@@ -5,7 +5,7 @@
 #define CSLIP		0	/* compile in CSLIP support*/
 
 /* turn these on for ELKS debugging*/
-#define USE_DEBUG_EVENT 1	/* use CTRLP to toggle debug output*/
+#define USE_DEBUG_EVENT 0	/* use CTRLP to toggle debug output*/
 #define DEBUG_STARTDEF	0	/* default startup debug display*/
 #define DEBUG_TCP	0	/* TCP ops*/
 #define DEBUG_TCPPKT	0	/* TCP packets info*/

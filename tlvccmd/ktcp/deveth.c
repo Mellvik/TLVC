@@ -63,35 +63,36 @@ int deveth_init(char *fdev)
  */
 void eth_process(void)
 {
-  eth_head_t * eth_head;
-  int len = read(devfd, sbuf, MAX_PACKET_ETH);
-  if (len < (int)sizeof(eth_head_t)) {
+    eth_head_t * eth_head;
+    int len = read(devfd, sbuf, MAX_PACKET_ETH);
+    if (len < (int)sizeof(eth_head_t)) {
 	/* FIXME: Is this really a 'tryagain' situation? It's always non-fatal, do we need the message? */
 	if (len < 0) printf("ktcp: eth_process error %d (errno %d), discarding packet\n", len, errno); 
-	return;
-  }
+	    return;
+    }
 
-  eth_head = (eth_head_t *) sbuf;
+    eth_head = (eth_head_t *) sbuf;
 
 #if 0
-  /* Filter on MAC addresses in case of promiscuous mode*/
-  if (memcmp (eth_head->eth_dst, broad_addr, sizeof(eth_addr_t))
-    && memcmp (eth_head->eth_dst, eth_local_addr, sizeof(eth_addr_t)))
-      return;
+    /* Filter on MAC addresses in case of promiscuous mode*/
+    if (memcmp (eth_head->eth_dst, broad_addr, sizeof(eth_addr_t))
+	&& memcmp (eth_head->eth_dst, eth_local_addr, sizeof(eth_addr_t)))
+	return;
 #endif
 
-  /* dispatch to IP or ARP*/
-  switch (eth_head->eth_type) {
-  case ETH_TYPE_IPV4:
+    //printf("eth_process: got packet (%d/%x)\n", len, eth_head->eth_type);
+    /* dispatch to IP or ARP*/
+    switch (eth_head->eth_type) {
+    case ETH_TYPE_IPV4:
 	  /* strip link layer */
-	  ip_recvpacket (sbuf + sizeof(eth_head_t), len - sizeof(eth_head_t));
+	  ip_recvpacket(sbuf + sizeof(eth_head_t), len - sizeof(eth_head_t));
 	  break;
 
-  case ETH_TYPE_ARP:
+    case ETH_TYPE_ARP:
 	  arp_recvpacket(sbuf, len);
 	  break;
-  }
-  netstats.ethrcvcnt++;
+    }
+    netstats.ethrcvcnt++;
 }
 
 /*

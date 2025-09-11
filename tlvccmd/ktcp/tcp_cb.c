@@ -247,9 +247,13 @@ void tcpcb_expire_timeouts(void)
 		    debug_close("tcp[%p] exit TIME_WAIT state on port %u remote %s:%u\n",
 				n->tcpcb.sock, n->tcpcb.localport,
 				in_ntoa(n->tcpcb.remaddr), n->tcpcb.remport);
-		    tcpcb_remove(n);
+		    //printf("timeout: buf_used: %d\n", n->tcpcb.buf_used);
+		    if (n->tcpcb.buf_used > 0)	/* still unread data in the pipe? */
+			tcpcb_need_push--;	/* yes, adjust need_push ... */
+		    tcpcb_remove(n);		/* so we can remove cb safely */
 		}
 		break;
+
 	    case TS_FIN_WAIT_1:
 	    case TS_FIN_WAIT_2:
 	    case TS_LAST_ACK:

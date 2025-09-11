@@ -42,7 +42,7 @@ ipaddr_t netmask_ip;
 #define DEFAULT_GATEWAY		"10.0.2.2"
 #define DEFAULT_NETMASK		"255.255.255.0"
 
-/* defaults*/
+/* defaults */
 int linkprotocol = 	LINK_ETHER;
 char ethdev[10] = 	"/dev/ne0";
 char *serdev = 		"/dev/ttyS0";
@@ -50,7 +50,7 @@ speed_t baudrate = 	57600;
 
 int dflag;
 unsigned int MTU;
-static int intfd;	/* interface fd*/
+static int intfd;	/* interface fd */
 
 // rename		timer			function called when active
 //			----------------	-------------------------------------
@@ -63,7 +63,7 @@ int tcp_timeruse;		/* retrans timer active, call tcp_retrans */
 int cbs_in_time_wait;		/* time_wait timer active, call tcp_expire_timeouts */
 int cbs_in_user_timeout;	/* fin_wait/closing/last_ack active, call " */
 int tcpcb_need_push;		/* push required, tcpcb_push_data/call notify_data_avail */
-int tcp_retrans_memory;		/* total retransmit memory in use*/
+int tcp_retrans_memory;		/* total retransmit memory in use */
 
 void ktcp_run(void)
 {
@@ -90,6 +90,15 @@ void ktcp_run(void)
 		timeint.tv_usec = 0;
 	    }
 	    tv = &timeint;
+#if 0
+	i++;
+	if (i > 10) {
+	    printf("t %d n %d w %d u %d l %d\n", tcp_timeruse,
+		tcpcb_need_push, cbs_in_time_wait, cbs_in_user_timeout, loopagain);
+
+	    i = 0;
+	}
+#endif
 	} else {
 	    tv = NULL;		/* no timeout if no timers active or push needed */
 	}
