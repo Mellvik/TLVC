@@ -693,7 +693,8 @@ static int lance_start_xmit(char *data, size_t len)
 	}
 #endif
 	lance_init_ring();
-	outw(0x0043, ioaddr+LANCE_DATA);	/* STRT|INIT|IENA */
+	//outw(0x0043, ioaddr+LANCE_DATA);	/* STRT|INIT|IENA */
+	outw(0x0142, ioaddr+LANCE_DATA);	/* IDON|STRT|IENA */
 
 	tbusy = 0;
 	tstart = jiffies;
@@ -779,7 +780,7 @@ static int lance_start_xmit(char *data, size_t len)
 /* The LANCE interrupt handler. */
 static void lance_interrupt(int irq, struct pt_regs *regs)
 {
-    struct lance_private *lp = thisdev;
+    struct lance_private *lp;
     int csr0, ioaddr;
 
     //kputchar('I');
@@ -839,13 +840,8 @@ static void lance_interrupt(int irq, struct pt_regs *regs)
 	    dirty_tx++;
 	}
 
-#ifndef final_version
-	if (lp->cur_tx - dirty_tx >= TX_RING_SIZE) {
-	    printk("out-of-sync dirty pointer, %d vs. %d.\n",
-		   dirty_tx, lp->cur_tx);
+	if (lp->cur_tx - dirty_tx >= TX_RING_SIZE)	/* will happen every time cur_tx wraps around */
 	    dirty_tx += TX_RING_SIZE;
-	}
-#endif
 
 	if (tbusy  &&  dirty_tx > (lp->cur_tx - TX_RING_SIZE + 2)) {
 	    /* The ring is no longer full, clear tbusy. */
@@ -856,10 +852,7 @@ static void lance_interrupt(int irq, struct pt_regs *regs)
 	wake_up(&txwait);
     }
 
-    if (csr0 & 0x8000) {
-	//if (csr0 & 0x4000) lp->stats.tx_errors++;	/* already counted */
-	if (csr0 & 0x1000) netif_stat.rx_errors++;
-    }
+    if (csr0 & 0x9000) netif_stat.rx_errors++;
 
     /* Clear the interrupts we've handled. */
     /* we actually cleared thos above, this is simply enabling interrupts again */
