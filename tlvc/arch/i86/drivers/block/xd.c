@@ -201,6 +201,7 @@ static struct	xdmsg {	/* convert error numbers to messages */
 extern int	hdparms[];	/* Get CHS values from /bootopts */
 
 static int	xd_busy;
+static int	cmd_error;	/* Avoid recursion loop in xd_command() */
 static struct	wait_queue xd_wait;
 static byte_t	xtnoerr;	/* set during tests to supress error messages */
 static byte_t	use_bounce;	/* set when bounce buffer is in use */
@@ -643,6 +644,13 @@ void INITPROC xd_init(void)
 
     blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 
+    printk("xd: MFM disk controller @ 0x%x, irq %d, DMA %d", MHD_PORT, MHD_IRQ, MHD_DMA);
+
+    if (xd_reset()) {	/* works as a probe */
+	printk(" not found\n");
+	return;
+    }
+
     err = request_irq(MHD_IRQ, do_xdintr, INT_GENERIC);
     if (err) {
     	printk("Unable to grab IRQ%d for XD driver\n", MHD_IRQ);
@@ -653,21 +661,15 @@ void INITPROC xd_init(void)
 	return;
     }
 
-    printk("xd: MFM disk controller @ 0x%x, irq %d, DMA %d", MHD_PORT, MHD_IRQ, MHD_DMA);
-
-    if (xd_reset()) {	/* works as a probe */
-	printk(" not found\n");
-	return;
-    }
     printk("\n");	/* controller found, are there any drives attached? */
 
-    for (drive = 0; drive < MAX_XD_DRIVES; drive++) { /* initialize 1 until probe works */
+    for (drive = 0; drive < MAX_XD_DRIVES; drive++) {
     	struct drive_infot *dp = &drive_info[drive];
 	int chs_src;
 
 	/* Check if drive is present */
 	if (xd_recal(drive)) {
-		//printk("xd%d: no drive\n", drive); 	/* DEBUG - remove */
+		//printk("xd%d: no drive\n", drive);
 		continue;
 	}
 
@@ -868,8 +870,9 @@ static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 		return 3;
 
 	/* Error processing for non-DMA commands */
-	if (csb & CSB_ERROR) {
+	if (csb & CSB_ERROR && !cmd_error) {
 		byte_t cmd[6];
+		cmd_error++;			/* avoid error loops, will crash the system */
 		xd_build(cmd, CMD_SENSE, (csb & CSB_LUN) >> 5,0,0,0,0,0);
 		xd_command(cmd, PIO_MODE, sense, NULL, NULL, XD_TIMEOUT);
 		//printk("sense %x|%x|%x|%x;", sense[0], sense[1], sense[2], sense[3]);
@@ -877,6 +880,7 @@ static word_t xd_command(byte_t *command, byte_t mode, byte_t *indata,
 
 	debug_xd("xd_command: completed with csb = 0x%X\n", csb);
 
+	cmd_error = 0;
 	return (csb & CSB_ERROR);	/* returns either 0 or 2 */
 }
 
