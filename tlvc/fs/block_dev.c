@@ -173,22 +173,26 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	}
 	offset = ((size_t)filp->f_pos) & (SECT_SIZE - 1);
 	chars = 0;
-	if (offset) {	/* process partial first sector */
+	if (offset) {	/* start is not on a sector boundary */
 		chars = SECT_SIZE - offset;
 		if (chars > count)
 	    		chars = count;
-	} else if (count < SECT_SIZE) /* partial trailing sector */
+	} else if (count < SECT_SIZE) /* end is not on a sector boundary */
 		chars = count;
 
 #if 0
-	printk("RAW pos %u, cnt %u/%u bl %lu:", (unsigned int) offset,
+	printk("RAW pos %u, cnt %u/%u bl %lu;", (unsigned int) offset,
 		(unsigned int) chars, (unsigned int) count,
 		filp->f_pos >> SECT_SIZE_BITS);
 #endif
 
+	ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 	if (chars) {
-		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
-		ebh->b_nr_sectors = 1;	/* tell low level this is raw */
+		if (!(ebh->b_L2seg >> 16))
+			ebh->b_nr_sectors = 1;	/* strictly superfluous since this
+					* is actually a buffered read, but prevents
+					* the low layer from reading 2 sectors instead
+					* of 1. Fails badly if xms-bufs are used */
 		ll_rw_blk(READ, bh);
 		wait_on_buffer(bh);
 		if (!ebh->b_uptodate) {
@@ -200,13 +204,13 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 		 */
 		if (wr == BLOCK_WRITE) {
 	    		xms_fmemcpyb(buffer_data(bh) + offset, buffer_seg(bh), buf,
-				current->t_regs.ds, chars);
+				(ramdesc_t)current->t_regs.ds, chars);
 	    		/*
 	     		 * Writing: queue physical I/O
 	     		 */
 	    		ll_rw_blk(WRITE, bh);
 	    		wait_on_buffer(bh);
-	    		if (!ebh->b_uptodate) { /* Write error */
+	    		if (!ebh->b_uptodate) {		/* Write error */
 				if (!io_count) io_count = -EIO;
 				break;
 	    		}
@@ -214,8 +218,8 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 			/*
 			 * Move the data into the requesting process' dataspace 
 	 		 */
-	    		xms_fmemcpyb(buf, current->t_regs.ds, buffer_data(bh) + offset,
-				buffer_seg(bh), chars);
+	    		xms_fmemcpyb(buf, (ramdesc_t)current->t_regs.ds, buffer_data(bh)
+				+ offset, buffer_seg(bh), chars);
 		}
 	} else {	/* moving full sectors */
 		char *o_data;
@@ -226,7 +230,6 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 					 * up to 64k, which is more than the 
 					 * system can handle anyway. */
 
-		ebh->b_blocknr = filp->f_pos >> SECT_SIZE_BITS;
 		o_data = bh->b_data;		/* save the 'original' values */
 		o_seg = ebh->b_L2seg;		/* may be long (xms active) or int */
 		ebh->b_L2seg = current->t_regs.ds;
@@ -259,7 +262,7 @@ static int raw_blk_rw(struct inode *inode, register struct file *filp,
 	debug_raw("raw: chars %d, nxt blk %ld, bh %04x;", 
 		chars, filp->f_pos >> SECT_SIZE_BITS, bh);
     }
-done:
+
     ebh->b_dev = NODEV;	/* Invalidate buffer */
     brelse(bh);
     debug_raw("raw io returns %d\n", io_count);

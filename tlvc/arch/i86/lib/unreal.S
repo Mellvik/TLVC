@@ -5,8 +5,6 @@
 #
 # int enable_unreal_mode(void)	- Attempt to turn on 80386 unreal mode,
 #				  returns > 0 on success else error code
-# void linear32_fmemcpyw (void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
-#		size_t count)	- Copy words between XMS and far memory
 # void linear32_fmemcpyb (void *dst_off, addr_t dst_seg, void *src_off, addr_t src_seg,
 #		size_t count)	- Copy bytes between XMS and far memory
 # NOTE: the linear32_fmemcpy routines use "unprotected" EBX, EBX, ESI and EDI registers,
@@ -24,7 +22,6 @@
 
 	.global	check_unreal_mode
 	.global	enable_unreal_mode
-	.global	linear32_fmemcpyw
 	.global	linear32_fmemcpyb
 	.global	linear32_fmemset
 //	.global linear32_peekw
@@ -190,6 +187,8 @@ linear32_pokew:
 #		size_t count)
 # WARNING: Requires 32-bit CPU, with unreal mode and A20 gate enabled!
 #          Trashes EBX, ECX, ESI and EDI without saving.
+# Copy 16bit words to/from anywhere in the linear 24/32 bit address space. Add 
+# the extra byte if count is odd.
 #
 linear32_fmemcpyb:
 	push   %es
