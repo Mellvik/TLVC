@@ -9,20 +9,22 @@ ne1k, ne2k
 .fi
 .SH DESCRIPTION
 The \fBne0\fP 
-device refers to the ELKS driver for the ne1k/ne2k family of 10Mbps 
+device refers to the TLVC driver for the ne1k/ne2k family of 10Mbps 
 Ethernet interfaces (aka NICs) running
 on the PC ISA 8 or 16 bit bus. The 
 \fBne2k\fP
 has a full width 16 bit (double) edge connector an may be used in 16 or 8 bit modes. The
 .B ne1k
-has a single, 8bit wide edge connector and is an 8 bit only device.
+has a single, 8bit wide edge connector and is an 8 bit only device. It may still be used in
+systems with 16 bit bus width, and the practical difference in speed between 8 bit and 16 bit
+NICs is minimal.
 .PP
-The driver will automatically recognize the type of controller and adjust settings accordingly. 
+The driver will automatically recognize the NIC's bus width and adjust settings accordingly. 
 The actual settings will be displayed at boot time.
 .SH CONFIGURATION
 The default settings for the interface are set in the
 .I ports.h 
-file in the ELKS source tree, see the FILES section below. These settings may conveniently
+file in the TLVC source tree, see the FILES section below. These settings may conveniently
 be overridden at boot-time via the
 .I /bootopts
 file using the syntax shown in the SYNOPSIS section above.
@@ -31,7 +33,7 @@ The first parameter is the IRQ (decimal),
 the second is the base I/O port address (in hexadecimal), the third is always omitted for this 
 interface and the fourth is the 
 \fIflag\fP
-field described below. Any of the parameters may be omitted but the commas must be kept.
+field described below. Any of the parameters may be omitted but the field separators must be kept.
 .SH FLAGS
 The 
 .I flags 
@@ -56,7 +58,7 @@ The available flags are:
 .nf
 	NAME		VALUE	FUNCTION
 	ETHF_8K_BUF     0x01    Force  8k NIC buffer (default if 8bit device)
-	ETHF_16K_BUF    0x02    Force 16k NIC buffer (default if 16 bit device)
+	ETHF_16K_BUF    0x02    Force 16k NIC buffer (default if 16 bit device and 16 bit bus)
 	ETHF_4K_BUF     0x04    Force  4k NIC buffer
 	ETHF_8BIT_BUS   0x10    Force  8 bit bus
 	ETHF_16BIT_BUS  0x20    Force 16 bit bus (currently unused)
@@ -70,7 +72,7 @@ interface has been configured into the running kernel via
 a boot message will indicate whether the configuration works or not. The following message indicates success:
 .PP
 .nf
-eth: ne0 at 0x380, irq 9, (ne1k) MAC 00:1f:11:02:60:2d, flags 0x80
+eth: ne0 at 0x380, irq 9, (ne1k) MAC 00:1f:11:02:60:2d, flags 0x80, bufs 0/0
 .fi
 .PP
 The interface was found at the specified I/O address, the displayed MAC (Ethernet) address 
@@ -97,29 +99,46 @@ flag in the
 .I /bootopts 
 configuration to get as much detail as possible. Refer to the FLAGS and ERROR MESSAGES sections
 for details.
+.SH IRQ sharing
+The TLVC driver architecture allows for limited IRQ sharing between devices. This 
+is accomplished by delaying the allocation of IRQs until a device is opened and 
+consisztently releasing the IRQ when closed. 
+.PP
+This capability is particularly useful for network interfaces, allowing switching between installed
+NICs at runtime using the
+.I net stop
+and 
+.I net start
+commands, even if the NICs are configured to use the same IRQ.
+.PP
+However, there is no guarantee that this will work. The ISA bus spec and the PC architecture do not 
+require IRQ lines to be 'tri-stated' (diconnected) until used and then released after use. Thus, an 
+interface may just physically grab and hold on to an IRQ line at boot time and never release it. 
+Particularly old interfaces are prone to this practice. In such cases, a second interface trying to
+use a 'shared' IRQ may mysteriously fail.
 .SH 16 VS 8 BIT
 The  most significant difference between the 
 .B ne1k
 and the
 .B ne2k
 is the bus width. The former supports the original PC/XT ISA 8 bit bus, the latter 
-uses the PC/AT 16 bit ISA bus. Less obvious is the difference
+allows the full PC/AT 16 bit ISA bus to be used. Less obvious is the difference
 in buffer space on the interface itself.
 .PP
-While both types of NIC have 16k
-bytes of on board buffer for packet data, the 
+While both types of NICs may have 16k bytes of on board buffer for packet data, the 
 .B ne1k
 may use only 8k for technical resons (some really old versions of the
 .B ne1k
-may actually have only 8k bytes of memory).
-.PP
-Under heavy load the limited buffer space may affect
-performance (cause lost packets) on ELKS, since the OS does not read and buffer packets imediately 
-as they arrive.
-If this turns out to be a problem, it is advisable to reduce the 
+may actually have only 8k bytes of memory). This applies even to 16 bit NICs when used
+in 8 bit mode. The driver will automatically select the appropriate buffer size, which 
+may also be manually overridden by the
+.I flag
+settings discussed above.
+If this turns out to be a problem, it is advisable to either use kernel buffers
+(see below) or reduce the 
 .i mtu=
 setting in 
-.I /etc/net.cnf.
+.IR /etc/net.cnf .
 Values like 1000 and 800 have been found to work well.
 Such buffer overruns will be reported to the console and may be accompanied by 
 TCP retransmission messages if 
@@ -129,12 +148,48 @@ TCP debugging is turned on.
 While the driver chooses optimal values for both interface types, boot-flags are 
 available to force the NICs
 to use other buffer sizes. Such changes are useful for debugging and should be used with care.
+.SH Kernel Buffers
+Under heavy load, the limited NIC buffer space may cause lost packets and thus negatively affect
+performance, in particular on slow (XT class) systems. 
+In order to alleviate this - and at the obvious cost of using more memory, the 
+.B ne2k
+driver may be configured to use kernel buffers for inbound as well as outbund traffic.
+This is particularly attractive for inbound packets. Because
+of the network software architecture, extra transmit buffers have minimal if any effect,
+and is primarily useful for experimentation and testing.
 .PP
-The bus width of the NIC is autodetected by the driver. However, the driver will not notice
-if a 16 bit card
-.B (ne2k)
-is used in a machine with only 8 bit bus width. In such casaes, use the ETHF_8BIT_BUS flag (see 
-the FLAGS section above) to force the driver to use the correct bus width.
+Network buffers are enabled by default and configured via the 
+.I netbuf.h
+file in the network driver directory - 
+.I tlvc/arch/i86/drivers/net.
+when enabled, the number of buffers default to 2 receive, 0 transmit, and may be adjusted
+via the
+.I netbufs=
+directive in 
+.IR /bootopts .
+The syntax is
+.I netbufs=x,y
+where x is the number of receive buffers, y is transmit buffers. 0,0 is a perfectly valid choice and
+optimal for fast systems.
+.PP
+Each buffer is approximately 1.5k bytes (1 ethernet packet) and are allocated from the kernel heap.
+Being a limited resource, overallocation may cause the system to fail at boot time or at run time. 
+Keeping the total number of buffers below 5 is recommended. The number of buffers actually used
+is printed at boot time when the interface is detected and configured.
+.SH MAC address
+The
+.I ne2k
+driver also allows the low level MAC (ethernet) address to be set at boot time, via the
+.I mac=
+directive in
+.IR /boototps .
+Six hexadecimal valies are expected, separated by colons.
+.PP
+The primary purpose of this option is to accomodate NICs that either do not have their MAC address 
+stored on the card or the address is stored in a non-standard way, unaccesible by the driver. When 
+present, the 
+.I /bootopts
+value will be used. Make sure to comment it out or delete it if this is not desirable.
 .SH DIAGNOSTICS
 The driver will emit the following error messages, some of them only if the verbose flag has been set.
 .PP
@@ -208,10 +263,12 @@ The
 ioctl is currently unused and disabled.
 
 .SH FILES
-/dev/ne0, /bootopts, /etc/net.cfg, elks/include/arch/ports.h
+/dev/ne0, /bootopts, /etc/net.cfg, tlvc/include/arch/ports.h, tlvc/arch/i86/drivers/net/netbufs.h
 .SH "SEE ALSO"
 .BR ktcp (1),
 .BR wd0 (4),
-.BR 3c0 (8).
+.BR le0 (4),
+.BR ie0 (4),
+.BR 3c0 (4).
 .SH AUTHOR
-Rewritten for ELKS 2020-2022 by Helge Skrivervik, helge@skrivervik.com
+Rewritten for ELKS 2020-2022 and for TLVC 2023-2025 by Helge Skrivervik, helge@skrivervik.com
