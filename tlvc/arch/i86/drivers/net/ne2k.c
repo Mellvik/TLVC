@@ -62,6 +62,10 @@ extern unsigned char macaddr[];
 #define BUF_IS_LOCAL 0
 #define BUF_IS_FAR 1
 //static int bufsinuse;
+//#define LOCAL_DEBUG
+#ifndef LOCAL_DEBUG
+#define kputchar(x)
+#endif
 
 /*
  * Read a complete packet from the NIC buffer
@@ -72,7 +76,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 
 	size_t res;  // actual packet size
 
-	//kputchar('R');
+	kputchar('R');
 	while(1) {
 		prepare_to_wait_interruptible(&rxwait);
 #if NET_BUF_STRAT != NO_BUFS
@@ -82,7 +86,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 			rnext->len = 0;
 			//bufsinuse--;
 			rnext = rnext->next;
-			//kputchar('b');
+			kputchar('b');
 			break;
 		}
 #endif
@@ -92,13 +96,10 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 		 * rx buffer is smaller than the NIC buffer.
 		 *
 		 * NOTE: Possible race condition. A RCV INTR may happen
-		 * while we're reading a packet - thus the semaphore in getpkg 
+		 * while we're reading a packet - thus the getpkg_busy semaphore
 		 */
-		//kputchar('r');
 		if (ne2k_has_data && !getpkg_busy) { 
-#if NET_BUF_STRAT != NO_BUFS
-		    //kputchar('B');
-#endif
+		    kputchar('r');
 		    res = ne2k_getpkg(data, len, BUF_IS_FAR);
 		    break;
 		}
@@ -159,16 +160,15 @@ static size_t ne2k_getpkg(char *data, size_t len, word_t type) {
 					// need to reset as if we had a buffer overflow.
 			size = ne2k_clr_oflow(0); 
 			//printk("<%04x>", res);
-		} else {
+		} else
 #endif
+		{
 			ne2k_rx_init();	// Resets the ring buffer pointers to initial values,
 					// effectively purging the buffer.
 			size = -EIO;
-#if 0
 		}
-#endif
 	}
-	getpkg_busy = 0;	/* reset busy-flag */
+	getpkg_busy = 0;	/* clear busy-flag */
 	return(size);
 }
 
@@ -183,7 +183,7 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 	//printk("T");
 	while (1) {
 		prepare_to_wait_interruptible(&txwait);
-		// tx_stat() checks the command reg, not the tx_status_reg!
+		/* NOTE: tx_stat() checks the command reg, not the tx_status_reg! */
 		if (ne2k_tx_stat() != NE2K_STAT_TX) {
 #if NET_BUF_STRAT != NO_BUFS
 		    if (tnext) {
@@ -194,7 +194,7 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 				nxt = nxt->next;
 			}
 			if (nxt->len == 0) {
-				//kputchar('t');
+				kputchar('t');
 				nxt->len = len;
 				verified_memcpy_fromfs(nxt->data, data, len);
 				res = len;
@@ -235,7 +235,6 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 {
 	int res = 0;
 
-	//printk("S");
 	switch (sel_type) {
 		case SEL_OUT:
 			if ((ne2k_tx_stat() == NE2K_STAT_TX) 
@@ -243,9 +242,11 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 				|| (tnext && !tnext->len)
 #endif
 			) {
+				kputchar('t');
 				res = 1;
 				break;
 			}
+			kputchar('T');
 			select_wait(&txwait);
 			break;
 
@@ -255,9 +256,11 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 			|| (rnext && rnext->len)
 #endif
 			) {
+				kputchar('w');
 				res = 1;
 				break;
 			}
+			kputchar('W');
 			select_wait(&rxwait);
 			break;
 
@@ -276,7 +279,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 {
 	word_t stat, page;
 
-	//kputchar("/");
+	kputchar('I');
 	while (1) {
 		stat = ne2k_int_stat();
 		if (!stat) break; 	/* If zero, we're done! */
@@ -297,8 +300,10 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 			break; 
 		}
 
-		if (stat & NE2K_STAT_RX)
+		if (stat & NE2K_STAT_RX) {
+			kputchar('i');
 			ne2k_has_data = 1;
+		}
 
 		if (ne2k_has_data) {		/* Even if we didn't get an RX int, there may be 
 						 * data to pull from the NIC - buffer space 
@@ -322,6 +327,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 		}
 
 		if (stat & NE2K_STAT_TX) {
+			kputchar('x');
 #if NET_BUF_STRAT != NO_BUFS
 			if (tnext && tnext->len) {
 				ne2k_pack_put(tnext->data, tnext->len, BUF_IS_LOCAL);
@@ -330,7 +336,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 			}
 #endif
 			outb(NE2K_STAT_TX, net_port + EN0_ISR); // Clear intr bit
-			inb(net_port + EN0_TSR);
+			inb(net_port + EN0_TSR);	/* really needed? */
 			wake_up(&txwait);
 		}
 		//printk("%02X/%d/", stat, ne2k_has_data);
@@ -361,7 +367,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 
 		/* RXErrors occur almost exclusively when using an 8 bit interface.
 		 * A bug in QEMU will cause continuous interrupts if RXE intr is unmasked.
-		 * Therefore the low level driver will unmask RXE intr only if the NIC is 
+		 * Therefore the asm level code will unmask RXE intr only if the NIC is 
 		 * running in 8 bit mode */
 		if (stat & NE2K_STAT_RXE) { 	
 			/* Receive error detected, may happen when traffic is heavy */
@@ -449,6 +455,7 @@ static int ne2k_open(struct inode *inode, struct file *file)
 #endif
 
 		ne2k_start();
+		//outb(0xff, net_port + EN0_ISR); /* EXPERIMENTAL; DELETE */
 	}
 	return 0;
 }
@@ -506,7 +513,7 @@ void ne2k_display_status(void)
 void INITPROC ne2k_drv_init(void)
 {
 	int i;
-	word_t prom[16];/* PROM containing HW MAC address and more 
+	word_t prom[16];/* The PROM contains HW MAC address and more 
 			 * (aka SAPROM, Station Address PROM).
 			 * PROM size is 16 words, the low byte holding the info
 			 * (newer cards may have proprietary info in the high byte).
@@ -515,20 +522,14 @@ void INITPROC ne2k_drv_init(void)
 			 * which is usually empty except for bytes 28 and 30 (*words* 14 and 15), 
 			 * which contain a 'B' if it's an 8bit card, 'W' if it's a 16bit card.
 			 *
-			 * BUT - if it's a 8bit card, there is only 16 bytes to read. So the reading
-			 * delivers different results depending on system bus width, card bus width 
-			 * and whether an INB or INW instruction is used for reading.
-			 * The only way (AFAIK) to generalize this is to always use byte-read (INB).
-			 * This will deliver a 32 byte array/16 words where the upper byte 
-			 * is either 00 or a duplicate of the lower byte, and can be discarded.
-			 *
-			 * From this point on it's simple: Set word mode if the system and the card
-			 * are both 16 bit, otherwise keep byte mode.
-			 *
-			 * If for some reason this autodetect procedure doesn't work, the bus width 
-			 * may be set via the FLAGS. In such cases, the driver may
-			 * not be able to collect the correct MAC address for the interface, and the 
-			 * mac= setting in /bootopts must be used.
+			 * The SAPROM is always read as 32 bytes, then compacted to 16 bytes. Card 
+			 * is determined by loking at the bytes 14 and/or 15. If 'B', 8-bit mode is
+			 * set, otherwise not. IOW, we're using word IO even on 8bit ISA systems, which is
+			 * supposedly slightly faster than 2 IOB instructions, and simpler driver code.
+			 * 
+			 * For interfaces that don't adhere to the B/W encoding, overrides via
+			 * bootopts is the solution: Set the MAC address and card type manually
+			 * as required.
 			 */
 
 	byte_t *cprom, *mac_addr;
@@ -553,8 +554,11 @@ void INITPROC ne2k_drv_init(void)
 	}
 	cprom = (byte_t *)prom;
 	ne2k_flags = ETHF_8BIT_BUS;	/* Force byte size PROM read */
+	ne2k_reset();
+	kputchar('!');
 	ne2k_get_hw_addr(prom);
-#if 0
+	kputchar('#');
+#if 1
 	for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
 	printk("\n");
 #endif
@@ -564,25 +568,24 @@ void INITPROC ne2k_drv_init(void)
 	for (i = 0; i < 12; i += 2) {
 		j += cprom[i];
 	}
-	if (j == (cprom[0]*6) || !j) {
+	if (j == (cprom[0]*6)) {
 		printk("ne0: MAC address error, sum is %x\n", j);
 		return;
 	}
 #endif
 	found = 1;
+	for (i = 0; i < 16; i++)	/* pack the low bytes into a packed byte array */
+		cprom[i] = (byte_t)prom[i]&0xff;
 
-	if (net_flags&ETHF_16BIT_BUS || (arch_cpu > 2 && cprom[28] == 'W' && cprom[30] == 'W')) {
-		ne2k_flags = 0;		/* 16 bit NIC in 16 bit machine */
-	} else {
-		if (cprom[28] == 'B') model_name[2] = '1';
-		netif_stat.if_status |= NETIF_AUTO_8BIT; 
+
+	if (cprom[14] == 'B' && cprom[15] == 'B') {	/* keep 8bit setting from above */
+		model_name[2] = '1';
+		//netif_stat.if_status |= NETIF_AUTO_8BIT; 
+	} else if (arch_cpu > 2) {	/* keep 8bit mode if this is a 8bitISA machine */
+		ne2k_flags = 0;		/* otherwise 16 bit NIC */
+		netif_stat.oflow_keep = 3;	// Experimental: keep 3 if 16k buffer
 	}
-#define PICOMEM_HACK	/* get around bug in PicoMem ne1k emulator */
-#ifdef PICOMEM_HACK
-	if (cprom[12] != 'W')
-#endif
-	for (i = 0; i < 16; i++) cprom[i] = (byte_t)prom[i]&0xff;
-#if 0
+#if 1
 	for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
 	printk("\n");
 #endif
@@ -592,23 +595,22 @@ void INITPROC ne2k_drv_init(void)
 	memcpy(mac_addr, cprom, 6);
 	printk(", (%s) MAC %s%02x", model_name, cprom==macaddr? "(from bootopts) ":"", mac_addr[0]);
 	ne2k_addr_set(cprom);   /* Set NIC mac addr now so IOCTL works from ktcp */
-
 	i = 1;
 	while (i < 6) printk(":%02x", mac_addr[i++]);
+
 	if (net_flags&ETHF_8BIT_BUS) {
-		/* flag that we're forcing 8 bit bus on 16 NIC */
-		if (!ne2k_flags || cprom[28] == 'W') printk(" (8bit)");
+		if (cprom[14] == 'W' || cprom[15] == 'W') printk(" (forced 8bit)");
 		ne2k_flags = ETHF_8BIT_BUS; 	/* Forced 8bit */
 	} else if (net_flags&ETHF_16BIT_BUS) {
-		printk(" (16bit)");
+		if (cprom[14] == 'B' || cprom[15] == 'B') printk(" (forced 16bit)");
+		ne2k_flags = 0;
 	}
-	if (!(ne2k_flags&ETHF_8BIT_BUS))
-		netif_stat.oflow_keep = 3;	// Experimental: keep 3 if 16k buffer
 
 	/* The _BUF flags indicate forced NIC buffer size, ZERO means use defaults */
-	if (net_flags&(ETHF_4K_BUF|ETHF_8K_BUF|ETHF_16K_BUF)) {
-		ne2k_flags |= net_flags&0xf;		/* asm code uses this */
+	if (net_flags&ETHF_BUF_MASK) {
+		ne2k_flags |= net_flags&ETHF_BUF_MASK;		/* asm code uses this */
 		printk(" (%dk buffer)", 4<<(net_flags&0x3));
+		/* possibly adjust oflow_keep here */
 	}
 #if (NET_BUF_STRAT == NO_BUFS)
 	printk(", flags 0x%02x\n", net_flags);

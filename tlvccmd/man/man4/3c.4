@@ -9,13 +9,13 @@
 .fi
 .SH DESCRIPTION
 The \fB3c0\fP 
-device refers to the ELKS driver for the 3Com 3C509 10Mbps 
+device refers to the TLVC driver for the 3Com 3C509 10Mbps 
 Ethernet interface (aka NIC) running
 on the PC ISA 8 or 16 bit bus. The 
 \fB3C509\fP
 is a 16 bit interface but may also be used in systems with 
 the original PC/XT 8 bit ISA bus. However, this functionality is currently not implemented in 
-the ELKS driver.
+the TLVC driver.
 .PP
 The 
 .B 3C509
@@ -39,7 +39,7 @@ most cases TCP will recover and continue.
 .SH CONFIGURATION
 The default configuration for the interface is set in the
 .I ports.h 
-file in the ELKS source tree, see the FILES section below. These settings may conveniently
+file in the TLVC source tree, see the FILES section below. These settings may conveniently
 be overridden at boot-time via the
 .I /bootopts
 file using the syntax shown in the SYNOPSIS section above.
@@ -55,7 +55,7 @@ will be used.
 .PP
 Because of its plug-and-play capability, the
 .B 3C509
-will use the configuration specified by ELKS regardless of the internal settings in the interface.
+will use the configuration specified by TLVC regardless of the internal settings in the interface.
 Those
 settings will be reported for informational purposes in the boot message if verbose mode is set, 
 see below.
@@ -150,7 +150,7 @@ traffic on such segments may have bursts that the old interfaces have a hard tim
 This message is informational.
 .PP
 .nf
-\fIne0: RX-error, status 0x%x\fR
+\fI3c0: RX-error, status 0x%x\fR
 .fi
 A link level error happened during receive and the packet was discarded.
 This message is informational and will be suppressed if the verbose flag is off.
@@ -163,7 +163,7 @@ cases mean a NIC failure, possibly overheating. An extremely rare situation whic
 most definitely be of interest to the developers.
 .PP
 .nf
-\fIeth: Infinite loop in interrupt, status %4.4x.\fR
+\fI3c0: Infinite loop in interrupt, status %4.4x.\fR
 .fi
 Another very rare occurence, most likely indicating a driver error. If this happens, the NIC will
 be shut down and needs to be restarted either by a
@@ -194,4 +194,4 @@ The AUI setting is untested. Also, the driver has not been tested with the older
 .BR ne0 (4),
 .BR net (1).
 .SH AUTHOR
-Helge Skrivervik, helge@skrivervik.com
+Helge Skrivervik, helge@skrivervik.com - loosely based on David Becker's original driver for Linux

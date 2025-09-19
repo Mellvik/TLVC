@@ -366,11 +366,11 @@ static void el3_int(int irq, struct pt_regs *regs)
 			int err = inw(ioaddr + RX_STATUS);
 			if (err & 0x4000) {	/* We have an error, record and recover */
 				if (err & 0x3800) { 	/* packet error */
-					if (verbose) printk(EMSG_RXERR, model_name, err);
+					if (verbose) printk(EMSG_RXERR, dev_name, err);
 					//printk("eth: RX error, status %04x len %d\n", err&0x3800, err&0x7ff);
 					netif_stat.rx_errors++;
 				} else {
-					if (verbose) printk(EMSG_OFLOW, model_name, 0);
+					if (verbose) printk(EMSG_OFLOW, dev_name, 0);
 					netif_stat.oflow_errors++;
 				}
 				outw(RxDiscard, ioaddr + EL3_CMD); /* Discard this packet. */
@@ -412,7 +412,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 				short tx_status;
 				int k = 4;
 
-				if (verbose) printk(EMSG_TXERR, model_name, inb(ioaddr + TX_STATUS));
+				if (verbose) printk(EMSG_TXERR, dev_name, inb(ioaddr + TX_STATUS));
 				netif_stat.tx_errors++;
 				while (--k > 0 && (tx_status = inb(ioaddr + TX_STATUS)) > 0) {
 					//if (tx_status & 0x38) dev->stats.tx_aborted_errors++;
@@ -425,7 +425,7 @@ static void el3_int(int irq, struct pt_regs *regs)
 			 * both are really driver or host faults, should not happen. */
 			if (status & AdapterFailure) {
 				/* Adapter failure requires Rx reset and reinit. */
-				if (verbose) printk(EMSG_ERROR, model_name, status);
+				if (verbose) printk(EMSG_ERROR, dev_name, status);
 				outw(RxReset, ioaddr + EL3_CMD);
 				/* Set the Rx filter to the current state. */
 				outw(SetRxFilter | RxStation | RxBroadcast, ioaddr + EL3_CMD);
@@ -436,8 +436,8 @@ static void el3_int(int irq, struct pt_regs *regs)
 		}
 
 		if (--i < 0) {		/* Should not happen */
-			printk("el3: Infinite loop in interrupt, status %4.4x.\n",
-				   status);
+			printk("%s: Infinite loop in interrupt, status %4.4x.\n",
+				   dev_name, status);
 
 			/* Clear all interrupts. */
 			outw(AckIntr | 0xFF, ioaddr + EL3_CMD);
@@ -565,11 +565,11 @@ static size_t el3_read(struct inode *inode, struct file *filp, char *data, size_
 			short error = rx_status & 0x3800;
 
 			outw(RxDiscard, ioaddr + EL3_CMD);
-			printk("el3: Error in read (%04x), buffer cleared\n", error);
+			printk("%s: Error in read (%04x), buffer cleared\n", dev_name, error);
 			inw(ioaddr + EL3_STATUS); 				/* Delay. */
 			while ((res = inw(ioaddr + EL3_STATUS) & 0x1000)) {
 				/// FIXME: printk to be removed	later, seems stable
-				printk("eth: RD discard delay (%x)\n", res);
+				printk("%s: RD discard delay (%x)\n", dev_name, res);
 				el3_udelay(1);
 			}
 			res = -EIO;
@@ -633,7 +633,7 @@ static int el3_open(struct inode *inode, struct file *file)
 
 	err = request_irq(net_irq, el3_int, INT_GENERIC);
 	if (err) {
-		printk(EMSG_IRQERR, model_name, net_irq, err);
+		printk(EMSG_IRQERR, dev_name, net_irq, err);
 		return err;
 	}
 	EL3WINDOW(0);

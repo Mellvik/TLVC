@@ -39,9 +39,9 @@
  * not a checksum but something else, and the card will be 'not found'.
  *
  * This knowledge may be used to get and change not only the MAC address (less useful), but
- * the base address and the IRQ, most likely the shared memory address of the card, in the
- * driver. The current version of the driver makes no attempt to do that and it takes
- * some code to do it because the information is encoded in NVRAM. Like, the irq must be 
+ * the base address and the IRQ, most likely the shared memory address of the card, via
+ * bootopts. The current version of the driver makes no attempt to do that and it takes
+ * some code to do it because the information in NVRAM is encoded. Like, the irq must be 
  * retreived like this:  irq = ((irqreg & 0x40) >> 4) + ((irqreg & 0x0c) >> 2)
  * which still isn't the irq but an 'index' if you like. The driver needs an array that
  * matches up the indexes to the actual IRQs, like irqmap[] = {0, 9, 3, 5, 7, 10, 11, 15}
