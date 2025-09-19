@@ -484,16 +484,16 @@ extern void unmap_brelse(struct buffer_head *);
 extern void brelseL1(struct buffer_head *, int);
 extern void brelseL1_index(int, int);
 ramdesc_t buffer_seg(struct buffer_head *);
-extern char *buffer_data(struct buffer_head *);
+//extern char *buffer_data(struct buffer_head *);
 #else
 #define map_buffer(bh)
 #define unmap_buffer(bh)
 #define brelseL1(bh,copyout)
 #define brelseL1_index(i,copyout)
 #define unmap_brelse(bh) brelse(bh)
-#define buffer_data(bh)  ((bh)->b_data)
 #define buffer_seg(bh)   (kernel_ds)
 #endif
+#define buffer_data(bh)  ((bh)->b_data)
 
 extern size_t block_read(struct inode *, struct file *, char *, size_t);
 extern size_t block_write(struct inode *, struct file *, char *, size_t);
