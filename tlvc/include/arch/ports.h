@@ -68,12 +68,6 @@
 #define KBD_CTL		0x61
 #define KBD_IRQ		1
 
-/* serial, serial.c*/
-#ifdef CONFIG_CHAR_DEV_RS
-//#define CONFIG_FAST_IRQ4             /* COM1 very fast serial driver, no ISIG handling*/
-//#define CONFIG_FAST_IRQ3             /* COM2 very fast serial driver, no ISIG handling*/
-#endif
-
 #ifdef CONFIG_ARCH_PC98
 #define COM1_PORT	0x30
 #define COM1_IRQ	4		/* unregistered unless COM1_PORT found*/

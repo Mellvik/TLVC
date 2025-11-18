@@ -325,7 +325,7 @@ again:
 	    nonblock = 1;
 	}
 
-	if (chq_peekch(&tty->inq))
+	if (chq_peek(&tty->inq))
 	    ch = chq_getch(&tty->inq);
 	else {
 	    if (!icanon && !vtime && (i >= vmin))
