@@ -1,5 +1,9 @@
-## TLVC startup configuration - needs CONFIG_OPTSEG_HIGH
-console=ttyS0,57600	# serial console
+## TLVC startup configuration - needs CONFIG_OPTSEG_HIGH for size>1024
+#
+#system startup
+#init=/bin/init 3 n	# multiuser (lev 3), no /etc/rc.sys
+#init=/bin/sh		# singleuser shell (may be /bin/sash)
+#console=ttyS0,57600	# serial console, speed
 3			# init level, 3 = multiuser, serial active
 #n			# no rc.sys
 #root=hda1		# make any drive or partition root
@@ -7,7 +11,7 @@ console=ttyS0,57600	# serial console
 #TZ=MDT7
 
 # networking
-NET=ne0 		# start netw @ boot w/this interface
+NET=ne0 		# start networking @ boot time on this interface
 LOCALIP=10.0.2.15
 GATEWAY=10.0.2.1
 HOSTNAME=tlvc15
@@ -23,32 +27,30 @@ netbufs=0,0	# net buffers, recv/trans, ne2k only, def 2,0
 comirq=,,7,10	# IRQ for com ports, max 4
 
 # kernel tuning, buffers are 1k each
+#tasks=16 bufs=64 cache=8 files=64 inodes=96 	# defaults, must match tasks=
 #cache=8	# L1 cache
 #bufs=40	# L2 buffers (default 64)
 #heap=30	# max heap (kB), def ca. 50k
-#tasks=16 bufs=64 cache=8 files=64 inodes=96 	# defaults
 #tasks=18	# tasks, default 16, max ~24
-#files=68 inodes=100 # defaults, must match tasks
 #mem=640	# memsize kB
 #umb=000011111	# enable UMBs, 1 digit per 32k starting @ A000
 sync=30		# autosync buffers (secs)
 
-# kernel debugging, needs CONFIG_TRACE
+# kernel debugging
 debug=2		# Enable kernel debug functionality
+		# 3 -> verbose IDE initialization
+		# These need CONFIG_TRACE
 #strace		# enable system call tracing
 #kstack		# enable kernel stack tracing
 
 # XMS - 286 and up
 xms=on		# if available
-xmsbufs=256
+xmsbufs=256	# Number of xms buffers to allocate
 hma=kernel	# load kernel in HMA if available, must start in col 1!
 
 # mass storage
 #hdparms=823,4,38,-1,63,16,63,-1 # CHSW for 2 drives, overrides CMOS & BIOS
 #xtflpy=3,1	# meaningful for XT systems w/720k type 3 drive(s)
 fdcache=5	# floppy read cache for slow systems <= 286
-#xtide=0x300,5,1,,, # addr, IRQ, flgs for 2 XT-IDE controllers
-
-#system startup
-#init=/bin/init 3 n	# multiuser (lev 3), no /etc/rc.sys
-#init=/bin/sh		# singleuser shell (may be /bin/sash)
+#xtide=0x300,5,0,,, # addr, IRQ, flags for 2 XT-IDE controllers
+		# flags: 0=normal, 1:CFlite, 2=fastMode

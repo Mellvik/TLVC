@@ -55,6 +55,7 @@
 #include <linuxmt/errno.h>
 #include <linuxmt/config.h>
 #include <linuxmt/stat.h>	/* for S_ISCHR() */
+#include <linuxmt/kernel.h>	/* for debug_level */
 
 #include <arch/directhd.h>
 #include <arch/hdio.h>
@@ -82,10 +83,7 @@ static unsigned char SECTOR_REG[3] = { 0x3, 0x6, 0xA};
 #define WAITING(p) ((STATUS(p) & BUSY_STAT) == BUSY_STAT)
 #define DRQ_WAIT(p) (STATUS(p) & DRQ_STAT) /* set when ready to transfer */
 
-#define DEBUG_DIRECTHD 0
-#if DEBUG_DIRECTHD
 static void dump_ide(word_t *, int);
-#endif
 
 /* #define USE_ASM */
 /* use asm insw/outsw instead of C version */
@@ -351,8 +349,7 @@ void write_data(unsigned int port, ramdesc_t seg, word_t *buffer, int count, int
  * Send a commmand packet to the drive, adapt to the various controller addressing schemes
  * (XT-IDE etc.)
  */
-void send_cmd(unsigned int drive, unsigned int nsect, unsigned int sect,
-	    unsigned int head, unsigned int cyl, unsigned int cmd)
+void send_cmd(word_t drive, word_t nsect, word_t sect, word_t head, word_t cyl, word_t cmd)
 {
     word_t port = ide_ct[drive >> 1].io_port;
     struct drive_infot *dp = &drive_info[drive];
@@ -397,7 +394,8 @@ void send_cmd(unsigned int drive, unsigned int nsect, unsigned int sect,
     outb(cmd, (port += increment));
     return;
 }
-#if DEBUG_DIRECTHD
+
+/* hex-dump the device ID buffer -- typically when debug_level > 2 */
 static void dump_ide(word_t *buffer, int size) {
         int counter = 0;
 
@@ -410,7 +408,6 @@ static void dump_ide(word_t *buffer, int size) {
         } while (--size);
         if (counter) printk("\n");
 }
-#endif
 
 #ifdef CONFIG_XT_IDE
 /* Only called when when using XT/CFlite - will fail if used with XT-IDE */ 
@@ -442,7 +439,7 @@ int INITPROC directhd_init(void)
 {
     struct gendisk *ptr;
     word_t *ide_buffer;
-    int i, hdcount = 0, drive;
+    int i, j, hdcount = 0, drive;
     unsigned int port;
     char athd_msg[] = "hd%d: %sIDE controller at 0x%x\n";
 
@@ -569,10 +566,9 @@ int INITPROC directhd_init(void)
 	 * a BIOS call)? Via bootopts: hdparms=960,5,17,-1 (HS/2023)
 	 */
 
-#if DEBUG_DIRECTHD
-	dump_ide(ide_buffer, 64);
-	//ide_buffer[53] = 0; /* force old ide behaviour for debugging */
-#endif
+	if (debug_level > 2) dump_ide(ide_buffer, 64);
+	//ide_buffer[53] = 0; /* force 1st gen IDE-device behaviour for debugging */
+
 	ide_buffer[20] = 0; /* String termination */
 	i = drive*4;
 	if ((ide_buffer[54] < 34096) && (*ide_buffer != 0)) {
@@ -610,8 +606,12 @@ int INITPROC directhd_init(void)
 	     * and will default to some odd default values otherwise */
 	    /* NOTE: In older docs this cmd is known as 'Initialize Drive Parameters' */
 	    send_cmd(drive, dp->sectors, 0, dp->heads - 1, 0, ATA_SPECIFY);
-	    while(WAITING(port)) mdelay(1000);
-	    if (STATUS(port) & ERR_STAT) printk("\nhd%c err in specify: %x;", 
+	    j = 0;
+	    while(WAITING(port)) {
+		if (j++ > 100) break;
+		mdelay(1000);
+	    }
+	    if (STATUS(port) & ERR_STAT || j > 100) printk("\nhd%c err or timeout in specify: %x;", 
 			('a'+drive), ERROR(port)); /* DEBUG */
 
 #ifdef USE_MULTISECT_IO	
@@ -638,14 +638,14 @@ int INITPROC directhd_init(void)
 #endif
     }
     if (!hdcount) {
-	printk("hd: no drives found\n");
+	printk("hd: No IDE drives found\n");
 	return 0;
     }
 
     directhd_gendisk.nr_real = hdcount;
  
     if (register_blkdev(MAJOR_NR, DEVICE_NAME, &directhd_fops)) {
-	printk("athd: unable to register\n");
+	printk("hd: unable to register device\n");
 	return -1;
     }
     if (register_chrdev(RAW_HD_MAJOR, "rhd", &rhd_fops))
@@ -667,7 +667,7 @@ int INITPROC directhd_init(void)
 #endif
 	got_irq = HD1_AT_IRQ;
     if (got_irq) {
-	printk("athd: Interrupt registration: ");
+	printk("hd: Interrupt registration: ");
 	if (request_irq(got_irq, do_directhd, INT_GENERIC))
 	    got_irq = 0;
 	if (got_irq)
@@ -688,14 +688,14 @@ int INITPROC directhd_init(void)
 	directhd_gendisk.next = NULL;
     }
 
-    debug_blkdrv("athd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
+    debug_blkdrv("hd: found %d hard drive%c\n", hdcount, hdcount == 1 ? ' ' : 's');
 
 #if NOTNEEDED
     /* print drive info */
     for (i = 0; i < MAX_ATA_DRIVES; i++)
 	/* sanity check */
 	if (drive_info[i].heads != 0) {
-	    printk("athd%dd%d: /dev/hd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
+	    printk("hd%dd%d: /dev/hd%c: %d heads, %d cylinders, %d sectors (~%luMB)\n",
 		   i/2, i&1, (i + 'a'),
 		   drive_info[i].heads,
 		   drive_info[i].cylinders, drive_info[i].sectors,
@@ -859,10 +859,10 @@ void do_directhd_request(void)
 	/* may want to check for count = 1 - some drives don't like 1 sector in multi_mode */
 	if (req->rq_cmd == READ) {
 	    cmd = (!dp->multio_max)? ATA_READ : ATA_READM; 
-	    PORT_IO = read_data;
+	    PORT_IO = (void *)read_data;
 	} else {
 	    cmd = (!dp->multio_max)? ATA_WRITE : ATA_WRITEM;
-	    PORT_IO = write_data;
+	    PORT_IO = (void *)write_data;
 	}
 
 	start += hd[minor].start_sect;
@@ -978,11 +978,11 @@ static int reset_controller(int controller)
 	/* QEMU some times reports 0x00 even when a controller and a drive is present
 	 * (but not if there are two drives). */
 
-	//printk("athd%d: got status 0x%x\n", controller, err);
-	if (err == 0xff || !(err & 0x50)) {	/* Check for DriveReady|SeekComplete */
+	//printk("hd%d: got status 0x%x\n", controller, err);
+	if (!(err & 0x50)) {	/* Check for DriveReady|SeekComplete */
 	    if (running_qemu && !controller)
-		return 0;	/* workaround for another qemu bug, pretend we're OK */
-	    err = 1;
+		return 0;	/* QEMU workaround - see above */
+	    return 1;
 	} else {
 	    err = 0;
 	    if (!(i = drive_busy(port, cf_shift))) {	/* probably no controller or no drive */
