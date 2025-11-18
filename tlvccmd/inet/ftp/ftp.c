@@ -501,7 +501,7 @@ int do_ls(int controlfd, int datafd, char **cmdline, int mode) {
 		}
 	}
 	if (send_cmd(controlfd, recvline) < 0) {
-		printf("No connection.\n");
+		//printf("No connection.\n");
 		check_connected++;
 		if (fd > 1) close(fd);
 		return -1;
@@ -1241,7 +1241,8 @@ int main(int argc, char **argv) {
 					// is a server name/address on the cmd line
 	}
 	if ((debug > 2) && (*srvr_ip != '\0')) 
-		printf("cmd line: ip %s port %u %s\n", srvr_ip, server_port, (server_port == DFLT_PORT)? "(default)" : ""); 
+		printf("cmd line: ip %s port %u %s\n", srvr_ip, server_port, 
+			      (server_port == DFLT_PORT)? "(default)" : ""); 
 
 	if (autoconnect) {
 		if ((controlfd = do_login(user, passwd, command, sizeof(command), srvr_ip, server_port)) > 0)
@@ -1256,10 +1257,12 @@ int main(int argc, char **argv) {
 		if ((code = get_cmd(command, sizeof(command), param)) < 0) break; /* got EOF */
 		if (check_connected) {
 			connected = is_connected(controlfd);
+			if (!connected)
+			    printf("Not connected.\n");
 			check_connected = 0;
 		}
 
-		// prequalify commands so we don't have to do mode checking on every command
+		/* prequalify commands so we don't have to do mode checking on every command */
 		if (!connected && (code > CMD_NOCONNECT) && (code < CMD_CONNECT)) {
 			printf("Not connected.\n");
 			continue;
@@ -1435,8 +1438,7 @@ int main(int argc, char **argv) {
 				send_cmd(controlfd, "SYST\r\n");
 				get_reply(controlfd, str, sizeof(str), 10);
 				printf("Remote system: %s", &str[4]);
-			}
-			else 
+			} else 
 				printf("Not connected.\n");
 			if (!debug) 
 				printf("Debug is off.\n");
