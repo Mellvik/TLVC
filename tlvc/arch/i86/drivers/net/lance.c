@@ -840,8 +840,10 @@ static void lance_interrupt(int irq, struct pt_regs *regs)
 	    dirty_tx++;
 	}
 
-	if (lp->cur_tx - dirty_tx >= TX_RING_SIZE)	/* will happen every time cur_tx wraps around */
+	if (lp->cur_tx - dirty_tx >= TX_RING_SIZE) {	/* will happen every time cur_tx wraps around */
+	    //printk("le0: wrap %d %d, new dirty_tx %d\n", lp->cur_tx, dirty_tx, dirty_tx + TX_RING_SIZE);
 	    dirty_tx += TX_RING_SIZE;
+	}
 
 	if (tbusy  &&  dirty_tx > (lp->cur_tx - TX_RING_SIZE + 2)) {
 	    /* The ring is no longer full, clear tbusy. */
