@@ -133,24 +133,29 @@ static void client_loop(int fdsock, int fdterm)
     int count_in = 0;
     int count_out = 0;
     int count_fd = (fdsock > fdterm) ? (fdsock + 1) : (fdterm + 1);
-    struct timeval timeint;
+    //struct timeval timeint;
 
     telnet_init(fdsock);
 
-    timeint.tv_sec = 0;
-    timeint.tv_usec = 50000L;	/* slow 50ms timeout to fix select hang bug in #1048 */
     while (1) {
+    		//timeint.tv_sec = 0;
+    		//timeint.tv_usec = 50000L;	/* slow 50ms timeout to fix select hang bug in #1048 */
+						/* The #1048 problems were tested sept25 and found
+						 * to no longer be present. */
 		FD_ZERO (&fds_read);
-		if (!count_in)  FD_SET (fdsock, &fds_read);
-		if (!count_out) FD_SET (fdterm, &fds_read);
+		if (!count_in)  FD_SET(fdsock, &fds_read);
+		if (!count_out) FD_SET(fdterm, &fds_read);
 
 		FD_ZERO (&fds_write);
-		if (count_in)  FD_SET (fdterm, &fds_write);
-		if (count_out) FD_SET (fdsock, &fds_write);
+		if (count_in)  FD_SET(fdterm, &fds_write);
+		if (count_out) FD_SET(fdsock, &fds_write);
 
-		count = select (count_fd, &fds_read, &fds_write, NULL, &timeint);
+		count = select(count_fd, &fds_read, &fds_write, NULL, NULL);
+		//count = select(count_fd, &fds_read, &fds_write, NULL, &timeint);
+		//printf("T_sel=%d; ", count);
+		
 		if (count < 0) {
-			perror ("telnetd select");
+			perror("telnetd select");
 			break;
 		}
 
@@ -162,6 +167,7 @@ static void client_loop(int fdsock, int fdterm)
 					perror ("telnetd read sock");
 				break;
 			}
+			//printf("T_in %d; ", count_in);
 		}
 		if (count_in && FD_ISSET (fdterm, &fds_write)) {
 #ifdef RAWTELNET
@@ -173,17 +179,18 @@ static void client_loop(int fdsock, int fdterm)
 		}
 
 		/* login process -> network*/
-		if (!count_out && FD_ISSET (fdterm, &fds_read)) {
-			count_out = read (fdterm, buf_out, sizeof(buf_out));
+		if (!count_out && FD_ISSET(fdterm, &fds_read)) {
+			count_out = read(fdterm, buf_out, sizeof(buf_out));
 			if (count_out <= 0) {
 				if (count_out < 0)
-					perror ("telnetd read term");
+					perror("telnetd read term");
 				break;
 			}
+			//printf("T_out %d; ", count_out);
 		}
-		if (count_out && FD_ISSET (fdsock, &fds_write)) {
+		if (count_out && FD_ISSET(fdsock, &fds_write)) {
 #ifdef RAWTELNET
-			write (fdsock, buf_out, count_out);
+			write(fdsock, buf_out, count_out);
 #else
 			tel_out(fdsock, buf_out, count_out);
 #endif
@@ -287,9 +294,9 @@ int main(int argc, char **argv)
 			close(sockfd);
 			pid = term_init(&pty_fd);
 			if (pid != -1) {
-				client_loop (connectionfd, pty_fd);
+				client_loop(connectionfd, pty_fd);
 
-				kill (pid, SIGKILL);
+				kill(pid, SIGKILL);
 				waitpid(pid, NULL, 0);
 			}
 			close(connectionfd);
