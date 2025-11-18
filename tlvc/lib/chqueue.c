@@ -26,6 +26,7 @@
 #include <linuxmt/types.h>
 #include <linuxmt/errno.h>
 #include <linuxmt/debug.h>
+#include <arch/irq.h>
 
 void chq_init(register struct ch_queue *q, unsigned char *buf, int size)
 {
@@ -117,12 +118,26 @@ int chq_getch(register struct ch_queue *q)
     return retval;
 }
 
-int chq_peekch(struct ch_queue *q)
+int chq_peek(struct ch_queue *q)
 {
     return (q->len != 0);
 }
 
-#if 0
+#if defined(CONFIG_FAST_IRQ4) || defined(CONFIG_FAST_IRQ3)
+int chq_peekch(struct ch_queue *q)
+{
+    int retval;
+
+    if (!q->len)
+        return 0;
+    clr_irq();
+    retval = q->base[q->tail];
+    set_irq();
+    return retval;
+}
+#endif
+
+#if UNUSED
 int chq_full(register struct ch_queue *q)
 {
     return (q->len == q->size);
