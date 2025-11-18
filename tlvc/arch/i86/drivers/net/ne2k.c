@@ -558,7 +558,7 @@ void INITPROC ne2k_drv_init(void)
 	kputchar('!');
 	ne2k_get_hw_addr(prom);
 	kputchar('#');
-#if 1
+#if 0
 	for (i = 0; i < 32; i++) printk(" %02x", cprom[i]);
 	printk("\n");
 #endif
@@ -585,7 +585,7 @@ void INITPROC ne2k_drv_init(void)
 		ne2k_flags = 0;		/* otherwise 16 bit NIC */
 		netif_stat.oflow_keep = 3;	// Experimental: keep 3 if 16k buffer
 	}
-#if 1
+#if 0
 	for (i = 0; i < 16; i++) printk("%02x", cprom[i]);
 	printk("\n");
 #endif
