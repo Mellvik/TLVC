@@ -8,7 +8,6 @@
 // 25 June 2020 Greg Haerr
 //
 #include <linuxmt/config.h>
-#include <arch/ports.h>
 	.code16
 	.text
 
