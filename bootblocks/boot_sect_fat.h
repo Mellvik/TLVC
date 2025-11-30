@@ -168,7 +168,7 @@ bpb_fil_sys_type:			// Filesystem type (8 bytes)
 	mov $buf,%cx
 	push %ss
 	clc
-	call disk_read_s
+	call disk_read_sec
 
 	// See if /linux is in the first few root directory entries; bail out
 	// if not
@@ -240,7 +240,7 @@ find_system:
 .endif
 	push %bx
 	clc
-	call disk_read_s
+	call disk_read_sec
 	mov sect_offset,%cx
 	mov sect_offset+2,%si
 

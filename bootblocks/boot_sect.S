@@ -57,12 +57,14 @@
 // Note: this may clobber BX and DS, and reset SP!  Use it only upon an error
 // or just before handing over to /linux
 .macro RESTORE_DDPT
+#ifndef BOOT_FAT	/* Experimental */
 #ifdef FAST_READ
 	mov $-8,%sp
 	pop %bx
 	pop %ds
 	popw (%bx)
 	popw 2(%bx)
+#endif
 #endif
 .endm
 
@@ -124,7 +126,7 @@ entry1:
 	rep
 	movsw
 
-#ifdef NEED_MORE_SPACE
+#ifndef BOOT_FAT	/* EXPERIMENTAL - no space for both for now */
 #ifdef FAST_READ
 	// Copy the current BIOS floppy parameter table
 	// so that we could modify it locally
@@ -132,29 +134,29 @@ entry1:
 	// Keep a pointer to the original table so that RESTORE_DDPT can
 	// restore it later
 
-	//mov $0x78,%bx  // 0:78h (INT vector 1Eh)
-	//lds (%bx),%si  // ds:si = BIOS original table
-	//push %ds
-	//push %si
-	//push %cx       // push address 0:78h (cx = 0)
-	//push %bx
+	mov $0x78,%bx  // 0:78h (INT vector 1Eh)
+	lds (%bx),%si  // ds:si = BIOS original table
+	push %ds
+	push %si
+	push %cx       // push address 0:78h (cx = 0)
+	push %bx
 .if floppy_table == entry
 	xor %di,%di
 .else
 	mov $floppy_table,%di
 .endif
 	push %di
-	mov $7,%cl     // Usually the table is 11 bytes, but Ralf Brown's
-		       // Interrupt List says that the IBM SurePath BIOS
-		       // uses a 14-byte table
-		       // CH = 0 at this point
-	//cld
+	mov $7,%cl	// Usually the table is 11 bytes, but Ralf Brown's
+			// Interrupt List says that the IBM SurePath BIOS
+			// uses a 14-byte table
+			// CH = 0 at this point
+	cld		// Probably superfluous
 	rep
 	movsw
 
 	// Change BIOS table pointer to our copy
 
-	mov %cx,%ds    // CX = 0
+	mov %cx,%ds	 // CX = 0
 	popw (%bx)
 	mov %es,2(%bx)
 #endif
@@ -202,6 +204,7 @@ _next1:
 	mov $payload,%cx
 	push %ss
 	mov $ERR_PAYLOAD,%bl
+	clc
 	call _disk_read
 
 	call payload
@@ -311,27 +314,26 @@ drive_reset:
 
 //------------------------------------------------------------------------------
 
-// void disk_read(int block, int sec_count, byte_t *buf, int seg)
+// void disk_read_blk(int block, int sec_count, byte_t *buf, int seg)
+// void disk_read_sec(int sector, int sec_count, byte_t *buf, int seg)
 
-	.global disk_read
-	.global disk_read_s
+	.global disk_read_blk
+	.global disk_read_sec
 
-_disk_read:	// AX = starting sector
-	clc
-	jmp __disk_read
 
-disk_read:
-	// AX = starting (1k) block 
+disk_read_blk:	// AX = starting (1k) block 
+
 	// DX = sector count
 	// CX = buf
 	// seg pushed on stack
 
 	shl %ax	// turn start block into sector#, use CF later
-disk_read_s:	// if AX is already in sectors (CF must be clear)
-	mov $ERR_DISK_READ,%bl
 
-__disk_read:
-	// BL = error code in case of failure
+disk_read_sec:	// AX is sectors (CF must be clear!)
+
+	mov $ERR_DISK_READ,%bl // BL = error code in case of failure
+
+_disk_read:	// preset error code
 
 	mov $5,%bh
 	push %bp
@@ -347,23 +349,21 @@ __disk_read:
 // word -6(%bp) = buffer offset
 // byte -7(%bp) = no. of retries left
 // byte -8(%bp) = failure error code
+// word -10(%bp) = high word of sector number
 
 	mov $0,%dx		// must not affect CF
 	push %dx		// initialize stack space for sector overflow
-	//adc %dx,sect_oflow	// DX = the high bit of the sector #
 	adc %dx, -10(%bp)
-	//adc %dx,%dx	// DX = the high bit of the sector #
-	//mov %dx,sect_oflow
 
 dr_loop:
 	// Compute the CHS from logical sector
-	// AX = logical sector
+	// AX = logical sector, low word
+
 	xchg %ax,%bx
 	mov sect_max,%al
 	mulb head_max
 	xchg %ax,%bx		// BX = sects per cyl
 	mov -10(%bp),%dx	// start sector bit 16
-	//mov sect_oflow,%dx	// start sector bit 16
 	add sect_offset,%ax
 	adc sect_offset+2,%dx
 	div %bx
@@ -587,7 +587,7 @@ boot_it:
 	mov %cx,part_offset  // save sector offset of booted partition
 	mov %bx,part_offset+2
 
-	//RESTORE_DDPT
+	RESTORE_DDPT
 
 	mov $LOADSEG,%ax
 	mov %ax,%ds
@@ -611,9 +611,6 @@ tvram_x:
 #else
 	.asciz "Press key\r\n"
 #endif
-
-//sect_oflow:
-	//.word 0
 
 	.global end_of_code
 end_of_code:

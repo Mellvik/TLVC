@@ -56,7 +56,7 @@ void puts(const char * s);
 
 int seg_data();
 
-void disk_read(/*const*/ int block, const int count, const byte_t *buf, const int seg);
+void disk_read_blk(int block, const int count, const byte_t *buf, const int seg);
 
 void run_prog();
 void linux_ok(void);
@@ -111,7 +111,7 @@ void load_prog()
 #ifdef USE_LOAD_SUPER
 	load_super();
 #else						/* saves 6 bytes */
-	disk_read(1, 1, sb_block, seg_data());
+	disk_read_blk(1, 1, sb_block, seg_data());
 	ib_first = 2 + sb_data->s_imap_blocks + sb_data->s_zmap_blocks;
 #endif
 	load_file();	/* load 1st i-node block */
@@ -170,7 +170,7 @@ static int strcmp(const char *s, const char *d)
 #ifdef USE_LOAD_SUPER
 static void load_super ()
 {
-	disk_read(1, 1, sb_block, seg_data());
+	disk_read_blk(1, 1, sb_block, seg_data());
 
 	/*
 	if (sb_data->s_log_zone_size) {
@@ -201,7 +201,7 @@ static void load_inode ()
 	// Compute inode block and load if not cached
 
 	int ib = ib_first + i_now / INODES_PER_BLOCK;
-	disk_read (ib, 2, i_block, seg_data ());
+	disk_read_blk(ib, 2, i_block, seg_data ());
 
 	// Get inode data
 
@@ -219,16 +219,16 @@ static void load_zone(int level, zone_nr *z_start, zone_nr *z_end)
 			if (i_now) {
 				long lin_addr = loadaddr + f_pos;
 
-				disk_read(zz, 2, (byte_t *)(unsigned)lin_addr,
+				disk_read_blk(zz, 2, (byte_t *)(unsigned)lin_addr,
 					seg + ((unsigned)(lin_addr >> 4) & 0xf000));
 			} else {
-				if (!f_pos)disk_read(zz, 2, d_dir /*+ f_pos*/, seg_data());
+				if (!f_pos)disk_read_blk(zz, 2, d_dir /*+ f_pos*/, seg_data());
 			}
 			f_pos += BLOCK_SIZE;
 			if (f_pos >= i_data->i_size) break;
 		} else {
 			int next = level - 1;
-			disk_read(zz, 2, z_block[next], seg_data());
+			disk_read_blk(zz, 2, z_block[next], seg_data());
 			load_zone(next, (zone_nr *)z_block[next], (zone_nr *)(z_block[next] + BLOCK_SIZE));
 		}
 	}
@@ -243,7 +243,7 @@ static void load_file ()
 #else
 	// Compute inode block and load if not cached
 	int ib = ib_first + i_now / INODES_PER_BLOCK;
-	disk_read (ib, 2, i_block, seg_data ());
+	disk_read_blk(ib, 2, i_block, seg_data());
 
 	// Get inode data
 	i_data = (struct inode_s *) i_block + i_now % INODES_PER_BLOCK;
