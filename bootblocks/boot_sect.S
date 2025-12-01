@@ -57,14 +57,12 @@
 // Note: this may clobber BX and DS, and reset SP!  Use it only upon an error
 // or just before handing over to /linux
 .macro RESTORE_DDPT
-#ifndef BOOT_FAT	/* Experimental */
 #ifdef FAST_READ
 	mov $-8,%sp
 	pop %bx
 	pop %ds
 	popw (%bx)
 	popw 2(%bx)
-#endif
 #endif
 .endm
 
@@ -126,7 +124,6 @@ entry1:
 	rep
 	movsw
 
-#ifndef BOOT_FAT	/* EXPERIMENTAL - no space for both for now */
 #ifdef FAST_READ
 	// Copy the current BIOS floppy parameter table
 	// so that we could modify it locally
@@ -159,7 +156,6 @@ entry1:
 	mov %cx,%ds	 // CX = 0
 	popw (%bx)
 	mov %es,2(%bx)
-#endif
 #endif
 
 	// Rebase CS DS to work in the 64K segment
@@ -203,9 +199,8 @@ _next1:
 	mov %ax,%dx
 	mov $payload,%cx
 	push %ss
-	mov $ERR_PAYLOAD,%bl
 	clc
-	call _disk_read
+	call disk_read_sec
 
 	call payload
 #else
@@ -332,9 +327,6 @@ disk_read_blk:	// AX = starting (1k) block
 disk_read_sec:	// AX is sectors (CF must be clear!)
 
 	mov $ERR_DISK_READ,%bl // BL = error code in case of failure
-
-_disk_read:	// preset error code
-
 	mov $5,%bh
 	push %bp
 	mov %sp,%bp
@@ -482,8 +474,6 @@ pc98_1b:
 	int $0x13
 #endif
 	// PATCH: failure trace
-	// Note: Early Compaqs return timeout every 12th block
-	// when reading 360k floppies using FAST_READ
 
 	mov $'*',%al
 	call _putc
@@ -498,7 +488,8 @@ pc98_1b:
 	jnz dr_try
 
 	// TODO: use BIOS returned error
-	pop %ax
+	// Moving the ERR_DISK_READ -> %al here will save another byte
+	pop %ax		// Preset ERR_ code
 	jmp _except
 
 dr_cont:
