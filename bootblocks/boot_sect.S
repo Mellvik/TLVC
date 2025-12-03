@@ -68,7 +68,6 @@
 
 	.arch	i8086, nojumps
 	.code16
-
 	.text
 
 // Loaded by the BIOS at 0:7C00h (32K - 1K) or 7C0h:0
@@ -132,29 +131,29 @@ entry1:
 	// Keep a pointer to the original table so that RESTORE_DDPT can
 	// restore it later
 
-	//mov $0x78,%bx  // 0:78h (INT vector 1Eh)
-	//lds (%bx),%si  // ds:si = BIOS original table
-	//push %ds
-	//push %si
-	//push %cx       // push address 0:78h (cx = 0)
-	//push %bx
+	mov $0x78,%bx  // 0:78h (INT vector 1Eh)
+	lds (%bx),%si  // ds:si = BIOS original table
+	push %ds
+	push %si
+	push %cx       // push address 0:78h (cx = 0)
+	push %bx
 .if floppy_table == entry
 	xor %di,%di
 .else
 	mov $floppy_table,%di
 .endif
 	push %di
-	mov $7,%cl     // Usually the table is 11 bytes, but Ralf Brown's
-		       // Interrupt List says that the IBM SurePath BIOS
-		       // uses a 14-byte table
-		       // CH = 0 at this point
-	//cld
+	mov $7,%cl	// Usually the table is 11 bytes, but Ralf Brown's
+			// Interrupt List says that the IBM SurePath BIOS
+			// uses a 14-byte table
+			// CH = 0 at this point
+	cld		// Probably superfluous
 	rep
 	movsw
 
 	// Change BIOS table pointer to our copy
 
-	mov %cx,%ds    // CX = 0
+	mov %cx,%ds	 // CX = 0
 	popw (%bx)
 	mov %es,2(%bx)
 #endif
@@ -200,8 +199,8 @@ _next1:
 	mov %ax,%dx
 	mov $payload,%cx
 	push %ss
-	mov $ERR_PAYLOAD,%bl
-	call _disk_read
+	clc
+	call disk_read_sec
 
 	call payload
 #else
@@ -310,20 +309,24 @@ drive_reset:
 
 //------------------------------------------------------------------------------
 
-// void disk_read (int sect, int count, byte_t * buf, int seg)
+// void disk_read_blk(int block, int sec_count, byte_t *buf, int seg)
+// void disk_read_sec(int sector, int sec_count, byte_t *buf, int seg)
 
-	.global disk_read
+	.global disk_read_blk
+	.global disk_read_sec
 
-disk_read:
-	// AX = sect
-	// DX = count
+
+disk_read_blk:	// AX = starting (1k) block 
+
+	// DX = sector count
 	// CX = buf
 	// seg pushed on stack
-	mov $ERR_DISK_READ,%bl
 
-_disk_read:
-	// BL = error code in case of failure
+	shl %ax	// turn start block into sector#, use CF later
 
+disk_read_sec:	// AX is sectors (CF must be clear!)
+
+	mov $ERR_DISK_READ,%bl // BL = error code in case of failure
 	mov $5,%bh
 	push %bp
 	mov %sp,%bp
@@ -338,18 +341,25 @@ _disk_read:
 // word -6(%bp) = buffer offset
 // byte -7(%bp) = no. of retries left
 // byte -8(%bp) = failure error code
+// word -10(%bp) = high word of sector number
+
+	mov $0,%dx		// must not affect CF
+	push %dx		// initialize stack space for sector overflow
+	adc %dx, -10(%bp)
 
 dr_loop:
 	// Compute the CHS from logical sector
-	// AX = logical sector
+	// AX = logical sector, low word
+
 	xchg %ax,%bx
 	mov sect_max,%al
 	mulb head_max
-	xchg %ax,%bx
-	xor %dx,%dx
+	xchg %ax,%bx		// BX = sects per cyl
+	mov -10(%bp),%dx	// start sector bit 16
 	add sect_offset,%ax
 	adc sect_offset+2,%dx
 	div %bx
+
 #ifdef CONFIG_ARCH_PC98
 	mov %ax,%cx      // cylinder number for PC_98
 #else
@@ -359,7 +369,7 @@ dr_loop:
 	mov %ah,%cl      // stash higher 2 bits of cylinder number in CL
 #endif
 
-	xchg %ax,%dx
+	xchg %ax,%dx	// AX = remainder, ie. sect # on this cylinder
 	xor %dx,%dx
 #ifndef BOOT_FAT
 	mov sect_max,%bl
@@ -464,8 +474,6 @@ pc98_1b:
 	int $0x13
 #endif
 	// PATCH: failure trace
-	// Note: Early Compaqs return timeout every 12th block
-	// when reading 360k floppies using FAST_READ
 
 	mov $'*',%al
 	call _putc
@@ -480,7 +488,8 @@ pc98_1b:
 	jnz dr_try
 
 	// TODO: use BIOS returned error
-	pop %ax
+	// Moving the ERR_DISK_READ -> %al here will save another byte
+	pop %ax		// Preset ERR_ code
 	jmp _except
 
 dr_cont:
@@ -569,7 +578,7 @@ boot_it:
 	mov %cx,part_offset  // save sector offset of booted partition
 	mov %bx,part_offset+2
 
-	//RESTORE_DDPT
+	RESTORE_DDPT
 
 	mov $LOADSEG,%ax
 	mov %ax,%ds
@@ -579,20 +588,11 @@ boot_it:
 
 //------------------------------------------------------------------------------
 
-	.global linux_ok
-linux_ok:
-	mov $msg_load,%bx
-	jmp _puts
-
 msg_boot:
 	.asciz "TLVC"
 
-msg_load:
-	.asciz "Linux OK"
-
 msg_error:
 	.ascii "!\r\n"
-	// fall through
 
 msg_reboot:
 #ifdef CONFIG_ARCH_PC98

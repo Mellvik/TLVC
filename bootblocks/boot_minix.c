@@ -25,6 +25,7 @@
 static byte_t sb_block[BLOCK_SIZE];  // super block block buffer
 #define sb_data	((struct super_block *)sb_block)
 
+static char linux[] = "/linux";
 static int i_now;
 static int i_boot;
 static unsigned loadaddr;
@@ -55,7 +56,7 @@ void puts(const char * s);
 
 int seg_data();
 
-void disk_read(const int sect, const int count, const byte_t *buf, const int seg);
+void disk_read_blk(int block, const int count, const byte_t *buf, const int seg);
 
 void run_prog();
 void linux_ok(void);
@@ -110,17 +111,18 @@ void load_prog()
 #ifdef USE_LOAD_SUPER
 	load_super();
 #else						/* saves 6 bytes */
-	disk_read(2, 1, sb_block, seg_data());
+	disk_read_blk(1, 1, sb_block, seg_data());
 	ib_first = 2 + sb_data->s_imap_blocks + sb_data->s_zmap_blocks;
 #endif
-	load_file();
+	load_file();	/* load 1st i-node block */
 
 	for (int d = 0; d < BLOCK_SIZE /*(int)i_data->i_size*/; d += DIRENT_SIZE) {
 		seg = 0;
-		if (!strcmp((char *)(d_dir + 2 + d), "linux")) {
+		if (!strcmp((char *)(d_dir + 2 + d), linux+1)) {
 			i_boot = i_now = (*(int *)(d_dir + d)) - 1;
 			if (i_boot == -1) continue;
-			linux_ok();		// Linux OK message
+			//linux_ok();		// Linux OK message
+			puts(linux);
 			loadaddr = LOADSEG << 4;
 			load_file();
 			continue;
@@ -168,7 +170,7 @@ static int strcmp(const char *s, const char *d)
 #ifdef USE_LOAD_SUPER
 static void load_super ()
 {
-	disk_read (2, 1, sb_block, seg_data());
+	disk_read_blk(1, 1, sb_block, seg_data());
 
 	/*
 	if (sb_data->s_log_zone_size) {
@@ -199,7 +201,7 @@ static void load_inode ()
 	// Compute inode block and load if not cached
 
 	int ib = ib_first + i_now / INODES_PER_BLOCK;
-	disk_read (ib << 1, 2, i_block, seg_data ());
+	disk_read_blk(ib, 2, i_block, seg_data ());
 
 	// Get inode data
 
@@ -212,21 +214,21 @@ static void load_inode ()
 static void load_zone(int level, zone_nr *z_start, zone_nr *z_end)
 {
 	for (zone_nr *z = z_start; z < z_end; z++) {
-		zone_nr zz = (*z) << 1;
+		zone_nr zz = *z;
 		if (level == 0) {
 			if (i_now) {
 				long lin_addr = loadaddr + f_pos;
 
-				disk_read(zz, 2, (byte_t *)(unsigned)lin_addr,
+				disk_read_blk(zz, 2, (byte_t *)(unsigned)lin_addr,
 					seg + ((unsigned)(lin_addr >> 4) & 0xf000));
 			} else {
-				if (!f_pos)disk_read(zz, 2, d_dir /*+ f_pos*/, seg_data());
+				if (!f_pos)disk_read_blk(zz, 2, d_dir /*+ f_pos*/, seg_data());
 			}
 			f_pos += BLOCK_SIZE;
 			if (f_pos >= i_data->i_size) break;
 		} else {
 			int next = level - 1;
-			disk_read(zz, 2, z_block[next], seg_data());
+			disk_read_blk(zz, 2, z_block[next], seg_data());
 			load_zone(next, (zone_nr *)z_block[next], (zone_nr *)(z_block[next] + BLOCK_SIZE));
 		}
 	}
@@ -241,7 +243,7 @@ static void load_file ()
 #else
 	// Compute inode block and load if not cached
 	int ib = ib_first + i_now / INODES_PER_BLOCK;
-	disk_read (ib << 1, 2, i_block, seg_data ());
+	disk_read_blk(ib, 2, i_block, seg_data());
 
 	// Get inode data
 	i_data = (struct inode_s *) i_block + i_now % INODES_PER_BLOCK;
