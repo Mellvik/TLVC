@@ -43,7 +43,8 @@
 							/* Initial RTT & RTO values are not important,
 							 * as they get adjusted automatically as soon
 							 * as the connection is up and running. Recommended
-							 * values per RFC 1122 are RTT=0, RTO=3s */
+							 * values per RFC 1122 are Round Trip Time,
+							 * RTT=0, Retransmit TimeOut, RTO=3s */
 #define TIMEOUT_INITIAL_RTT	1			/* Still we set RTT to 1 because the smoothing
 							 * algorithm is (currently) disabled when RTT=0 */
 #define TIMEOUT_INITIAL_RTO	(3<<4)			/* 3 seconds */
@@ -184,18 +185,20 @@ struct	tcpcb_list_s {
 };
 
 struct	tcp_retrans_list_s {
-	struct tcp_retrans_list_s	*prev;
-	struct tcp_retrans_list_s	*next;
+	struct tcp_retrans_list_s *prev;
+	struct tcp_retrans_list_s *next;
 
-	int				retrans_num;
-	__u16	 			rto;
-	timeq_t 			next_retrans;
-	timeq_t 			first_trans;
+	int		retrans_num;	/* retrans counter for this packet */
+	__u16	 	rto;		/* retrans timeout */
+	timeq_t 	next_retrans;	/* time to send again, initially 
+					 * first_trans + rto */
+	timeq_t 	first_trans;	/* time initially sent */
 
-	struct tcpcb_s			*cb;
-	struct addr_pair		apair;
-	__u16				len;
-	struct tcphdr_s 		tcphdr[];
+	struct tcpcb_s	 	*cb;	/* connection this packet belongs to */
+	struct addr_pair	apair;	/* actual addresses, may be different
+					 * from packet addr. for routing */
+	__u16			len;	/* data length, placed after header */
+	struct tcphdr_s 	tcphdr[];
 
 };
 
@@ -209,6 +212,7 @@ struct tcpcb_list_s *tcpcb_new(int);
 struct tcpcb_list_s *tcpcb_find(__u32, __u16, __u16);
 struct tcpcb_list_s *tcpcb_find_by_sock(void *);
 void tcpcb_update_sstimer(void);
+void adj_outstanding(struct tcpcb_s *);
 
 __u16 tcp_chksum(struct iptcp_s *);
 __u16 tcp_chksumraw(struct tcphdr_s *, __u32, __u32, __u16);

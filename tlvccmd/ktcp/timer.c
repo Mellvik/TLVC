@@ -8,31 +8,32 @@
  *	2 of the License, or (at your option) any later version.
  */
 
-#define __LIBC__	/* to get types for memory.h FIXME */
-//#include <sys/time.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <linuxmt/mem.h>
-#include <linuxmt/types.h>
-#include <linuxmt/memory.h>
 #include <sys/ioctl.h>
-
+#include <arch/irq.h>
 #include "timer.h"
 
-#if 0
-timeq_t timer_get_time(void)
+#define MK_FP(seg,off) \
+    ((void __far *) ((((unsigned long)(seg)) << 16) | ((unsigned int)(off))))
+
+timeq_t Now;
+static volatile unsigned long __far *jp;
+
+/*
+ * Return time counted in 60ms (~1/16 sec) quantums.
+ * (used to be the time type counted in 62.5ms)
+ */
+timeq_t get_time(void)
 {
-    struct timezone	tz;
-    struct timeval 	tv;
+    timeq_t ticks;
 
-    gettimeofday(&tv, &tz);
-
-	/* return 1/16 second ticks, 1,000,000/16 = 62500*/
-	/* return 1/10000000 second (us) ticks */
-    return (tv.tv_sec << 4) | ((unsigned long)tv.tv_usec/62500L);
+    clr_irq();
+    ticks = *jp;            /* 10ms intervals */
+    set_irq();
+    return ticks / 6;       /* 60ms intervals */
 }
-#endif
 
 int timer_init(void)
 {
@@ -40,14 +41,14 @@ int timer_init(void)
     int fd = open("/dev/kmem", O_RDONLY);
 
     if (fd < 0) {
-	perror("/dev/kmem");
+	write(2, "No /dev/kmem\n", 13);
 	return -1;
     }
     if ((ioctl(fd, MEM_GETDS, &kds) < 0) || (ioctl(fd, MEM_GETJIFFADDR, &jaddr)) < 0 )  {
-	perror("ktcp: ioctl error in /dev/kmem");
+	write(2, "kmem ioctl err\n", 15);
 	return -1;
     }
-    jp = _MK_FP(kds, jaddr);
+    jp = MK_FP(kds, jaddr);
     close(fd);
     return 0;
 }

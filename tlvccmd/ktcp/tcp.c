@@ -25,7 +25,6 @@
 #include "netconf.h"
 
 timeq_t Now;
-unsigned long __far *jp;
 
 #if DEBUG_TCPPKT
 static char *tcp_flags(int flags)
@@ -47,7 +46,7 @@ static char *tcp_flags(int flags)
 void tcp_print(struct iptcp_s *head, int recv, struct tcpcb_s *cb)
 {
 #if DEBUG_TCPPKT
-    debug_tcppkt("[%lu]tcp: %s ", *jp, recv? "recv": "send");
+    debug_tcppkt("[%lu]tcp: %s ", get_time(), recv? "recv": "send");
     debug_tcppkt("%u->%u ", ntohs(head->tcph->sport), ntohs(head->tcph->dport));
     debug_tcppkt("[%s] ", tcp_flags(head->tcph->flags));
     if (cb) {
@@ -85,8 +84,7 @@ int tcp_init(void)
 
 static __u32 choose_seq(void)
 {
-    //return timer_get_time();
-    return *jp;
+    return get_time();
 }
 
 void tcp_send_reset(struct tcpcb_s *cb)
@@ -115,6 +113,7 @@ void tcp_send_ack(struct tcpcb_s *cb)
 {
     cb->flags = TF_ACK;
     cb->datalen = 0;
+    //write(1,"a",1);	/* single ack, does not show anywhere else */
     tcp_output(cb);
 }
 
@@ -249,7 +248,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	rmv_all_retrans_cb(cb);
 
 	if (cb->state == TS_CLOSE_WAIT) {
-	    //cbs_in_user_timeout--;	/* CLOSE_WAIT does not have a timeout */
+	    //cbs_in_user_timeout--;	/* CLOSE_WAIT does not timeout */
 	    ENTER_TIME_WAIT(cb);
 	    notify_sock(cb->sock, TDT_CHG_STATE, SS_DISCONNECTING);
 	} else {
@@ -262,6 +261,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
     /* this actually happens some times, on slow systems ... */
     if (cb->unaccepted && (h->flags & TF_FIN)) {
 	debug_tcp("tcp: FIN received before accept, dropping packet\n");
+	printf("tcp: activity before accept, dropping packet\n");
 	netstats.tcpdropcnt++;
 
 	/* We can't change state before accept processing, so drop packet*/
@@ -270,7 +270,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 
     datasize = iptcp->tcplen - TCP_DATAOFF(h);
     if (datasize != 0) {
-	debug_window("[%lu]tcp: recv data len %u avail %u\n", *jp, datasize, CB_BUF_SPACE(cb));
+	debug_window("[%lu]tcp: recv data len %u avail %u\n", get_time(), datasize, CB_BUF_SPACE(cb));
 	/* Process the data */
 	data = (__u8 *)h + TCP_DATAOFF(h);
 
@@ -295,11 +295,26 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
     if (h->flags & TF_ACK) {		/* update unacked */
 	acknum = ntohl(h->acknum);
 	if (SEQ_LT(cb->send_una, acknum)) {
+	    //long una = cb->send_una;
 	    cb->send_una = acknum;
-	    if (cb->cwnd <= cb->ssthresh && !cb->retrans_act) cb->cwnd++;  /* adjust congestion win */
-	    cb->inflight--;
-	    ////write(1,"A",1);
-	}
+	    if (cb->cwnd <= cb->ssthresh && !cb->retrans_act)
+		cb->cwnd++; 		/* adjust congestion win */
+	    if (cb->inflight == 1 || cb->send_una == cb->send_nxt)
+		cb->inflight = 0;	/* all outstanding packets ACKed */
+	    else {	/* We're more than 1 packet ahead of the recipient - which is normal.
+			 * The inflight counter may occasionally get slightly 
+			 * out of sync but will be autocorrected eventually. */
+		//if (cb->inflight)
+			//adj_outstanding(cb);
+		//printf("una %lu, ack %lu, inflight %d\n", una, cb->send_una, cb->inflight);
+		cb->inflight--;
+	    }
+	    //write(1,"A",1);
+	} /* An 'else clause' here would catch DUP ACKs */
+	  /* Keep in mind that a DUP ACK rarely means a lost packet nowadays, but rather
+	   * a delay that will rectify itself if we don't mess with it. */
+	  /* FIXME: We may still want to adjust the slowStart/CongestionAvoidance parameters
+	   * when this happens even if it's rare */
     }
 
     if (h->flags & TF_FIN) {
@@ -309,8 +324,17 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 
 	cb->state = TS_CLOSE_WAIT;
 	cb->time_wait_exp = Now;	/* used for debug output only */
+	/* NOTE:
+	   There is no timeout on CLOSE_WAIT. It will wait forever - until the client
+	   decides to close the connection. If there is unread data, ktcp will loop
+	   trying to push that data to the client. This is a feature, not a bug.
+	   It will happen in cases like an idle ftp client: The server will timeout
+	   and close the connection. The client side will enter CLOSE_WAIT and wait
+	   until user decides to come back and close the connection.
+	 */
 	
 	debug_tcp("tcp: got FIN with data %d buffer %d\n", datasize, cb->buf_used);
+
 	if (cb->bytes_to_push <= 0)
 	    notify_sock(cb->sock, TDT_CHG_STATE, SS_DISCONNECTING);
     }
@@ -319,7 +343,7 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	return; /* ACK with no data received - so don't answer*/
 
     cb->rcv_nxt += datasize;
-    debug_window("[%lu]tcp: ACK seq %ld len %d\n", *jp, cb->rcv_nxt - cb->irs, datasize);
+    debug_window("[%lu]tcp: ACK seq %ld len %d\n", get_time(), cb->rcv_nxt - cb->irs, datasize);
     ////write(1,"a",1);
     tcp_send_ack(cb);
 }
