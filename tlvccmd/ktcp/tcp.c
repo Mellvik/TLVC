@@ -295,7 +295,6 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
     if (h->flags & TF_ACK) {		/* update unacked */
 	acknum = ntohl(h->acknum);
 	if (SEQ_LT(cb->send_una, acknum)) {
-	    //long una = cb->send_una;
 	    cb->send_una = acknum;
 	    if (cb->cwnd <= cb->ssthresh && !cb->retrans_act)
 		cb->cwnd++; 		/* adjust congestion win */
@@ -304,16 +303,13 @@ static void tcp_established(struct iptcp_s *iptcp, struct tcpcb_s *cb)
 	    else {	/* We're more than 1 packet ahead of the recipient - which is normal.
 			 * The inflight counter may occasionally get slightly 
 			 * out of sync but will be autocorrected eventually. */
-		//if (cb->inflight)
-			//adj_outstanding(cb);
-		//printf("una %lu, ack %lu, inflight %d\n", una, cb->send_una, cb->inflight);
 		cb->inflight--;
 	    }
 	    //write(1,"A",1);
 	} /* An 'else clause' here would catch DUP ACKs */
 	  /* Keep in mind that a DUP ACK rarely means a lost packet nowadays, but rather
 	   * a delay that will rectify itself if we don't mess with it. */
-	  /* FIXME: We may still want to adjust the slowStart/CongestionAvoidance parameters
+	  /* TODO: We may still want to adjust the slowStart/CongestionAvoidance parameters
 	   * when this happens even if it's rare */
     }
 

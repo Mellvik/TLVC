@@ -47,7 +47,7 @@ void notify_sock(void *sock, int type, int value)
     return_data.sock = sock;
     return_data.size = 0;
     write(tcpdevfd, &return_data, sizeof(return_data));
-    //printf("Notify sock: %d %d\n", type, value);
+    //printf("NS:%d/%d;", type, value);
 }
 
 /* inform kernel of socket data bytes available */
@@ -132,25 +132,26 @@ reject:
 
 static void tcpdev_accept(void)
 {
-    struct tcpcb_list_s *n,*newn;
+    struct tcpcb_list_s *n, *newn;
     struct tdb_accept *db = (struct tdb_accept *)sbuf; /* read from sbuf*/
     struct tcpcb_s *cb;
-    void *  sock = db->sock;
+    void   *sock = db->sock;
     struct tdb_accept_ret accept_ret;
 
     n = tcpcb_find_by_sock(sock);
     if (!n || n->tcpcb.state != TS_LISTEN) {
-	retval_to_sock(db->sock,-EINVAL);
+	retval_to_sock(db->sock, -EINVAL);
 	return;
     }
     cb = &n->tcpcb;
     newn = tcpcb_find_unaccepted(sock);
     if (!newn) {			/* SYN not yet received by listen*/
 	if (db->nonblock)
-	    retval_to_sock(db->sock,-EAGAIN);
+	    retval_to_sock(db->sock, -EAGAIN);
 	else
 	    cb->newsock = db->newsock;	/* save new sock in listen CB for later*/
 	debug_accept("tcp accept: WAIT (on SYN) sock[%p] saving newsock[%p]\n", sock, db->newsock);
+	//write(1,"{{", 2);
 	return;
     }
 
@@ -158,6 +159,7 @@ static void tcpdev_accept(void)
     cb = &newn->tcpcb;			/* get accepted CB*/
 
     debug_accept("tcpdev accept: ACCEPT (SYN received before accept) sock[%p], using newsock[%p]\n", sock, db->newsock);
+    //write(1,"AC;",3);
 
     cb->unaccepted = 0;
     cb->sock = db->newsock;
@@ -179,7 +181,7 @@ void tcpdev_notify_accept(struct tcpcb_s *cb)
     struct tcpcb_list_s *lp;
     struct tdb_accept_ret accept_ret;
 
-    //write(1,"NA;", 3);
+    //write(1,"NA;", 3);	//TEST 1
     debug_tcpdev("tcpdev_notify_accept\n");
     if (!cb->unaccepted)
 	return;
@@ -327,7 +329,7 @@ static void tcpdev_read(void)
     /* send ACK to restart server should window have been full (unless it's netstat)*/
     if (cb->remport != NETCONF_PORT || cb->remaddr != 0)
 	if (cb->remport != local_ip) {	/* no ack to localhost either*/
-	    debug_window("[%lu]tcp: extra ACK seq %ld, app read %d bytes\n", *jp,
+	    debug_window("[%lu]tcp: extra ACK seq %ld, app read %d bytes\n", get_time(),
 		cb->rcv_nxt - cb->irs, data_avail);
 	    ////printf("Extra ACK, size %d, space %d\n", data_avail, CB_BUF_SPACE(cb));
 	    tcp_send_ack(cb);
@@ -352,12 +354,12 @@ static void tcpdev_read(void)
 /* kernel write data to ktcp (network)*/
 static void tcpdev_write(void)
 {
-    struct tdb_write *db = (struct tdb_write *)sbuf; /* read from sbuf*/
+    struct tdb_write *db = (struct tdb_write *)sbuf; /* read from sbuf */
     struct tcpcb_list_s *n;
     struct tcpcb_s *cb;
     void *sock = db->sock;
     unsigned int size, maxwindow;
-    int dbg_counter = 0;
+    static int dbg_counter = 0;
 
     sock = db->sock;
     /*
@@ -366,10 +368,8 @@ static void tcpdev_write(void)
      */
     size = db->size;
 
-    /* This is a bit ugly but I'm too lazy right now */
     if (tcp_retrans_memory > TCP_RETRANS_MAXMEM) {
 	printf("ktcp: RETRANS memory limit exceeded\n");
-	//retval_to_sock(sock, -ENOMEM);
 	retval_to_sock(sock, -ERESTARTSYS);	/* source will wait for 100ms, then retry */
 	return;
     }
@@ -407,17 +407,21 @@ static void tcpdev_write(void)
 	maxwindow = TCP_SEND_WINDOW_MAX;
     if ((cb->inflight >= cb->cwnd) 		/* check congestion window first */
 		|| (cb->send_nxt - cb->send_una + size > maxwindow)) {
-	dbg_counter++;	/* will not work well if multiple connections */
-	if (dbg_counter >10) {
+
+#if 1	/* DEBUGGING */
+	if (dbg_counter++ > 10) {	/* will not work well if multiple connections */
 		printf("tcp limit: seq %lu size %d maxwnd %u unack %lu rcvwnd %u inflight %d cwnd %d\n",
 		    cb->send_nxt - cb->iss, size, maxwindow, cb->send_nxt - cb->send_una, cb->rcv_wnd,
 		    cb->inflight, cb->cwnd);
 		dbg_counter = 0;
 	}
+#endif
+
 	debug_tcp("tcp limit: seq %lu size %d maxwnd %u unack %lu rcvwnd %u\n",
 	    cb->send_nxt - cb->iss, size, maxwindow, cb->send_nxt - cb->send_una, cb->rcv_wnd);
 	retval_to_sock(sock, -ERESTARTSYS);	/* source will wait for 100ms, then retry */
 	//write(2, "$", 1);
+	//printf("$%d;", maxwindow);
 	return;
     }
 

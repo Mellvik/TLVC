@@ -133,7 +133,6 @@ rmv_from_retrans(struct tcp_retrans_list_s *n)
     struct tcp_retrans_list_s *next = n->next;
 
     tcp_timeruse--;
-    //n->cb->retrns_cnt--;
     tcp_retrans_memory -= n->len;
     debug_mem("retrans free: (cnt %d mem %u)\n", tcp_timeruse, tcp_retrans_memory);
 
@@ -186,41 +185,6 @@ void rmv_all_retrans_cb(struct tcpcb_s *cb)
 	else
 	    n = n->next;
 }
-
-/* Scan the retrans list for acked packets, adjust inflight accordingly */
-/* Should really remove matching packets from the retransmit buffer while
- * at it. */
-/* On a fast system, this function may be called several timed between
- * 'scheduled' retrans-list scans, which means that the same packets may
- * be counted multiple times and the inflight counter will be out of sync.
- */
-
-#if 0	/* FIXME: To be deleted */
-#define ADJ_DEBUG  1 
-
-void adj_outstanding(struct tcpcb_s *cb)
-{
-    struct tcp_retrans_list_s *n;
-#if ADJ_DEBUG
-    int d = cb->inflight;
-#endif
-
-    n = retrans_list;
-
-    while (n != NULL) {
-	if (n->cb == cb) {
-	    printf("seq %lu, una %lu\n", ntohl(n->tcphdr[0].seqnum), cb->send_una);
-	    if (ntohl(n->tcphdr[0].seqnum) <= cb->send_una)
-	    	cb->inflight--;
-	}
-	n = n->next;
-    }
-#if ADJ_DEBUG
-    if (d != cb->inflight) printf("ktcp: adjust inflight -> in %d, out %d\n", d, cb->inflight);
-#endif
-}
-#endif
-
 
 /* add packets in the order they are sent so that older packets are always resent first */
 void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
@@ -327,23 +291,6 @@ void tcp_retrans_expire(void)
     unsigned int datalen;
 
     n = retrans_list;
-    /* avoid running out of memory with excessive retransmits */
-    /* FIXME (hs 12/25): This does not make sense. If we're running out of retrans
-     * memory, tcpdev_write will prevent overuse. Further, deleting everything 
-     * as we do here, will hang all connections with  un-acked packets if a retrans
-     * should be required. */
-    /* keep the message for now just to get a feel for what/when this is happeneing.
-     * A similar message should come from tcpdev_write */
-
-    if (tcp_retrans_memory > TCP_RETRANS_MAXMEM) {
-	printf("ktcp: retransmit memory over limit (cnt %d, mem %u)\n",
-		tcp_timeruse, tcp_retrans_memory);
-#if 0	/* hs 12/25 */
-	while (n != NULL)
-		n = rmv_from_retrans(n);
-	return;
-#endif
-    }
 
     while (n != NULL) {
 	datalen = n->len - TCP_DATAOFF(&n->tcphdr[0]);
@@ -352,18 +299,16 @@ void tcp_retrans_expire(void)
 	/* calc RTT and remove if seqno was acked*/
 	if (SEQ_LEQ(ntohl(n->tcphdr[0].seqnum) + datalen, n->cb->send_una)) {
 	    n->cb->retrans_act = 0;
-	    /* Don't exclude retransmits, they are important for the true picture */
-	    //if (n->retrans_num == 0) {
-		rtt = (unsigned)(Now - n->first_trans);
-		////fprintf(stderr, "r%u;", rtt);
-		/* We may want to change rtt here like this: if (!rtt) rtt++;
-		 * because rtt is often 0 on a LAN, which means that the calculated
-		 * rtt stays high forever, which is not good. 
-		 */
-		if (rtt > 0)
-		    n->cb->rtt = (TCP_RTT_ALPHA * n->cb->rtt + (100 - TCP_RTT_ALPHA) * rtt) / 100;
-		debug_tcp("tcp: rtt %u RTT %u RTO %u\n", rtt, n->cb->rtt, n->rto);
-	    //}
+	    rtt = (unsigned)(Now - n->first_trans);
+	    ////fprintf(stderr, "r%u;", rtt);
+	    /* We may want to change rtt here like this: if (!rtt) rtt++;
+	     * because rtt is often 0 on a LAN, which means that the calculated
+	     * rtt stays high forever, which is not good. 
+	     */
+	    if (rtt > 0)
+	        n->cb->rtt = (TCP_RTT_ALPHA * n->cb->rtt + (100 - TCP_RTT_ALPHA) * rtt) / 100;
+	    debug_tcp("tcp: rtt %u RTT %u RTO %u\n", rtt, n->cb->rtt, n->rto);
+
 	    debug_retrans("tcp retrans: remove seq %lu+%u unack %lu\n",
 		ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
 		n->cb->send_una - n->cb->iss);
@@ -409,7 +354,7 @@ void tcp_retrans_retransmit(void)
 	    	if (n->cb->ssthresh < 2) n->cb->ssthresh = 2;
 	    }
 	    n->cb->cwnd = TCP_INIT_CWND;	/* EXPERIMENTAL - keep cwnd at 2 while retransmitting */
-    	    ////printf("retrans (%d,%d,%lu)\n", n->cb->inflight, n->len, Now - n->next_retrans);	/* DEBUG */
+    	    ////printf("retrans (%d,%d,%lu)\n", n->cb->inflight, n->len, Now - n->next_retrans); /* DEBUG */
 	    n->cb->retrans_act++;
 	    tcp_reoutput(n);
 

@@ -212,7 +212,6 @@ struct tcpcb_list_s *tcpcb_new(int);
 struct tcpcb_list_s *tcpcb_find(__u32, __u16, __u16);
 struct tcpcb_list_s *tcpcb_find_by_sock(void *);
 void tcpcb_update_sstimer(void);
-void adj_outstanding(struct tcpcb_s *);
 
 __u16 tcp_chksum(struct iptcp_s *);
 __u16 tcp_chksumraw(struct tcphdr_s *, __u32, __u32, __u16);
