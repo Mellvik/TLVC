@@ -13,9 +13,8 @@ typedef	__u32 timeq_t;
 #define TIME_GEQ(a,b)		((long)((a)-(b)) >= 0)
 
 extern timeq_t Now;
-extern unsigned long __far *jp;
 
-//timeq_t timer_get_time(void);
 int timer_init(void);
+timeq_t get_time(void);
 
 #endif

@@ -133,7 +133,6 @@ rmv_from_retrans(struct tcp_retrans_list_s *n)
     struct tcp_retrans_list_s *next = n->next;
 
     tcp_timeruse--;
-    //n->cb->retrns_cnt--;
     tcp_retrans_memory -= n->len;
     debug_mem("retrans free: (cnt %d mem %u)\n", tcp_timeruse, tcp_retrans_memory);
 
@@ -173,6 +172,7 @@ void rmv_all_retrans(struct tcpcb_list_s *lcb)
 	    n = n->next;
 }
 
+/* Tear down connection (RST) */
 void rmv_all_retrans_cb(struct tcpcb_s *cb)
 {
     struct tcp_retrans_list_s *n;
@@ -245,7 +245,6 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
     memcpy(&n->apair, apair, sizeof(struct addr_pair));
     n->retrans_num = 0;
 
-    //n->rto = cb->rtt << 1;		/* set retrans timeout to twice RTT*/
     n->rto = TIMEOUT_INITIAL_RTO;		/* should be 3 secs per RFC 1122 */
     if (linkprotocol == LINK_ETHER) {
 	if (n->rto < TCP_RETRANS_MINWAIT_ETH)
@@ -257,16 +256,14 @@ void add_for_retrans(struct tcpcb_s *cb, struct tcphdr_s *th, __u16 len,
     n->first_trans = Now;
     n->next_retrans = Now + (timeq_t)n->rto;
     //write(1,"S",1);
-    //fprintf(stderr, "rtt/mem/if/cw: %u/%u/%d/%d\n", cb->rtt, tcp_retrans_memory, cb->inflight, cb->cwnd);
-    ////fprintf(stderr, "rtt/rto/if/cw: %u/%u/%d/%d\n", cb->rtt, n->rto, cb->inflight, cb->cwnd);
+    //fprintf(stderr, "rtt/rto/if/cw: %u/%u/%d/%d\n", cb->rtt, n->rto, cb->inflight, cb->cwnd);
 }
 
 void tcp_reoutput(struct tcp_retrans_list_s *n)
 {
-    //unsigned int datalen = n->len - TCP_DATAOFF(&n->tcphdr[0]);
 
-    //if (datalen < n->cb->rcv_wnd)		/* don't record retry if not in recv window*/
     /*  I don't understand, a retrans is per definition within the rcv window */
+    //if (datalen < n->cb->rcv_wnd)		/* don't record retry if not in recv window*/
 	n->retrans_num++;
     n->rto <<= 2;				/* quadruple retrans timeout*/
     if (n->rto > TCP_RETRANS_MAXWAIT)		/* limit retransmit timeouts to 4 seconds*/
@@ -274,10 +271,12 @@ void tcp_reoutput(struct tcp_retrans_list_s *n)
     n->next_retrans = Now + (timeq_t)n->rto;
 
 #ifdef VERBOSE
-    printf("tcp retrans: seq %lu+%u size %d rcvwnd %u unack %lu rto %ld rtt %ld state %d (RETRY %d cnt %d mem %u)\n",
+    unsigned int datalen = n->len - TCP_DATAOFF(&n->tcphdr[0]);
+    printf("tcp retrans: seq %lu size %d rcvwnd %u unack %lu rto %d rtt %d state %d (RETRY %d cnt %d mem %u)\n",
 	ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
-	n->len - TCP_DATAOFF(&n->tcphdr[0]), n->cb->rcv_wnd, n->cb->send_una - n->cb->iss,
-	n->rto, n->cb->rtt, n->cb->state, n->retrans_num, tcp_timeruse, tcp_retrans_memory);
+	n->cb->rcv_wnd, n->cb->send_una - n->cb->iss,
+	n->rto, n->cb->rtt, n->cb->state, n->retrans_num,
+	tcp_timeruse, tcp_retrans_memory);
 #endif
 
     ip_sendpacket((unsigned char *)n->tcphdr, n->len, &n->apair, n->cb);
@@ -292,13 +291,6 @@ void tcp_retrans_expire(void)
     unsigned int datalen;
 
     n = retrans_list;
-    /* avoid running out of memory with excessive retransmits*/
-    if (tcp_retrans_memory > TCP_RETRANS_MAXMEM) {
-	printf("ktcp: retransmit memory over limit (cnt %d, mem %u)\n", tcp_timeruse, tcp_retrans_memory);
-	while (n != NULL)
-		n = rmv_from_retrans(n);
-	return;
-    }
 
     while (n != NULL) {
 	datalen = n->len - TCP_DATAOFF(&n->tcphdr[0]);
@@ -307,18 +299,16 @@ void tcp_retrans_expire(void)
 	/* calc RTT and remove if seqno was acked*/
 	if (SEQ_LEQ(ntohl(n->tcphdr[0].seqnum) + datalen, n->cb->send_una)) {
 	    n->cb->retrans_act = 0;
-	    /* Don't exclude retransmits, they are important for the true picture */
-	    //if (n->retrans_num == 0) {
-		rtt = (unsigned)(Now - n->first_trans);
-		////fprintf(stderr, "r%u;", rtt);
-		/* We may want to change rtt here like this: if (!rtt) rtt++;
-		 * because rtt is often 0 on a LAN, which means that the calculated
-		 * rtt stays high forever, which is not good. 
-		 */
-		if (rtt > 0)
-		    n->cb->rtt = (TCP_RTT_ALPHA * n->cb->rtt + (100 - TCP_RTT_ALPHA) * rtt) / 100;
-		debug_tcp("tcp: rtt %u RTT %u RTO %u\n", rtt, n->cb->rtt, n->rto);
-	    //}
+	    rtt = (unsigned)(Now - n->first_trans);
+	    ////fprintf(stderr, "r%u;", rtt);
+	    /* We may want to change rtt here like this: if (!rtt) rtt++;
+	     * because rtt is often 0 on a LAN, which means that the calculated
+	     * rtt stays high forever, which is not good. 
+	     */
+	    if (rtt > 0)
+	        n->cb->rtt = (TCP_RTT_ALPHA * n->cb->rtt + (100 - TCP_RTT_ALPHA) * rtt) / 100;
+	    debug_tcp("tcp: rtt %u RTT %u RTO %u\n", rtt, n->cb->rtt, n->rto);
+
 	    debug_retrans("tcp retrans: remove seq %lu+%u unack %lu\n",
 		ntohl(n->tcphdr[0].seqnum) - n->cb->iss, datalen,
 		n->cb->send_una - n->cb->iss);
@@ -342,9 +332,11 @@ void tcp_retrans_retransmit(void)
     
     while (n != NULL) {
 	/* check for retrans time up */
-	/* adding inflight reduces the # of unneccessary retransmits when
+	/* Adding inflight reduces the # of unneccessary retransmits when
 	 * dealing with very slow systems. A general RTO increase would do
 	 * it, but this is more dynamic */
+	/* If the peer is fast, this is going to appear slow, but with a fast peer,
+	 * packet loss is very rare */
 	if (TIME_GT(Now, n->next_retrans + n->cb->inflight)) {
 	//if (TIME_GT(Now, n->next_retrans + n->cb->rtt)) {
     	    if (n->cb->retrans_act && !n->retrans_num) {
@@ -362,7 +354,7 @@ void tcp_retrans_retransmit(void)
 	    	if (n->cb->ssthresh < 2) n->cb->ssthresh = 2;
 	    }
 	    n->cb->cwnd = TCP_INIT_CWND;	/* EXPERIMENTAL - keep cwnd at 2 while retransmitting */
-    	    ////printf("retrans (%d,%d,%lu)\n", n->cb->inflight, n->len, Now - n->next_retrans);	/* DEBUG */
+    	    ////printf("retrans (%d,%d,%lu)\n", n->cb->inflight, n->len, Now - n->next_retrans); /* DEBUG */
 	    n->cb->retrans_act++;
 	    tcp_reoutput(n);
 
@@ -393,7 +385,7 @@ static int tcp_calc_rcv_window(struct tcpcb_s *cb)
     len = CB_BUF_SPACE(cb);
     if (len < minwindow)	/* FIXME this results in "shrinking the window" */
 	len = 0;
-    debug_window("[%lu]tcp output: len %d min sws %u space %u window %u\n", *jp,
+    debug_window("[%lu]tcp output: len %d min sws %u space %u window %u\n", get_time(),
 	cb->datalen, minwindow, CB_BUF_SPACE(cb), len);
 #else
     /*
@@ -406,7 +398,7 @@ static int tcp_calc_rcv_window(struct tcpcb_s *cb)
      */
     len = CB_BUF_SPACE(cb);
 
-    debug_window("[%lu]tcp output: len %d space %u window %u\n", *jp,
+    debug_window("[%lu]tcp output: len %d space %u window %u\n", get_time(),
 	cb->datalen, CB_BUF_SPACE(cb), len);
 #endif
 
@@ -457,7 +449,7 @@ void tcp_output(struct tcpcb_s *cb)
     apair.daddr = cb->remaddr;
     apair.protocol = PROTO_TCP;
 
-    ip_sendpacket((unsigned char *)th, len, &apair, cb);
     add_for_retrans(cb, th, len, &apair);
+    ip_sendpacket((unsigned char *)th, len, &apair, cb);
     netstats.tcpsndcnt++;
 }

@@ -78,8 +78,6 @@ void ktcp_run(void)
 	    cbs_in_time_wait > 0 || cbs_in_user_timeout > 0) {
 
 	    //printf("tcp: timer %d needpush %d timewait %d usertime %d\n", tcp_timeruse,
-	    //printf("t %d n %d w %d u %d l %d\n", tcp_timeruse,
-		//tcpcb_need_push, cbs_in_time_wait, cbs_in_user_timeout, loopagain);
 
 	    /* don't wait long if data needs pushing to tcpdev */
 	    if (tcpcb_need_push || loopagain) {
@@ -91,13 +89,13 @@ void ktcp_run(void)
 	    }
 	    tv = &timeint;
 #if 0
-	i++;
-	if (i > 10) {
-	    printf("t %d n %d w %d u %d l %d\n", tcp_timeruse,
-		tcpcb_need_push, cbs_in_time_wait, cbs_in_user_timeout, loopagain);
+	    i++;
+	    if (i > 10) {
+		printf("t %d n %d w %d u %d l %d\n", tcp_timeruse,
+		    tcpcb_need_push, cbs_in_time_wait, cbs_in_user_timeout, loopagain);
 
-	    i = 0;
-	}
+		i = 0;
+	    }
 #endif
 	} else {
 	    tv = NULL;		/* no timeout if no timers active or push needed */
@@ -114,8 +112,7 @@ void ktcp_run(void)
 		return;
 	}
 
-	//Now = timer_get_time();
-	Now = *jp/6;
+	Now = get_time();
 #if 0
 	i++;
 	if (i > 10) {
