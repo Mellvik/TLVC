@@ -24,6 +24,7 @@
 
 #ifdef CONFIG_INET
 
+//#define LOCAL_DEBUG
 #ifdef LOCAL_DEBUG	/* for flow tracing */
 void kputchar(int);
 #else
@@ -61,7 +62,7 @@ static size_t tcpdev_read(struct inode *inode, struct file *filp, char *data,
 	    return -ERESTARTSYS;
 	}
     }
-    kputchar(',');
+    kputchar('$');
 
     /*
      *  If the userspace tcpip stack requests less data than what is in the
@@ -138,7 +139,7 @@ static int tcpdev_select(struct inode *inode, struct file *filp, int sel_type)
 	    kputchar(':');
 	    ret = 1;
 	} else {
-	    kputchar(';');
+	    kputchar('@');
 	    select_wait(&tcpdevq);
 	}
 	break;

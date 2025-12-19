@@ -544,12 +544,12 @@ void INITPROC serial_init(void)
 
     do {
         if (sp->tty != NULL) {
-            printk("%sttyS%d at %x irq %d %s", n++? ", ": "", ttyno,
+            printk("ttyS%d at %x irq %d %s\n", ttyno,
                sp->io, sp->irq, serial_type[sp->flags & SERF_TYPE]);
         }
         sp++;
     } while (++ttyno < NR_SERIAL);
-    if (n) printk("\n");
+    //if (n) printk("\n");
 }
 
 struct tty_ops rs_ops = {
