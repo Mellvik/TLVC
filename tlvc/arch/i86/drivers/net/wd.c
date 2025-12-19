@@ -304,8 +304,12 @@ static int INITPROC wd_probe(void) {
 	/* The BUS SIZE detection is not completely reliable as the backplane may be 16bit
 	 * while the system is 8bit - or vise versa. Instead of adding more detection
 	 * code, the user should use the flags for borderline cases. */
+
 	/* NOTE: If the 8013 is used in an 8 bit system (i.e. 8 bit mode), buffer
-	 * size MUST be reduced to 8k. This does not apply to the 8x16 family. */
+	 * size MUST be reduced to 8k. This does not apply to the 8x16 family. 
+	 * They should be left alone, they just work as is in 8bit ISA systems. 
+	 * In fact, forced 8bit mode cause them to fail, and 16k buffer 
+	 * (8216) works fine. */
 
 	outb(tmp ^ 0x01, net_port+1 );		/* attempt to clear 16bit bit */
 	if (((type = (inb(net_port+1) & 0x01)) == 0x01)	/* A 16 bit card */
@@ -335,7 +339,7 @@ static int INITPROC wd_probe(void) {
 	if (net_flags&ETHF_BUF_MASK)		/* Force buffer size */
 		stop_page = WD_STOP_PG4 << (net_flags&0x03);
 
-#if DEBUG	/* play with the NVRAM content here */
+#if DEBUG	/* Play with the NVRAM content here */
 		/* TODO: add auto-config via bootopts */
 	if (!is_8bit & type > 0x29) {
 		unsigned int r1 = inb(net_port+1);
@@ -344,7 +348,7 @@ static int INITPROC wd_probe(void) {
 
 		outb(0x80|r4, net_port+4); 
 		/* include the lower 8 registers for reference */
-		for (i = 0; i<16; i++)
+		for (i = 0; i < 16; i++)
 			printk("%02x;", (unsigned char)inb(net_port + i));
 		printk("\n");
 		//outb(r1, net_port+1);

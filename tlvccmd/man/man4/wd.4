@@ -25,7 +25,7 @@ may be overridden via the flags-parameter in the
 file.
 .PP
 Any of these NIC models should work in any ISA based PC. However, due to technical restrictions
-in the ISA bus, 8-bit and 16-bit shared memory devices cannot be located in the same 128k byte region of memory.
+in the ISA bus, 8-bit and 16-bit shared memory devices cannot be located in the same 128k address region.
 This means that the 8-bit 8003 model in many cases will create havoc in ISA-16 based systems. In recent day ISA
  based PCs, advanced (very 'helpful') BIOSes may prevent this combination to work at all, in some cases not even boot.
 .SH CONFIGURATION
@@ -88,16 +88,33 @@ eth: wd0 at 0x320, irq 11, ram 0xcc00, wd8013/16k MAC 00:00:C0:BC:8F:4B,
 						flags 0x80
 .fi
 .PP
-The interface was found at the specified I/O address, the shared memory address works and
-the displayed MAC (Ethernet) address was found and set. 
-The configured interrupt line (IRQ) is reported but not tested or activated at this point. If the interface does 
-not seem to work, the IRQ may be wrong. Verify this by trying an outgoing 
+The interface was found at the specified I/O address, the shared memory address and
+the displayed MAC (Ethernet) address were set, but not tested. 
+That testing comes when 
+.I ktcp
+has been started and the NIC is connected to the network.
+If at this point the console is displaying a lot of 'Damaged packet, hdr ...´ messages, the
+shared memory address is wrong or overlapping with something else, like BIOS code or shared
+memory on another interface.
+.PP
+If you get occasional - like every 10th or 20th packet - 'Damaged packet´ errors, the NIC buffer is smaller
+than the driver thinks it is. Adjust this using the flags (see below). This may also happen if a
+.I wd8013
+NIC is used in a XT class (8bit ISA bus) system, a combintaion which requires the buffer size to be manually (via /bootopts)
+reduced to 8k.
+.PP 
+If the interface does 
+not seem to work or works on an off, a few packets at a time, the IRQ may be wrong or possibly taken by another card.
+While the OS will prevent two interfaces from allocating the same IRQ, a collission may still happen if
+two interfaces configured to the same IRQ are installed in the system. See below about changing settings on the NIC itself.
+.PP
+An IRQ issue may be tested by trying an outgoing 
 .I telnet
-command from the TLVC system. Since the driver will collect arrived packets when sending a packet,
+command to some other host. Sending packets doesn't need interrupts to work, and when sending, the driver 
+will collect incoming packets 'while at it' so to speak. Thus,
 an outgoing 
 .I telnet
-connection will enable traffic to flow, even for other connections, for as long as it's 
-active. If it stops, type enter and it continues.
+connection will enable traffic to flow, even for other connections, for as long as the user is typing at the keyboard.
 .PP 
 If the interface has several connection options (AUI, BNC and/or TP), this may also be the source
 of the problem. The card may need to 
