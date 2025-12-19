@@ -5,46 +5,69 @@
  * of 8 vs 16 bits.
  *
  * Based on an early Linux WD driver by David Becker, 8003-port By @pawosm-arm
- * September 2020. Rudimentary 16 bit support and various other enhancements by 
+ * September 2020. 8013 (16 bit) support and various other enhancements by 
  * Helge Skrivervik (@mellvik) june 2022. 
- * Full 8013 (and probably 8216) support by @mellvik for TLVC March 2025
+ * Full 8013(elite)/8216(ultra)/8416(etherEZ) support by @mellvik for TLVC 2025
  */
 /* 
  * DEVELOPER NOTES - added March 2025 by @mellvik
  *
- * While the 8013 is basically compatible with the 8003, there are significant differences,
- * in particular with the softconfig 8013 models (some early models have jumpers to
- * select between jumper configuration or soft config).
+ * While the 16 bit 8013 and later models are basically compatible with the 8003, 
+ * there are significant differences -
+ * in particular with the soft-config 8013 and later models (early models have jumpers to
+ * select between jumper configuration or soft-config).
  *
- * In particular, the soft-config units have a shadow register set containing the soft 
- * settings. This shadow register set hides behind the upper half of the IO space used
- * by the card, net_port+(8-15), and is enabled by setting the high bit in the
- * (net_port+4) register. Specifically, the saved base address is at (net_port + 0xb) and
- * the saved IRQ is at (net_port + 0xd).
+ * *8/16 bit modes*
+ * The BIG linux driver, from which much of this code was originally inherited,
+ * switched the NIC to/from 16bit mode in every memory transfer, noting that otherwise
+ * the NIC will not work at reboot. I have not found this to be the case, so such
+ * switching is not included here. Caveat: This restriction may apply to cards
+ * with a BOOT ROM.
  *
- * It appears (I'm getting this from various drivers, not from documentation) that both
- * the 'main' and the shadow registers are actually NVRAM, or rather, they reflect the
- * contents of the NVRAM. Both register sets, real and shadow, may be modified by first 
- * writing to whatever reg(s) we want to change, then flip the high bit in register (net_port+1) 
- * first on then off. That will supposedly make the changes permanent. I have not tested this.
+ * *About Soft-config*
+ * While the 8013 carde reg1-4 to store the soft-config data (irq, shmem addr, IOaddr),
+ * 8x16 cards use a hidden or 'shadow' register set (NVRAM really) for this purpose. 
+ * This register set hides behind the upper half of the IO space used
+ * by the card, net_port+(8-15), and is enabled by setting the high bit in reg4
+ * (net_port+4). Specifically, the saved base address is at (net_port + 0xb) and
+ * the saved IRQ is (encoded) at (net_port + 0xd). This is different from the 8013
+ * which as softconfig info stored in the lower 8 registers.
+ *
+ * The softconfig registers/NVRAM are changed by writing to the appropriate register.
+ * The changes stick until power cycled. In order to make the changes permanent, the high
+ * bit in reg1 (net_port+1) must be set when writing, then reset after writing..
+ * This seems to apply to both types of cards.
  *
  * The *IMPORTANCE* of flipping these switches - the 'write NVRAM' and the 'open shadow register
- * block' switches - back to their 'off' state, cannot be OVERSTATED. If the 'write NVRAM' switch
- * is left on, writes (possibly accidental) to these registers may destroy the original
- * contents and possibly leave the card unusable, if nothing else because the checksum is 
+ * block' switches - BACK to their 'off' state, cannot be OVERSTATED. If the 'write NVRAM' switch
+ * is left on, writes (possibly accidental) to these registers will destroy the original
+ * contents and possibly leave the card unusable - if nothing else because the checksum is 
  * now incorrect. Further, and this one hit me hard until I understood what was going on,
  * if the 'enable shadow register set' bit in reg4 is left on, it will stay that way until
- * power-cycled. Card reset doesn't change it back. Thus, after a reboot the driver will
+ * power-cycled. Card reset doesn't clear it. Thus, after a reboot the driver will
  * find garbage where the MAC address is supposed to be, the checksum is
- * not a checksum but something else, and the card will be 'not found'.
+ * not a checksum but something else, and the card will be 'not found' - even by the DOS
+ * config program (EZCONFIG)..
+ * More about this here: http://cholla.mmto.org/computers/netbsd/8013.html
  *
- * This knowledge may be used to get and change not only the MAC address (less useful), but
- * the base address and the IRQ, most likely the shared memory address of the card, via
- * bootopts. The current version of the driver makes no attempt to do that and it takes
- * some code to do it because the information in NVRAM is encoded. Like, the irq must be 
+ * OTOH, this knowledge may be used to change not only the MAC address (less useful), but
+ * the base address, IRQ and the shared memory address of the card, via
+ * bootopts (changing the IO port will need a reboot). The current version
+ * of the driver makes no attempt to do any of this, and it takes
+ * some coding to do it because the information in NVRAM is encoded. Like, the irq must be 
  * retreived like this:  irq = ((irqreg & 0x40) >> 4) + ((irqreg & 0x0c) >> 2)
  * which still isn't the irq but an 'index' if you like. The driver needs an array that
  * matches up the indexes to the actual IRQs, like irqmap[] = {0, 9, 3, 5, 7, 10, 11, 15}
+ *
+ * For future reference:
+ * On the 8013, the irq formual is (reg4>>5)+(reg1&4) which maps into this sequence:
+ * irqmap[] = {9, 3, 5, 7, 10, 11, 15, 4}.
+ * The IO address is similarly encoded. For the 8013:
+ * 	high_addr_bits = reg5 & 0x1f;
+	// Some boards don't have the register 5 -- it returns 0xff. 
+	if (high_addr_bits == 0x1f || word16 == 0)
+		high_addr_bits = 0x01;
+	dev->mem_start = ((reg0&0x3f) << 9) + (high_addr_bits << 15); 
  *
  * Maybe later. The kernel is already bursting at the seams, and /bootopts does a great
  * job for system configuration.
@@ -65,9 +88,10 @@
 #include <linuxmt/mm.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/netstat.h>
+#include <linuxmt/string.h>
 #include "eth-msgs.h"
 
-/* runtime configuration set in /bootopts or defaults in ports.h */
+/* runtime configuration set in /bootopts or (defaults) in ports.h */
 #define net_irq		(netif_parms[ETH_WD].irq)
 #define net_port	(netif_parms[ETH_WD].port)
 #define net_ram		(netif_parms[ETH_WD].ram)
@@ -77,11 +101,11 @@
 #define WD_STAT_TX	0x0002	/* packet sent */
 #define WD_STAT_OF	0x0010	/* RX ring overflow */
 
-#define WD_START_PG	0x00U	/* First page of TX buffer */
-#define WD_STOP_PG4	0x10U	/* Only used for arithmetic */
-#define WD_STOP_PG8	0x20U	/* Last page + 1 of RX ring if 8 bit i/f */
-#define WD_STOP_PG16	0x40U	/* Last page + 1 of RX ring if 16bit i/f */
-#define WD_STOP_PG32	0x80U	/* Last page + 1 of RX ring if 32K buf space */
+#define WD_START_PG	0x00	/* First page of TX buffer */
+#define WD_STOP_PG4	0x10	/* Only used for arithmetic */
+#define WD_STOP_PG8	0x20	/* Last page + 1 of RX ring if 8 bit i/f */
+#define WD_STOP_PG16	0x40	/* Last page + 1 of RX ring if 16bit i/f */
+#define WD_STOP_PG32	0x80	/* Last page + 1 of RX ring if 32K buf space */
 
 #define TX_2X_PAGES	12		/* useful if 16+k buffer */
 #define TX_1X_PAGES	6
@@ -90,33 +114,34 @@
 #define WD_FIRST_TX_PG	WD_START_PG
 #define WD_FIRST_RX_PG	(WD_FIRST_TX_PG + TX_PAGES)
 
-#define WD_RESET	0x80U	/* Board reset */
-#define WD_MEMENB	0x40U	/* Enable the shared memory */
+#define WD_RESET	0x80	/* Board reset */
+#define WD_MEMENB	0x40	/* Enable the shared memory */
 #define WD_IO_EXTENT	32
 #define WD_8390_OFFSET	16
 #define WD_8390_PORT	(net_port + WD_8390_OFFSET)
-#define WD_CMDREG5	5	/* Offset to 16-bit-only ASIC register 5. */
+#define WD_LAAR		5	/* LA Address Register */
 
-#define	NIC16		0x40	/* Enable 16 bit access from the 8390. */
+#define LAAR_L16EN	0x40	/* Enable 8390 16 bit operation */
+#define LAAR_M16EN	0x80	/* Enable 16 bit memory access */
 
-#define E8390_RXCONFIG	0x04U	/* EN0_RXCR: broadcasts, no multicast or errors */
-#define E8390_RXOFF	0x20U	/* EN0_RXCR: Accept no packets */
-#define E8390_TXCONFIG	0x00U	/* EN0_TXCR: Normal transmit mode */
-#define E8390_TXOFF	0x02U	/* EN0_TXCR: Transmitter off */
-#define E8390_STOP	0x01U	/* Stop and reset the chip */
-#define E8390_START	0x02U	/* Start the chip, clear reset */
-#define E8390_TRANS	0x04U	/* Transmit a frame */
-#define E8390_RREAD	0x08U	/* Remote read */
-#define E8390_RWRITE	0x10U	/* Remote write  */
-#define E8390_NODMA	0x20U	/* Remote DMA */
-#define E8390_PAGE0	0x00U	/* Select page chip registers */
-#define E8390_PAGE1	0x40U	/* using the two high-order bits */
-#define E8390_PAGE2	0x80U	/* Page 3 is invalid */
-#define E8390_CMD	0x00U	/* The command register (for all pages) */
+#define E8390_RXCONFIG	0x04	/* EN0_RXCR: broadcasts, no multicast or errors */
+#define E8390_RXOFF	0x20	/* EN0_RXCR: Accept no packets */
+#define E8390_TXCONFIG	0x00	/* EN0_TXCR: Normal transmit mode */
+#define E8390_TXOFF	0x02	/* EN0_TXCR: Transmitter off */
+#define E8390_STOP	0x01	/* Stop and reset the chip */
+#define E8390_START	0x02	/* Start the chip, clear reset */
+#define E8390_TRANS	0x04	/* Transmit a frame */
+#define E8390_RREAD	0x08	/* Remote read */
+#define E8390_RWRITE	0x10	/* Remote write  */
+#define E8390_NODMA	0x20	/* Remote DMA */
+#define E8390_PAGE0	0x00	/* Select page chip registers */
+#define E8390_PAGE1	0x40	/* using the two high-order bits */
+#define E8390_PAGE2	0x80	/* Page 3 is invalid */
+#define E8390_CMD	0x00	/* The command register (for all pages) */
 
 /* For register EN0_ISR. */
-#define E8390_TX_IRQ_MASK	0x0aU
-#define E8390_RX_IRQ_MASK	0x05U
+#define E8390_TX_IRQ_MASK	0x0a
+#define E8390_RX_IRQ_MASK	0x05
 
 /* Page 0 register offsets. */
 #define EN0_CLDALO	0x01	/* Low byte of current local dma addr  RD */
@@ -147,41 +172,55 @@
 #define EN0_COUNTER2	0x0f	/* Rcv missed frame error counter RD */
 
 /* Page 1 register offsets. */
-#define EN1_PHYS	0x01U	/* This board's physical enet addr RD WR */
-#define EN1_CURPAG	0x07U	/* Current memory page RD WR */
-#define EN1_MULT	0x08U	/* Multicast filter mask array (8 bytes) RDWR */
+#define EN1_PHYS	0x01	/* This board's physical enet addr RD WR */
+#define EN1_CURPAG	0x07	/* Current memory page RD WR */
+#define EN1_MULT	0x08	/* Multicast filter mask array (8 bytes) RDWR */
 
 /* Bits in received packet status byte and EN0_RSR */
-#define ENRSR_RXOK	0x01U	/* Received a good packet */
-#define ENRSR_CRC	0x02U	/* CRC error */
-#define ENRSR_FAE	0x04U	/* frame alignment error */
-#define ENRSR_FO	0x08U	/* FIFO overrun */
-#define ENRSR_MPA	0x10U	/* missed pkt */
-#define ENRSR_PHY	0x20U	/* physical/multicase address */
-#define ENRSR_DIS	0x40U	/* receiver disable. set in monitor mode */
-#define ENRSR_DEF	0x80U	/* deferring */
+#define ENRSR_RXOK	0x01	/* Received a good packet */
+#define ENRSR_CRC	0x02	/* CRC error */
+#define ENRSR_FAE	0x04	/* frame alignment error */
+#define ENRSR_FO	0x08	/* FIFO overrun */
+#define ENRSR_MPA	0x10	/* missed pkt */
+#define ENRSR_PHY	0x20	/* physical/multicase address */
+#define ENRSR_DIS	0x40	/* receiver disable. set in monitor mode */
+#define ENRSR_DEF	0x80	/* deferring */
 
 /* Bits in EN0_ISR - Interrupt status register */
-#define ENISR_RX	0x01U	/* Packet received */
-#define ENISR_TX	0x02U	/* Transmit packet completed */
-#define ENISR_RX_ERR	0x04U	/* Receive error */
-#define ENISR_TX_ERR	0x08U	/* Transmit error */
-#define ENISR_OFLOW	0x10U	/* Receiver out of buffer space */
-#define ENISR_COUNTERS	0x20U	/* Counters need emptying */
-#define ENISR_RDC	0x40U	/* Remote dma complete */
-#define ENISR_RESET	0x80U	/* Reset completed */
-#define ENISR_ALL	0x1fU	/* Enable these interrupts, skip RDC and stats */
+#define ENISR_RX	0x01	/* Packet received */
+#define ENISR_TX	0x02	/* Transmit packet completed */
+#define ENISR_RX_ERR	0x04	/* Receive error */
+#define ENISR_TX_ERR	0x08	/* Transmit error */
+#define ENISR_OFLOW	0x10	/* Receiver out of buffer space */
+#define ENISR_COUNTERS	0x20	/* Counters need emptying */
+#define ENISR_RDC	0x40	/* Remote dma complete */
+#define ENISR_RESET	0x80	/* Reset completed */
+#define ENISR_ALL	0x1f	/* Enable these interrupts, skip RDC and stats */
 
 /*
  * Model name codes from device register net_port+0xe:
- * 0x03 - 8003
+ * In addition to the WD 8 bit (8003) and 16 bit (8013) families, 
+ * here are the SMC 8216 (Ultra) and the 8416 (EtherEZ) families. The latter
+ * have the same type codes (reg 0xe) but can be distigiushed from the
+ * upper half of reg 7. Capability wise it seems the only difference is
+ * buffer memory - the 82-family has 16k like the 8013, the 84 family
+ * has 8k like the 8003.
+ *
+ * Type codes
+ * 0x02 - 8003S
+ * 0x03 - 8003E
+ * 0x05 - 8013EBT
+ * 0x20 - if this bit is set, the NIC is softconfigured
+ * 	  It may still have jumper configuration too.
+ * 0x40 - if this bit is set, the NIC has 'large ram', probably means 32k
+ *	  These are rare.
  * 0x26 - 8013W
- * 0x27 - 8013EP
+ * 0x27 - 8013EP/EB
  * 0x28 - 8013WC
  * 0x29 - 8013EPC or EWC
- * 0x2A - 8216T
- * 0x2B - 8216C or BT
- * 0x2C - 8216EBP
+ * 0x2A - 8x16T
+ * 0x2B - 8x16C or BT
+ * 0x2C - 8x16EBP
  * The letter suffixes seem to mean:
  * T - Twisted Pair
  * B - BNC
@@ -202,7 +241,7 @@ static struct wait_queue txwait;
 
 static byte_t usecount;
 static byte_t is_8bit;
-static byte_t model_name[] = "wd8013";
+static byte_t model_name[] = "wd_8013";
 static byte_t dev_name[] = "wd0";
 static byte_t stop_page; 	/* actual last pg of ring (+1) */
 static unsigned char found;
@@ -214,7 +253,6 @@ static struct netif_stat netif_stat;
 static word_t wd_rx_stat(void);
 static word_t wd_tx_stat(void);
 static void wd_int(int irq, struct pt_regs * regs);
-static void fmemcpy(void *, seg_t, void *, seg_t, size_t, int);
 static void wd_stop(void);
 
 extern struct eth eths[];
@@ -237,53 +275,89 @@ static void wd_get_hw_addr(word_t *data)
  */
 
 static int INITPROC wd_probe(void) {
-	int i, type, tmp = 0;
+	int i, tmp = 0;
+	unsigned type;
 
-#if DEBUG
-	for (i = 0; i < 16; i++)
-		printk("%x;", type = inb(net_port+i));
-	printk("\n");
-#endif
 	for (i = 0; i < 8; i++)
-		tmp += inb(net_port + 8 + i);
+		tmp += inb(net_port + 8 + i);	/* Works for all card types. On the */
+						/* 8003, regs0-7 == regs8-15 */
 	if (inb(net_port + 8) == 0xff
 		|| inb(net_port + 9) == 0xff	/* Extra check to avoid soundcard. */
-		|| (tmp & 0xff) != 0xFF)	/* checksum test */
+		|| (tmp & 0xff) != 0xFF)	/* Checksum test */
 		return -ENODEV;	
 
+#if DEBUG	/* dump registers and NVRAM/PROM for reference */
+	for (i = 0; i < 16; i++)
+		printk("%02x;", type = inb(net_port+i));
+	printk("\n");
+#endif
 	/* config flag processing */
-	verbose = (net_flags&ETHF_VERBOSE);	/* set verbose messages */
-	if (net_flags&ETHF_8BIT_BUS)  is_8bit = 1;
+	verbose = (net_flags&ETHF_VERBOSE);	   /* set verbose messages */
 	if (net_flags&ETHF_16BIT_BUS) is_8bit = 0;
+	if (net_flags&ETHF_8BIT_BUS)  is_8bit = 1; /* takes presedence if both are */
+						   /* specified, will always work */
+	stop_page = WD_STOP_PG8;	/* 8K buffer is always the default */
 
 	/*  device found - check what type */
-	tmp = inb(net_port+1);			/* fiddle with 16bit bit */
+	tmp = inb(net_port+1);
+
+	/* The BUS SIZE detection is not completely reliable as the backplane may be 16bit
+	 * while the system is 8bit - or vise versa. Instead of adding more detection
+	 * code, the user should use the flags for borderline cases. */
+
+	/* NOTE: If the 8013 is used in an 8 bit system (i.e. 8 bit mode), buffer
+	 * size MUST be reduced to 8k. This does not apply to the 8x16 family. 
+	 * They should be left alone, they just work as is in 8bit ISA systems. 
+	 * In fact, forced 8bit mode cause them to fail, and 16k buffer 
+	 * (8216) works fine. */
 
 	outb(tmp ^ 0x01, net_port+1 );		/* attempt to clear 16bit bit */
 	if (((type = (inb(net_port+1) & 0x01)) == 0x01)	/* A 16 bit card */
 				&& (tmp & 0x01) == 0x01	/* In a 16 slot */
 				&& (is_8bit != 1)) {	/* and not forced to 8bit mode */
-		int asic_reg5 = inb(net_port+WD_CMDREG5);
-		/* Magic to set ASIC to word-wide mode. */
-		outb(NIC16 | (asic_reg5&0x1f), net_port+WD_CMDREG5);
+
+		/* Set ASIC to word-wide mode, enable 16 bit memory access */
+		int reg5 = inb(net_port+WD_LAAR);
+		outb(LAAR_M16EN | LAAR_L16EN | (reg5&0x1f), net_port+WD_LAAR);
 		is_8bit = 0;		/* may be unset at this point, indicate 16bit */
-		netif_stat.oflow_keep = 3;	/* should be scaled by RAM size */
 	} else {
-		if (!type) model_name[4] = '0';	
+		if (!type) model_name[5] = '0';	
 		is_8bit = 1;	/* We're running 8bit regardless of bus and type */
-		netif_stat.oflow_keep = 1;
 	}
-	if ((unsigned)inb(net_port+0xe) > 0x29) {	/* update to wd8216 */
-		model_name[3] = '2';
-		model_name[5] = '6';
-	}
+	if ((type = (unsigned)inb(net_port+0xe)) > 0x29) {	/* We have a SMC8x16 */
+		memcpy(model_name, "smc", 3);
+		model_name[4] = '4';
+		model_name[6] = '6';
+		if ((inb(net_port+7)&0xF0) == 0x20) {
+			model_name[4] -= 2;	/* SMC8216 ... has 16k buffer */
+			stop_page = WD_STOP_PG16;
+		}
+	} else if (type > 3 && !is_8bit)	/* 8013 variant, 16k if 16bit mode */
+		stop_page = WD_STOP_PG16;
 	outb(tmp, net_port+1);			/* Restore original reg1 value. */
-	stop_page = WD_STOP_PG8;	/* this is always the default */
-	if (net_flags&0x07)		/* Force buffer size */
+
+	if (net_flags&ETHF_BUF_MASK)		/* Force buffer size */
 		stop_page = WD_STOP_PG4 << (net_flags&0x03);
-#if DEBUG
-	printk("net_flags %04x stop_page %02x verbose %d\n", net_flags, stop_page, verbose);
+
+#if DEBUG	/* Play with the NVRAM content here */
+		/* TODO: add auto-config via bootopts */
+	if (!is_8bit & type > 0x29) {
+		unsigned int r1 = inb(net_port+1);
+		unsigned int r4 = inb(net_port+4);
+		//outb(r1|0x80, net_port+1);	/* Enable NVRAM write */
+
+		outb(0x80|r4, net_port+4); 
+		/* include the lower 8 registers for reference */
+		for (i = 0; i < 16; i++)
+			printk("%02x;", (unsigned char)inb(net_port + i));
+		printk("\n");
+		//outb(r1, net_port+1);
+		outb(r4, net_port+4);
+	}
+		
+	printk("net_flags %04x buffer %dk\n", net_flags, stop_page>>2);
 #endif
+	netif_stat.oflow_keep = stop_page < WD_STOP_PG16 ? 1 : 3; /* Scaled by RAM size */
 	wd_stop();	/* make sure interrupts are off */
 
 	return 0;
@@ -295,7 +369,7 @@ static int INITPROC wd_probe(void) {
 
 static void wd_reset(void)
 {
-	int asic_reg5 = inb(net_port+WD_CMDREG5);
+	int reg5 = inb(net_port+WD_LAAR);
 
 	outb(WD_RESET, net_port);
 
@@ -305,7 +379,7 @@ static void wd_reset(void)
 	 */
 	outb(((net_ram >> 9) & 0x3f) | WD_MEMENB, net_port);
 	if (!is_8bit)
-		outb(NIC16 | (asic_reg5&0x1f), net_port+WD_CMDREG5);
+		outb(LAAR_M16EN | LAAR_L16EN | (reg5&0x1f), net_port+WD_LAAR);
 }
 
 /*
@@ -333,7 +407,7 @@ static void wd_init_8390(int strategy)
 	outb(E8390_RXOFF, WD_8390_PORT + EN0_RXCR);
 	outb(E8390_TXOFF, WD_8390_PORT + EN0_TXCR);
 
-	/* Clear the pending interrupts and mask. */
+	/* Clear pending interrupts and mask. */
 	outb(0xff, WD_8390_PORT + EN0_ISR);
 	outb(0x00, WD_8390_PORT + EN0_IMR);
 
@@ -345,17 +419,14 @@ static void wd_init_8390(int strategy)
 		current_rx_page = WD_FIRST_RX_PG;
 		outb(stop_page - 1, WD_8390_PORT + EN0_BOUNDARY);
 
-
 		/* Copy the station address into the DS8390 registers. */
-		clr_irq();
 		outb(E8390_NODMA | E8390_PAGE1 | E8390_STOP,
 			WD_8390_PORT + E8390_CMD);
-		for (u = 0U; u < 6U; u++)
+		for (u = 0; u < 6; u++)
 			outb(mac_addr[u], WD_8390_PORT + EN1_PHYS + u);
 		outb(WD_FIRST_RX_PG, WD_8390_PORT + EN1_CURPAG);
 		outb(E8390_NODMA | E8390_PAGE0 | E8390_STOP,
 			WD_8390_PORT + E8390_CMD);
-		set_irq();
 
 	} else {	/* 'strategy' is the # of packets to keep. */
 			/* This is for overflow recovery */
@@ -380,7 +451,7 @@ static void wd_init_8390(int strategy)
 
 static void wd_start(void)
 {
-	outb(((net_ram >> 9U) & 0x3f) | WD_MEMENB, net_port);
+	outb(((net_ram >> 9) & 0x3f) | WD_MEMENB, net_port);
 
 	outb(E8390_TXCONFIG, WD_8390_PORT + EN0_TXCR); /* xmit on */
 	outb(E8390_RXCONFIG, WD_8390_PORT + EN0_RXCR); /* rx on */
@@ -402,14 +473,14 @@ static void wd_stop(void)
 	outb(((net_ram >> 9) & 0x3f) & ~WD_MEMENB, net_port);	/* turn off shared mem */
 	outb(0, WD_8390_PORT + EN0_IMR);	/* mask all interrupts */
 	if (inb(net_port + 14) & 0x20)
-		outb(0, net_port + 6); 		/* turn off interrupts on 8013, 8216 */
+		outb(0, net_port + 6); 		/* turn off interrupts on 8013, 8x16 */
 }
 
 /*
  * Clear overflow
  *
  *	For TLVC/ELKS, when an overflow occurs, the kernel will probably just have
- *	received a wakeup() from a RxComplete interrupt. 
+ *	received a wake_up() from a RxComplete interrupt. 
  *	If the overflow handler purges the receive buffer
  *	completely, the next read will fail - there is nothing to read. No big
  *	deal, but noisy (error messages) and inefficient since the buffer is at
@@ -434,12 +505,11 @@ static size_t wd_pack_get(char *data, size_t len)
 	unsigned char this_frame, update = 1;
 	size_t res = -EIO;
 
-	//clr_irq();	// EXPERIMENTAL
 	outb(0x00, WD_8390_PORT + EN0_IMR);	// Block interrupts
 	do {
 		/* Remove one frame from the ring. */
 		/* Boundary is always a page behind. */
-		this_frame = inb(WD_8390_PORT + EN0_BOUNDARY) + 1U;
+		this_frame = inb(WD_8390_PORT + EN0_BOUNDARY) + 1;
 		if (this_frame >= stop_page)
 			this_frame = WD_FIRST_RX_PG;
 		if (this_frame != current_rx_page)	/* Very useful for debugging ! */
@@ -453,19 +523,23 @@ static size_t wd_pack_get(char *data, size_t len)
 
 			/* This should not happen! The NIC is programmed to drop
 			 * erroneous packets. If we get here, it's most likely
-			 * a driver bug or a hardware problem. */
+			 * because the buffer size is wrong (try reducing it),
+			 * possibly a driver bug or a hardware problem.
+			 */
 			/* If this happens, we need to purge the NIC buffer entirely 
 			 * since if the size is bogus, the next packet pointer is
 			 * unreliable at best. */
 			netif_stat.rq_errors++;
-			if (verbose) printk(EMSG_DMGPKT, dev_name, (unsigned int *)rxhdr, rxhdr->next);
-			
+			if (verbose) {
+			    printk(EMSG_DMGPKT, dev_name, 
+				*(unsigned int *)rxhdr, rxhdr->count);
+			}
 			wd_clr_oflow(0);	/* Complete reset */
 			update = 0;		/* exit flag */
 			break;
 		}
 		current_rx_page = rxhdr->next;
-		if ((rxhdr->status & 0x0fU) != ENRSR_RXOK) {
+		if ((rxhdr->status & 0x0f) != ENRSR_RXOK) {
 			/* This shouldn't happen either, see comment above */
 			netif_stat.rx_errors++;
 			if (verbose) printk(EMSG_BGSPKT, dev_name,
@@ -476,14 +550,14 @@ static size_t wd_pack_get(char *data, size_t len)
 		if (res > len) res = len;
 		if (current_rx_page > this_frame || current_rx_page == WD_FIRST_RX_PG) {
 			/* no wrap around */
-			fmemcpy(data, current->t_regs.ds,
-				(char *)hdr_start + sizeof(e8390_pkt_hdr), net_ram, res, is_8bit);
+			fmemcpyw(data, current->t_regs.ds,
+				(char *)hdr_start + sizeof(e8390_pkt_hdr), net_ram, (res+1)>>1);
 		} else {	/* handle wrap-around */
 			size_t len1 = ((stop_page - this_frame) << 8) - sizeof(e8390_pkt_hdr);
-			fmemcpy(data, current->t_regs.ds,
-				(char *)hdr_start + sizeof(e8390_pkt_hdr), net_ram, len1, is_8bit);
-			fmemcpy(data+len1, current->t_regs.ds,
-				(char *)(WD_FIRST_RX_PG << 8), net_ram, res-len1, is_8bit);
+			fmemcpyw(data, current->t_regs.ds,
+				(char *)hdr_start + sizeof(e8390_pkt_hdr), net_ram, len1>>1);
+			fmemcpyw(data+len1, current->t_regs.ds,
+				(char *)(WD_FIRST_RX_PG << 8), net_ram, (res-len1)>>1);
  		}
 	} while (0);
 
@@ -491,7 +565,6 @@ static size_t wd_pack_get(char *data, size_t len)
 		this_frame = (current_rx_page == WD_FIRST_RX_PG) ? stop_page - 1 : current_rx_page - 1;
 		outb(this_frame, WD_8390_PORT + EN0_BOUNDARY);
 	}
-	//set_irq();
 	outb(ENISR_ALL, WD_8390_PORT + EN0_IMR);
 
 	return res;
@@ -533,8 +606,8 @@ static size_t wd_pack_put(char *data, size_t len)
 			len = MAX_PACKET_ETH;
 		if (len < 64U) len = 64U;  /* issue #133 */
 
-		fmemcpy((byte_t *)((WD_FIRST_TX_PG - WD_START_PG) << 8U),
-			net_ram, data, current->t_regs.ds, len, is_8bit);
+		fmemcpyw((byte_t *)((WD_FIRST_TX_PG - WD_START_PG) << 8U),
+			net_ram, data, current->t_regs.ds, (len+1)>>1);
 		outb(E8390_NODMA | E8390_PAGE0, WD_8390_PORT + E8390_CMD);
 
 #if REMOVE
@@ -586,14 +659,14 @@ static word_t wd_rx_stat(void)
 {
 	unsigned char rxing_page;
 
-	clr_irq();	// FIXME: don't need this, just block
-			// our own interrupts
+	clr_irq();	/* Need this or we may lose an interrupt */
+
 	/* Get the rx page (incoming packet pointer). */
 	outb(E8390_NODMA | E8390_PAGE1, WD_8390_PORT + E8390_CMD);
 	rxing_page = inb(WD_8390_PORT + EN1_CURPAG);
 	outb(E8390_NODMA | E8390_PAGE0, WD_8390_PORT + E8390_CMD);
-	set_irq();
 
+	set_irq();
 	return (current_rx_page == rxing_page) ? 0 : WD_STAT_RX;
 }
 
@@ -639,10 +712,10 @@ static int wd_ioctl(struct inode *inode, struct file *file,
 
 	switch (cmd) {
 	case IOCTL_ETH_ADDR_GET:
-		err = verified_memcpy_tofs((char *)arg, &netif_stat.mac_addr, 6U);
+		err = verified_memcpy_tofs((char *)arg, &netif_stat.mac_addr, 6);
 		break;
 
-#if 0 /* unused*/
+#if 0 /* currently unused*/
 	case IOCTL_ETH_ADDR_SET:
 		err = -ENOSYS;
 		break;
@@ -782,8 +855,7 @@ static void wd_int(int irq, struct pt_regs * regs)
 		}
 		if (stat & (ENISR_RDC|ENISR_COUNTERS)) {  /* Remaining bits - should not happen */
 			// FIXME: Need to add handling of the statistics registers
-			// On 8216 cards, the RDC bit is set with every RX interrupt
-			// even when the RDC interrupt has been masked.
+			// On 8216/8416 cards, the RDC bit is set with every RX interrupt
 			//printk("eth: RDC/Stat error, status 0x%x\n", stat);
 			outb(ENISR_RDC|ENISR_COUNTERS, WD_8390_PORT + EN0_ISR);
 		}
@@ -798,8 +870,7 @@ static void wd_int(int irq, struct pt_regs * regs)
 
 void INITPROC wd_drv_init(void)
 {
-	unsigned u;
-	word_t hw_addr[6];
+	word_t u, hw_addr[6];
 	byte_t *mac_addr = (byte_t *)&netif_stat.mac_addr;
 
 	if (!net_port) {
@@ -815,23 +886,12 @@ void INITPROC wd_drv_init(void)
 		wd_get_hw_addr(hw_addr);
 		for (u = 0; u < 6; u++) 
 			mac_addr[u] = hw_addr[u]&0xff;
-		printk(", (%s%s) MAC %02X", model_name, is_8bit?", 8bit":"", mac_addr[0]);
+		printk(", MAC %02X", mac_addr[0]);
 		for (u = 1; u < 6; u++) 
 			printk(":%02X", mac_addr[u]);
-		if (verbose) printk(", type 0x%x", inb(net_port+0xe)&0xff);
-		printk(", flags 0x%x\n", net_flags);
+		printk(", %s/%dk%s\n", model_name, stop_page>>2, is_8bit?" (8bit)":"");
 	}
 	eths[ETH_WD].stats = &netif_stat;
 	return;
 }
 
-/* Using this wrapper saves 44 bytes of RAM */
-/* Using word transfers when possible improves transfer time ~10%
- * on large packets (measured @ 1200 bytes) */
-static void fmemcpy(void *dst_off, seg_t dst_seg, void *src_off, seg_t src_seg, size_t count, int type) {
-
-	if (type == is_8bit)
-		fmemcpyb(dst_off, dst_seg, src_off, src_seg, count);
-	else
-		fmemcpyw(dst_off, dst_seg, src_off, src_seg, (count+1)>>1);
-}
