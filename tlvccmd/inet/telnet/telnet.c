@@ -1,5 +1,5 @@
 /*
- * Telnet for ELKS - TLVC
+ * Telnet for ELKS / TLVC
  *
  * Based on minix telnet client.
  * (c) 2001 Harry Kalogirou <harkal@rainbow.cs.unipi.gr>
@@ -8,7 +8,6 @@
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <termios.h>
@@ -22,11 +21,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-//#define DEBUG 1
+#define debug(...)
+//#define debug     printf
 //#define RAWTELNET	/* set in telnet and telnetd for raw telnet without IAC*/
-//#define RAWTELNET             /* set in telnet and telnetd for raw telnet without IAC*/
 
-#define ESCAPE      (']'&0x1f)  /* = ^] escape session, effectively terminate */
+#define ESCAPE      (']'&0x1f)  /* = ^] escape session. Since we don't have a
+				 * command mode, escape will terminate the session */
 #define BUFSIZE		1500
 
 /* telnet protocol */
@@ -56,6 +56,8 @@
 
 #define FALSE	0
 #define TRUE	(!(FALSE))
+#define CTRL_C	3
+#define CTRL_O	15
 
 #ifdef __linux__
 int DO_echo= TRUE;
@@ -73,16 +75,13 @@ int DO_suppress_go_ahead= FALSE;
 int DO_suppress_go_ahead_allowed= TRUE;
 #endif
 
-#if DEBUG
-#define where() (fprintf(stderr, "%s %d:", __FILE__, __LINE__))
-#endif
+int tcp_fd;
+char *term_env;
+struct termios def_termios;
+int escape;
+int discard;
 
-static int tcp_fd;
-static char *term_env;
-static struct termios def_termios;
-static int writeall (int fd, char *buffer, int buf_size);
 static int process_opt (char *bp, int count);
-static int escape;
 
 void finish()
 {
@@ -92,84 +91,88 @@ void finish()
 	exit(0);	
 }
 
-static void keybd(void)
+static void read_keyboard(void)
 {
 	int count;
-	char buffer[BUFSIZE];
+	unsigned char buffer[BUFSIZE];
 
 		count = read(0, buffer, sizeof(buffer));
-		//fprintf(stderr, "got %d (%x)\r\n", count, *buffer);
+		//fprintf(stderr, "got %d (0x%x)\n", count, *buffer);
 		if (count <= 0 || *buffer == escape) { 
-			char *msg = NULL;
-			if (count <= 0) msg = "read error, ";
-			fprintf(stderr, "\r\ntelnet: %ssession terminated\r\n", msg);
+			fprintf(stderr, "\nSession terminated\n");
 			finish();
 			return;
 		}
-#if DEBUG
- { where(); fprintf(stderr, "writing %d bytes\r\n", count); }
+		if (*buffer == CTRL_C) {	/* ^C = abort output */
+		    if (discard < 3) {		/* ignore if we already sent an IAC_IP */
+			discard = 3;		/* discard whatever is en route */
+#define USE_IAC_IP
+#ifdef USE_IAC_IP				/* Some telnet servers behave better with ^C
+						 * than with IAC_IP (!). */
+			buffer[0] = IAC;
+			buffer[1] = IAC_IP;	/* send Interrupt Process */
+			count = 2;
+			//fprintf(stderr, "sending IAC_IP\n");
 #endif
+		    }
+		}	
+		if (*buffer == CTRL_O && !(discard&2)) {	/* ^O - flush output toggle */
+			discard ^= 1;
+			buffer[0] = '^';
+			buffer[1] = 'O';
+			write(1, buffer, 2);
+			return;			/* Don't pass on to server */
+		}
+		if (discard == 1) {		/* let any char typed release ^O */
+			discard = 0;
+			return;
+		}
 		count = write(tcp_fd, buffer, count);
-		if (count < 0)
-		{
+		if (count < 0) {
 			perror("Connection closed");
 			finish();
 		}
 }
 
-static void scrn(void)
+static void read_network(void)
 {
 	char *bp, *iacptr;
 	int count, optsize;
 	char buffer[BUFSIZE];
 
 		count = read(tcp_fd, buffer, sizeof(buffer));
-#if DEBUG
- { where(); fprintf(stderr, "read %d bytes\r\n", count); }
-#endif
-		if (count > (int)sizeof(buffer)) { //FIXME buffer overflow from inet_read
-			printf("\r\nTELNET BUFFER OVERFLOW\r\n");
-			finish();
-		}
+
 		if (count <= 0) {
-			if (count < 0)
-				perror("Read socket");
-			printf("\r\nConnection closed\r\n");
+			printf("\nConnection closed\n");
 			finish();
 		}
 #ifdef RAWTELNET
 		write(1, buffer, count);
 #else
-		bp= buffer;
-		do
-		{
-			iacptr= memchr (bp, IAC, count);
+		bp = buffer;
+
+		do {
+			
+			iacptr = memchr(bp, IAC, count);
+			//fprintf(stderr, "read: %d discard %d (%x)\n", count, discard, iacptr);
 			if (!iacptr) {
-				write(1, bp, count);
-				count= 0;
-				return;
+				if (!discard) write(1, bp, count);
+				break;
 			}
-			if (iacptr && iacptr>bp) {
-#if DEBUG
- { where(); fprintf(stderr, " ptr-bp= %d\r\n", iacptr-bp); }
-#endif
-				write(1, bp, iacptr-bp);
+			if (iacptr > bp) {
+				if (!discard) write(1, bp, iacptr-bp);
 				count -= (iacptr-bp);
-				bp= iacptr;
+				bp = iacptr;
 				continue;
 			}
-			if (iacptr) {
-				optsize= process_opt(bp, count);
-#if DEBUG
- { where(); fprintf(stderr, "process_opt(...)= %d\r\n", optsize); }
-#endif
-				if (optsize<0)
-					return;
-assert (optsize);
-				bp += optsize;
-				count -= optsize;
-			}
+			optsize = process_opt(bp, count);
+			if (optsize < 0)
+				break;
+			bp += optsize;
+			count -= optsize;
 		} while (count);
+
+		return;
 #endif
 }
 
@@ -245,34 +248,53 @@ int main(int argc, char **argv)
 	printf("Connected\n");
 	printf("Escape character is '^%c'.\n", escape + '@');
 
-#ifdef RAWTELNET
-	{
 	struct termios termios;
 	tcgetattr(0, &termios);
+	termios.c_oflag |= (OPOST | ONLCR);
+	termios.c_lflag &= ~ISIG;       /* ISIG off to disable ^N/^O/^P */
+#ifdef RAWTELNET
 	termios.c_iflag &= ~(ICRNL|IGNCR|INLCR|IXON|IXOFF);
-	termios.c_oflag &= ~(OPOST);
-	termios.c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG);
-	tcsetattr(0, TCSANOW, &termios);
-	}
+	termios.c_lflag &= ~(ECHO|ECHONL|ICANON);
 #endif
+	tcsetattr(0, TCSANOW, &termios);
 	nonblock = 1;
 	ioctl(0, FIONBIO, &nonblock);
 
-	for (;;){
+	for (;;) {
+		int n;
 		fd_set fdset;
+		struct timeval tv, *ptv;
+
 		FD_ZERO(&fdset);
 		FD_SET(0, &fdset);
 		FD_SET(tcp_fd, &fdset);
 
-		if (select(tcp_fd + 1, &fdset, NULL, NULL, NULL) < 0) {
-			perror("select");
-			break;
+		tv.tv_sec = 0;
+		if (discard == 3) {	/* If telnetd at the other end never 'acks' an IAC_IP
+					 * with a DataMark, a 3 second timeout will
+					 * release the discard - unless the user has sent a second
+					 * ^C before that. */
+		    ptv = &tv;
+        	    tv.tv_usec = 3000000;
+		} else
+        	    ptv = NULL;
+
+        	n = select(tcp_fd + 1, &fdset, NULL, NULL, ptv);
+        	if (n == 0) {
+		    //fprintf(stderr, "timeout!\n");
+		    discard = 0;
+		    write(tcp_fd, "\r", 1);
+		    continue;	
+		}
+		if (n < 0) {
+		    perror("select");
+		    break;
 		}
 
 		if (FD_ISSET(tcp_fd, &fdset))
-			scrn();
+		    read_network();
 		if (FD_ISSET(0, &fdset))
-			keybd();
+		    read_keyboard();
 	}
 	finish();
 }
@@ -282,151 +304,116 @@ int main(int argc, char **argv)
 	if (offset < count) { (var) = bp[offset++]; } \
 	else { if (read(tcp_fd, (char *)&(var), 1) != 1) printf("TELNET BAD READ2\n"); exit(1); }
 
-static void do_option(int optsrt)
-{
-	int result;
-	unsigned char reply[3];
-
-	switch (optsrt)
-	{
-	case OPT_TERMTYPE:
-		if (WILL_terminal_type)
-			return;
-		if (!WILL_terminal_type_allowed) {
-			reply[0]= IAC;
-			reply[1]= IAC_WONT;
-			reply[2]= optsrt;
-		} else {
-			WILL_terminal_type= TRUE;
-			term_env= getenv("TERM");
-			if (!term_env)
-				term_env= "unknown";
-			reply[0]= IAC;
-			reply[1]= IAC_WILL;
-			reply[2]= optsrt;
-		}
-		break;
-	default:
-#if DEBUG
- { where(); fprintf(stderr, "got a DO (%d)\r\n", optsrt); }
-#endif
-#if DEBUG
- { where(); fprintf(stderr, "WONT (%d)\r\n", optsrt); }
-#endif
-		reply[0]= IAC;
-		reply[1]= IAC_WONT;
-		reply[2]= optsrt;
-		break;
-	}
-	result= writeall(tcp_fd, (char *)reply, 3);
-	if (result<0)
-		perror("write");
-}
-
-static void will_option(int optsrt)
-{
-	int result;
-	unsigned char reply[3];
-
-	switch (optsrt)
-	{
-	case OPT_ECHO:
-		if (DO_echo)
-			break;
-		if (!DO_echo_allowed) {
-			reply[0]= IAC;
-			reply[1]= IAC_DONT;
-			reply[2]= optsrt;
-		} else {
-			struct termios termios;
-			tcgetattr(0, &termios);
-			termios.c_iflag &= ~(ICRNL|IGNCR|INLCR|IXON|IXOFF);
-			/*termios.c_oflag &= ~(OPOST);*/	/* leave OPOST|ONLCR on*/
-			termios.c_lflag &= ~(ECHO|ECHONL|ICANON);	/* leave ISIG on for ^P*/
-			termios.c_cc[VINTR] = 0;	/* turn ^C off*/
-			termios.c_cc[VSUSP] = 0;	/* turn ^Z off*/
-			tcsetattr(0, TCSANOW, &termios);
-			DO_echo= TRUE;
-			reply[0]= IAC;
-			reply[1]= IAC_DO;
-			reply[2]= optsrt;
-		}
-		result = writeall(tcp_fd, (char *)reply, 3);
-		if (result < 0)
-			perror("write");
-		break;
-
-	case OPT_SUPP_GA:
-		if (DO_suppress_go_ahead)
-			break;
-		if (!DO_suppress_go_ahead_allowed) {
-			reply[0]= IAC;
-			reply[1]= IAC_DONT;
-			reply[2]= optsrt;
-		} else {
-			DO_suppress_go_ahead= TRUE;
-			reply[0]= IAC;
-			reply[1]= IAC_DO;
-			reply[2]= optsrt;
-		}
-		result = writeall(tcp_fd, (char *)reply, 3);
-		if (result < 0)
-			perror("write");
-		break;
-
-	default:
-#if DEBUG
- { where(); fprintf(stderr, "got a WILL (%d)\r\n", optsrt); }
-#endif
-#if DEBUG
- { where(); fprintf(stderr, "DONT (%d)\r\n", optsrt); }
-#endif
-		reply[0]= IAC;
-		reply[1]= IAC_DONT;
-		reply[2]= optsrt;
-		result= writeall(tcp_fd, (char *)reply, 3);
-		if (result<0)
-			perror("write");
-		break;
-	}
-}
-
 static int writeall(int fd, char *buffer, int buf_size)
 {
 	int result;
 
 	while (buf_size)
 	{
-		result= write (fd, buffer, buf_size);
+		result = write(fd, buffer, buf_size);
 		if (result <= 0)
 			return -1;
-assert (result <= buf_size);
 		buffer += result;
 		buf_size -= result;
 	}
 	return 0;
 }
 
+static void do_option(int optsrt)
+{
+	unsigned char reply[3];
+
+	switch (optsrt) {
+	case OPT_TERMTYPE:
+		if (WILL_terminal_type)
+			return;
+		if (!WILL_terminal_type_allowed) {
+			reply[0] = IAC;
+			reply[1] = IAC_WONT;
+			reply[2] = optsrt;
+		} else {
+			WILL_terminal_type = TRUE;
+			term_env = getenv("TERM");
+			if (!term_env)
+				term_env = "unknown";
+			reply[0] = IAC;
+			reply[1] = IAC_WILL;
+			reply[2] = optsrt;
+		}
+		break;
+	default:
+		reply[0] = IAC;
+		reply[1] = IAC_WONT;
+		reply[2] = optsrt;
+		break;
+	}
+	writeall(tcp_fd, (char *)reply, 3);
+}
+
+static void will_option(int optsrt)
+{
+	unsigned char reply[3];
+
+	switch (optsrt) {
+	case OPT_ECHO:
+		if (DO_echo)
+			break;
+		if (!DO_echo_allowed) {
+			reply[0] = IAC;
+			reply[1] = IAC_DONT;
+			reply[2] = optsrt;
+		} else {
+			struct termios termios;
+			tcgetattr(0, &termios);
+			termios.c_iflag &= ~(ICRNL|IGNCR|INLCR|IXON|IXOFF);
+			termios.c_oflag |= (OPOST | ONLCR);
+			termios.c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG);	/* ISIG off for ^P*/
+			tcsetattr(0, TCSANOW, &termios);
+			DO_echo = TRUE;
+			reply[0] = IAC;
+			reply[1] = IAC_DO;
+			reply[2] = optsrt;
+		}
+		writeall(tcp_fd, (char *)reply, 3);
+		break;
+
+	case OPT_SUPP_GA:
+		if (DO_suppress_go_ahead)
+			break;
+		if (!DO_suppress_go_ahead_allowed) {
+			reply[0] = IAC;
+			reply[1] = IAC_DONT;
+			reply[2] = optsrt;
+		} else {
+			DO_suppress_go_ahead = TRUE;
+			reply[0] = IAC;
+			reply[1] = IAC_DO;
+			reply[2] = optsrt;
+		}
+		writeall(tcp_fd, (char *)reply, 3);
+		break;
+
+	default:
+		reply[0] = IAC;
+		reply[1] = IAC_DONT;
+		reply[2] = optsrt;
+		writeall(tcp_fd, (char *)reply, 3);
+		break;
+	}
+}
+
 static void dont_option(int optsrt)
 {
-	switch (optsrt)
-	{
+	switch (optsrt) {
 	default:
-#if DEBUG
- { where(); fprintf(stderr, "got a DONT (%d)\r\n", optsrt); }
-#endif
 		break;
 	}
 }
 
 static void wont_option(int optsrt)
 {
-	switch (optsrt)
-	{
+	switch (optsrt) {
 	default:
-#if DEBUG
- { where(); fprintf(stderr, "got a WONT (%d)\r\n", optsrt); }
-#endif
 		break;
 	}
 }
@@ -435,68 +422,48 @@ static int sb_termtype(char *bp, int count)
 {
 	unsigned char command, iac, optsrt;
 	unsigned char buffer[4];
-	int offset, result, ret_value;
+	int offset, result;
 
 	offset= 0;
 	next_char(command);
-	if (command == TERMTYPE_SEND)
-	{
-		buffer[0]= IAC;
-		buffer[1]= IAC_SB;
-		buffer[2]= OPT_TERMTYPE;
-		buffer[3]= TERMTYPE_IS;
-		result= writeall(tcp_fd, (char *)buffer,4);
-		if (result<0){
-			ret_value = result;
-			goto ret;
-		}
-		count= strlen(term_env);
-		if (!count)
-		{
-			term_env= "unknown";
+	if (command == TERMTYPE_SEND) {
+		buffer[0] = IAC;
+		buffer[1] = IAC_SB;
+		buffer[2] = OPT_TERMTYPE;
+		buffer[3] = TERMTYPE_IS;
+		result = writeall(tcp_fd, (char *)buffer, 4);
+		if (result < 0)
+			return result;
+		count = strlen(term_env);
+		if (!count) {
+			term_env = "unknown";
 			count= strlen(term_env);
 		}
-		result= writeall(tcp_fd, term_env, count);
-		if (result<0){
-			ret_value = result;
-			goto ret;
-		}
+		result = writeall(tcp_fd, term_env, count);
+		if (result < 0)
+			return result;
 		buffer[0]= IAC;
 		buffer[1]= IAC_SE;
-		result= writeall(tcp_fd, (char *)buffer,2);
-		if (result<0){
-			ret_value = result;
-			goto ret;			
-		}
+		result = writeall(tcp_fd, (char *)buffer, 2);
+		if (result < 0)
+			return result;
+	} else {
+		debug("got an unknown command (skipping)\n");
+	}
 
-	}
-	else
-	{
-#if DEBUG
- where();
-#endif
-		fprintf(stderr, "got an unknown command (skipping)\r\n");
-	}
-	for (;;)
-	{
+	for (;;) {
 		next_char(iac);
 		if (iac != IAC)
 			continue;
 		next_char(optsrt);
 		if (optsrt == IAC)
 			continue;
-		if (optsrt != IAC_SE)
-		{
-#if DEBUG
- where();
-#endif
-		/*	fprintf(stderr, "got IAC %d\r\n", optsrt);*/
+		if (optsrt != IAC_SE) {
+			debug("got IAC %d\n", optsrt);
 		}
 		break;
 	}	
-	ret_value = offset;
-ret:
-	return ret_value;
+	return offset;
 }
 
 
@@ -504,69 +471,58 @@ static int process_opt(char *bp, int count)
 {
 	unsigned char iac, command, optsrt, sb_command;
 	int offset, result;
-#if DEBUG
- { where(); fprintf(stderr, "process_opt(bp= 0x%x, count= %d)\r\n",
-	bp, count); }
-#endif
 
-	offset= 0;
-assert (count);
+	offset = 0;
 	next_char(iac);
-assert (iac == IAC);
 	next_char(command);
-	switch(command)
-	{
+	switch(command) {
 	case IAC_NOP:
 		break;
 	case IAC_DataMark:
-//fprintf(stderr, "got a DataMark\r\n");
+		discard = 0;
+		debug("got DataMark\n");
 		break;
 	case IAC_BRK:
-fprintf(stderr, "got a BRK\r\n");
+		debug("got BRK\n");
 		break;
 	case IAC_IP:
-fprintf(stderr, "got a IP\r\n");
+		debug("got IP\n");
 		break;
 	case IAC_AO:
-fprintf(stderr, "got a AO\r\n");
+		debug("got AO\n");
 		break;
 	case IAC_AYT:
-fprintf(stderr, "got a AYT\r\n");
+		debug("got AYT\n");
 		break;
 	case IAC_EC:
-fprintf(stderr, "got a EC\r\n");
+		debug("got EC\n");
 		break;
 	case IAC_EL:
-fprintf(stderr, "got a EL\r\n");
+		debug("got EL\n");
 		break;
 	case IAC_GA:
-fprintf(stderr, "got a GA\r\n");
+		debug("got GA\n");
 		break;
-	case IAC_SB:
+	case IAC_SB:		/* subnegotiation */
 		next_char(sb_command);
-		switch (sb_command)
-		{
+		switch (sb_command) {
 		case OPT_TERMTYPE:
-#if DEBUG
-fprintf(stderr, "got SB TERMINAL-TYPE\r\n");
-#endif
 			result= sb_termtype(bp+offset, count-offset);
-			if (result<0)
+			if (result < 0)
 				return result;
 			else
 				return result+offset;
 		default:
-fprintf(stderr, "got an unknown SB (skiping)\r\n");
-			for (;;)
-			{
+			debug("got unknown SB (skipping)\n");
+			for (;;) {
 				next_char(iac);
 				if (iac != IAC)
 					continue;
 				next_char(optsrt);
 				if (optsrt == IAC)
 					continue;
-if (optsrt != IAC_SE)
-	fprintf(stderr, "got IAC %d\r\n", optsrt);
+				if (optsrt != IAC_SE)
+					debug("got IAC %d\n", optsrt);
 				break;
 			}
 		}
@@ -588,10 +544,10 @@ if (optsrt != IAC_SE)
 		dont_option(optsrt);
 		break;
 	case IAC:
-/*fprintf(stderr, "got a IAC\r\n");*/
+		debug("got IAC\n");
 		break;
 	default:
-fprintf(stderr, "got unknown command (%d)\r\n", command);
+		debug("got unknown command (%d)\n", command);
 	}
 	return offset;
 }

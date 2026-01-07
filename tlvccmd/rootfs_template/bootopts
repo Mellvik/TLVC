@@ -1,4 +1,5 @@
 ## TLVC startup configuration - needs CONFIG_OPTSEG_HIGH for size>1024
+## If the same keyword appears more than once, the last takes presedence
 #
 #system startup
 #init=/bin/init 3 n	# multiuser (lev 3), no /etc/rc.sys
