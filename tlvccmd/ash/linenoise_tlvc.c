@@ -927,7 +927,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     if (write(l.ofd,prompt,l.plen) == -1) return 0;	// -1 will exit shell
 
     while(1) {
-        char c;
+        unsigned char c;
         int nread;
         char seq[3];
 
@@ -941,7 +941,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         if (c == TAB && completionCallback != NULL) {
             c = completeLine(&l);
             /* Return on errors */
-            if ((int)c < 0) return l.len;
+	    if (c == (unsigned char)-1) return l.len;
             /* Read next character when 0 */
             if (c == 0) continue;
         }
