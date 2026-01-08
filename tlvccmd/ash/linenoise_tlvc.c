@@ -196,6 +196,7 @@ enum KEY_ACTION{
 	CTRL_F = 6,         /* Ctrl-f */
 	CTRL_H = 8,         /* Ctrl-h - Backspace*/
 	TAB = 9,            /* Tab */
+	CTRL_J = 10,	    /* Linefeed, aka 'newline' */
 	CTRL_K = 11,        /* Ctrl+k */
 	CTRL_L = 12,        /* Ctrl+l */
 	ENTER = 13,         /* Enter */
@@ -471,9 +472,9 @@ static int completeLine(struct linenoiseState *ls) {
                 refreshLine(ls);
             }
 
-			/* if only a single match, fill in match and continue*/
-			if (lc.len == 1)
-				goto out;
+	    /* if only a single match, fill in match and continue*/
+	    if (lc.len == 1)
+		goto out;
 
             nread = read(ls->ifd,&c,1);
             if (nread <= 0) {
@@ -940,14 +941,15 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         if (c == TAB && completionCallback != NULL) {
             c = completeLine(&l);
             /* Return on errors */
-            if (c < 0) return l.len;
+	    if (c == (unsigned char)-1) return l.len;
             /* Read next character when 0 */
             if (c == 0) continue;
         }
 #endif
 
         switch((unsigned int)c) {
-        case ENTER:    /* enter */
+	case CTRL_J:   /* treat newline (LF) as CR */
+	case ENTER:    /* enter (CR) */
             history_len--; hist_index--;
             free(history[history_len]);
             if (mlmode) linenoiseEditMoveEnd(&l);
