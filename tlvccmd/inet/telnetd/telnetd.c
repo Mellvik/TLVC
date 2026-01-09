@@ -25,8 +25,8 @@
 #define errstr(str) write(STDERR_FILENO, str, strlen(str))
 
 #define MAX_BUFFER 512		/* should be equal to TDB_WRITE_MAX and PTYOUTQ_SIZE*/
-static char buf_in  [1500];
-static char buf_out [1500];
+static unsigned char buf_in[1500];
+static unsigned char buf_out[1500];
 
 char *binlogin[2] = {_PATH_LOGIN, NULL};
 char *binsh[2] = {_PATH_BSHELL, NULL};
@@ -114,12 +114,12 @@ static void telnet_init(int ofd)
 #ifndef RAWTELNET
   tel_init();
 
-  telopt(ofd, WILL, TELOPT_SGA);
-  telopt(ofd, DO,   TELOPT_SGA);
-  telopt(ofd, WILL, TELOPT_BINARY);
-  telopt(ofd, DO,   TELOPT_BINARY);
-  telopt(ofd, WILL, TELOPT_ECHO);
-  //telopt(ofd, DO,   TELOPT_WINCH);
+  telopt(ofd, IAC_WILL, TELOPT_SGA);
+  telopt(ofd, IAC_DO,   TELOPT_SGA);
+  telopt(ofd, IAC_WILL, TELOPT_BINARY);
+  telopt(ofd, IAC_DO,   TELOPT_BINARY);
+  telopt(ofd, IAC_WILL, TELOPT_ECHO);
+  //telopt(ofd, IAC_DO,   TELOPT_WINCH);
 #endif
 }
 
@@ -133,15 +133,14 @@ static void client_loop(int fdsock, int fdterm)
     int count_in = 0;
     int count_out = 0;
     int count_fd = (fdsock > fdterm) ? (fdsock + 1) : (fdterm + 1);
-    //struct timeval timeint;
+    struct timeval timeint;
 
     telnet_init(fdsock);
 
     while (1) {
-    		//timeint.tv_sec = 0;
-    		//timeint.tv_usec = 50000L;	/* slow 50ms timeout to fix select hang bug in #1048 */
-						/* The #1048 problems were tested sept25 and found
-						 * to no longer be present. */
+    		timeint.tv_sec = 0;
+    		timeint.tv_usec = 50000L;	/* slow 50ms timeout to fix select hang bug in #1048 */
+						/* As of 01/25 (TLVC) this is still an occasional problem */
 		FD_ZERO (&fds_read);
 		if (!count_in)  FD_SET(fdsock, &fds_read);
 		if (!count_out) FD_SET(fdterm, &fds_read);
@@ -150,8 +149,8 @@ static void client_loop(int fdsock, int fdterm)
 		if (count_in)  FD_SET(fdterm, &fds_write);
 		if (count_out) FD_SET(fdsock, &fds_write);
 
-		count = select(count_fd, &fds_read, &fds_write, NULL, NULL);
-		//count = select(count_fd, &fds_read, &fds_write, NULL, &timeint);
+		//count = select(count_fd, &fds_read, &fds_write, NULL, NULL);
+		count = select(count_fd, &fds_read, &fds_write, NULL, &timeint);
 		//printf("T_sel=%d; ", count);
 		
 		if (count < 0) {
@@ -161,7 +160,7 @@ static void client_loop(int fdsock, int fdterm)
 
 		/* network -> login process*/
 		if (!count_in && FD_ISSET (fdsock, &fds_read)) {
-			count_in = read (fdsock, buf_in, sizeof(buf_in));
+			count_in = read(fdsock, buf_in, sizeof(buf_in));
 			if (count_in <= 0) {
 				if (count_in < 0)
 					perror ("telnetd read sock");
@@ -171,7 +170,7 @@ static void client_loop(int fdsock, int fdterm)
 		}
 		if (count_in && FD_ISSET (fdterm, &fds_write)) {
 #ifdef RAWTELNET
-			write (fdterm, buf_in, count_in);
+			write(fdterm, buf_in, count_in);
 #else
 			tel_in(fdterm, fdsock, buf_in, count_in);
 #endif
@@ -283,7 +282,7 @@ int main(int argc, char **argv)
 			perror("telnetd");
 		else if (ret == 0) {			/* child processing */
 
-#if 0 /* test code for accept and getpeername */
+#if 1 /* test code for accept and getpeername */
 			fprintf(stderr, "accept from %s:%u\n", in_ntoa(addr_in.sin_addr.s_addr),
 				ntohs(addr_in.sin_port));
 			if (getpeername(connectionfd, (struct sockaddr *)&addr_in, &len) < 0)
