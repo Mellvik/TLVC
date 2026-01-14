@@ -493,7 +493,8 @@ static int getCursorPosition(int ifd, int ofd, int *rows, int *cols)
 	vmin.c_iflag &= (IXON|IXOFF|IXANY|ISTRIP|IGNBRK);
 	vmin.c_oflag &= ~OPOST;
 	vmin.c_lflag &= ISIG;
-	vmin.c_cc[VMIN] = 0; vmin.c_cc[VTIME] = 2; /* 0 bytes, 200ms timer */
+	vmin.c_cc[VMIN] = 0;
+	vmin.c_cc[VTIME] = 8;		/* 0 bytes, 800ms timer, req'd for slow systems */
 	if (tcsetattr(ifd, TCSAFLUSH, &vmin) < 0)
 		return -1;
 
@@ -511,7 +512,6 @@ static int getCursorPosition(int ifd, int ofd, int *rows, int *cols)
 
 	/* reset to original mode*/
 	tcsetattr(ifd, TCSAFLUSH, &org);
-
 	/* Parse it. */
 	if (buf[0] != 033 || buf[1] != '[')
 		return -1;
