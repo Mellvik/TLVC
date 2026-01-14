@@ -15,22 +15,22 @@
 #define _ARPA_TELNET_H
 
 #define	IAC		255	/* interpret as command:		*/
-#define	DONT		254	/* you are not to use option		*/
-#define	DO		253	/* please, you use option		*/
-#define	WONT		252	/* I won't use option			*/
-#define	WILL		251	/* I will use option			*/
-#define	SB		250	/* interpret as subnegotiation		*/
-#define	GA		249	/* you may reverse the line		*/
-#define	EL		248	/* erase the current line		*/
-#define	EC		247	/* erase the current character		*/
-#define	AYT		246	/* are you there			*/
-#define	AO		245	/* abort output--but let prog finish	*/
-#define	IP		244	/* interrupt process--permanently	*/
-#define	BREAK		243	/* break				*/
-#define	DM		242	/* data mark--for connect. cleaning	*/
-#define	NOP		241	/* nop					*/
-#define	SE		240	/* end sub negotiation			*/
-#define EOR     	239     /* end of record (transparent mode)	*/
+#define	IAC_DONT	254	/* you are not to use option		*/
+#define	IAC_DO		253	/* please, you use option		*/
+#define	IAC_WONT	252	/* I won't use option			*/
+#define	IAC_WILL	251	/* I will use option			*/
+#define	IAC_SB		250	/* interpret as subnegotiation		*/
+#define	IAC_GA		249	/* you may reverse the line		*/
+#define	IAC_EL		248	/* erase the current line		*/
+#define	IAC_EC		247	/* erase the current character		*/
+#define	IAC_AYT		246	/* are you there			*/
+#define	IAC_AO		245	/* abort output--but let prog finish	*/
+#define	IAC_IP		244	/* interrupt process--permanently	*/
+#define	IAC_BREAK	243	/* break				*/
+#define	IAC_DM		242	/* data mark--for connect. cleaning	*/
+#define	IAC_NOP		241	/* nop					*/
+#define	IAC_SE		240	/* end sub negotiation			*/
+#define	IAC_EOR     	239     /* end of record (transparent mode)	*/
 
 #define SYNCH		242	/* for telfunc calls			*/
 
@@ -68,8 +68,11 @@
 #define	TELQUAL_IS	0	/* option is...				*/
 #define	TELQUAL_SEND	1	/* send option				*/
 
+/* Special characters */
+#define CTRL_C	3		/* like IAC_IP */
+
 void tel_init(void);
 void telopt(int fdout, int what, int option);
-void tel_in(int fdout, int telout, char *buffer, int len);
-void tel_out(int fdout, char *buf, int size);
+void tel_in(int fdout, int telout, unsigned char *buffer, int len);
+void tel_out(int fdout, unsigned char *buf, int size);
 #endif /* _ARPA_TELNET_H */
