@@ -133,14 +133,10 @@ static void client_loop(int fdsock, int fdterm)
     int count_in = 0;
     int count_out = 0;
     int count_fd = (fdsock > fdterm) ? (fdsock + 1) : (fdterm + 1);
-    struct timeval timeint;
 
     telnet_init(fdsock);
 
     while (1) {
-    		timeint.tv_sec = 0;
-    		timeint.tv_usec = 50000L;	/* slow 50ms timeout to fix select hang bug in #1048 */
-						/* As of 01/25 (TLVC) this is still an occasional problem */
 		FD_ZERO (&fds_read);
 		if (!count_in)  FD_SET(fdsock, &fds_read);
 		if (!count_out) FD_SET(fdterm, &fds_read);
@@ -149,9 +145,7 @@ static void client_loop(int fdsock, int fdterm)
 		if (count_in)  FD_SET(fdterm, &fds_write);
 		if (count_out) FD_SET(fdsock, &fds_write);
 
-		//count = select(count_fd, &fds_read, &fds_write, NULL, NULL);
-		count = select(count_fd, &fds_read, &fds_write, NULL, &timeint);
-		//printf("T_sel=%d; ", count);
+		count = select(count_fd, &fds_read, &fds_write, NULL, NULL);
 		
 		if (count < 0) {
 			perror("telnetd select");
@@ -166,7 +160,6 @@ static void client_loop(int fdsock, int fdterm)
 					perror ("telnetd read sock");
 				break;
 			}
-			//printf("T_in %d; ", count_in);
 		}
 		if (count_in && FD_ISSET (fdterm, &fds_write)) {
 #ifdef RAWTELNET
@@ -185,7 +178,6 @@ static void client_loop(int fdsock, int fdterm)
 					perror("telnetd read term");
 				break;
 			}
-			//printf("T_out %d; ", count_out);
 		}
 		if (count_out && FD_ISSET(fdsock, &fds_write)) {
 #ifdef RAWTELNET
