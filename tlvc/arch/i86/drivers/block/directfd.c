@@ -435,7 +435,7 @@ static void floppy_select(unsigned int nr)
     /* The select_callback calls floppy_ready() */
     /* The callback is NEVER called unless several drives are active concurrently */
     del_timer(&select);
-    select.tl_expires = jiffies + 2;
+    select.tl_expires = jiffies() + 2;
     add_timer(&select);
 }
 
@@ -470,7 +470,7 @@ static void motor_off_callback(int nr)
 {
     unsigned char mask = ~(0x10 << nr);
 
-    DEBUG("[%u]MOF%d", (unsigned int)jiffies, nr);
+    DEBUG("[%u]MOF%d", (unsigned int)jiffies(), nr);
     clr_irq();
     running &= mask;
     current_DOR &= mask;
@@ -500,7 +500,7 @@ static void floppy_on(int nr)
 
     if (!(mask & current_DOR)) {	/* motor not running yet */
 	del_timer(&motor_on_timer[nr]);
-	motor_on_timer[nr].tl_expires = jiffies + HZ/2;	/* TEAC 1.44M says 'waiting time' 505ms,
+	motor_on_timer[nr].tl_expires = jiffies() + HZ/2;	/* TEAC 1.44M says 'waiting time' 505ms,
 							 * may be too little for 5.25in drives. */
 	add_timer(&motor_on_timer[nr]);
 
@@ -521,7 +521,7 @@ static void floppy_on(int nr)
 static void floppy_off(unsigned int nr)
 {
     del_timer(&motor_off_timer[nr]);
-    motor_off_timer[nr].tl_expires = jiffies + 3 * HZ;
+    motor_off_timer[nr].tl_expires = jiffies() + 3 * HZ;
     add_timer(&motor_off_timer[nr]);
     DEBUG("flpOFF%d\n", nr);
 }
@@ -1222,7 +1222,7 @@ static void reset_interrupt(void)
 static void reset_floppy(void)
 {
 
-    DEBUG("[%u]rst-", (unsigned int)jiffies);
+    DEBUG("[%u]rst-", (unsigned int)jiffies());
     do_floppy = reset_interrupt;
     reset = 0;
     current_track = NO_TRACK;
@@ -1246,7 +1246,7 @@ static void reset_floppy(void)
  */
 static void floppy_shutdown(void)
 {
-    DEBUG("[%u]shtdwn0x%x|%x-", (unsigned int)jiffies, current_DOR, running);
+    DEBUG("[%u]shtdwn0x%x|%x-", (unsigned int)jiffies(), current_DOR, running);
     do_floppy = NULL;
     request_done(0);
     recover = 1;
@@ -1429,7 +1429,7 @@ static void redo_fd_request(void)
     }
 
 #if DEBUG_DIRECTFD
-    if (debug_level == 1) printk("[%u]redo-%c %d(%s) bl %u;", (unsigned int)jiffies, 
+    if (debug_level == 1) printk("[%u]redo-%c %d(%s) bl %u;", (unsigned int)jiffies(), 
 		req->rq_cmd == WRITE? 'W':'R', device, floppy->name, req->rq_blocknr);
     if (debug_level > 2) printk("df[%04x]: %c blk %ld(%d)\n", req->rq_dev, req->rq_cmd==WRITE? 'W' : 'R',
 		req->rq_blocknr, req->rq_nr_sectors);
@@ -1528,7 +1528,7 @@ static void redo_fd_request(void)
 
     /* restart timer for hung operations, 4 secs seems about right ... */
     del_timer(&fd_timeout);
-    fd_timeout.tl_expires = jiffies + 4 * HZ;
+    fd_timeout.tl_expires = jiffies() + 4 * HZ;
     add_timer(&fd_timeout);
 
     if (seek_track != current_track)

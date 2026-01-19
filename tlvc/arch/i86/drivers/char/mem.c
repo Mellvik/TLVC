@@ -255,7 +255,7 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
 	retword = kernel_ds;
 	break;
     case MEM_GETBSS_SZ:
-	retword = (unsigned) _endbss - (unsigned) _enddata;
+	retword = (unsigned)_endbss - (unsigned)_enddata;
 	break;
     case MEM_GETFARTEXT:
         retword = (unsigned)((long)buffer_init >> 16);
@@ -268,20 +268,17 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
 #endif
 	return 0;
     case MEM_GETHEAP:
-	retword = (unsigned short)&_heap_all;
+	retword = (unsigned)&_heap_all;
 	break;
     case MEM_GETJIFFADDR:
 	retword = (unsigned)&jiffies;
 	break;
-    case MEM_GETJIFFIES:
-	put_user_long(jiffies, arg);
-	return 0;
     case MEM_GETSEGALL:
-        retword = (unsigned short)&_seg_all;
+        retword = (unsigned)&_seg_all;
         break;
     case MEM_GETUPTIME:
 #ifdef CONFIG_CPU_USAGE
-	retword = (unsigned short) &uptime;
+	retword = (unsigned)&uptime;
 	break;
 #endif
     default:

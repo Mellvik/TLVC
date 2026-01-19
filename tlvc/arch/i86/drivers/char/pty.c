@@ -44,17 +44,19 @@ void pty_release(struct inode *inode, struct file *file)
 	kill_pg(otty->pgrp, SIGHUP, 1);
 }
 
+extern volatile jiff_t jiffies;
 /* /dev/ptyp0 master select */
 int pty_select (struct inode *inode, struct file *file, int sel_type)
 {
 	int res = 0;
 	register struct tty *tty = determine_tty (inode->i_rdev);
 
+	debug("pty sel %s ", sel_type == SEL_IN?"in":"out");
 	switch (sel_type) {
 	case SEL_IN:
-		debug("pty select(%d) len %d\n", current->pid, tty->outq.len);
+		debug("[%ld]pty select(%d) len %d\n", jiffies, current->pid, tty->outq.len);
 		if (tty->outq.len == 0 && tty->usecount) {
-			select_wait (&tty->outq.wait);
+			select_wait(&tty->outq.wait);
 			break;
 		}
 		res = 1;
@@ -62,7 +64,7 @@ int pty_select (struct inode *inode, struct file *file, int sel_type)
 
 	case SEL_OUT:
 		if (tty->inq.len == tty->inq.size) {
-			select_wait (&tty->inq.wait);
+			select_wait(&tty->inq.wait);
 			break;
 		}
 		res = 1;
@@ -100,7 +102,7 @@ size_t pty_read (struct inode *inode, struct file *file, char *data, size_t len)
 	}
 
 	if (count > 0)
-		 wake_up(&tty->outq.wait);  /* because ttyoutproc does not*/
+		wake_up(&tty->outq.wait);  /* because ttyoutproc does not*/
 	return count;
 }
 

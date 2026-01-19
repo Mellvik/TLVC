@@ -454,7 +454,7 @@ static void kbd_send_cmd(int data)
 static void restart_timer(void)
 {
     del_timer(&kb_cmd_timer);	/* required in case set_leds called before expiration*/
-    kb_cmd_timer.tl_expires = jiffies + (2 * HZ/100);	/* every 2/100 second*/
+    kb_cmd_timer.tl_expires = jiffies() + (2 * HZ/100);	/* every 2/100 second*/
     kb_cmd_timer.tl_function = kbd_send_cmd;
     add_timer(&kb_cmd_timer);
 }
