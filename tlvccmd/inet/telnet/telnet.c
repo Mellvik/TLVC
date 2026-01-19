@@ -129,7 +129,7 @@ static void read_keyboard(void)
 		}
 		count = write(tcp_fd, buffer, count);
 		if (count < 0) {
-			perror("Connection closed");
+			printf("Connection closed by foreign host.");
 			finish();
 		}
 }

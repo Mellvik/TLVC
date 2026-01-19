@@ -45,6 +45,27 @@ static int TelLOpts[LASTTELOPT+1];
 
 static int telfdout;
 
+#ifdef DEBUG
+#define debug_pbuf pbuf
+void pbuf(unsigned char *b, int count, char *s) 
+{
+	int j = 0;
+	fprintf(stderr, "%s(%d):", s, count);
+	while (j < count) {
+		if (b[j] < 0x21)
+			fprintf(stderr, "^%c ", b[j]+'@');
+		else if (b[j] > 0x7e)
+			fprintf(stderr, "%02x ", b[j]);
+		else
+			fprintf(stderr, "%c ", b[j]);
+		j++;
+	}
+	fprintf(stderr, "\n");
+}
+#else
+#define debug_pbuf(...)
+#endif
+
 void tel_init()
 {
 int i;
@@ -127,6 +148,7 @@ int size, c, l = len;
    size = 0;
 
    size = 0;
+   debug_pbuf(buffer, len, "in");
    while (len > 0) {
    	c = (unsigned char)*p++;
 	len--;
@@ -139,17 +161,13 @@ int size, c, l = len;
 		case IN_DATA:
 			if (c == IAC) {
 				InState = IN_IAC;
-				//fprintf(stderr, "Got IAC\n", c);
 				break;
 			}
 			*p2++ = c;
 			size++;
 			if (c == '\r') InState = IN_CR;
 			if (c == CTRL_C)
-				dm_flag++;
-				//send_dmark();	/* really too early to reply (or 'ack') the command,  */
-						/* we haven't killed the process yet but
-						 * there is no reliable way to verify that */
+				dm_flag++;	/* Send DataMark with the next output */
 			break;
 		case IN_IAC:
 			//fprintf(stderr, "IAC: %d\n", c);
@@ -170,12 +188,11 @@ int size, c, l = len;
 					break;
 				case IAC_IP:
 					*p2++ = CTRL_C; size++;	/* turn into ^C */
-					InState = IN_DATA;
-					//fprintf(stderr, "got IAC_IP\n");
-					//send_dmark();
-					dm_flag++;
-					break;
+					/* fall through */
 				case IAC_AO:
+					InState = IN_DATA;
+					dm_flag++;	/* Send DataMark with the next output */
+					break;
 				case IAC_EOR:
 				case IAC_SE:
 				case IAC_NOP:
@@ -238,7 +255,10 @@ int size, c, l = len;
 			break;
 	}
    }
-   //if (size > l) fprintf(stderr, "size mismatch size %d > len %d\n", size, l);
+   /* FIXME keep the next line for now to avoid a bug that in certain circumstances 
+    * cause the network to hang (HS Jan26) */
+   if (size > l) fprintf(stderr, "size mismatch size %d > len %d\n", size, l);
+   debug_pbuf(buffer, size, "in");
    if (size > 0)
 	write(fdout, buffer, size);
 }
@@ -249,6 +269,7 @@ void tel_out(int fdout, unsigned char *buf, int size)
    int got_iac, len;
 
    p = buf;
+   debug_pbuf(buf, size, "out");
    while(size > 0) {
 	if (dm_flag) {
 		send_dmark(fdout);
@@ -263,7 +284,7 @@ void tel_out(int fdout, unsigned char *buf, int size)
 		p = buf + size;
 	len = p - buf;
 	if (len > 0)
-		(void) write(fdout, buf, len);
+		write(fdout, buf, len);
 	if (got_iac)
 		(void) write(fdout, p - 1, 1);
 	size = size - len;
