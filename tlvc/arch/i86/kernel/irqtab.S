@@ -424,9 +424,7 @@ div0_handler_panic:
         .data
         .global _gint_count
         .global endistack
-        .global endtstack
         .global istack
-        .global tstack
         .extern current
         .extern previous
 
@@ -445,7 +443,3 @@ dmsg:   .ascii  "DIVIDE FAULT\0"
 endistack:
         .skip ISTACK_BYTES,0    // interrupt stack
 istack:
-
-endtstack:
-        .skip TSTACK_BYTES,0    // startup temp stack
-tstack:
