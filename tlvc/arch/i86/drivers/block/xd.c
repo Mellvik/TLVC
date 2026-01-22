@@ -787,12 +787,12 @@ static void deverror(int drive, byte_t *sense)
 /* crude status wait loop */
 static int xd_waitport(byte_t flags, byte_t mask, int timeout)
 {
-	unsigned long expiry = jiffies + (unsigned long)timeout;
+	unsigned long expiry = jiffies() + (unsigned long)timeout;
 
-	while (((inb_p(XD_STATUS) & mask) != flags) && (jiffies < expiry))
+	while (((inb_p(XD_STATUS) & mask) != flags) && (jiffies ()< expiry))
 		;
 
-	return (jiffies >= expiry);
+	return (jiffies() >= expiry);
 }
 
 /* xd_command: handle all data IO necessary for a single command */

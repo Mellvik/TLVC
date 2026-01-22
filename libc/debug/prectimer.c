@@ -57,23 +57,25 @@ static unsigned short __far *pjiffies;  /* only access low order jiffies word */
 
 #define errmsg(str)     write(STDERR_FILENO, str, sizeof(str) - 1)
 
-void init_ptime(void)
+int init_ptime(void)
 {
     int fd, offset, kds;
 
     __LINK_SYMBOL(ptostr);
     fd = open("/dev/kmem", O_RDONLY);
     if (fd < 0) {
-        errmsg("No kmem\n");
-        return;
+        errmsg("No /dev/kmem\n");
+        return 0;
     }
     if (ioctl(fd, MEM_GETDS, &kds) < 0 ||
         ioctl(fd, MEM_GETJIFFADDR, &offset) < 0) {
-        errmsg("No mem ioctl\n");
-    } else {
-        pjiffies = _MK_FP(kds, offset);
+        errmsg("No kmem ioctl\n");
+        close(fd);
+        return 0;
     }
+    pjiffies = _MK_FP(kds, offset);
     close(fd);
+    return 1;
 }
 #endif
 
@@ -113,20 +115,12 @@ unsigned long get_ptime(void)
     count = lo | hi;
     pticks = lastcount - count;
     lastcount = count;
-
     if ((int)pticks < 0) {          /* wrapped, jiffies is higher */
         pticks += MAX_PTICK;        /* = MAX_PTICK - count + lastcount */
         jdiff--;                    /* adjust jiffies for wrap, won't ever be negative */
     }
     if (jdiff < 4286)               /* < ~42.86s */
         return jdiff * (unsigned long)MAX_PTICK + pticks;
-    if ((int)pticks < 0)            /* wrapped */
-        pticks += MAX_PTICK;        /* = MAX_PTICK - count + lastcount */
-    if (jdiff < 2)                  /* < 10ms: 1..11931 */
-        return pticks;
-    if (jdiff < 4286)               /* < ~42.86s */
-        return (jdiff - 1) * (unsigned long)MAX_PTICK + pticks;
-
     return 0;                       /* overflow displays 0s */
 }
 
@@ -136,12 +130,12 @@ unsigned long get_ptime(void)
 void test_ptime_idle_loop(void)
 {
     static int v;
-    unsigned long timeout = jiffies + v;
+    jiff_t timeout = jiffies() + v;
     unsigned long pticks = get_ptime();
     printk("%lu %u = %lk\n", pticks, (unsigned)lastjiffies, pticks);
     if (++v > 5) v = 0;
     /* idle_halt() must be commented out to vary timings */
-    while (jiffies < timeout)
+    while (jiffies() < timeout)
         ;
 }
 #endif
