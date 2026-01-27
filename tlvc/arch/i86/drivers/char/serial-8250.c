@@ -27,9 +27,10 @@ struct serial_info {
     unsigned char lcr;
     unsigned char mcr;
     unsigned int  divisor;
-    struct tty *  tty;
-    int           intrchar; /* used by fast handler for ^C SIGINT processing */
-    int pad1, pad2;         /* round out to 16 bytes for faster addressing of ports[] */
+    struct tty	  *tty;
+    int		  intrchar;	/* used by fast handler for ^C SIGINT processing */
+    int		  driver;	/* fast/normal driver flag */
+    int pad2;			/* round out to 16 bytes for faster addressing of ports[] */
 };
 
 /* flags*/
@@ -53,11 +54,27 @@ struct serial_info {
 #define DEFAULT_MCR             \
         ((unsigned char) (UART_MCR_DTR | UART_MCR_RTS | UART_MCR_OUT2))
 
+/* Temporary */
+#define FAST_DRVR	1
+#define REG_DRVR	0
+#if defined(CONFIG_FAST_IRQ4)	/* do this appropriately later */
+#define COM1_DRVR	FAST_DRVR
+#else
+#define COM1_DRVR	REG_DRVR
+#endif
+#if defined(CONFIG_FAST_IRQ3)
+#define COM2_DRVR	FAST_DRVR
+#else
+#define COM2_DRVR	REG_DRVR
+#endif
+#define COM3_DRVR	REG_DRVR
+#define COM4_DRVR	REG_DRVR
+
 static struct serial_info ports[NR_SERIAL] = {
-    {(char *)COM1_PORT, COM1_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
-    {(char *)COM2_PORT, COM2_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
-    {(char *)COM3_PORT, COM3_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
-    {(char *)COM4_PORT, COM4_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
+    {(char *)COM1_PORT, COM1_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM1_DRVR,0},
+    {(char *)COM2_PORT, COM2_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM2_DRVR,0},
+    {(char *)COM3_PORT, COM3_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM3_DRVR,0},
+    {(char *)COM4_PORT, COM4_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM4_DRVR,0},
 };
 
 static char irq_to_port[16];
@@ -296,7 +313,6 @@ void rs_pump(void)
 }
 #endif
 
-#if !defined(CONFIG_FAST_IRQ4) || !defined(CONFIG_FAST_IRQ3)
 /*
  * Slower serial interrupt routine, called from _irq_com with passed irq #
  * Reads all FIFO data available per interrupt and can provide serial stats
@@ -328,7 +344,6 @@ void rs_irq(int irq, struct pt_regs *regs)
     if (q->len)         /* don't wakeup unless chars else EINTR result*/
         wake_up(&q->wait);
 }
-#endif
 
 static void rs_release(struct tty *tty)
 {
@@ -369,11 +384,9 @@ static int rs_open(struct tty *tty)
         err = request_irq(port->irq, (irq_handler) _irq_com2, INT_SPECIFIC);
         break;
 #endif
-#if !defined(CONFIG_FAST_IRQ4) || !defined(CONFIG_FAST_IRQ3)
     default:
         err = request_irq(port->irq, rs_irq, INT_GENERIC);
         break;
-#endif
     }
     if (err) goto errout;
     irq_to_port[port->irq] = port - ports;      /* Map irq to this tty # */
@@ -530,7 +543,7 @@ void INITPROC rs_setbaud(dev_t dev, unsigned long baud)
 void INITPROC serial_init(void)
 {
     register struct serial_info *sp = ports;
-    int ttyno = 0, n = 0;
+    int ttyno = 0;
     static const char *serial_type[] = {
         "8250",
         "16450",
@@ -544,12 +557,11 @@ void INITPROC serial_init(void)
 
     do {
         if (sp->tty != NULL) {
-            printk("ttyS%d at %x irq %d %s\n", ttyno,
-               sp->io, sp->irq, serial_type[sp->flags & SERF_TYPE]);
+		printk("ttyS%d at %x irq %d is %s %s\n", ttyno, sp->io, sp->irq,
+		serial_type[sp->flags & SERF_TYPE], sp->driver?"(fast)":"");
         }
         sp++;
     } while (++ttyno < NR_SERIAL);
-    //if (n) printk("\n");
 }
 
 struct tty_ops rs_ops = {
