@@ -11,7 +11,7 @@
 	.code16
 	.text
 
-#ifdef CONFIG_FAST_IRQ4
+#if CONFIG_FAST_IRQ4
 //
 // fast com1 interrupt routine, uses "jmp _irq_com1" from interrupt vector
 //
@@ -40,11 +40,11 @@ _irq_com1:
 	pop	%cx
 	pop	%bx
 	pop	%ax
-	add	$4,%sp		// skip the trampoline DS:*irq
+	add	$4,%sp			// skip the trampoline DS:*irq
 	iret
 #endif
 
-#ifdef CONFIG_FAST_IRQ3
+#if CONFIG_FAST_IRQ3
 //
 // fast com2 interrupt routine, uses "jmp _irq_com2" from interrupt vector
 //
@@ -73,6 +73,6 @@ _irq_com2:
 	pop	%cx
 	pop	%bx
 	pop	%ax
-	add	$4,%sp		// skip the trampoline DS:*irq
+	add	$4,%sp			// skip the trampoline DS:*irq
 	iret
 #endif
