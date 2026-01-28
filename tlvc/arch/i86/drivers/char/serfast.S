@@ -11,7 +11,7 @@
 	.code16
 	.text
 
-#ifdef CONFIG_FAST_IRQ4
+#if CONFIG_FAST_IRQ4
 //
 // fast com1 interrupt routine, uses "jmp _irq_com1" from interrupt vector
 //
@@ -44,7 +44,7 @@ _irq_com1:
 	iret
 #endif
 
-#ifdef CONFIG_FAST_IRQ3
+#if CONFIG_FAST_IRQ3
 //
 // fast com2 interrupt routine, uses "jmp _irq_com2" from interrupt vector
 //

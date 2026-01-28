@@ -54,27 +54,11 @@ struct serial_info {
 #define DEFAULT_MCR             \
         ((unsigned char) (UART_MCR_DTR | UART_MCR_RTS | UART_MCR_OUT2))
 
-/* Temporary */
-#define FAST_DRVR	1
-#define REG_DRVR	0
-#if defined(CONFIG_FAST_IRQ4)	/* do this appropriately later */
-#define COM1_DRVR	FAST_DRVR
-#else
-#define COM1_DRVR	REG_DRVR
-#endif
-#if defined(CONFIG_FAST_IRQ3)
-#define COM2_DRVR	FAST_DRVR
-#else
-#define COM2_DRVR	REG_DRVR
-#endif
-#define COM3_DRVR	REG_DRVR
-#define COM4_DRVR	REG_DRVR
-
 static struct serial_info ports[NR_SERIAL] = {
-    {(char *)COM1_PORT, COM1_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM1_DRVR,0},
-    {(char *)COM2_PORT, COM2_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM2_DRVR,0},
-    {(char *)COM3_PORT, COM3_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM3_DRVR,0},
-    {(char *)COM4_PORT, COM4_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,COM4_DRVR,0},
+    {(char *)COM1_PORT, COM1_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,CONFIG_FAST_IRQ4,0},
+    {(char *)COM2_PORT, COM2_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,CONFIG_FAST_IRQ3,0},
+    {(char *)COM3_PORT, COM3_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
+    {(char *)COM4_PORT, COM4_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
 };
 
 static char irq_to_port[16];
@@ -224,7 +208,7 @@ static int rs_write(struct tty *tty)
     return i;
 }
 
-#if defined(CONFIG_FAST_IRQ4)
+#if CONFIG_FAST_IRQ4
 /*
  * Fast serial driver for slower machines. Should work up to 38400 baud.
  * Incomplete tty signal handling, will generate SIGINT when VINTR = ^C.
@@ -257,7 +241,7 @@ void fast_com1_irq(void)
 }
 #endif
 
-#if defined(CONFIG_FAST_IRQ3)
+#if CONFIG_FAST_IRQ3
 extern void _irq_com2(int irq, struct pt_regs *regs);
 void fast_com2_irq(void)
 {
@@ -278,7 +262,7 @@ void fast_com2_irq(void)
 }
 #endif
 
-#if defined(CONFIG_FAST_IRQ4) || defined(CONFIG_FAST_IRQ3)
+#if CONFIG_FAST_IRQ4 || CONFIG_FAST_IRQ3
 /* check for SIGINT and wakeup waiting processes */
 static void pump_port(struct serial_info *sp)
 {
@@ -304,10 +288,10 @@ static void pump_port(struct serial_info *sp)
 /* called from timer interrupt - check ring buffer and wakeup waiting processes */
 void rs_pump(void)
 {
-#if defined(CONFIG_FAST_IRQ4)
+#if CONFIG_FAST_IRQ4
     pump_port(&ports[0]);
 #endif
-#if defined(CONFIG_FAST_IRQ3)
+#if CONFIG_FAST_IRQ3
     pump_port(&ports[1]);
 #endif
 }
@@ -372,13 +356,13 @@ static int rs_open(struct tty *tty)
         return 0;
 
     switch(port->irq) {
-#if defined(CONFIG_FAST_IRQ4)
+#if CONFIG_FAST_IRQ4
     case 4:
         port->intrchar = 0;
         err = request_irq(port->irq, (irq_handler) _irq_com1, INT_SPECIFIC);
         break;
 #endif
-#if defined(CONFIG_FAST_IRQ3)
+#if CONFIG_FAST_IRQ3
     case 3:
         port->intrchar = 0;
         err = request_irq(port->irq, (irq_handler) _irq_com2, INT_SPECIFIC);

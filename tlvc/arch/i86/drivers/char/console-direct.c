@@ -42,6 +42,8 @@
 
 #define MAXPARMS	10
 
+int num_consoles = NR_CONSOLES;		/* move to init/main.c later */
+#define NumConsoles num_consoles	/* ... for now */
 struct console;
 typedef struct console Console;
 
@@ -67,7 +69,7 @@ static Console Con[MAX_CONSOLES], *Visible;
 static Console *glock;		/* Which console owns the graphics hardware */
 static char *CCBase;
 static int Width, MaxCol, Height, MaxRow;
-static int NumConsoles = MAX_CONSOLES;
+extern int num_consoles;
 
 int Current_VCminor = 0;
 int kraw = 0;
@@ -156,7 +158,7 @@ static void ScrollDown(register Console * C, int y)
 
 void Console_set_vc(int N)
 {
-    if ((N >= NumConsoles) || (Visible == &Con[N]) || glock)
+    if ((N >= num_consoles) || (Visible == &Con[N]) || glock)
 	return;
     Visible = &Con[N];
 
@@ -188,15 +190,15 @@ void INITPROC console_init(void)
     PageSizeW = ((unsigned int)peekw(0x4C, 0x40) >> 1);
 
     VideoSeg = 0xb800;
-    if (peekb(0x49, 0x40) == 7) {
+    if (peekb(0x49, 0x40) == 7) {	/* Headless ?? */
 	VideoSeg = 0xB000;
-	NumConsoles = 1;
+	num_consoles = 1;
     }
 
     C = Con;
     Visible = C;
 
-    for (i = 0; i < NumConsoles; i++) {
+    for (i = 0; i < num_consoles; i++) {
 	C->cx = C->cy = 0;
 	if (!i) {
 	    C->cx = peekb(0x50, 0x40);
@@ -219,6 +221,6 @@ void INITPROC console_init(void)
 
     kbd_init();
 
-    printk("Direct console, %s kbd %ux%u"TERM_TYPE"(%d virtual consoles)\n",
-	   kbd_name, Width, Height, NumConsoles);
+    printk("Direct console, %s kbd %ux%u"TERM_TYPE"(%d virtual consoles)\n\n",
+	   kbd_name, Width, Height, num_consoles);
 }
