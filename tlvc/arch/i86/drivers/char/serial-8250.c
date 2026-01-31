@@ -224,10 +224,16 @@ static int rs_write(struct tty *tty)
 extern void _irq_com1(int irq, struct pt_regs *regs);
 void fast_com1_irq(void)
 {
-    struct serial_info *sp = &ports[0];
-    struct ch_queue *q = &sp->tty->inq;
+
+    volatile struct serial_info *sp;
+    volatile struct ch_queue *q;
     unsigned char c;
 
+    asm volatile ("mov $4,%cl; shl %cl,%ax; mov %ax,%di"); /* sp += port_no * sizeof(ports); */
+    sp = &ports[0];
+    q = &sp->tty->inq;		  /* required to get gcc to order statements correctly */
+    asm volatile ("add %di,%bx"); /* sp += port_no * sizeof(ports); */
+    q = &sp->tty->inq;
     c = INB(sp->io + UART_RX);          /* Read received data */
     if (q->len < q->size) {
         q->base[q->head] = c;

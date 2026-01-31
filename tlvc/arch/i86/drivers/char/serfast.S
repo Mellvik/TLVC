@@ -19,6 +19,8 @@
 	.global	_irq_com1
 _irq_com1:
 	push	%ax			// save regs, uses 18 bytes of current stack
+	mov	$0,%ax
+irq_common:
 	push	%bx
 	push	%cx
 	push	%dx
@@ -52,6 +54,9 @@ _irq_com1:
 	.global	_irq_com2
 _irq_com2:
 	push	%ax			// save regs, uses 18 bytes of current stack
+	mov	$1,%ax
+	jmp	irq_common
+#if 0
 	push	%bx
 	push	%cx
 	push	%dx
@@ -75,4 +80,5 @@ _irq_com2:
 	pop	%ax
 	add	$4,%sp			// skip the trampoline DS:*irq
 	iret
+#endif
 #endif
