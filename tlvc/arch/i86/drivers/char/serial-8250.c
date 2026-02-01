@@ -58,7 +58,6 @@ static struct serial_info ports[NR_SERIAL] = {
     {(char *)COM4_PORT, COM4_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, NULL, 0,0,0},
 };
 
-static char irq_to_port[16];
 static unsigned int divisors[] = {
     0,                          /*  0 = B0      */
     2304,                       /*  1 = B50     */
@@ -309,6 +308,7 @@ void rs_pump(void)
  * Slower serial interrupt routine, called from _irq_com with passed irq #
  * Reads all FIFO data available per interrupt and can provide serial stats
  */
+static char irq_to_port[16];
 void rs_irq(int irq, struct pt_regs *regs)
 {
     struct serial_info *sp = &ports[(int)irq_to_port[irq]];
@@ -361,22 +361,23 @@ static int rs_open(struct tty *tty)
     if (!(port->flags & SERF_EXIST))
         return -ENXIO;
 
-    /* increment use count, don't init if already open*/
+    /* don't init if already open*/
     if (tty->usecount++)
         return 0;
 
     err = request_irq(port->irq, (irq_handler) asm_fast_irq[n], INT_SPECIFIC);
-
     if (err) goto errout;
-
-    port->intrchar = 0;
 
     err = tty_allocq(tty, RSINQ_SIZE, RSOUTQ_SIZE);
     if (err) {
+        free_irq(port->irq);
 errout:
-        --tty->usecount;
+	--tty->usecount;
         return err;
     }
+
+    port->intrchar = 0;
+    //irq_to_port[port->irq] = n;       /* Map irq to this tty #, slow handler only */
 
     /* clear RX buffer */
     INB(port->io + UART_LSR);
