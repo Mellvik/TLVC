@@ -31,9 +31,9 @@
 #define RS_MINOR_OFFSET 64
 
 #if defined(CONFIG_CONSOLE_DIRECT) || defined(CONFIG_CONSOLE_BIOS)
-#define NR_CONSOLES	1 /*MAX_CONSOLES*/
+#define NR_CONSOLES	1	/* Increase as needed */
 #else
-#define NR_CONSOLES	1	/* headless*/
+#define NR_CONSOLES	1	/* headless */
 #endif
 
 #ifdef CONFIG_PSEUDO_TTY

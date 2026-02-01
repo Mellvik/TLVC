@@ -65,7 +65,7 @@ struct console {
 };
 
 static struct wait_queue glock_wait;
-static Console Con[MAX_CONSOLES], *Visible;
+static Console Con[NR_CONSOLES], *Visible;
 static Console *glock;		/* Which console owns the graphics hardware */
 static char *CCBase;
 static int Width, MaxCol, Height, MaxRow;

@@ -1,25 +1,27 @@
-// Fast custom serial COM interrupt routine for ELKS
+// Fast custom serial COM interrupt routine for ELKS/TLVC
 //
-// runs on any stack and skips all ELKS overhead
+// runs on any stack and skips all OS overhead
 // must run with interrupts disabled as could interrupt user, kernel or interrupt stack
 // reads character into ring buffer
-// timer interrupt runs rs_pump() which checks for non-zero queue and calls wake_up
+// timer interrupt runs serial_bh() which checks for non-zero queues and calls wake_up
 //
 // 25 June 2020 Greg Haerr
 //
-#include <linuxmt/config.h>
 	.code16
 	.text
 
-#if CONFIG_FAST_IRQ4
 //
-// fast com1 interrupt routine, uses "jmp _irq_com1" from interrupt vector
+// fast interrupt routine for serial ports, uses "jmp _irq_comX" from interrupt vector
 //
-	.extern	fast_com1_irq
+	.extern	fast_com_irq
 	.global	_irq_com1
+	.global	_irq_com2
+	.global	_irq_com3
+	.global	_irq_com4
+
 _irq_com1:
 	push	%ax			// save regs, uses 18 bytes of current stack
-	mov	$0,%ax
+	mov	$0,%ax			// pass port numer to the next level
 irq_common:
 	push	%bx
 	push	%cx
@@ -30,10 +32,8 @@ irq_common:
 	// Was pushed by the CALLF of the dynamic handler
 	mov	%sp,%bx
 	mov	%ss:12(%bx),%ds
-
-	call	fast_com1_irq		// call special C interrupt routine
+	call	fast_com_irq		// call special C interrupt routine
 					// which doesn't use any SS/SP/BP addressing
-
 	mov	$0x20,%al		// EOI on primary controller
 	out	%al,$0x20
 
@@ -44,41 +44,19 @@ irq_common:
 	pop	%ax
 	add	$4,%sp			// skip the trampoline DS:*irq
 	iret
-#endif
 
-#if CONFIG_FAST_IRQ3
-//
-// fast com2 interrupt routine, uses "jmp _irq_com2" from interrupt vector
-//
-	.extern	fast_com2_irq
-	.global	_irq_com2
 _irq_com2:
 	push	%ax			// save regs, uses 18 bytes of current stack
 	mov	$1,%ax
 	jmp	irq_common
-#if 0
-	push	%bx
-	push	%cx
-	push	%dx
-	push	%ds
 
-	// Recover kernel data segment
-	// Was pushed by the CALLF of the dynamic handler
-	mov	%sp,%bx
-	mov	%ss:12(%bx),%ds
+_irq_com3:
+	push	%ax			// save regs, uses 18 bytes of current stack
+	mov	$2,%ax
+	jmp	irq_common
 
-	call	fast_com2_irq		// call special C interrupt routine
-					// which doesn't use any SS/SP/BP addressing
+_irq_com4:
+	push	%ax			// save regs, uses 18 bytes of current stack
+	mov	$3,%ax
+	jmp	irq_common
 
-	mov	$0x20,%al		// EOI on primary controller
-	out	%al,$0x20
-
-	pop	%ds			// restore regs
-	pop	%dx
-	pop	%cx
-	pop	%bx
-	pop	%ax
-	add	$4,%sp			// skip the trampoline DS:*irq
-	iret
-#endif
-#endif
