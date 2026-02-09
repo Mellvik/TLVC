@@ -184,7 +184,7 @@ inet/urlget/urlget :::ftpget	:net
 inet/urlget/urlget :::ftpput	:net
 inet/urlget/urlget :::httpget	:net
 bc/bc							:other
-test/libc/test_libc				:other
+#test/libc/test_libc				:other
 #nano/nano-2.0.6/src/nano		:other					:1440k
 #mtools/mcopy					:other
 #mtools/mdel					:other

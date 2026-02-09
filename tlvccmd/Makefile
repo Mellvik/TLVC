@@ -15,8 +15,8 @@ include $(BASEDIR)/Makefile-rules
 # All subdirectories to build & clean
 
 # TODO: broken command compilations: byacc m4 xvi
-# TLVC removed because of nonuse: busyelks, levee, nano-X, screen, tui
-# 				  test
+# TLVC removed because of nonuse: busyelks, levee, nano-X, screen, test
+#
 SUBDIRS =       \
 	lib         \
 	ash         \
@@ -35,6 +35,7 @@ SUBDIRS =       \
 	cron        \
 	sh_utils    \
 	sys_utils   \
+	tui	    \
 	# EOL
 
 ###############################################################################
