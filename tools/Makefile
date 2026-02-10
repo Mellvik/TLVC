@@ -150,13 +150,11 @@ $(BUILDDIR)/.gcc.src: $(DISTDIR)/$(GCC_DIST).tar.gz \
 	    mv $(TMPFILE) gcc/fibonacci_heap.h
 # compensate for unsupported aarch64 host conf
 ifeq ($(MACHINE),Darwin-arm64)
-#ifeq ($(ARCH),arm64)
 	cd $(BUILDDIR)/gcc-src/gcc/config && \
 	cp host-darwin.c host-darwin.c.bak && \
 	awk '/-darwin\.h.$$/ { print; print "\t#include \"hosthooks.h\""; print "\t#include \"hosthooks-def.h\""; print "\tconst struct host_hooks host_hooks = HOST_HOOKS_INITIALIZER;"; next }1' host-darwin.c.bak > host-darwin.c && \
 	rm -f host-darwin.c.bak
 endif
-#endif
 	touch $(BUILDDIR)/.gcc.src
 
 $(BUILDDIR)/.gcc.build: $(BUILDDIR)/.gcc.src $(BUILDDIR)/.binutils.build
@@ -183,9 +181,7 @@ all:: $(CROSSDIR)/.gcc.install
 
 # EMU86, not on Macs, probably not on Linux also?
 
-OS_NAME := $(shell uname)
-
-ifneq ($(OS_NAME),Darwin)
+ifneq ($(PLATFORM),Darwin)
 
 EMU86_VER=f99937262b2566d3d20339e5b200e8483cdec3a2
 EMU86_DIST=emu86-$(EMU86_VER)
