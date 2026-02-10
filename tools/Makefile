@@ -16,6 +16,7 @@ SRCDIR=$(TOPDIR)/tools
 
 DISTDIR=$(CROSSDIR)/dist
 BUILDDIR=$(CROSSDIR)/build
+TMPFILE:=$(shell mktemp)
 
 # Building BINUTILS and GCC in parallel
 
@@ -45,6 +46,14 @@ $(BUILDDIR)/.binutils.src: $(DISTDIR)/$(BINUTILS_DIST).tar.gz
 	cd $(BUILDDIR) && tar -xzf $(DISTDIR)/$(BINUTILS_DIST).tar.gz
 	rm -rf $(BUILDDIR)/binutils-src
 	cd $(BUILDDIR) && mv $(BINUTILS_DIST) binutils-src
+# remove fdopen define that crashes macOS build
+	cd $(BUILDDIR); \
+	    awk '!c {c=sub("^#.*No fdopen\\(", "\/\/&")}1' binutils-src/zlib/zutil.h > $(TMPFILE); \
+	    mv $(TMPFILE) binutils-src/zlib/zutil.h
+# make sure we don't terminate on warnings
+	cd $(BUILDDIR)/binutils-src/bfd; \
+	    sed 's/development=.*/deveopment=false/' development.sh > $(TMPFILE); \
+	    mv $(TMPFILE) development.sh
 	touch $(BUILDDIR)/.binutils.src
 
 $(BUILDDIR)/.binutils.build: $(BUILDDIR)/.binutils.src
@@ -99,6 +108,9 @@ $(DISTDIR)/$(MPC_DIST).tar.gz:
 
 GCC_VER=70c4679fb560cbca27e15cb3dc4cef1b877eae88
 GCC_DIST=gcc-ia16-$(GCC_VER)
+PLATFORM:=$(shell uname)
+ARCH:=$(shell uname -m)
+MACHINE:=$(PLATFORM)-$(ARCH)
 
 $(DISTDIR)/$(GCC_DIST).tar.gz:
 	mkdir -p $(DISTDIR)
@@ -128,6 +140,23 @@ $(BUILDDIR)/.gcc.src: $(DISTDIR)/$(GCC_DIST).tar.gz \
 	cd $(BUILDDIR)/gcc-src && ln -s $(MPFR_DIST) mpfr
 	cd $(BUILDDIR)/gcc-src && tar -xzf $(DISTDIR)/$(MPC_DIST).tar.gz
 	cd $(BUILDDIR)/gcc-src && ln -s $(MPC_DIST) mpc
+# remove fdopen define that crashes macOS build
+	cd $(BUILDDIR)/gcc-src; \
+	    awk '!c {c=sub("^#.*No fdopen\\(", "\/\/&")}1' zlib/zutil.h > $(TMPFILE) ; \
+	    mv $(TMPFILE) zlib/zutil.h
+# fix bug in fibonacci heap library
+	cd $(BUILDDIR)/gcc-src; \
+	    sed '/heapb->min/s/min/m_min/g' gcc/fibonacci_heap.h > $(TMPFILE); \
+	    mv $(TMPFILE) gcc/fibonacci_heap.h
+# compensate for unsupported aarch64 host conf
+ifeq ($(MACHINE),Darwin-arm64)
+#ifeq ($(ARCH),arm64)
+	cd $(BUILDDIR)/gcc-src/gcc/config && \
+	cp host-darwin.c host-darwin.c.bak && \
+	awk '/-darwin\.h.$$/ { print; print "\t#include \"hosthooks.h\""; print "\t#include \"hosthooks-def.h\""; print "\tconst struct host_hooks host_hooks = HOST_HOOKS_INITIALIZER;"; next }1' host-darwin.c.bak > host-darwin.c && \
+	rm -f host-darwin.c.bak
+endif
+#endif
 	touch $(BUILDDIR)/.gcc.src
 
 $(BUILDDIR)/.gcc.build: $(BUILDDIR)/.gcc.src $(BUILDDIR)/.binutils.build
@@ -152,7 +181,11 @@ $(CROSSDIR)/.gcc.install: $(BUILDDIR)/.gcc.build
 
 all:: $(CROSSDIR)/.gcc.install
 
-# EMU86
+# EMU86, not on Macs, probably not on Linux also?
+
+OS_NAME := $(shell uname)
+
+ifneq ($(OS_NAME),Darwin)
 
 EMU86_VER=f99937262b2566d3d20339e5b200e8483cdec3a2
 EMU86_DIST=emu86-$(EMU86_VER)
@@ -189,6 +222,7 @@ $(CROSSDIR)/.emu86.install: $(BUILDDIR)/.emu86.build
 	touch $(CROSSDIR)/.emu86.install
 
 all:: $(CROSSDIR)/.emu86.install
+endif
 
 # Tools pruning (to save disk space)
 
