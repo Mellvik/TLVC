@@ -5,6 +5,7 @@
 # This script is an entry point for the workflows
 # See .github/workflow/*.yml
 
+export LC_COLLATE="C"		# Avoid failures if run in a non-US locale (!)
 SCRIPTDIR="$(dirname "$0")"
 . "$SCRIPTDIR/../env.sh"
 make -C "$SCRIPTDIR" all
