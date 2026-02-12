@@ -123,7 +123,7 @@ int chq_peek(struct ch_queue *q)
     return (q->len != 0);
 }
 
-#if defined(CONFIG_FAST_IRQ4) || defined(CONFIG_FAST_IRQ3)
+#if CONFIG_FAST_IRQ4 || CONFIG_FAST_IRQ3
 int chq_peekch(struct ch_queue *q)
 {
     int retval;

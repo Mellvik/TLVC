@@ -20,8 +20,6 @@
 volatile jiff_t jiffies;
 static int spin_on;
 
-extern void rs_pump(void);
-
 #ifdef CONFIG_CPU_USAGE
 jiff_t uptime;
 
@@ -65,8 +63,9 @@ void timer_tick(int irq, struct pt_regs *regs)
     calc_cpu_usage();
 #endif
 
-#if defined(CONFIG_CHAR_DEV_RS) && (CONFIG_FAST_IRQ4 || CONFIG_FAST_IRQ3)
-    rs_pump();		/* check if received serial chars and call wake_up*/
+#if defined(CONFIG_CHAR_DEV_RS)
+    /* call serial bottom half every 10ms instead of after every byte received */
+    serial_bh();        /* process serial input and call wake_up */
 #endif
 
 #ifdef CONFIG_CONSOLE_DIRECT
