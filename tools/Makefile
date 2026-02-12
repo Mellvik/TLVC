@@ -24,7 +24,7 @@ TMPFILE:=$(shell mktemp)
 
 # BINUTILS for IA16
 
-BINUTILS_VER=1d7535fd03bdddf979d63fcd0072aa68129971fc
+BINUTILS_VER=69e12ea2c125ff830580abbe4699d35ba002148b
 BINUTILS_DIST=binutils-ia16-$(BINUTILS_VER)
 
 $(DISTDIR)/$(BINUTILS_DIST).tar.gz:
@@ -52,7 +52,7 @@ $(BUILDDIR)/.binutils.src: $(DISTDIR)/$(BINUTILS_DIST).tar.gz
 	    mv $(TMPFILE) binutils-src/zlib/zutil.h
 # make sure we don't terminate on warnings
 	cd $(BUILDDIR)/binutils-src/bfd; \
-	    sed 's/development=.*/deveopment=false/' development.sh > $(TMPFILE); \
+	    sed 's/development=.*/development=false/' development.sh > $(TMPFILE) && \
 	    mv $(TMPFILE) development.sh
 	touch $(BUILDDIR)/.binutils.src
 
@@ -106,7 +106,7 @@ $(DISTDIR)/$(MPC_DIST).tar.gz:
 
 # GCC for IA16
 
-GCC_VER=70c4679fb560cbca27e15cb3dc4cef1b877eae88
+GCC_VER=ca893320926dc93552390b892a202e9373d040c0
 GCC_DIST=gcc-ia16-$(GCC_VER)
 PLATFORM:=$(shell uname)
 ARCH:=$(shell uname -m)
@@ -142,18 +142,17 @@ $(BUILDDIR)/.gcc.src: $(DISTDIR)/$(GCC_DIST).tar.gz \
 	cd $(BUILDDIR)/gcc-src && ln -s $(MPC_DIST) mpc
 # remove fdopen define that crashes macOS build
 	cd $(BUILDDIR)/gcc-src; \
-	    awk '!c {c=sub("^#.*No fdopen\\(", "\/\/&")}1' zlib/zutil.h > $(TMPFILE) ; \
+	    awk '!c {c=sub("^#.*No fdopen\\(", "\/\/&")}1' zlib/zutil.h > $(TMPFILE) && \
 	    mv $(TMPFILE) zlib/zutil.h
 # fix bug in fibonacci heap library
 	cd $(BUILDDIR)/gcc-src; \
-	    sed '/heapb->min/s/min/m_min/g' gcc/fibonacci_heap.h > $(TMPFILE); \
+	    sed '/heapb->min/s/min/m_min/g' gcc/fibonacci_heap.h > $(TMPFILE) && \
 	    mv $(TMPFILE) gcc/fibonacci_heap.h
 # compensate for unsupported aarch64 host conf
 ifeq ($(MACHINE),Darwin-arm64)
 	cd $(BUILDDIR)/gcc-src/gcc/config && \
-	cp host-darwin.c host-darwin.c.bak && \
-	awk '/-darwin\.h.$$/ { print; print "\t#include \"hosthooks.h\""; print "\t#include \"hosthooks-def.h\""; print "\tconst struct host_hooks host_hooks = HOST_HOOKS_INITIALIZER;"; next }1' host-darwin.c.bak > host-darwin.c && \
-	rm -f host-darwin.c.bak
+	sed 's/aligned (4096)/aligned (16384)/' host-darwin.c > host-darwin.c.bak && \
+	mv host-darwin.c.bak host-darwin.c
 endif
 	touch $(BUILDDIR)/.gcc.src
 
