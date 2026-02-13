@@ -44,6 +44,8 @@ int chq_wait_wr(register struct ch_queue *q, int nonblock)
 	else {
 	    interruptible_sleep_on(&q->wait);
 	    if (q->len == q->size)
+		return -EAGAIN;
+	    if (current->signal)
 		return -EINTR;
 	}
     }
@@ -123,19 +125,12 @@ int chq_peek(struct ch_queue *q)
     return (q->len != 0);
 }
 
-#if CONFIG_FAST_IRQ4 || CONFIG_FAST_IRQ3
 int chq_peekch(struct ch_queue *q)
 {
-    int retval;
-
-    if (!q->len)
-        return 0;
-    clr_irq();
-    retval = q->base[q->tail];
-    set_irq();
-    return retval;
+    if (q->len)
+        return q->base[q->tail];
+    return 0;
 }
-#endif
 
 #if UNUSED
 int chq_full(register struct ch_queue *q)
