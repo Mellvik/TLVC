@@ -5,7 +5,8 @@
 /* irq numbers >= 16 are hardware exceptions/traps or syscall */
 #define IDX_SYSCALL     16
 #define IDX_DIVZERO     17
-#define NR_IRQS         18      /* = # IRQs plus special indexes above */
+#define IDX_NMI         18
+#define NR_IRQS         19      /* = # IRQs plus special indexes above */
 
 #define INT_GENERIC  0  // use the generic interrupt handler (aka '_irqit')
 #define INT_SPECIFIC 1  // use a specific interrupt handler
@@ -18,22 +19,24 @@ typedef void (* int_proc) (void);  // any INT handler
 typedef void (* irq_handler) (int,struct pt_regs *);   // IRQ handler
 
 void do_IRQ(int,struct pt_regs *);
-void div0_handler(int, struct pt_regs *);
 int request_irq(int,irq_handler,int hflag);
 int free_irq(int irq);
 
 /* irqtab.S */
-void int_vector_set (int vect, word_t proc, word_t seg);
 void _irqit (void);
+void int_vector_set (int vect, word_t proc, word_t seg);
+void idle_halt(void);
 
-/* irq-8259.c, irq-8018x.c*/
+void div0_handler(int irq, struct pt_regs *regs);
+void nmi_handler(int irq, struct pt_regs *regs);
+
+/* irq-8259.c, irq-8018x.c, irq-necv25.c */
 void initialize_irq(void);
 void enable_irq(unsigned int);
 void disable_irq(unsigned int irq);
 int remap_irq(int);
 int irq_vector(int irq);
 
-void idle_halt(void);
 #endif /* __ASSEMBLER__ */
 #endif /* __KERNEL__ */
 
@@ -92,4 +95,5 @@ void idle_halt(void);
                         : /* no output */   \
                         : "memory");        \
         v; })
+
 #endif
