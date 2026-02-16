@@ -28,7 +28,7 @@
 //     unsigned char c;
 //
 //     c = INB(sp->io + UART_RX);       // Read received data
-//     if (q->len < q->size) {
+//     while (q->len < q->size && INB(sp->io + UART_LSR) & UART_LSR_DR) {
 //         q->base[q->head] = c;
 //         if (++q->head >= q->size)
 //             q->head = 0;
@@ -59,10 +59,20 @@ common_entry:
         // NOTE: uses hard-coded offsets from struct serial_info, tty and ch_queue
         push    %si
         push    %di
+	push	%es
+
         mov     %cx,%bx                 // bx = sp = &ports[n]
         mov     (%bx),%si               // si = q = &sp->tty->inq
-        mov     0x4(%bx),%dx            // dx = sp->io + UART_RX
-        in      (%dx),%al
+        mov     0x4(%bx),%dx            // dx = sp->io (port IO address)
+	mov	%dx,%es
+	inc	%dx			// dx = Interrupt Enable Register (IER)
+	xor	%al,%al
+	out	%al,%dx			// disable interrupts on this port
+        mov     $0x20,%al               // EOI on primary controller
+        out     %al,$0x20
+more_data:
+	mov	%es,%dx			// Restore base port address
+        in      %dx,%al			// Get data
         mov     %al,%dl                 // dl = c = INB(sp->io+UART_RX)
         mov     (%si),%ax               // ax = q->len
         cmp     0x2(%si),%ax            // if (ax >= q->size)
@@ -76,16 +86,29 @@ common_entry:
         cmp     0x2(%si),%ax            // if (q->size < q->head)
         jl      1f
         movw    $0x0,0x4(%si)           // q->head = 0
-1:      incw    (%si)
-2:      cmp     $0x3,%dl                // if (c == 03)
+1:	incw    (%si)
+#ifdef CONFIG_HW_SERIAL_FIFO
+	mov	%es,%dx
+	add	$5,%dx			// get line status (LSR)
+	in	%dx,%al
+	test	$1,%al			// more data in fifo?
+	jnz	more_data
+#endif
+2:	cmp     $0x3,%dl                // if (c == 03)
         jne     3f
         mov     %cx,%bx                 // bx = sp
         movw    $0x3,2(%bx)             // sp->intrchar = c
-3:      pop     %di
+3:
+	mov	%es,%dx
+	inc	%dx
+	mov	$1,%al			// Re-enable RX interrupts, FIXME Need to save current intr mask
+	out	%al,%dx
+	pop	%es
+	pop     %di
         pop     %si
 
-        mov     $0x20,%al               // EOI on primary controller
-        out     %al,$0x20
+        //mov     $0x20,%al               // EOI on primary controller
+        //out     %al,$0x20
         pop     %ds                     // restore regs
         pop     %dx
         pop     %bx
