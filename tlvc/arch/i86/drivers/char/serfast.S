@@ -41,9 +41,13 @@
 //
 // Entry for ttyS0 top half interrupt handler, called by CALLF within dynamic handler
 //
+#define DISABLE_INT
 asm_fast_com1:
         push    %cx
         mov     $ports+0,%cx            // cx = &ports[0]
+
+// Common entry point, shared by all serial lines
+//
 common_entry:
         push    %ax                     // save regs, uses 14 bytes of current stack
         push    %bx
@@ -65,11 +69,14 @@ common_entry:
         mov     (%bx),%si               // si = q = &sp->tty->inq
         mov     0x4(%bx),%dx            // dx = sp->io (port IO address)
 	mov	%dx,%es
+#ifdef DISABLE_INT
 	inc	%dx			// dx = Interrupt Enable Register (IER)
 	xor	%al,%al
 	out	%al,%dx			// disable interrupts on this port
-        mov     $0x20,%al               // EOI on primary controller
-        out     %al,$0x20
+#endif
+	//mov     $0x20,%al		// EOI on primary controller
+	//out     %al,$0x20
+	sti				// EXPERIMENTAL
 more_data:
 	mov	%es,%dx			// Restore base port address
         in      %dx,%al			// Get data
@@ -80,10 +87,10 @@ more_data:
         mov     0x4(%si),%bx            // bx = q->head
         mov     0x8(%si),%di            // di = q->base
         mov     %dl,(%bx,%di)           // q->base[q->head] = c
-        mov     0x4(%si),%ax            // ax = q->head
-        inc     %ax
-        mov     %ax,0x4(%si)            // ++q->head
-        cmp     0x2(%si),%ax            // if (q->size < q->head)
+        mov	%dl,%ah			// ah = c
+        inc     %bx
+        mov     %bx,0x4(%si)            // ++q->head
+        cmp     0x2(%si),%bx            // if (q->size < q->head)
         jl      1f
         movw    $0x0,0x4(%si)           // q->head = 0
 1:	incw    (%si)
@@ -94,21 +101,23 @@ more_data:
 	test	$1,%al			// more data in fifo?
 	jnz	more_data
 #endif
-2:	cmp     $0x3,%dl                // if (c == 03)
+2:	cmp     $0x3,%ah                // if (c == 03)
         jne     3f
         mov     %cx,%bx                 // bx = sp
         movw    $0x3,2(%bx)             // sp->intrchar = c
 3:
+#ifdef DISABLE_INT
 	mov	%es,%dx
 	inc	%dx
 	mov	$1,%al			// Re-enable RX interrupts, FIXME Need to save current intr mask
 	out	%al,%dx
+#endif
 	pop	%es
 	pop     %di
         pop     %si
 
-        //mov     $0x20,%al               // EOI on primary controller
-        //out     %al,$0x20
+        mov     $0x20,%al               // EOI on primary controller
+        out     %al,$0x20
         pop     %ds                     // restore regs
         pop     %dx
         pop     %bx
