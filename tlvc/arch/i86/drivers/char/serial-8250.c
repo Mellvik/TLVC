@@ -1,5 +1,5 @@
 /*
- * IBM PC Compatible Serial Driver for ELKS
+ * IBM PC Compatible Serial Driver for ELKS and TLVC
  *
  * Probes for specific UART at boot.
  * Supports 8250, 16450, 16550, 16550A and 16750 variants.
@@ -29,12 +29,14 @@ struct serial_info {		/* NOTE: first three members used in fastser.S driver */
     unsigned char lcr;
     unsigned char mcr;
     unsigned int  divisor;
-    int pad1,pad2;		/* round out to 16 bytes for faster addressing of ports[] */
+    int pad1, pad2;		/* round out to 16 bytes for faster addressing of ports[] */
 };
 
-/* flags*/
+/* flags */
 #define SERF_TYPE       15
 #define SERF_EXIST      16
+
+/* chip types */
 #define ST_8250         0
 #define ST_16450        1
 #define ST_16550        2
@@ -80,9 +82,7 @@ static unsigned int divisors[] = {
     0                           /*  0 = B230400 */
 };
 
-extern struct tty ttys[];
-
-/* Flow control buffer markers */
+/* Flow control buffer markers - for flow control */
 #define RS_IALLMOSTFULL         (3 * INQ_SIZE / 4)
 #define RS_IALLMOSTEMPTY        (    INQ_SIZE / 4)
 
@@ -105,7 +105,7 @@ static void flush_input(register struct serial_info *sp)
 #endif
 }
 
-static int rs_probe(register struct serial_info *sp)
+static int INITPROC rs_probe(register struct serial_info *sp)
 {
     int status, type;
     unsigned char scratch;
@@ -117,20 +117,24 @@ static int rs_probe(register struct serial_info *sp)
     if (scratch)
         return -1;
 
-    /* try to enable 64 byte FIFO and max trigger*/
+    /* try to enable 64 byte FIFO and max trigger */
     OUTB(0xE7, sp->io + UART_FCR);
 
     /* then read FIFO status*/
     status = INB(sp->io + UART_IIR);
-    if (status & 0x80) {                /* FIFO available*/
-        if (status & 0x20)              /* 64 byte FIFO enabled*/
+    if (status & 0x80) {                /* FIFO available */
+        if (status & 0x20)              /* 64 byte FIFO enabled */
             type = ST_16750;
-        else if (status & 0x40)         /* 16 byte FIFO OK */
+        else if (status & 0x40)         /* 16 byte FIFO OK, may be a 16650/32b FIFO */
+					/* TODO: recognize 16650, 32 byte FIFO: */
+					/* Enable EFR, if changeable -> 16650 */
             type = ST_16550A;
         else
             type = ST_16550;            /* Non-functional FIFO */
+					/* According to www.lammertbies.nl/comm/info/serial-uart 
+					 * IIR[7:6] = 01 means 16550. If so, this is incorrect */
     } else {
-        /* no FIFO, try writing arbitrary value to scratch reg*/
+        /* no FIFO, try writing arbitrary value to scratch reg */
         OUTB(0x2A, sp->io + UART_SCR);
         if (INB(sp->io + UART_SCR) == 0x2a)
             type = ST_16450;
@@ -219,8 +223,6 @@ static int rs_write(struct tty *tty)
  * statement, gcc will optimize the code, thus the assignment to the ch_queue
  * pointer has to be repeated. 
  *
- * While a kludge, this is reliable unless gcc's stategy for assigning registers is changed.
- *
  * Use 'ia16-elfk-objdump -D -r -Mi8086 serial.o' to look at code generated.
  */
 extern void _irq_com1(int irq, struct pt_regs *regs);
@@ -229,7 +231,7 @@ extern void _irq_com3(int irq, struct pt_regs *regs);
 extern void _irq_com4(int irq, struct pt_regs *regs);
 
 /* array of fast serial handler entry points, indexed by port (0-3) */
-static void (*asm_fast_irq[NR_SERIAL])(int, struct pt_regs *) = {
+static void (*asm_fast_irq[MAX_SERIAL])(int, struct pt_regs *) = {
     _irq_com1, _irq_com2, _irq_com3, _irq_com4
 };
 
@@ -377,7 +379,7 @@ errout:
     return 0;
 }
 
-#if UNUSED      // removed for bloat
+#ifdef UNUSED      // removed for bloat
 static int set_serial_info(struct serial_info *info,
                            struct serial_info *new_info)
 {
@@ -421,7 +423,7 @@ static int rs_ioctl(struct tty *tty, int cmd, char *arg)
         //FIXME: update_port() only sets baud rate from termios, not parity or wordlen*/
         update_port(port);      /* ignored return value*/
         break;
-#if UNUSED
+#ifdef UNUSED
     case TIOCSSERIAL:
         retval = set_serial_info(port, (struct serial_info *)arg);
         break;
@@ -437,7 +439,7 @@ static int rs_ioctl(struct tty *tty, int cmd, char *arg)
     return retval;
 }
 
-static void rs_init(void)
+static void INITPROC rs_init(void)
 {
     register struct serial_info *sp = ports;
     register struct tty *tty = ttys + NR_CONSOLES;

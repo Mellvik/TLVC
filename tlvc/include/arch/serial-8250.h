@@ -8,7 +8,8 @@
  *
  * These are the UART port assignments, expressed as offsets from the base
  * register.  These assignments should hold for any serial port based on
- * a 8250, 16450, or 16550(A).
+ * a 8250, 16450, or 16550(A) - even the 16650 and the 167xx are 
+ * recognized and partly supported.
  */
 
 #ifndef __LINUXMT_SERIAL_REG_H
@@ -22,14 +23,14 @@
 #define UART_IIR	2	/* In:  Interrupt ID Register */
 #define UART_FCR	2	/* Out: FIFO Control Register */
 #define UART_EFR	2	/* I/O: Extended Features Register */
-				/* (DLAB=1, 16C660 only) */
+				/* (LCR=0xBF, 16C650 only) */
 #define UART_LCR	3	/* Out: Line Control Register */
 #define UART_MCR	4	/* Out: Modem Control Register */
 #define UART_LSR	5	/* In:  Line Status Register */
 #define UART_MSR	6	/* In:  Modem Status Register */
 #define UART_SCR	7	/* I/O: Scratch Register */
 
-/* These are the definitions for the FIFO Control Register (16650 only)
+/* These are the definitions for the FIFO Control Register (16550 and later)
  */
 #define UART_FCR_ENABLE_FIFO	0x01	/* Enable the FIFO */
 #define UART_FCR_CLEAR_RCVR	0x02	/* Clear the RCVR FIFO */
@@ -93,6 +94,7 @@
 #define UART_IIR_THRI	0x02	/* Transmitter holding register empty */
 #define UART_IIR_RDI	0x04	/* Receiver data interrupt */
 #define UART_IIR_RLSI	0x06	/* Receiver line status interrupt */
+#define UART_IIR_RDIT	0x0C	/* Receiver data timeout interrupt */
 
 /*
  * These are the definitions for the Interrupt Enable Register
