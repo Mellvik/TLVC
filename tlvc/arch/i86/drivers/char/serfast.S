@@ -41,7 +41,7 @@
 //
 // Entry for ttyS0 top half interrupt handler, called by CALLF within dynamic handler
 //
-#define DISABLE_INT
+//#define DISABLE_INT
 asm_fast_com1:
         push    %cx
         mov     $ports+0,%cx            // cx = &ports[0]
@@ -68,32 +68,31 @@ common_entry:
         mov     %cx,%bx                 // bx = sp = &ports[n]
         mov     (%bx),%si               // si = q = &sp->tty->inq
         mov     0x4(%bx),%dx            // dx = sp->io (port IO address)
-	mov	%dx,%es
+	mov	%dx,%es			// save sp->io for later
 #ifdef DISABLE_INT
 	inc	%dx			// dx = Interrupt Enable Register (IER)
 	xor	%al,%al
 	out	%al,%dx			// disable interrupts on this port
 #endif
-	//mov     $0x20,%al		// EOI on primary controller
-	//out     %al,$0x20
-	sti				// EXPERIMENTAL
+	sti				// EXPERIMENTAL, allow higher priority interrupts
 more_data:
 	mov	%es,%dx			// Restore base port address
         in      %dx,%al			// Get data
         mov     %al,%dl                 // dl = c = INB(sp->io+UART_RX)
         mov     (%si),%ax               // ax = q->len
         cmp     0x2(%si),%ax            // if (ax >= q->size)
-        jge     2f
+        mov	%dl,%ah			// ah = c (save)
+        jge     chk_fifo		// don't save if queue full
         mov     0x4(%si),%bx            // bx = q->head
         mov     0x8(%si),%di            // di = q->base
         mov     %dl,(%bx,%di)           // q->base[q->head] = c
-        mov	%dl,%ah			// ah = c
         inc     %bx
         mov     %bx,0x4(%si)            // ++q->head
         cmp     0x2(%si),%bx            // if (q->size < q->head)
         jl      1f
         movw    $0x0,0x4(%si)           // q->head = 0
-1:	incw    (%si)
+1:	incw    (%si)			// ++q->len
+chk_fifo:
 #ifdef CONFIG_HW_SERIAL_FIFO
 	mov	%es,%dx
 	add	$5,%dx			// get line status (LSR)
@@ -101,8 +100,9 @@ more_data:
 	test	$1,%al			// more data in fifo?
 	jnz	more_data
 #endif
-2:	cmp     $0x3,%ah                // if (c == 03)
-        jne     3f
+2:
+	cmp     $0x3,%ah                // if (c == 03)
+	jne     3f
         mov     %cx,%bx                 // bx = sp
         movw    $0x3,2(%bx)             // sp->intrchar = c
 3:
