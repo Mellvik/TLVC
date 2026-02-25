@@ -288,15 +288,18 @@ static int enableRawMode(int fd) {
     }
 
     /* modify the original mode except baud rate/char size/stop bits/parity */
+    /* and flow control bits */
     if (tcgetattr(fd, &speed) != -1) {
-	orig_termios.c_cflag &= ~(CBAUD | CBAUDEX | CSIZE | CSTOPB | PARENB | PARODD);
+	orig_termios.c_cflag &= ~(CRTSCTS | CBAUD | CBAUDEX | CSIZE | CSTOPB | PARENB | PARODD);
 	orig_termios.c_cflag |=
-	    speed.c_cflag & (CBAUD | CBAUDEX | CSIZE | CSTOPB | PARENB | PARODD);
+	    speed.c_cflag & (CRTSCTS | CBAUD | CBAUDEX | CSIZE | CSTOPB | PARENB | PARODD);
+	orig_termios.c_iflag &= ~(IXON | IXOFF | IXANY);
+	orig_termios.c_iflag |= speed.c_iflag & (IXON | IXOFF | IXANY);
     }
     raw = orig_termios;
     /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+     * keep start/stop output control. */
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP);
     /* output modes - don't disable post processing (for kernel printk when running)*/
     /*raw.c_oflag &= ~(OPOST);*/
     /* control modes - set 8 bit chars */
