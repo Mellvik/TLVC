@@ -86,6 +86,8 @@ struct tty {		/* NOTE: first member used in fastser.S driver */
     struct termios termios;
 };
 
+extern struct tty ttys[];
+
 extern int tty_intcheck(struct tty *,unsigned char);
 		/* Check for ctrl-C etc.. */
 
