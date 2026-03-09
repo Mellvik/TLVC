@@ -329,7 +329,8 @@ void mem_map(void)
 	seg_t s_size;
 	char main_msg[] = "Main memory arena x";
 	unsigned int membase = ds + (seg_t)(((long_t)heap[0].end + 0x8L)>>4);
-	int hma = (mu.xms_start == 64);
+	int hma = (mu.xms_start == 64) || (cs == 0xffff); /* Kernel may be loaded high */
+							  /* and xms still be off */
 
 	printf("\n");
 	/* The XMS block, if present, will 'merge' with the HMA block - if present.
@@ -386,14 +387,14 @@ void mem_map(void)
 	if (Pflag)
 	    pp_block(segs[0].base, segs[0].end); /* display processes populating the arena */
 	p_divider(membase, "Kernel DS end");
-	p_block(3, (long_t)(heap[0].end-heap[0].base+1), "Main kernel heap", "");
+	p_block(3, (long_t)(heap[0].end-heap[0].base+1), "Kernel heap", "");
 	p_subdiv(heap[0].base, "", 1);
 
 	if (heap[1].base) {		/* More heap found: the released bootopts buffer */
 	    p_block(1, (long_t)(heap[0].base-heap[1].end), "Kernel bss", "");
 	    p_subdiv(heap[1].end, "BSS continues", 1);
 	    p_block(1, (long_t)(heap[1].end-heap[1].base), "[bootopts buffer]",
-			"Heap block 2");
+			"Additional heap");	/* If bootopts not loaded high */
 	    p_subdiv(heap[1].base, "", 1);
 	    p_block(1, (long_t)(heap[1].base - (heap[0].base - bss_size)), "Kernel bss", "");
 	} else
