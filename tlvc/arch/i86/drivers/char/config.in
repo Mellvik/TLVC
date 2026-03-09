@@ -33,7 +33,12 @@ mainmenu_option next_comment
 	else
 	    define_bool CONFIG_CHAR_DEV_RS y
 	fi
-	bool 'Parallel device driver'		CONFIG_CHAR_DEV_LP	  y
+	if [ "$CONFIG_CHAR_DEV_RS" = "y" ]; then
+	    bool 'Serial port FIFO'		CONFIG_HW_SERIAL_FIFO	y
+	    bool 'Serial HW (RTS/CTS) flow control' CONFIG_HW_SERIAL_HWFLOW n
+	    bool 'Serial XON/XOFF flow control'	    CONFIG_HW_SERIAL_XONXOFF n
+	fi
+	bool 'Parallel device driver'		CONFIG_CHAR_DEV_LP	  n
 	bool 'CGA text mode videobuffer'	CONFIG_CHAR_DEV_CGATEXT	  n
 	bool 'Memory character devices'		CONFIG_CHAR_DEV_MEM	  y
 	if [ "$CONFIG_CHAR_DEV_MEM" = "y" ]; then
