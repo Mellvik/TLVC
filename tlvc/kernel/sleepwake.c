@@ -85,7 +85,7 @@ void wait_clear(struct wait_queue *p)
 static void __sleep_on(register struct wait_queue *p, int state)
 {
 #ifdef CHECK_SCHED
-    if (current == &task[0]) panic("idle task sleep_on %x", p);
+    if (current == idle_task) panic("idle task sleep_on %x", p);
 #endif
     debug_sched("sleep: %d waitq %04x\n", current->pid, p);
     current->state = state;

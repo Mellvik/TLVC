@@ -7,6 +7,7 @@
 #include <linuxmt/signal.h>
 #include <linuxmt/types.h>
 #include <linuxmt/memory.h>
+#include <linuxmt/init.h>
 
 #include <arch/segment.h>
 
@@ -78,17 +79,15 @@ void stack_check(void)
  *	so we fork onto our kernel stack.
  */
 
-void kfork_proc(void (*addr)())
+void INITPROC kfork_proc(void (*addr)())
 {
-    register struct task_struct *t;
+    struct task_struct *t;
 
     t = find_empty_process();
 
-    t->t_xregs.cs = kernel_cs;			/* Run in kernel space */
-    /* All other t_regs values invalid for idle task or handlers interrupting idle task */
+    /* t_regs are invalid for idle task or handlers interrupting idle task */
     t->t_regs.ds = t->t_regs.es = t->t_regs.ss = kernel_ds;
-    if (addr)
-	arch_build_stack(t, addr);
+    arch_build_stack(t, addr);
 }
 
 /*
@@ -111,10 +110,10 @@ unsigned get_ustack(register struct task_struct *t,int off)
 /*
  * Called by sys_execve()
  */
-void arch_setup_user_stack (register struct task_struct * t, word_t entry)
+void arch_setup_user_stack (register struct task_struct * t, word_t entry, seg_t cseg)
 {
     put_ustack(t, -2, USER_FLAGS);		/* Flags */
-    put_ustack(t, -4, (int) t->t_xregs.cs);	/* user CS */
+    put_ustack(t, -4, cseg);	/* user CS */
     put_ustack(t, -6, entry);			/* user entry point */
     put_ustack(t, -8, 0);			/* user BP */
     t->t_regs.sp -= 8;
@@ -184,7 +183,7 @@ void arch_setup_sighandler_stack(register struct task_struct *t,
  *              si di bp IP: BCC case                    bp ip cs f
  *           si di es bp IP: IA16-GCC case               bp ip cs f
  *
- * with IP pointing to ret_from_syscall, and current->t_xregs.ksp pointing
+ * with IP pointing to ret_from_syscall, and current->t_ksp pointing
  * to si on the kernel stack. Values for the child stack si, di and bp can
  * be anything because their final value will be taken from the task structure
  * in the case of fork(), or will be initialized at the begining of the target
@@ -200,9 +199,9 @@ void arch_build_stack(struct task_struct *t, void (*addr)())
     *tsp = (__u16)addr;			/* Start execution address */
 #ifdef __ia16__
     *(tsp-2) = kernel_ds;		/* Initial value for ES register */
-    t->t_xregs.ksp = (__u16)(tsp - 4);	/* Initial value for SP register */
+    t->t_ksp = (__u16)(tsp - 4);	/* Initial value for SP register */
 #else
-    t->t_xregs.ksp = (__u16)(tsp - 3);	/* Initial value for SP register */
+    t->t_ksp = (__u16)(tsp - 3);	/* Initial value for SP register */
 #endif
 }
 

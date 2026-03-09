@@ -15,30 +15,27 @@
 
 #include <arch/irq.h>
 
-#define idle_task task[0]
-
 struct task_struct *task;           /* dynamically allocated task array */
+struct task_struct *idle_task;      /* NOTE: valid only thru k_stack[IDLESTACK_BYTES/2] */
 struct task_struct *current;
 struct task_struct *previous;
-int max_tasks = MAX_TASKS;
-
-extern int intr_count;
+int max_tasks = MAX_TASKS;	    /* May be changed in bootopts */
 
 void add_to_runqueue(register struct task_struct *p)
 {
-    (p->prev_run = idle_task.prev_run)->next_run = p;
-    p->next_run = &idle_task;
-    idle_task.prev_run = p;
+    (p->prev_run = idle_task->prev_run)->next_run = p;
+    p->next_run = idle_task;
+    idle_task->prev_run = p;
 }
 
 void del_from_runqueue(register struct task_struct *p)
 {
-#if CHECK_SCHED       /* sanity tests */
+#if UNUSED
     if (!p->next_run || !p->prev_run) {
-	printk("del_fr_runq: %d not found (%d)\n", p->pid, p->state);
+	printk("delrunq %d,%d", p->pid, p->state);
 	return;
     }
-    if (p == &idle_task) {
+    if (p == idle_task) {
 	printk("idle task cannot sleep\n");
 	return;
     }
@@ -78,13 +75,16 @@ void schedule(void)
      * quite legal. We just dont switch then */
 	panic("schedule from int");
     }
+
+    /* Disallow rescheduling during startup when idle task is the only task */
+    if ((int)last_pid <= 0) {
+        printk("SCHED at startup\n");
+        return;
+    }
 #endif
 
     /* We have to let a task exit! */
     if (prev->state == TASK_EXITING)
-	return;
-
-    if (last_pid <= 0)	/* don't try to reschedule the idle_task [0] */
 	return;
 
     clr_irq();
@@ -101,7 +101,7 @@ void schedule(void)
     next = prev->next_run;
     if (prev->state != TASK_RUNNING)
 	del_from_runqueue(prev);
-    if (next == &idle_task)
+    if (next == idle_task)
         next = next->next_run;
     set_irq();
 
@@ -130,7 +130,7 @@ void schedule(void)
 
 static struct timer_list *next_timer;
 
-void add_timer(struct timer_list * timer)
+void add_timer(struct timer_list *timer)
 {
     struct timer_list **p;
     flag_t flags;
@@ -150,7 +150,7 @@ void add_timer(struct timer_list * timer)
     restore_flags(flags);
 }
 
-int del_timer(struct timer_list * timer)
+int del_timer(struct timer_list *timer)
 {
     struct timer_list **p;
     flag_t flags;
@@ -172,7 +172,7 @@ int del_timer(struct timer_list * timer)
     return ret;
 }
 
-static void run_timer_list(void)
+void run_timer_list(void)
 {
     struct timer_list *timer;
 
@@ -228,7 +228,7 @@ void do_timer(struct pt_regs *regs)
 
 void INITPROC sched_init(void)
 {
-    register struct task_struct *t = &task[max_tasks];
+    struct task_struct *t = &task[max_tasks];
 
 /*
  *	Mark tasks 0-(max_tasks-1) as not in use.
@@ -237,15 +237,16 @@ void INITPROC sched_init(void)
 	(--t)->state = TASK_UNUSED;
     } while (t > task);
 
-    current = task;
-    next_task_slot = task;
-    task_slots_unused = max_tasks;
 /*
  *	Now create task 0 to be ourself.
  */
-    kfork_proc(NULL);
-
+    t = idle_task;
     t->state = TASK_RUNNING;
     t->next_run = t->prev_run = t;
+    t->kstack_magic = KSTACK_MAGIC;
+
+    current = t;
+    next_task_slot = task;
+    task_slots_unused = max_tasks;
 }
 
