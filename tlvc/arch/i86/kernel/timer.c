@@ -4,14 +4,15 @@
 #include <linuxmt/timer.h>
 #include <linuxmt/ntty.h>
 #include <linuxmt/fixedpt.h>
-
+#include <linuxmt/trace.h>
+#include <linuxmt/init.h>
 #include <arch/io.h>
 #include <arch/irq.h>
 #include <arch/param.h>
 #include <arch/ports.h>
 
 /*
- *	Timer tick routine
+ *  Timer tick routine
  *
  * 9/1999 The 100 Hz system timer 0 can configure for variable input
  *        frequency. Christian Mardm"oller (chm@kdt.de)
@@ -19,17 +20,15 @@
 
 volatile jiff_t jiffies;
 static int spin_on;
+static int delaytick;
 
 #ifdef CONFIG_CPU_USAGE
-jiff_t uptime;
-
 static void calc_cpu_usage(void)
 {
     static int count = SAMP_FREQ;
     struct task_struct *p;
 
     current->ticks++;
-    uptime++;
     if (--count <= 0) {
         count = SAMP_FREQ;
         //unsigned int total = 0;
@@ -57,32 +56,63 @@ static void calc_cpu_usage(void)
 
 void timer_tick(int irq, struct pt_regs *regs)
 {
-    do_timer(regs);
+    jiffies++;
+
+#ifdef CHECK_ISTACK
+    delaytick++;
+#endif
+
+    mark_bh(TIMER_BH);
+
+    /***if (!((int) jiffies & 7))
+        need_resched = 1;***/       /* how primitive can you get? */
+
+#ifdef CONFIG_ARCH_SWAN
+    ack_irq(7);
+#endif
+}
+
+/* timer tick bottom half, always runs at intr_count == 1 */
+void timer_bh(void)
+{
+    run_timer_list();
+
+#ifdef CHECK_ISTACK
+    if (tracing & TRACE_ISTACK) {
+        if (delaytick > 1)
+            printk("TIMER_BH DELAY %d\n", delaytick);
+        delaytick = 0;
+    }
+#endif
+
+    /*  Test timer_bh delay message and BH reentrancy when running loop program */
+    //for (volatile long i=0; i<30000L; i++);
+
+#if (defined(CONFIG_CHAR_DEV_RS) && defined(CONFIG_ARCH_IBMPC)) \
+    || defined(CONFIG_FAST_IRQ1_NECV25)
+    /* call serial bottom half every 10ms instead of after every byte received */
+    serial_bh();        /* process serial input and call wake_up */
+#endif
 
 #ifdef CONFIG_CPU_USAGE
     calc_cpu_usage();
 #endif
 
-#if defined(CONFIG_CHAR_DEV_RS)
-    /* call serial bottom half every 10ms instead of after every byte received */
-    serial_bh();        /* process serial input and call wake_up */
-#endif
-
-#ifdef CONFIG_CONSOLE_DIRECT
+#if defined(CONFIG_CONSOLE_DIRECT) && !defined(CONFIG_ARCH_SWAN)
     /* spin timer wheel in upper right of screen*/
     if (spin_on && !(jiffies & 7)) {
-	static unsigned char wheel[4] = {'-', '\\', '|', '/'};
-	static int c = 0;
+        static unsigned char wheel[4] = {'-', '\\', '|', '/'};
+        static int c;
 
-	pokeb((79 + 0*80) * 2, VideoSeg, wheel[c++ & 0x03]);
+        pokeb((79 + 0*80) * 2, VideoSeg, wheel[++c & 0x03]);
     }
 #endif
 }
 
 void spin_timer(int onflag)
 {
-#ifdef CONFIG_CONSOLE_DIRECT
+#if defined(CONFIG_CONSOLE_DIRECT) && !defined(CONFIG_ARCH_SWAN)
     if ((spin_on = onflag) == 0)
-	pokeb((79 + 0*80) * 2, VideoSeg, ' ');
+        pokeb((79 + 0*80) * 2, VideoSeg, ' ');
 #endif
 }
