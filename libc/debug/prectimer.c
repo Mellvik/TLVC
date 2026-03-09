@@ -18,6 +18,7 @@
 
 #ifndef __KERNEL__
 #include <linuxmt/mem.h>
+#include <linuxmt/init.h>
 #include <linuxmt/memory.h>
 #include <sys/linksym.h>
 #include <sys/ioctl.h>

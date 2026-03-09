@@ -2,9 +2,6 @@
 #define __LINUXMT_STRING_H
 
 #include <linuxmt/types.h>
-#include <stddef.h>
-
-/*@-namechecks@*/
 
 /* The following prototypes all match the current GNU manpage prototypes.
  * It is still to be confirmed whether these also match the declarations
@@ -39,8 +36,6 @@ extern void *memscan(void *,int,size_t);
 extern long simple_strtol(const char *,int);
 extern int atoi(const char *);
 extern void hexdump(void *off, unsigned int seg, int count, int flags);
-
-/*@+namechecks@*/
 
 /*
  * Include machine specific routines

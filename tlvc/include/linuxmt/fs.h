@@ -45,7 +45,7 @@
  *  longs, but uses the new fd_set structure..
  */
 
-#define NR_OPEN 	20
+//#define NR_OPEN 	20
 
 #define BLOCK_SIZE	1024
 #define BLOCK_SIZE_BITS 10
@@ -395,14 +395,11 @@ extern int notify_change(struct inode *,struct iattr *);
 
 extern int sys_open(const char *,int,int);
 extern int sys_close(unsigned int);	/* yes, it's really unsigned */
-
-/*@-namechecks@*/
+extern int sys_access(char *, mode_t);
 
 extern void _close_allfiles(void);
 
 extern struct inode *__iget(struct super_block *,ino_t);
-
-/*@+namechecks@*/
 
 extern struct file_operations *get_blkfops(unsigned int);
 

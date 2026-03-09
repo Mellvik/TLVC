@@ -58,6 +58,8 @@ extern int blk_size[];
 
 static unsigned short current_minor;
 
+int chrdev_open(struct inode *, struct file *);
+
 static void INITPROC print_minor_name(register struct gendisk *hd,
 			     unsigned short int minor)
 {
