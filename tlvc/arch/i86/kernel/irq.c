@@ -120,13 +120,22 @@ int free_irq(int irq)
  */
 void INITPROC irq_init(void)
 {
-    /* use INT 0x80h for system calls */
-    int_handler_add(IDX_SYSCALL, 0x80, _irqit);
+    int_handler_add(IDX_SYSCALL, 0x80, _irqit); /* INT 80 for system calls */
 
-#ifdef CONFIG_ARCH_IBMPC
-    /* catch INT 0x00h divide by zero trap */
-    irq_action[IDX_DIVZERO] = div0_handler;
+#if defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_PC98) || \
+    defined(CONFIG_ARCH_SOLO86) || defined(CONFIG_ARCH_SWAN) || \
+    defined(CONFIG_ARCH_NECV25)
+
+    irq_action[IDX_DIVZERO] = div0_handler;     /* INT 0 divide by 0/divide overflow */
     int_handler_add(IDX_DIVZERO, 0x00, _irqit);
+
+    irq_action[IDX_NMI] = nmi_handler;          /* INT 2 non-maskable interrupt */
+    int_handler_add(IDX_NMI, 0x02, _irqit);
+#endif
+
+#if defined(CONFIG_ARCH_NECV25)
+    irq_action[IDX_NECV25_IBRK] = ibrk_handler;     /* INT 0x13 IO Break  */
+    int_handler_add(IDX_NECV25_IBRK, 0x13, _irqit);
 #endif
 
 #if defined(CONFIG_TIMER_INT0F) || defined(CONFIG_TIMER_INT1C)
@@ -138,9 +147,7 @@ void INITPROC irq_init(void)
     /* Also map BIOS INT 1C user timer callout to INT 0Fh */
     unsigned long __far *vec1C = _MK_FP(0, 0x1C << 2);  /* BIOS user timer callout */
     unsigned long __far *vec0F = _MK_FP(0, 0x0F << 2);  /* IRQ 7 vector (INT 0Fh) */
-    clr_irq();
     *vec1C = *vec0F;            /* point INT 1C to INT 0F vector */
-    set_irq();
 #endif
 
 #else /* normal IRQ 0 timer */
