@@ -139,4 +139,27 @@
  * the low four bits control software flow control
  */
 
+/* Flow control buffer markers for flow control -
+ * queue sizes set in ntty.h */
+#define RS_IALLMOSTFULL		(RSINQ_SIZE*3/4)
+#define RS_IALLMOSTEMPTY	(RSINQ_SIZE/4)
+
+#define XON_CHAR	17	/* ASCII DC1 (^Q) */
+#define XOFF_CHAR	19	/* ASCII DC3 (^S) */
+
+/* serial flags - not to be confused with tty flags! */
+/* some of the flags duplicate settings in termios 
+ * for easy/cheap access from asm code in serfast.S */
+#define SERF_TYPE	0x0F
+#define SERF_EXIST	0x10
+#define SERF_IXON_S	0x20    /* We have sent XOFF */
+#define SERF_IXON	0x40    /* IXON set in termios */
+#define SERF_RTSCTS	0x80    /* XRTSCTS set in termios */ 
+#define SERF_CTSCHG	0x100   /* CTS has changed */
+#define SERF_IXOFF	0x200   /* IXOFF set in termios */
+#define SERF_IXOFF_S	0x400   /* XOFF received, output stopped */
+#define SERF_IXOFFCHG	0x800   /* XOFF status change detect */
+#define SERF_CTS_S	0x1000	/* CTS is low, no output */
+
+
 #endif
