@@ -1,7 +1,7 @@
 #ifndef __ARCH_8086_TYPES_H
 #define __ARCH_8086_TYPES_H
 
-/* Basic ELKS data types. */
+/* Basic TLVC/ELKS data types. */
 
 /* First we define all of the __u and __s types...*/
 
@@ -12,6 +12,7 @@ typedef signed short int        __s16;
 typedef unsigned long int       __u32;
 typedef signed long int         __s32;
 
+#if defined(__KERNEL__) || defined(__LIBC__)
 /* 8086 types */
 typedef __u8                    byte_t;
 typedef __u16                   word_t;
@@ -24,18 +25,12 @@ typedef __u16                   flag_t;     /* CPU flag word */
 
 typedef __u32                   addr_t;     /* linear 32-bit address */
 
-#if defined(__KERNEL__) || defined(__LIBC__)
 /* Then we define registers, etc... */
 
 /* ordering of saved registers on kernel stack after syscall/interrupt entry*/
 struct pt_regs {
     /* SI offset                 0   2        4   6   8  10  12*/
     __u16       ax, bx, cx, dx, di, si, orig_ax, es, ds, sp, ss;
-};
-
-struct xregs {
-    __u16       cs;     /* code segment to use in arch_setup_user_stack()*/
-    __u16       ksp;    /* saved kernel SP used by twsitch()*/
 };
 
 /* ordering of saved registers on user stack after interrupt entry*/
@@ -55,8 +50,7 @@ struct uregs {
  */
 
 /* <stddef.h> */
-typedef unsigned    size_t;
-#undef offsetof			/* get rids of compiler warnings */
+typedef unsigned int    size_t;
 #define offsetof(__typ,__id) ((size_t)((char *)&(((__typ*)0)->__id) - (char *)0))
 
 /* <sys/types.h> */
@@ -77,6 +71,17 @@ typedef unsigned long   uintptr_t;
 typedef int             intptr_t;
 typedef unsigned int    uintptr_t;
 #endif
+#endif
+
+#ifdef __C86__
+ #ifndef _INTPTR_T_DEFINED
+ #define _INTPTR_T_DEFINED
+   typedef int             intptr_t;
+ #endif
+#ifndef _UINTPTR_T_DEFINED
+ #define _UINTPTR_T_DEFINED
+   typedef unsigned int    uintptr_t;
+ #endif
 #endif
 
 #endif

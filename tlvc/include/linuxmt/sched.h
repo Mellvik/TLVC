@@ -31,15 +31,10 @@ struct signal_struct {
 #define SEG_CODE        0
 #define SEG_DATA        1
 
+/* ordering this struct saves kernel code space using byte offsets for freq accesses */
 struct task_struct {
-
-/* Executive stuff */
-    struct xregs                t_xregs;    /* CS and kernel SP */
-    segoff_t                    t_enddata;  /* start of heap = end of data+bss */
-    segoff_t                    t_endbrk;   /* current break (end of heap) */
-    segoff_t                    t_begstack; /* start SP, argc/argv strings above */
-    segoff_t                    t_endseg;   /* end of data seg (data+bss+heap+stack) */
-    segoff_t                    t_minstack; /* min stack size */
+    unsigned char               state;
+    unsigned char               ticks;          /* CONFIG_CPU_USAGE counts 2 secs */
 
 /* Kernel info */
     pid_t                       pid;
@@ -54,27 +49,32 @@ struct task_struct {
     gid_t                       sgid;
 
 /* Scheduling + status variables */
-    unsigned char               state;
-    struct wait_queue           child_wait;
-    jiff_t                      timeout;        /* for select() */
-    struct wait_queue           *waitpt;        /* Wait pointer */
-    struct wait_queue           *poll[MAX_POLLFD]; /* polled queues */
     struct task_struct          *next_run;
     struct task_struct          *prev_run;
-    struct file_struct          files;          /* File system structure */
-    struct fs_struct            fs;             /* File roots */
-    struct segment              *mm[MAX_SEGS];  /* App code/data segments */
-    struct tty                  *tty;
     struct task_struct          *p_parent;
-    int                         exit_status;    /* process exit status*/
-    struct inode                *t_inode;
+    struct tty                  *tty;
     sigset_t                    signal;         /* Signal status */
-    struct signal_struct        sig;            /* Signal block */
+    jiff_t                      timeout;        /* for select() */
+    int                         exit_status;    /* Stopped or exit status */
+    struct inode                *t_inode;
+    struct fs_struct            fs;             /* File roots */
+    struct wait_queue           *waitpt;        /* Wait pointer */
+    struct wait_queue           *poll[MAX_POLLFD]; /* select() poll queues */
+    struct segment              *mm[MAX_SEGS];  /* App code/data segments */
+    struct file_struct          files;          /* Open files */
+    struct signal_struct        sig;            /* Signal actions */
+    struct wait_queue           child_wait;     /* Wait for stopped/zombie status */
 
-#ifdef CONFIG_CPU_USAGE
+/* Executive stuff */
+    segoff_t                    t_ksp;          /* kernel SP used by tswitch */
+    segoff_t                    t_enddata;      /* start of heap = end of data+bss */
+    segoff_t                    t_endbrk;       /* current break (end of heap) */
+    segoff_t                    t_begstack;     /* start SP, argc/argv strings above */
+    segoff_t                    t_endseg;       /* end of dataseg (data+bss+heap+stack) */
+    segoff_t                    t_minstack;     /* min stack size */
+
+/* Other */
     unsigned long               average;        /* fixed point CPU % usage */
-    unsigned char               ticks;          /* # jiffies / 2 seconds */
-#endif
 
 #ifdef CONFIG_SUPPLEMENTARY_GROUPS
 #define NGROUPS     13
@@ -97,7 +97,7 @@ struct task_struct {
 #define TASK_RUNNING            0
 #define TASK_INTERRUPTIBLE      1
 #define TASK_UNINTERRUPTIBLE    2
-#define TASK_WAITING            3
+#define TASK_WAITING            3               /* unused */
 #define TASK_STOPPED            4
 #define TASK_ZOMBIE             5
 #define TASK_EXITING            6
@@ -107,14 +107,18 @@ struct task_struct {
 //#define DEPRECATED    __attribute__ ((deprecated))
 
 extern struct task_struct *task;
+extern struct task_struct *idle_task;
 extern struct task_struct *current;
 extern struct task_struct *next_task_slot;
 extern int max_tasks;
 extern int task_slots_unused;
 
+/* size of task struct up to stack area */
+#define TASK_KSTACK         (offsetof(struct task_struct, t_kstack))
+
 extern volatile jiff_t jiffies; /* ticks updated by the timer interrupt*/
 extern pid_t last_pid;
-extern int _gint_count;
+extern int intr_count;
 
 extern struct timeval xtime;
 extern jiff_t xtime_jiffies;
@@ -168,11 +172,10 @@ extern unsigned int get_ustack(struct task_struct *,int);
 extern void put_ustack(register struct task_struct *,int,int);
 
 extern void tswitch(void);
-extern void setsp(void *);
+extern short *getsp(void);
 extern int run_init_process(const char *cmd);
 extern int run_init_process_sptr(const char *cmd, char *sptr, int slen);
 extern void ret_from_syscall(void);
-extern void check_stack(void);
 
 void select_wait(struct wait_queue *);
 int select_poll(struct task_struct *, struct wait_queue *);

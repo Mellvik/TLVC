@@ -4,7 +4,7 @@
 /* tunable parameters - changing these can have a large effect on kernel data size */
 
 /* kernel */
-#define MAX_TASKS       16      /* Max # processes */
+#define MAX_TASKS       16      /* Default max # processes, may be changed in bootopts */
 
 #ifdef CONFIG_ARCH_PC98
 #define KSTACK_BYTES    740     /* Size of kernel stacks for PC-98 */
@@ -12,8 +12,8 @@
 #define KSTACK_BYTES    640     /* Size of kernel stacks w/sync I/O */
 #endif
 
-#define ISTACK_BYTES    512     /* Size of interrupt stack */
-
+#define INTRSTACK_BYTES	512	/* Size of interrupt stack */
+#define IDLESTACK_BYTES 160	/* Size of idle task stack, min 128 */
 #define KSTACK_GUARD    100     /* bytes before CHECK_KSTACK overflow warning */
 
 #define MAX_POLLFD      6       /* Maximum number of polled filedescs per process */
@@ -28,6 +28,7 @@
 /* filesystem */
 #define NR_INODE        96      /* this should be bigger than NR_FILE */
 #define NR_FILE         64      /* this can well be larger on a larger system */
+#define NR_OPEN		20	/* Max open files per process, was in fs.h */
 #define NR_SUPER        6       /* max mounts */
 
 #define PIPE_BUFSIZ     80      /* doesn't have to be power of two */

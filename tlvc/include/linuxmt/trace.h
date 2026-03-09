@@ -45,8 +45,10 @@
 #ifndef __ASSEMBLER__
 extern int tracing;
 
-extern void trace_begin(void);
-extern void trace_end(unsigned int retval);
+void trace_begin(void);
+void trace_end(unsigned int retval);
+void check_ustack(void);
+void check_istack(void);
 #endif
 
 #endif /* __LINUXMT_TRACE_H */

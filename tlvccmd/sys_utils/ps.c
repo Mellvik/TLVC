@@ -184,7 +184,6 @@ int main(int argc, char **argv)
 	}
 
     if (f_uptime) {
-#ifdef CONFIG_CPU_USAGE
         jiff_t uptime;
         unsigned int upoff;
 
@@ -203,9 +202,6 @@ int main(int argc, char **argv)
 
         printf("up for %d days, %d hour%s, and %d minute%s\n",
             days, hours, hours == 1? "": "s", minutes, minutes == 1? "": "s");
-#else
-	printf("uptime: CONFIG_CPU_USAGE not enabled in config.\n");
-#endif
         return 0;
     }
 
@@ -215,13 +211,11 @@ int main(int argc, char **argv)
 	}
 
 	printf("  PID  PPID  PGRP  TTY USER STAT ");
-#ifdef CONFIG_CPU_USAGE
-	printf("CPU");
-#endif
+	printf(f_listall? "TSK": "CPU");
 	printf(" ");
 	if (f_listall) printf("CSEG DSEG ");
 	printf(" HEAP  FREE   SIZE COMMAND\n");
-	for (j = 1; j < MAX_TASKS; j++) {	/* Skipping the null task */
+	for (j = 0; j < MAX_TASKS; j++) {
 		if (!memread(fd, off + j*sizeof(struct task_struct), ds, &task_table, sizeof(task_table))) {
 			printf("ps: memread\n");
 			return 1;
@@ -253,16 +247,15 @@ int main(int argc, char **argv)
 				task_table.ppid,
 				task_table.pgrp,
 				tty_name(fd, (unsigned int)task_table.tty, ds),
-				(pwent ? pwent->pw_name : "unknown"),
-				c);
+				(pwent ? pwent->pw_name : "unknown"), c);
 
-#ifdef CONFIG_CPU_USAGE
-        {
-            /* Round up, then divide by 2 for %. Change if SAMP_FREQ not 2 */
-            unsigned long cpu_percent = (task_table.average + FIXED_HALF) >> 1;
-            printf("%3d", FIXED_INT(cpu_percent));
-        }
-#endif
+		if (f_listall)
+			printf("%3d ", j);
+		else {
+		    /* Round up, then divide by 2 for %. Change if SAMP_FREQ not 2 */
+		    unsigned long cpu_percent = (task_table.average + FIXED_HALF) >> 1;
+		    printf("%3d", FIXED_INT(cpu_percent));
+		}
 		/* CSEG*/
 		cseg = (word_t)task_table.mm[SEG_CODE];
 		if (f_listall) printf(" %4x ",

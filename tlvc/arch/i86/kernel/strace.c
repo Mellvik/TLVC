@@ -9,6 +9,30 @@
  * Kernel tracing functions for consistency checking and debugging support
  */
 
+/*
+ * Check that user SP is within proper range, called before every syscall.
+ */
+void check_ustack(void)
+{
+    segoff_t sp = current->t_regs.sp;
+    segoff_t brk = current->t_endbrk;
+    segoff_t stacklow = current->t_begstack - current->t_minstack;
+
+    if (sp < brk) {
+        printk("(%P)STACK OVERFLOW by %u\n", brk - sp);
+        printk("CURBREAK %x, SP %x\n", brk, sp);
+        do_exit(SIGSEGV);
+    }
+    if (sp < stacklow) {
+        /* notification only, allow process to continue */
+        printk("(%P)STACK USING %u UNUSED HEAP\n", stacklow - sp);
+    }
+    if (sp > current->t_begstack) {
+        printk("(%P)STACK UNDERFLOW: SP %x BEGSTACK %x\n", sp, current->t_begstack);
+        do_exit(SIGSEGV);
+    }
+}
+
 #ifdef CONFIG_TRACE
 
 /* The table describing the system calls has been moved to a separate
@@ -103,11 +127,11 @@ static void check_kstack(int n)
     extern __u16 endistack[];
 
     /* calc interrupt stack usage */
-    for (i=0; i<ISTACK_BYTES/2; i++) {
+    for (i=0; i<INTRSTACK_BYTES/2; i++) {
         if (endistack[i] != 0)
             break;
     }
-    i = (ISTACK_BYTES/2 - i) << 1;
+    i = (INTRSTACK_BYTES/2 - i) << 1;
     if (i > maxistack) {
         maxistack = i;
         printk("ISTACK NEW MAX %d\n", maxistack);
