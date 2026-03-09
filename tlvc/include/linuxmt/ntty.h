@@ -5,15 +5,15 @@
  * 'ntty.h' defines some structures used by ntty.c and some defines.
  */
 
-/* NOTE: queue sizes no longer required to be power of two*/
-#define INQ_SIZE	80	/* tty input queue size*/
-#define OUTQ_SIZE	80	/* tty output queue size*/
+#define INQ_SIZE	80	/* console tty input queue size */
+#define OUTQ_SIZE	80	/* console tty output queue size */
 
-#define PTYINQ_SIZE	80	/* pty input queue size*/
-#define PTYOUTQ_SIZE	512	/* pty output queue size (=TDB_WRITE_MAX and telnetd buffer)*/
+#define PTYINQ_SIZE	80	/* pty input queue size */
+#define PTYOUTQ_SIZE	512	/* pty output queue size (=TDB_WRITE_MAX and telnetd buffer) */
 
-#define RSINQ_SIZE	1024	/* serial input queue SLIP_MTU+128+8*/
-#define RSOUTQ_SIZE	80	/* serial output queue size*/
+/* For speed, the serial buffers must be sized in power of two steps */
+#define RSINQ_SIZE	1024	/* serial input queue, covers SLIP_MTU+128+8 */
+#define RSOUTQ_SIZE	128	/* serial output queue size */
 
 /*
  * Note: don't mess with NR_PTYS until you understand the tty minor
@@ -55,6 +55,7 @@
 #define DCSET_KRAW	(('D'<<8)+0x03)
 #define DCREL_KRAW	(('D'<<8)+0x04)
 
+#ifndef __ASSEMBLER__
 #ifdef __KERNEL__
 
 #include <linuxmt/types.h>
@@ -121,5 +122,6 @@ extern unsigned VideoSeg;
 #define TTY_OPEN	2
 
 #endif
+#endif	/* __ASSEMBLER__ */
 
 #endif

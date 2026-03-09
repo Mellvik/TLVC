@@ -20,21 +20,33 @@
 #include <arch/serial-8250.h>
 #include <arch/ports.h>
 
+/* Experimental flow control */
+#define XON	 '\021'
+#define XOFF	 '\023'
+#define SOFT_FLOWCONTROL
+#define RTS_FLOWCONTROL
+
 struct serial_info {		/* NOTE: first three members used in fastser.S driver */
     struct tty	  *tty;		/* 0 */
     int		  intrchar;	/* 2 ^C SIGINT processing */
     unsigned int  io;		/* 4 */
+    unsigned int  flags;
+    unsigned int  divisor;
     unsigned char irq;
-    unsigned char flags;
     unsigned char lcr;
     unsigned char mcr;
-    unsigned int  divisor;
-    int pad1, pad2;		/* round out to 16 bytes for faster addressing of ports[] */
+    char pad1;
+    int  pad2;			/* round out to 16 bytes for faster addressing of ports[] */
 };
 
-/* flags */
-#define SERF_TYPE       15
-#define SERF_EXIST      16
+/* serial flags - not to be confused with tty flags! */
+#define SERF_TYPE       0x0F
+#define SERF_EXIST      0x10
+#define SERF_USE_RTS	0x20
+#define SERF_XONOFF	0x40	/* XON/XOFF active in termios */
+#define	SERF_RTSCTS	0x80	/* XRTSCTS active in termios */
+#define SERF_XOFF	0x100	/* XOFF has been sent */
+#define SERF_XCHG	0x200	/* Change XON/XOFF state */
 
 /* chip types */
 #define ST_8250         0
@@ -42,22 +54,22 @@ struct serial_info {		/* NOTE: first three members used in fastser.S driver */
 #define ST_16550        2
 #define ST_16550A       3
 #define ST_16750        4
-#define ST_UNKNOWN      15
+#define ST_UNKNOWN      8
 
 /* I/O delay settings*/
 #define INB             inb     // use inb_p for 1us delay
 #define OUTB            outb    // use outb_p for 1us delay
 
-#define DEFAULT_LCR             UART_LCR_WLEN8
+#define DEFAULT_LCR	UART_LCR_WLEN8	// Line Control Reg, data format
 
 #define DEFAULT_MCR             \
         ((unsigned char) (UART_MCR_DTR | UART_MCR_RTS | UART_MCR_OUT2))
 
 struct serial_info ports[MAX_SERIAL] = {
-    {NULL, 0, COM1_PORT, COM1_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, 0,0},
-    {NULL, 0, COM2_PORT, COM2_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, 0,0},
-    {NULL, 0, COM3_PORT, COM3_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, 0,0},
-    {NULL, 0, COM4_PORT, COM4_IRQ, 0, DEFAULT_LCR, DEFAULT_MCR, 0, 0,0},
+    {NULL, 0, COM1_PORT, 0, 0, COM1_IRQ, DEFAULT_LCR, DEFAULT_MCR, 0, 0},
+    {NULL, 0, COM2_PORT, 0, 0, COM2_IRQ, DEFAULT_LCR, DEFAULT_MCR, 0, 0},
+    {NULL, 0, COM3_PORT, 0, 0, COM3_IRQ, DEFAULT_LCR, DEFAULT_MCR, 0, 0},
+    {NULL, 0, COM4_PORT, 0, 0, COM4_IRQ, DEFAULT_LCR, DEFAULT_MCR, 0, 0},
 };
 
 static unsigned int divisors[] = {
@@ -159,17 +171,26 @@ static int INITPROC rs_probe(register struct serial_info *sp)
 
 static void update_port(register struct serial_info *port)
 {
-    unsigned int cflags;        /* use smaller 16-bit width to save code*/
+    unsigned int cflags, cf;	/* use smaller 16-bit width to save code*/
     unsigned divisor;
     flag_t flags;
 
     /* set baud rate divisor, first lower, then higher byte */
-    cflags = port->tty->termios.c_cflag & CBAUD;
+    cf = port->tty->termios.c_cflag;	/* NOTE: CRTSCTS must be in the lower 16 bits! */
+    cflags = cf & CBAUD;
     if (cflags & CBAUDEX)
         cflags = B38400 + (cflags & 03);
     divisor = divisors[cflags];
 
     //FIXME: update lcr parity and data width from termios values
+
+    if (!!(cf&CRTSCTS) != !!(port->flags&SERF_RTSCTS)) 
+	port->flags ^= SERF_RTSCTS;
+    if (!!((unsigned int)port->tty->termios.c_iflag&IXON) != !!(port->flags&SERF_XONOFF))
+	port->flags ^= SERF_XONOFF;
+    /* TODO: Support IXOFF, right now SERF_XONOFF means soft flowcontrol both ways */
+    /*	     IXANY is not supported (yet) */
+
 
     /* update divisor only if changed, since we have not TCSETW*/
     if (divisor != port->divisor) {
@@ -262,6 +283,8 @@ void fast_com_irq(void)
 #endif 	/* UNUSED */
 
 /* check for SIGINT and wakeup waiting processes */
+/* Also handle flow control */
+/* TODO: Fix direct port writes (XON/XOFF) when doing output interrupts */
 static void pump_port(struct serial_info *sp)
 {
     struct tty *ttyp = sp->tty;
@@ -270,6 +293,9 @@ static void pump_port(struct serial_info *sp)
     if (q->len) {
         if (sp->intrchar) {
             tty_intcheck(ttyp, sp->intrchar);
+	    if (sp->intrchar == 3) { 		/*EXPERIMENTAL*/
+		q->len = q->head = q->tail = 0;	/* flush input buffer */
+	    }
             sp->intrchar = 0;
         }
         if (q->len == 1) {
@@ -279,8 +305,42 @@ static void pump_port(struct serial_info *sp)
                 return;
             }
         }
+#ifdef RTS_FLOWCONTROL
+	else if (sp->flags&SERF_RTSCTS && q->len >= RS_IALLMOSTFULL && sp->mcr&UART_MCR_RTS) {
+	    sp->mcr &= ~UART_MCR_RTS;	/* Clear RTS, stop data flow */
+	    OUTB(sp->mcr, sp->io + UART_MCR);
+	}
+#endif
+#ifdef SOFT_FLOWCONTROL
+	else if (sp->flags&SERF_XONOFF && q->len >= RS_IALLMOSTFULL && !(sp->flags&SERF_XOFF)) {
+	    while (!(INB(sp->io + UART_LSR) & UART_LSR_THRE))
+		;
+	    outb(XOFF, sp->io + UART_TX);
+	    sp->flags |= SERF_XOFF;
+	    //sp->flags |= SERF_XCHG;
+	    //kputchar('C');
+	}
+#endif
         wake_up(&q->wait);
     }
+#ifdef RTS_FLOWCONTROL
+    if (sp->flags&SERF_RTSCTS && q->len <= RS_IALLMOSTEMPTY && !(sp->mcr&UART_MCR_RTS)) {
+	sp->mcr |= UART_MCR_RTS;	/* Restore RTS */
+	OUTB(sp->mcr, sp->io + UART_MCR);
+	//kputchar('s');
+    }
+#endif
+#ifdef SOFT_FLOWCONTROL
+    if (sp->flags&SERF_XONOFF && q->len <= RS_IALLMOSTEMPTY && sp->flags&SERF_XOFF) {
+	    sp->flags &= ~SERF_XOFF;
+	    //sp->flags |= SERF_XCHG;	/* tell the low level to send XON */
+	    //PUT XON into the output queue
+	    //kputchar('S');
+	    while (!(INB(sp->io + UART_LSR) & UART_LSR_THRE))
+		;
+	    outb(XON, sp->io + UART_TX);
+    }
+#endif
 }
 
 /* serial interrupt bottom half - check ring buffer and wakeup waiting processes */
@@ -345,7 +405,6 @@ errout:
     }
 
     port->intrchar = 0;
-    //irq_to_port[port->irq] = n;       /* Map irq to this tty #, slow handler only */
 
     /* clear RX buffer */
     INB(port->io + UART_LSR);
@@ -368,6 +427,8 @@ errout:
     /* enable receiver data interrupt*/
     OUTB(UART_IER_RDI, port->io + UART_IER);
 
+    /* set DTR and RST - as a courtesy */
+    port->mcr |= UART_MCR_DTR|UART_MCR_RTS;
     OUTB(port->mcr, port->io + UART_MCR);
 
     /* clear Line/Modem Status, Intr ID and RX register */
@@ -419,9 +480,9 @@ static int rs_ioctl(struct tty *tty, int cmd, char *arg)
     case TCSETS:
     case TCSETSW:
     case TCSETSF:
-        /* verified_memcpy*fs() already called by ntty.c ioctl handler*/
-        //FIXME: update_port() only sets baud rate from termios, not parity or wordlen*/
-        update_port(port);      /* ignored return value*/
+        /* verified_memcpy*fs() already called by ntty.c ioctl handler */
+        //FIXME: update_port() only sets baud rate from termios, not parity or wordlen */
+        update_port(port);      /* ignored return value */
         break;
 #ifdef UNUSED
     case TIOCSSERIAL:

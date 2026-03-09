@@ -241,6 +241,7 @@ int flags;
 	print_flags(c_cflag, (unsigned long)CSTOPB, (unsigned long)TCTRL_DEF, "-cstopb", all);
 	print_flags(c_cflag, (unsigned long)CREAD, (unsigned long)TCTRL_DEF, "-cread", all);
 	print_flags(c_cflag, (unsigned long)CLOCAL, (unsigned long)TCTRL_DEF, "-clocal", all);
+	print_flags(c_cflag, (unsigned long)CRTSCTS, (unsigned long)TCTRL_DEF, "-crtscts", all);
 
 	if (all)
 	{
@@ -445,6 +446,14 @@ char *opt, *next;
   }
   if (match(opt, "-parodd")) {
 	termios.c_cflag &= ~PARODD;
+	return 0;
+  }
+  if (match(opt, "crtscts")) {
+	termios.c_cflag |= CRTSCTS;
+	return 0;
+  }
+  if (match(opt, "-crtscts")) {
+	termios.c_cflag &= ~CRTSCTS;
 	return 0;
   }
 

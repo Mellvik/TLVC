@@ -225,7 +225,8 @@ struct termios {
 #define  B115200 0010002
 #define  B230400 0010003
 #define CIBAUD	  002003600000	/* input baud rate (not used) */
-#define CRTSCTS	  020000000000	/* flow control */
+//#define CRTSCTS	  020000000000	/* flow control */
+#define CRTSCTS	  0100000	/* flow control, chgd HS 02/26 */
 
 /*@-namechecks@*/
 

@@ -82,7 +82,7 @@ more_data:
         mov     (%si),%ax               // ax = q->len
         cmp     0x2(%si),%ax            // if (ax >= q->size)
         mov	%dl,%ah			// ah = c (save)
-        jge     chk_fifo		// don't save if queue full
+        jge     overflow		// don't save if queue full
         mov     0x4(%si),%bx            // bx = q->head
         mov     0x8(%si),%di            // di = q->base
         mov     %dl,(%bx,%di)           // q->base[q->head] = c
@@ -92,16 +92,14 @@ more_data:
         jl      1f
         movw    $0x0,0x4(%si)           // q->head = 0
 1:	incw    (%si)			// ++q->len
-chk_fifo:
-#ifdef CONFIG_HW_SERIAL_FIFO
+overflow:
 	mov	%es,%dx
 	add	$5,%dx			// get line status (LSR)
 	in	%dx,%al
 	test	$1,%al			// more data in fifo?
 	jnz	more_data
-#endif
-2:
-	cmp     $0x3,%ah                // if (c == 03)
+
+	cmp     $0x3,%ah                // if (c == 03) ^C
 	jne     3f
         mov     %cx,%bx                 // bx = sp
         movw    $0x3,2(%bx)             // sp->intrchar = c
