@@ -29,6 +29,7 @@
 
 #include <arch/io.h>
 #include <arch/segment.h>
+#include <arch/irq.h>
 
 #define DEV_MEM_MINOR		1
 #define DEV_KMEM_MINOR		2
@@ -270,17 +271,18 @@ int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
     case MEM_GETHEAP:
 	retword = (unsigned)&_heap_all;
 	break;
+    case MEM_GETUPTIME:
     case MEM_GETJIFFADDR:
 	retword = (unsigned)&jiffies;
 	break;
+    case MEM_GETJIFFIES:
+	{    unsigned long ret = (unsigned long)jiffies();
+	     put_user_long(ret, arg);
+	     return 0;
+	}
     case MEM_GETSEGALL:
         retword = (unsigned)&_seg_all;
         break;
-    case MEM_GETUPTIME:
-#ifdef CONFIG_CPU_USAGE
-	retword = (unsigned)&uptime;
-	break;
-#endif
     default:
 	return -EINVAL;
     }
