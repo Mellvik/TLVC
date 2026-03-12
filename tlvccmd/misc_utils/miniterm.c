@@ -223,10 +223,11 @@ static void set_normal(int fd)
  * \param device Device path
  * \param baudrate Baud rate
  * \param rtscts RTS/CTS hardware flowcontrol flag
+ * \param xonxoff Activate XON/XOFF flow control
  * \param old Pointer to termios structure for storing previous settings (may be \c NULL)
  * \return File descriptor
  */
-static int serial_open(const char *device, speed_t baudrate, bool rtscts, struct termios *old)
+static int serial_open(const char *device, speed_t baudrate, bool rtscts, bool xonxoff, struct termios *old)
 {
 	struct termios new;
 	int fd;
@@ -272,6 +273,8 @@ static int serial_open(const char *device, speed_t baudrate, bool rtscts, struct
 #endif
 	}
 
+	if (rtscts && xonxoff)
+		fprintf(stderr, "Warning: Using rtscts and xonxoff concurrently may not work well\n");
 	new.c_cflag = b | CS8 | CREAD;
 
 	if (rtscts)
@@ -280,6 +283,8 @@ static int serial_open(const char *device, speed_t baudrate, bool rtscts, struct
 		new.c_cflag |= CLOCAL;
 
 	new.c_iflag = IGNPAR;
+	if (xonxoff)
+		new.c_iflag |= (IXON|IXOFF);
 	new.c_oflag = 0;
 	new.c_lflag = 0;
 	new.c_cc[VMIN] = 1;
@@ -326,6 +331,7 @@ static void usage(const char *argv0)
 		"  -d          enable DTR (default: disable)\n"
 		"  -R          enable RTS when flow control disabled (default: disable)\n"
 		"  -l          add LF to every CR received (default: disable)\n"
+		"  -X          enable XON/XOFF flow control, don't use with -r\n"
 		"  -x          print received data in hex (read-only)\n"
 		"  -S          print received data as SLIP packets (read-only)\n"
 		"  -h          print this message\n"
@@ -368,12 +374,12 @@ int main(int argc, char **argv)
 	speed_t baudrate = 9600;
 	enum terminal_mode mode = MODE_TEXT;
 	bool escape = false, rtscts = false;
-	bool add_lf = false;
+	bool add_lf = false, xonxoff = false;
 	const char *device = "/dev/ttyS0";
 	bool no_reset = false;
-	/*bool enable_rts = false, enable_dtr = false;*/
+	bool enable_rts = false, enable_dtr = false;
 
-	while ((ch = getopt(argc, argv, "s:SrdRlxh")) != -1) {
+	while ((ch = getopt(argc, argv, "s:SrdRlxXh")) != -1) {
 		switch (ch) {
 			case 's':
 				baudrate = atol(optarg);
@@ -381,7 +387,7 @@ int main(int argc, char **argv)
 			case 'r':
 				rtscts = true;
 				break;
-#if later
+#if 1
 			case 'd':
 				enable_dtr = true;
 				break;
@@ -391,6 +397,9 @@ int main(int argc, char **argv)
 #endif
 			case 'l':
 				add_lf = true;
+				break;
+			case 'X':
+				xonxoff = true;
 				break;
 			case 'x':
 				mode = MODE_HEX;
@@ -418,12 +427,12 @@ int main(int argc, char **argv)
 	signal(SIGUSR1, sigusr1);
 	signal(SIGUSR2, sigusr2);
 
-	if ((fd = serial_open(device, baudrate, rtscts, &serial_termio)) == -1) {
+	if ((fd = serial_open(device, baudrate, rtscts, xonxoff, &serial_termio)) == -1) {
 		perror(device);
 		exit(1);
 	}
 
-#if later
+#if 1
 	int flags;
 	if (ioctl(fd, TIOCMGET, &flags) == -1) {
 		perror(device);
@@ -448,7 +457,7 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	usage(argv[0]);
+	//usage(argv[0]);
 	fprintf(stderr, "Connected to %s at %lubps. Press '%c%c' to exit, '%c%c' for help.\n\n",
 		device, (unsigned long)baudrate, ESCAPE_CHARACTER, EXIT_CHARACTER,
 		ESCAPE_CHARACTER, HELP_CHARACTER);
@@ -500,7 +509,7 @@ int main(int argc, char **argv)
 
 		if (!suspend && fd == -1) {
 			printf("\r\nResuming...\r\n");
-			fd = serial_open(device, baudrate, rtscts, &serial_termio);
+			fd = serial_open(device, baudrate, rtscts, xonxoff, &serial_termio);
 			if (fd == -1) {
 				perror(device);
 				set_normal(0);
