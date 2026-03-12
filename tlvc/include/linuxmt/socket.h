@@ -1,9 +1,7 @@
 #ifndef __LINUXMT_SOCKET_H
 #define __LINUXMT_SOCKET_H
 
-#include <stddef.h>
 #include <linuxmt/types.h>
-#include <linuxmt/uio.h>
 
 #define MAX_SOCK_ADDR 110  /* Sufficient size for AF_UNIX */
 
@@ -28,23 +26,11 @@ struct linger {
         int             l_linger;       /* How long to linger for       */
 };
 
-struct msghdr {
-    void *		msg_name;
-    int 		msg_namelen;
-    struct iovec *	msg_iov;
-    int 		msg_iovlen;
-    void *		msg_control;
-    int 		msg_controllen;
-    int 		msg_flags;
-};
-
 #define AF_INET	0		/* Only implemented type */
 #define AF_UNIX	1
-#define AF_NANO	2
 
 #define PF_INET	AF_INET
 #define PF_UNIX	AF_UNIX
-#define PF_NANO	AF_NANO
 
 #define SOCK_STREAM     1	/* stream (connection) socket   */
 #define SOCK_DGRAM      2	/* datagram (conn.less) socket  */

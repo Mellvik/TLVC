@@ -33,9 +33,6 @@
  * from the compile-time kernel rather than querying the current kernel.
  * These are all works in progress.
  */
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,9 +44,9 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <paths.h>
-#include <linuxmt/mem.h>	/* /dev/mem */
-#include <linuxmt/memory.h>	/* _MK_FP */
 #include <sys/ioctl.h>		/* for jiffies */
+#include <sys/stat.h>
+#include <linuxmt/mem.h>	/* /dev/mem */
 
 #define DEBUG		0	/* set =1 for debug messages*/
 #define CONSOLE		_PATH_CONSOLE
@@ -60,6 +57,8 @@
 #else
 #define debug(...)
 #endif
+
+#define _MK_FP(seg,off) ((void __far *)((((unsigned long)(seg)) << 16) | ((unsigned int)(off))))
 
 char	*progname;
 char	Buffer[64];

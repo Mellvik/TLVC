@@ -172,7 +172,7 @@ int sys_utime(char *filename, register struct utimbuf *times)
  * We do this by temporarily setting fsuid/fsgid to the wanted values
  */
 
-int sys_access(char *filename, int mode)
+int sys_access(char *filename, mode_t mode)
 {
     struct inode *inode;
     uid_t old_euid;
