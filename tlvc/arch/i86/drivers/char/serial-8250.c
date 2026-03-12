@@ -20,17 +20,11 @@
 #include <arch/serial-8250.h>
 #include <arch/ports.h>
 
-/* Experimental flow control */
-#define XON	 '\021'
-#define XOFF	 '\023'
-#define SOFT_FLOWCONTROL
-#define RTS_FLOWCONTROL
-
 struct serial_info {		/* NOTE: first three members used in fastser.S driver */
     struct tty	  *tty;		/* 0 */
     int		  intrchar;	/* 2 ^C SIGINT processing */
     unsigned int  io;		/* 4 */
-    unsigned int  flags;
+    unsigned int  flags;	/* 6 - see serial-8250.h for values */
     unsigned int  divisor;
     unsigned char irq;
     unsigned char lcr;
@@ -38,15 +32,6 @@ struct serial_info {		/* NOTE: first three members used in fastser.S driver */
     char pad1;
     int  pad2;			/* round out to 16 bytes for faster addressing of ports[] */
 };
-
-/* serial flags - not to be confused with tty flags! */
-#define SERF_TYPE       0x0F
-#define SERF_EXIST      0x10
-#define SERF_USE_RTS	0x20
-#define SERF_XONOFF	0x40	/* XON/XOFF active in termios */
-#define	SERF_RTSCTS	0x80	/* XRTSCTS active in termios */
-#define SERF_XOFF	0x100	/* XOFF has been sent */
-#define SERF_XCHG	0x200	/* Change XON/XOFF state */
 
 /* chip types */
 #define ST_8250         0
@@ -94,10 +79,6 @@ static unsigned int divisors[] = {
     0                           /*  0 = B230400 */
 };
 
-/* Flow control buffer markers - for flow control */
-#define RS_IALLMOSTFULL         (3 * INQ_SIZE / 4)
-#define RS_IALLMOSTEMPTY        (    INQ_SIZE / 4)
-
 /* allow init to easily update the port irq from bootopts */
 void set_serial_irq(int tty, int irq)
 {
@@ -106,15 +87,13 @@ void set_serial_irq(int tty, int irq)
 
 /*
  * Flush input by reading RX register.
- * Not used when FIFO enabled, as HW fifo cleared when enabled.
+ * Used with pre-FIFO devices.
  */
 static void flush_input(register struct serial_info *sp)
 {
-#ifndef CONFIG_HW_SERIAL_FIFO
     do {
         INB(sp->io + UART_RX);
     } while (INB(sp->io + UART_LSR) & UART_LSR_DR);
-#endif
 }
 
 static int INITPROC rs_probe(register struct serial_info *sp)
@@ -184,15 +163,26 @@ static void update_port(register struct serial_info *port)
 
     //FIXME: update lcr parity and data width from termios values
 
-    if (!!(cf&CRTSCTS) != !!(port->flags&SERF_RTSCTS)) 
+#ifdef CONFIG_HW_SERIAL_HWFLOW
+    if (!!(cf&CRTSCTS) != !!(port->flags&SERF_RTSCTS)) {
 	port->flags ^= SERF_RTSCTS;
-    if (!!((unsigned int)port->tty->termios.c_iflag&IXON) != !!(port->flags&SERF_XONOFF))
-	port->flags ^= SERF_XONOFF;
-    /* TODO: Support IXOFF, right now SERF_XONOFF means soft flowcontrol both ways */
-    /*	     IXANY is not supported (yet) */
+	if (port->flags&SERF_RTSCTS) {	/* Allow modem lines to interrupt */
+	    OUTB(inb(port->io + UART_IER)|UART_IER_MSI, port->io + UART_IER);
+	    /* Let the CTS flag reflect what's in the MSR */
+	    if (INB(port->io + UART_MSR) & UART_MSR_CTS)
+		port->flags |= SERF_CTS;
+	} else				/* Turn off modem line interrupts */
+	    OUTB(inb(port->io + UART_IER)&~UART_IER_MSI, port->io + UART_IER);
+    }
+#endif
+#ifdef CONFIG_HW_SERIAL_XONXOFF			/* IXANY is not supported */
+    if (!!((unsigned int)port->tty->termios.c_iflag&IXON) != !!(port->flags&SERF_IXON))
+	port->flags ^= SERF_IXON;
+    if (!!((unsigned int)port->tty->termios.c_iflag&IXOFF) != !!(port->flags&SERF_IXOFF))
+	port->flags ^= SERF_IXOFF;
+#endif
 
-
-    /* update divisor only if changed, since we have not TCSETW*/
+    /* update divisor only if changed, since we have not TCSETW */
     if (divisor != port->divisor) {
         port->divisor = divisor;
 
@@ -218,15 +208,39 @@ static int rs_write(struct tty *tty)
 {
     register struct serial_info *port = &ports[tty->minor - RS_MINOR_OFFSET];
     int i = 0;
+    int stop_sending = 0;
 
     while (tty->outq.len > 0) {
-        /* Wait until transmitter hold buffer empty */
+#ifdef CONFIG_HW_SERIAL_HWFLOW
+	stop_sending += !!((port->flags & (SERF_RTSCTS|SERF_CTS)) == SERF_RTSCTS);
+#endif
+#ifdef CONFIG_HW_SERIAL_XONXOFF
+	stop_sending += !!((port->flags & (SERF_IXOFF|SERF_IXOFF_S)) == (SERF_IXOFF|SERF_IXOFF_S));
+#endif
+#if defined(CONFIG_HW_SERIAL_HWFLOW) || defined(CONFIG_HW_SERIAL_XONXOFF)
+	/* handle flow control from peer */
+	if (stop_sending) {
+		//kputchar('W');
+		//if (i) break;		/* bad idea, may cause deadlock in the next call if
+					 * the queue is full (chq_wait_wr() may sleep) */
+		sleep_on(&tty->outq.wait);
+		//interruptible_sleep_on(&tty->outq.wait);
+		//kputchar('w');
+		//if (i) break;
+		//if (current->signal) return -EINTR;	/* ignored anyway, what happens if we interrupt? */
+		//return -EAGAIN;
+		stop_sending = 0;	// We haven't written anything yet, the queue may be full
+					// and if it is, we'll have a deadlock unless we continue
+					// writing.
+	}
+#endif
+        /* Wait until transmitter hold register empty */
         while (!(INB(port->io + UART_LSR) & UART_LSR_THRE))
                 ;
         outb((char)tty_outproc(tty), port->io + UART_TX);
         i++;
     }
-    return i;
+    return i;	/* return value is being ignored anyway */
 }
 
 #ifdef UNUSED
@@ -282,9 +296,8 @@ void fast_com_irq(void)
 }
 #endif 	/* UNUSED */
 
-/* check for SIGINT and wakeup waiting processes */
-/* Also handle flow control */
-/* TODO: Fix direct port writes (XON/XOFF) when doing output interrupts */
+/* check for SIGINT on input and wakeup waiting processes */
+/* handle flow control */
 static void pump_port(struct serial_info *sp)
 {
     struct tty *ttyp = sp->tty;
@@ -304,41 +317,73 @@ static void pump_port(struct serial_info *sp)
                 (void)chq_getch(q);     /* discard received character */
                 return;
             }
-        }
-#ifdef RTS_FLOWCONTROL
-	else if (sp->flags&SERF_RTSCTS && q->len >= RS_IALLMOSTFULL && sp->mcr&UART_MCR_RTS) {
-	    sp->mcr &= ~UART_MCR_RTS;	/* Clear RTS, stop data flow */
+        } else if (q->len >= RS_IALLMOSTFULL) {
+#ifdef CONFIG_HW_SERIAL_HWFLOW
+		if (sp->flags&SERF_RTSCTS && sp->mcr&UART_MCR_RTS) {
+		    sp->mcr &= ~UART_MCR_RTS;	/* Clear RTS, stop data flow */
+		    OUTB(sp->mcr, sp->io + UART_MCR);
+		    //kputchar('R');
+		}
+#endif
+#ifdef CONFIG_HW_SERIAL_XONXOFF
+		if (sp->flags&SERF_IXON && !(sp->flags&SERF_IXON_S)) {
+		    while (!(INB(sp->io + UART_LSR) & UART_LSR_THRE))
+			;
+		    outb(XOFF_CHAR, sp->io + UART_TX);
+		    clr_irq();
+		    sp->flags |= SERF_IXON_S;
+		    set_irq();
+		    //kputchar('F');
+		}
+#endif
+	}
+        wake_up(&q->wait);		/* Signal data available */
+    }
+#ifdef CONFIG_HW_SERIAL_HWFLOW
+    if (sp->flags&SERF_RTSCTS) {
+	if (q->len <= RS_IALLMOSTEMPTY && !(sp->mcr&UART_MCR_RTS)) {
+	    sp->mcr |= UART_MCR_RTS;	/* Restore RTS */
 	    OUTB(sp->mcr, sp->io + UART_MCR);
+	    //kputchar('r');
 	}
-#endif
-#ifdef SOFT_FLOWCONTROL
-	else if (sp->flags&SERF_XONOFF && q->len >= RS_IALLMOSTFULL && !(sp->flags&SERF_XOFF)) {
-	    while (!(INB(sp->io + UART_LSR) & UART_LSR_THRE))
-		;
-	    outb(XOFF, sp->io + UART_TX);
-	    sp->flags |= SERF_XOFF;
-	    //sp->flags |= SERF_XCHG;
-	    //kputchar('C');
+	if (sp->flags&SERF_CTSCHG) {
+	    sp->flags &= ~SERF_CTSCHG;
+	    if (sp->flags&SERF_CTS) {
+	    	wake_up(&ttyp->outq.wait);
+	        //kputchar('c');
+	    } //else
+	        //kputchar('C');
 	}
-#endif
-        wake_up(&q->wait);
-    }
-#ifdef RTS_FLOWCONTROL
-    if (sp->flags&SERF_RTSCTS && q->len <= RS_IALLMOSTEMPTY && !(sp->mcr&UART_MCR_RTS)) {
-	sp->mcr |= UART_MCR_RTS;	/* Restore RTS */
-	OUTB(sp->mcr, sp->io + UART_MCR);
-	//kputchar('s');
     }
 #endif
-#ifdef SOFT_FLOWCONTROL
-    if (sp->flags&SERF_XONOFF && q->len <= RS_IALLMOSTEMPTY && sp->flags&SERF_XOFF) {
-	    sp->flags &= ~SERF_XOFF;
-	    //sp->flags |= SERF_XCHG;	/* tell the low level to send XON */
-	    //PUT XON into the output queue
-	    //kputchar('S');
+#ifdef CONFIG_HW_SERIAL_XONXOFF
+    if (sp->flags&SERF_IXON) {
+	if (q->len <= RS_IALLMOSTEMPTY && sp->flags&SERF_IXON_S) {
+	    clr_irq();
+	    sp->flags &= ~SERF_IXON_S;
+	    set_irq();
 	    while (!(INB(sp->io + UART_LSR) & UART_LSR_THRE))
 		;
-	    outb(XON, sp->io + UART_TX);
+	    outb(XON_CHAR, sp->io + UART_TX);
+	    //kputchar('f');
+	}
+    }
+    if (sp->flags&SERF_IXOFF) {
+	clr_irq();
+	if (!!(sp->flags&SERF_IXOFFCHG) != !!(sp->flags&SERF_IXOFF_S)) {
+	    if (sp->flags&SERF_IXOFF_S) {	/* stop sending */
+	    	sp->flags |= SERF_IXOFFCHG;	/* save current status */
+	        set_irq(); /*REMOVE*/
+		//kputchar('X');
+	    } else {
+	    	sp->flags &= ~SERF_IXOFFCHG;
+	        set_irq(); /*REMOVE*/
+		//kputchar('x');
+		q = &ttyp->outq;
+		wake_up(&q->wait);
+	    }
+	}
+	set_irq();
     }
 #endif
 }
@@ -377,12 +422,12 @@ static void (*asm_fast_irq[MAX_SERIAL])(int, struct pt_regs *) = {
     asm_fast_com1, asm_fast_com2, asm_fast_com3, asm_fast_com4
 };
 
-
 static int rs_open(struct tty *tty)
 {
     int n = tty->minor - RS_MINOR_OFFSET;
     struct serial_info *port = &ports[n];
     int err;
+    int imask = UART_IER_RDI;	/* default: enable read data interrupts only */
 
     debug_tty("SERIAL open %P\n");
 
@@ -406,36 +451,35 @@ errout:
 
     port->intrchar = 0;
 
-    /* clear RX buffer */
     INB(port->io + UART_LSR);
 
     /* enable FIFO and flush input*/
 #ifdef CONFIG_HW_SERIAL_FIFO
     if ((port->flags & SERF_TYPE) > ST_16550)
         OUTB(UART_FCR_ENABLE_FIFO14, port->io + UART_FCR);
-#else
-    /* flush input*/
-    flush_input(port);
+    else
 #endif
-
-    INB(port->io + UART_IIR);
-    INB(port->io + UART_MSR);
+    /* flush input */
+    flush_input(port);
 
     /* set serial port parameters to match ports[rs_minor] */
     update_port(port);
 
-    /* enable receiver data interrupt*/
-    OUTB(UART_IER_RDI, port->io + UART_IER);
+#ifdef CONFIG_HW_SERIAL_OINT
+    imask |= UART_IER_THRI;
+#endif
+    OUTB(imask, port->io + UART_IER);
 
-    /* set DTR and RST - as a courtesy */
+    /* set DTR and RST */
     port->mcr |= UART_MCR_DTR|UART_MCR_RTS;
     OUTB(port->mcr, port->io + UART_MCR);
 
-    /* clear Line/Modem Status, Intr ID and RX register */
-    INB(port->io + UART_LSR);
+#ifdef CONFIG_HW_SERIAL_HWFLOW
+#endif
+
+    /* clear Intr ID and RX registers */
     INB(port->io + UART_RX);
     INB(port->io + UART_IIR);
-    INB(port->io + UART_MSR);
 
     return 0;
 }
@@ -491,6 +535,22 @@ static int rs_ioctl(struct tty *tty, int cmd, char *arg)
 
     case TIOCGSERIAL:
         retval = get_serial_info(port, (struct serial_info *)arg);
+	break;
+#endif
+#define USEFUL	/* set and clear DTR and RTS directly, useful for debugging */
+#ifdef USEFUL
+    case TIOCMGET:
+	if (port->mcr&UART_MCR_DTR) *(int*)arg |= TIOCM_DTR;
+	if (port->mcr&UART_MCR_RTS) *(int*)arg |= TIOCM_RTS;
+	break;
+
+    case TIOCMSET:
+    	if (*(int *)arg&TIOCM_DTR) port->mcr |= UART_MCR_DTR; 
+	else port->mcr &= ~UART_MCR_DTR;
+    	if (*(int *)arg&TIOCM_RTS) port->mcr |= UART_MCR_RTS; 
+	else port->mcr &= ~UART_MCR_RTS;
+	OUTB(port->mcr, port->io + UART_MCR);
+	break;
 #endif
 
     default:
