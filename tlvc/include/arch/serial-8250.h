@@ -89,7 +89,6 @@
  */
 #define UART_IIR_NO_INT	0x01	/* No interrupts pending */
 #define UART_IIR_ID	0x06	/* Mask for the interrupt ID */
-
 #define UART_IIR_MSI	0x00	/* Modem status interrupt */
 #define UART_IIR_THRI	0x02	/* Transmitter holding register empty */
 #define UART_IIR_RDI	0x04	/* Receiver data interrupt */
@@ -141,8 +140,8 @@
 
 /* Flow control buffer markers for flow control -
  * queue sizes set in ntty.h */
-#define RS_IALLMOSTFULL		(RSINQ_SIZE*3/4)
-#define RS_IALLMOSTEMPTY	(RSINQ_SIZE/4)
+#define RS_IALLMOSTFULL		(RSINQ_SIZE*8/10)
+#define RS_IALLMOSTEMPTY	(RSINQ_SIZE/8)
 
 #define XON_CHAR	17	/* ASCII DC1 (^Q) */
 #define XOFF_CHAR	19	/* ASCII DC3 (^S) */
@@ -152,14 +151,15 @@
  * for easy/cheap access from asm code in serfast.S */
 #define SERF_TYPE	0x0F
 #define SERF_EXIST	0x10
-#define SERF_IXON_S	0x20    /* We have sent XOFF */
+#define SERF_IXON_S	0x20    /* XOFF sent */
 #define SERF_IXON	0x40    /* IXON set in termios */
 #define SERF_RTSCTS	0x80    /* XRTSCTS set in termios */ 
-#define SERF_CTSCHG	0x100   /* CTS has changed */
+#define SERF_CTSCHG	0x100   /* CTS line changed */
 #define SERF_IXOFF	0x200   /* IXOFF set in termios */
 #define SERF_IXOFF_S	0x400   /* XOFF received, output stopped */
-#define SERF_IXOFFCHG	0x800   /* XOFF status change detect */
-#define SERF_CTS_S	0x1000	/* CTS is low, no output */
+#define SERF_IXOFFCHG	0x800   /* Register XOFF status change */
+#define SERF_CTS	0x1000	/* Copy of the CTS bit in the MSR register */
+#define SERF_CTSMASK	0x1100	/* SERF_CTS|SERF_CTSCHG - for serfast.S */
 
 
 #endif
