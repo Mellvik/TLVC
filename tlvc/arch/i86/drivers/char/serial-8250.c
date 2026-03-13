@@ -221,8 +221,8 @@ static int rs_write(struct tty *tty)
 	/* handle flow control from peer */
 	if (stop_sending) {
 		//kputchar('W');
-		//if (i) break;		/* bad idea, may cause deadlock in the next call if
-					 * the queue is full (chq_wait_wr() may sleep) */
+		//if (i) break;		/* bad idea, may cause deadlock in the next call if */
+					/* the queue is full (chq_wait_wr() may sleep) */
 		sleep_on(&tty->outq.wait);
 		//interruptible_sleep_on(&tty->outq.wait);
 		//kputchar('w');
