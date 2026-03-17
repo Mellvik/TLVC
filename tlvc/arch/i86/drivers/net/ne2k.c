@@ -51,9 +51,10 @@ static byte_t dev_name[] = "ne0";
 static size_t ne2k_getpkg(char *, size_t, word_t);
 struct netbuf *netbuf_init(struct netbuf *, int);
 
-extern int ne2k_next_pk;
+extern int    ne2k_next_pk;
 extern word_t ne2k_flags;
 extern word_t ne2k_has_data;
+extern byte_t ne2k_imask;
 extern struct eth eths[];
 extern unsigned char macaddr[];
 
@@ -68,7 +69,7 @@ extern unsigned char macaddr[];
 #endif
 
 /*
- * Read a complete packet from the NIC buffer
+ * Return a complete packet from buffer or directly from the NIC
  */
 
 static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size_t len)
@@ -119,7 +120,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 
 /*
  * Get a packet from the NIC.
- * May be called from the INTR routine and from read(),
+ * Called from the INTR routine and from read(),
  * thus the semaphore.
  */
 
@@ -184,21 +185,21 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 	while (1) {
 		prepare_to_wait_interruptible(&txwait);
 		/* NOTE: tx_stat() checks the command reg, not the tx_status_reg! */
-		if (ne2k_tx_stat() != NE2K_STAT_TX) {
+		if (ne2k_tx_stat() != NE2K_ISR_TX) {
 #if NET_BUF_STRAT != NO_BUFS
 		    if (tnext) {
 			/* transmiter is busy, put the data in a buffer if available */
 			struct netbuf *nxt = tnext;
 			while (nxt->len) {	/* search for available buffer */
-				if (nxt == tnext) break;
-				nxt = nxt->next;
+			    if (nxt == tnext) break;
+			    nxt = nxt->next;
 			}
 			if (nxt->len == 0) {
-				kputchar('t');
-				nxt->len = len;
-				verified_memcpy_fromfs(nxt->data, data, len);
-				res = len;
-				break;
+			    kputchar('t');
+			    nxt->len = len;
+			    verified_memcpy_fromfs(nxt->data, data, len);
+			    res = len;
+			    break;
 			}
 		    }
 #endif
@@ -216,8 +217,10 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 		/* NIC is ready, send the data, no buffering */
 		if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
 
-		if (len < 64) len = 64;  /* issue #133 */
+		if (len < 64) len = 64;  		/* issue #133 */
+		outb(0, net_port + EN0_IMR);	/* block interrupts from the NIC while moving data to it */
 		ne2k_pack_put(data, len, BUF_IS_FAR);
+		outb(ne2k_imask, net_port + EN0_IMR);	/* reenable int's */
 
 		res = len;
 		break;
@@ -237,7 +240,7 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 
 	switch (sel_type) {
 		case SEL_OUT:
-			if ((ne2k_tx_stat() == NE2K_STAT_TX) 
+			if ((ne2k_tx_stat() == NE2K_ISR_TX) 
 #if NET_BUF_STRAT != NO_BUFS
 				|| (tnext && !tnext->len)
 #endif
@@ -280,6 +283,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 	word_t stat, page;
 
 	kputchar('I');
+	outb(0x20,0x20);	/* EOI to primary controller */
 	while (1) {
 		stat = ne2k_int_stat();
 		if (!stat) break; 	/* If zero, we're done! */
@@ -287,7 +291,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 		page = ne2k_getpage();
 		printk("$%04x.%02x$", page,ne2k_next_pk&0xff);
 #endif
-        	if (stat & NE2K_STAT_OF) {
+        	if (stat & NE2K_ISR_OF) {
 			netif_stat.oflow_errors++;
 			if (verbose) printk(EMSG_OFLOW, dev_name, stat, netif_stat.oflow_keep);
 			page = ne2k_clr_oflow(netif_stat.oflow_keep); 
@@ -300,7 +304,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 			break; 
 		}
 
-		if (stat & NE2K_STAT_RX) {
+		if (stat & NE2K_ISR_RX) {
 			kputchar('i');
 			ne2k_has_data = 1;
 		}
@@ -323,10 +327,10 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 		    }
 #endif
 		    wake_up(&rxwait);
-		    outb(NE2K_STAT_RX, net_port + EN0_ISR);
+		    outb(NE2K_ISR_RX, net_port + EN0_ISR);
 		}
 
-		if (stat & NE2K_STAT_TX) {
+		if (stat & NE2K_ISR_TX) {
 			kputchar('x');
 #if NET_BUF_STRAT != NO_BUFS
 			if (tnext && tnext->len) {
@@ -335,16 +339,16 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 				tnext = tnext->next;
 			}
 #endif
-			outb(NE2K_STAT_TX, net_port + EN0_ISR); // Clear intr bit
+			outb(NE2K_ISR_TX, net_port + EN0_ISR); // Clear intr bit
 			inb(net_port + EN0_TSR);	/* really needed? */
 			wake_up(&txwait);
 		}
 		//printk("%02X/%d/", stat, ne2k_has_data);
 		/* shortcut for speed */
-		if (!(stat&~(NE2K_STAT_TX|NE2K_STAT_RX|NE2K_STAT_OF))) continue;
+		if (!(stat&~(NE2K_ISR_TX|NE2K_ISR_RX|NE2K_ISR_OF))) continue;
 
 		/* These don't happen very often */
-		if (stat & NE2K_STAT_RDC) {
+		if (stat & NE2K_ISR_RDC) {
 			//printk("ne0: Warning - RDC intr. (0x%02x)\n", stat);
 			/* RDC interrupts should be masked in the low level driver.
 		 	 * The dma_read, dma_write routines will fail if the RDC intr
@@ -356,7 +360,7 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 			ne2k_rdc();
 		}
 
-		if (stat & NE2K_STAT_TXE) { 	
+		if (stat & NE2K_ISR_TXE) { 	
 			int k;
 			/* transmit error detected, this should not happen. */
 			/* ne2k_get_tx_stat resets this bit in the ISR */
@@ -369,15 +373,15 @@ static void ne2k_int(int irq, struct pt_regs *regs)
 		 * A bug in QEMU will cause continuous interrupts if RXE intr is unmasked.
 		 * Therefore the asm level code will unmask RXE intr only if the NIC is 
 		 * running in 8 bit mode */
-		if (stat & NE2K_STAT_RXE) { 	
+		if (stat & NE2K_ISR_RXE) { 	
 			/* Receive error detected, may happen when traffic is heavy */
 			/* The 8 bit interface gets lots of these, all CRC, packet dropped */
 			/* Don't do anything, just count, report & clr */
 			netif_stat.rx_errors++;
 			if (verbose) printk(EMSG_RXERR, dev_name, inb(net_port + EN0_RSR));
-			outb(NE2K_STAT_RXE, net_port + EN0_ISR); // Clear intr bit
+			outb(NE2K_ISR_RXE, net_port + EN0_ISR); // Clear intr bit
 		}
-		if (stat & NE2K_STAT_CNT) { 	
+		if (stat & NE2K_ISR_CNT) { 	
 			/* The tally counters will overflow on 8 bit interfaces with
 		 	 * lots of overruns.  Just clear the condition */
 			ne2k_clr_err_cnt();
