@@ -25,6 +25,7 @@
 //
 //-----------------------------------------------------------------------------
 
+#include <linuxmt/config.h>
 #include <arch/asm-offsets.h>
 #include <linuxmt/netstat.h>
 #include "netbuf.h"
@@ -91,6 +92,7 @@ USE_AUI = ETHF_USE_AUI
 	.data
 	.extern current
 	.extern	net_port	// io-port base
+	.extern running_qemu
 
 	.global ne2k_next_pk
 ne2k_next_pk:
@@ -106,6 +108,10 @@ ne2k_flags:
 
 ne2k_rx_last:			// PSTOP - buffer upper bound
 	.byte rx_last_16	// default to 16K
+
+	.global ne2k_imask
+ne2k_imask:			// current interrupt mask
+	.byte
 
 	.text
 
@@ -130,7 +136,7 @@ ne2k_addr_set:
 
 	// load MAC address
 
-	mov	net_port,%dx
+	//mov	net_port,%dx	// Already set
 	add	$io_ne2k_unicast,%dx
 	mov     $6,%cx
 	cld
@@ -199,7 +205,7 @@ dma_write:
 
 	inc     %cx     // make byte count even
 	and     $0xfffe,%cx
-	cli		// Mandatory
+	//cli		// Mandatory
 	call    dma_init
 
 	// start DMA write
@@ -253,7 +259,7 @@ check_dma_w:
 	//mov	$0x40,%al       // clear DMA intr bit in ISR
 	out	%al,%dx
 
-	sti			// Mandatory
+	//sti			// Mandatory
 	pop     %cx
 	ret
 
@@ -276,7 +282,7 @@ dma_read:
 	inc     %cx     // make byte count even
 	and     $0xfffe,%cx
 
-	cli		// Experimental - disable INTR
+	//cli		// Experimental - disable INTR
 	call    dma_init
 
 	mov     %ds,%bx
@@ -312,17 +318,18 @@ word_loop:
 	stosw
 	loop	word_loop
 3:
-	mov	net_port,%dx
-	add	$io_ne2k_int_stat,%dx
+	// PROABLY NOT NEEDED
+	//mov	net_port,%dx
+	//add	$io_ne2k_int_stat,%dx
 check_dma_r:
-	in      %dx,%al
-	test    $0x40,%al       // dma done?
-	jz      check_dma_r
+	//in      %dx,%al
+	//test    $0x40,%al       // dma done?
+	//jz      check_dma_r
 	
 
 	mov     $0x40,%al       // clear ISR (RDC bit only)
 	out     %al,%dx
-	sti			//Experimental - Enable INTR
+	//sti			//Experimental - Enable INTR
 
 	pop	%bx
 	pop	%es
@@ -439,13 +446,13 @@ ne2k_pack_get:
 	//mov	%sp,%di
 
 	// get the 4 byte header first -> arg3
-	mov	8(%bp),%di	
+	mov	8(%bp),%di	// arg3
 	mov	ne2k_next_pk,%bh
 	xor	%bl,%bl		// Next pkt to read in BX
 
 	mov	$4,%cx		// Bytes to read
 	//mov     %ds,%ax
-	//mov     %ax,%es		// local address space
+	//mov     %ax,%es	// local address space
 	xor	%al,%al		// indicate kernel DS
 	call	dma_read
 
@@ -484,13 +491,16 @@ ne2k_pack_get:
 	// Removed when read was changed to put data directly into process address space,
 	// there is no longer anywhere to put the first 4 bytes.
 
-	//sub	$252,%cx	// Got entire packet?
-	//jle	npg_cont
+#if 0
+	sub	$252,%cx	// Got entire packet?
+	jle	npg_cont
 				// If not, get rest.
-	//inc	%bh		// Point to next page
-	//cmp	$rx_last,%bh	// check wraparound
-	//jnz	npg_cont0
-	//mov	$rx_head,%bh
+	inc	%bh		// Point to next page
+	cmp	$rx_last,%bh	// check wraparound
+	jnz	npg_cont0
+	mov	$rx_head,%bh
+#endif
+
 npg_cont0:
 	//add	$256,%di	// Update destination memory address 
 				// (keep the 4 byte NIC header)
@@ -504,7 +514,6 @@ npg_cont0:
 	pop     %ax
 
 	// update RX_get pointer (BOUNDARY, end of ring)
-
 npg_cont:
 	xchg    %al,%ah		// get pointer to %al
 	mov	%al,ne2k_next_pk  // save 'real' next ptr
@@ -532,7 +541,7 @@ npg_exit:
 	movw	$0,ne2k_has_data
 
 npg_exit_ok:
-	sti		// Enable interrupts
+	sti
 	pop	%ax	// return byte count (from %cx)
 	//pop	%es
 	pop     %di
@@ -786,6 +795,7 @@ ne2k_init:
 				// clear if 16bit.
 				// That way we get around the QEMU RXE bug too.
 1:	out     %al,%dx
+	mov	%al,ne2k_imask
 
 	// NOTE: The transmitter is not yet enabled, done in the _start routine.
 	// FIXME: Should move the int mask and status reg clearing to 
@@ -1006,6 +1016,9 @@ ne2k_get_hw_addr:
 	// an 8 bit Weird Electronics (RTL8019AS) card looks like this:
 	// 001f1102602d49534138455448204242, the last 10 bytes being 'ISA8ETH BB'.
 	// The BB means it's an 8bit card, WW would indicate 16bit bus support.
+
+	// NOTE: This routine is called during PROBE only. Otherwise the call to dma_read
+	//	 would need irq protection.
 
 w_reset:
 	call	ne2k_base_init	// basic initialization
@@ -1240,8 +1253,8 @@ ne2k_rdc:
 
 ne2k_get_errstat:
 
-// Currently useful only 4 debugging: Needs a regime to regularly collect 
-// and accumulate the numbers in order to be of statistical value.
+// Currently useful only for debugging: Needs a regime to regularly collect 
+// and accumulate the numbers in order to be of practical value.
 #if LATER
 	push	%bp
 	mov	%si,%bp
