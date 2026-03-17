@@ -202,12 +202,8 @@ struct termios {
 #define  B19200	0000016
 #define  B38400	0000017
 
-/*@-namechecks@*/
-
 #define EXTA B19200
 #define EXTB B38400
-
-/*@+namechecks@*/
 
 #define CSIZE	0000060
 #define   CS5	0000000
@@ -228,8 +224,6 @@ struct termios {
 //#define CRTSCTS	  020000000000	/* flow control */
 #define CRTSCTS	  0100000	/* flow control, chgd HS 02/26 */
 
-/*@-namechecks@*/
-
 /* c_lflag bits */
 #define ISIG	0000001
 #define ICANON	0000002
@@ -246,8 +240,6 @@ struct termios {
 #define FLUSHO	0010000
 #define PENDIN	0040000
 #define IEXTEN	0100000
-
-/*@+namechecks@*/
 
 /* modem lines */
 #define TIOCM_LE	0x001
@@ -287,10 +279,6 @@ struct termios {
 #define N_MOUSE		2
 #define N_PPP		3
 
-/*@-namechecks@*/
-
 #define _POSIX_VDISABLE		'\0'
-
-/*@+namechecks@*/
 
 #endif
