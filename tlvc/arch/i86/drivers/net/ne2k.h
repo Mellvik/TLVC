@@ -5,15 +5,26 @@
 
 /* NE2K interrupt status bits */
 
-#define NE2K_STAT_RX    0x0001  /* packet received */
-#define NE2K_STAT_TX    0x0002  /* packet sent */
-#define NE2K_STAT_RXE	0x0004	/* RX error */
-#define NE2K_STAT_TXE	0x0008	/* TX error */
-#define NE2K_STAT_OF    0x0010  /* RX ring overflow */
-#define NE2K_STAT_CNT   0x0020  /* Tally counter overflow */
-#define NE2K_STAT_RDC   0x0040  /* Remote DMA complete */
+#define NE2K_ISR_RX	0x0001  /* packet received */
+#define NE2K_ISR_TX	0x0002  /* packet sent */
+#define NE2K_ISR_RXE	0x0004	/* RX error */
+#define NE2K_ISR_TXE	0x0008	/* TX error */
+#define NE2K_ISR_OF	0x0010  /* RX ring overflow */
+#define NE2K_ISR_CNT	0x0020  /* Tally counter overflow */
+#define NE2K_ISR_RDC	0x0040  /* Remote DMA complete */
+
+/* NE2K interrupt mask bits */
+
+#define NE2K_IMR_PRXE	0x0001	/* Packet Received Interrupt Enable */
+#define NE2K_IMR_PTXE	0x0002	/* Packet Transmitted Interrupt Enable */
+#define NE2K_IMR_RXEE	0x0004	/* Receive Error Interrupt Enable */
+#define NE2K_IMR_TXEE	0x0008	/* Transmit Error Interrupt Enable */
+#define NE2K_IMR_OVWE	0x0010	/* Overwrite Warning Interrupt Enable */
+#define NE2K_IMR_CNTE	0x0020	/* Counter Overflow Interrupt Enable */
+#define NE2K_IMR_RDCE	0x0040	/* RDMA Complete Interrupt Enable */
 
 /* 8390 Page 0 register offsets (from net_port) */
+
 #define EN0_STARTPG	0x01U	/* Starting page of ring bfr WR */
 #define EN0_STOPPG	0x02U	/* Ending page +1 of ring bfr WR */
 #define EN0_BOUNDARY	0x03U	/* Boundary page of ring bfr RD WR */
@@ -27,6 +38,7 @@
 #define EN0_IMR		0x0fU	/* Interrupt mask reg WR */
 
 /* From low level NE2K MAC */
+#ifndef __ASSEMBLER__
 
 extern word_t ne2k_int_stat();
 
@@ -59,5 +71,6 @@ extern void ne2k_rdc(void);
 extern void ne2k_get_errstat(byte_t *);
 extern void ne2k_clr_err_cnt(void);
 extern void ne2k_rx_init(void);
+#endif
 
 #endif /* !NE2K_H */
