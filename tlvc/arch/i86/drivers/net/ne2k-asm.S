@@ -193,19 +193,13 @@ dma_init:
 //-----------------------------------------------------------------------------
 //
 // BX    : NIC memory address (to write to)
-// CX    : byte count
+// CX    : byte count (must leave unharmed)
 // DS:SI : host memory address (to read from)
-// Also using the 3rd arg to the caller (local/user flag) from the stack
+// Returns bytes written in ax
 //-------------------------------------
 
 dma_write:
 
-	push    %cx
-	push	%ds
-
-	inc     %cx     // make byte count even
-	and     $0xfffe,%cx
-	//cli		// Mandatory
 	call    dma_init
 
 	// start DMA write
@@ -218,15 +212,10 @@ dma_write:
 
 	//mov	net_port,%dx
 	add	$io_ne2k_data_io,%dx
-	mov	ne2k_flags,%ax		// Get this before changing the data segment
-	mov	8(%bp),%bx		// get the 3rd arg from the call
-	cmp	$0,%bx			// zero means kernel (buffer)
-	jz	1f			// use kernel data seg
-	mov	current,%bx		// setup for user data seg
-	mov	TASK_USER_DS(%bx),%ds
-1:
+	mov	ne2k_flags,%ax
+	push	%cx		// caller expects CX to be preserved
 	cld
-	test	$ISA_8B,%ax		// checking ne2k_flags
+	test	$ISA_8B,%ax	// check ne2k_flags: 8 or 16 bit
 	jz	wr_loop_w
 
 	// Byte loop
@@ -234,10 +223,9 @@ wr_loop_b:
 	lodsb
 	outb	%al,%dx
 	loop	wr_loop_b
-
 	jmp	wr_loop_done
 
-	// word loop
+	// Word loop
 wr_loop_w:
 	shr	%cx
 3:	lodsw
@@ -245,22 +233,7 @@ wr_loop_w:
 	loop	3b
 
 wr_loop_done:
-	
-	pop	%ds	// get the data segment back
-			// otherwise the net_port reference below won't work
-	// wait for DMA completed
-check_dma_w:
-	mov	net_port,%dx
-	add	$io_ne2k_int_stat,%dx
-	in      %dx,%al
-	and	$0x40,%al	// make sure we're done
-	jz	check_dma_w
-
-	//mov	$0x40,%al       // clear DMA intr bit in ISR
-	out	%al,%dx
-
-	//sti			// Mandatory
-	pop     %cx
+	pop	%cx
 	ret
 
 //-----------------------------------------------------------------------------
@@ -270,28 +243,20 @@ check_dma_w:
 // BX    : NIC memory to read from
 // CX    : byte count
 // ES:DI : host memory to write to
-// AL:	 : 0: buffer is local (kernel), <>0: buffer is far (process)
 
 dma_read:
 
 	push    %di
 	push    %es
 	push	%bx
-	push	%ax
 
 	inc     %cx     // make byte count even
 	and     $0xfffe,%cx
 
-	//cli		// Experimental - disable INTR
 	call    dma_init
 
 	mov     %ds,%bx
-	mov     %bx,%es
-	pop	%ax
-	cmp	$0,%al		// Use local (kernel DS) buffer if zero
-	jz	rbuf_local
-	mov	current,%bx	// use task DS buffer
-	mov	TASK_USER_DS(%bx),%es
+	mov     %bx,%es		// using kernel data segment (heap)
 
 rbuf_local:
 	mov	net_port,%dx	// command register
@@ -318,19 +283,6 @@ word_loop:
 	stosw
 	loop	word_loop
 3:
-	// PROABLY NOT NEEDED
-	//mov	net_port,%dx
-	//add	$io_ne2k_int_stat,%dx
-check_dma_r:
-	//in      %dx,%al
-	//test    $0x40,%al       // dma done?
-	//jz      check_dma_r
-	
-
-	mov     $0x40,%al       // clear ISR (RDC bit only)
-	out     %al,%dx
-	//sti			//Experimental - Enable INTR
-
 	pop	%bx
 	pop	%es
 	pop     %di
@@ -427,8 +379,6 @@ nrs_exit:
 //-----------------------------------------------------------------------------
 // arg1: buffer to receive the data
 // arg2: int - requested read size (max buffer)
-// arg3: int array [2] (return) containing the NIC packet header.
-// arg4: flag whether dest is kernel buffer or proc data
 //
 // returns:
 // AX : < 0 if error, >0 is length read
@@ -440,78 +390,50 @@ ne2k_pack_get:
 	push    %bp
 	mov     %sp,%bp
 	push    %di
-	//push	%es
 
-	//sub 	$4,%sp		// temp space
-	//mov	%sp,%di
-
-	// get the 4 byte header first -> arg3
-	mov	8(%bp),%di	// arg3
 	mov	ne2k_next_pk,%bh
 	xor	%bl,%bl		// Next pkt to read in BX
 
-	mov	$4,%cx		// Bytes to read
-	//mov     %ds,%ax
-	//mov     %ax,%es	// local address space
-	xor	%al,%al		// indicate kernel DS
+	// get the first page - which includes the metadata (header) in front
+	mov	4(%bp),%di	// Buffer address to receive data.
+	mov	$256,%cx
 	call	dma_read
-
 	mov	0(%di),%ax	// AH : next record, AL : status
 	mov	2(%di),%cx	// packet size (without CRC)
 
-	// get the actual data
-
-	//add	$4,%sp
-	mov	4(%bp),%di	// Buffer address to receive data.
-	mov	6(%bp),%dx	// read len
+	mov	6(%bp),%dx	// Adjust read length if necessary,
 	cmp	%cx,%dx		// choose the shorter
-	jnb	npg_cont0
+	jnb	1f		// FIXME: a shortened packet is a damaged packet
+				// of no use, should abort right here
 	mov	%dx,%cx		
 
-#if 0
 	// -------------------------------------------------------------
 	// Packet size check not required since the NIC will not
 	// accept such packets per our initialization. Note, when handling
-	// erroneous packets manually, the rx_get (BOUNDARY) pointer must subsequently
+	// erroneous packets manually, the rx_get (BOUNDARY) pointer must 
 	// be updated do point to the next packet.
 	// If oversized packets still occur, it's a driver problem (most likely
 	// reading the wrong buffer page from the NIC).
 	// -------------------------------------------------------------
-	or      %cx,%cx		// zero length
-	jz      npg_err2
-
-	cmp     $1528,%cx	// max - head - crc
-	jnc     npg_err
-#endif
-	// -------------------------------------------------------------
-	// This section did the smart thing when reading the NIC packet header:
-	// Got the entire block (256b) instead of the 4 first bytes. Which was great 
-	// for small packets (telnet, command packets etc.): One read instead of 2.
-	//
-	// Removed when read was changed to put data directly into process address space,
-	// there is no longer anywhere to put the first 4 bytes.
-
-#if 0
+1:
 	sub	$252,%cx	// Got entire packet?
 	jle	npg_cont
 				// If not, get rest.
 	inc	%bh		// Point to next page
-	cmp	$rx_last,%bh	// check wraparound
+	cmp	ne2k_rx_last,%bh	// check wraparound
 	jnz	npg_cont0
 	mov	$rx_head,%bh
-#endif
 
 npg_cont0:
-	//add	$256,%di	// Update destination memory address 
-				// (keep the 4 byte NIC header)
-	push	%cx		// save length
 	push	%ax
-	add	$4,%bx		// Skip the 4 bytes already read
-
-	//mov	$1,%al		// use far transfer
-	mov	10(%bp),%ax	// buffer type flag
+	mov	net_port,%dx
+	add	$io_ne2k_int_stat,%dx
+	mov	$0x40,%al	// Clear RDC interrupt bit
+	out	%al,%dx
+	add	$256,%di	// Update destination memory address 
+				// (keep the 4 byte NIC header)
 	call    dma_read
-	pop     %ax
+	pop	%ax
 
 	// update RX_get pointer (BOUNDARY, end of ring)
 npg_cont:
@@ -525,7 +447,6 @@ npg_cont:
 	dec	%al
 
 npg_next:
-
 	mov	net_port,%dx
 	add	$io_ne2k_rx_get,%dx	// update RX_get (BOUNDARY)
 	out     %al,%dx
@@ -542,10 +463,7 @@ npg_exit:
 
 npg_exit_ok:
 	sti
-	pop	%ax	// return byte count (from %cx)
-	//pop	%es
 	pop     %di
-	//mov	%bp,%sp	// restore stack pointer
 	pop     %bp
 	ret
 
@@ -582,9 +500,8 @@ nts_exit:
 //-----------------------------------------------------------------------------
 // arg1 : packet buffer to transfer
 // arg2 : size in bytes
-// arg3 : 1 if data is far, 0 if kernel data seg
 // returns:
-//	AX : error code
+//	AX : bytes written (no error conditions)
 
 	.global ne2k_pack_put
 
@@ -593,12 +510,15 @@ ne2k_pack_put:
 	push    %bp
 	mov     %sp,%bp
 	push    %si
+	//cli			// DEBUG
 
-	// write packet to chip memory
+	// write packet to NIC memory
 
-	mov     6(%bp),%cx	// arg2 - count
+	mov     6(%bp),%cx	// arg2 - byte count
+	inc	%cx
+	and	$0xfffe,%cx	// make even
 	xor     %bl,%bl
-	mov     $tx_head,%bh
+	mov     $tx_head,%bh	// always the same start address
 	mov     4(%bp),%si	// arg1 - buffer
 	call    dma_write	// copy the data
 
@@ -618,51 +538,15 @@ tx_rdy_wait:
 	mov	net_port,%dx	// command register
 	in	%dx,%al
 	test	$0x4,%al	// Check that previous transmit completed.
-				// If we skip the completion test below
-				// (let the transmit run on its own for 
-				// efficiency) this test makes sense. OTOH
-				// we're doing the same test in write and select
-				// so objectively it's superfluous.
+				// Probably superfluous
 	jnz	tx_rdy_wait
-	//and	$0x18,%al	// Don't do this, it will set RD2 and
-	//or	$6,%al		// cause an extra RDC abort interrupt
 	mov	$6,%al		// set TX + STA
-	out	%al,%dx		// start transfer
-#if 0
-	// EXPERIMENTAL - do we want to wait for completion here?
-	// If we wait, we may as well check error status
-	// and repeat the send if it failed (while we have the data at hand).
-1:	mov	net_port,%dx	// command register
-	in      %dx,%al
-	test    $4,%al		// Wait for completion
-	jnz	1b
-#endif
-	xor     %ax, %ax	// Always zero return
+	out	%al,%dx		// start transfer, let the NIC do the rest
+	mov	%cx,%ax		// return byte count
 
+	//sti
 	pop     %si
 	pop     %bp
-	ret
-
-//-----------------------------------------------------------------------------
-// Get NE2K interrupt status
-//-----------------------------------------------------------------------------
-
-// returns interrupt status reg unmodified
-
-// AX : status
-//   01h = packet received
-//   02h = packet sent
-//   10h = RX ring overflow
-//   40h = Remote DMA complete
-
-	.global ne2k_int_stat
-
-ne2k_int_stat:
-
-	mov	net_port,%dx
-	add	$io_ne2k_int_stat,%dx
-	in      %dx,%al
-	xor	%ah,%ah
 	ret
 
 //--------------------------------------------------------------
@@ -795,7 +679,7 @@ ne2k_init:
 				// clear if 16bit.
 				// That way we get around the QEMU RXE bug too.
 1:	out     %al,%dx
-	mov	%al,ne2k_imask
+	mov	%al,ne2k_imask	// CURRENTLY UNUSED
 
 	// NOTE: The transmitter is not yet enabled, done in the _start routine.
 	// FIXME: Should move the int mask and status reg clearing to 
@@ -837,7 +721,7 @@ ne2k_rx_init:
 	xor	%ax,%ax	// Switch back to page 0, don't touch the other bits
 	mov	net_port,%dx	// command register
 	out	%al,%dx
-	movw	%ax,ne2k_has_data	// ZERO - Insurance, no data available
+	movw	%ax,ne2k_has_data	// no data available
 	ret
 
 //-----------------------------------------------------------------------------
@@ -1225,24 +1109,6 @@ of_exit:
 	pop	%di
 	ret
 
-
-//-----------------------------------------------------------------------------
-// NE2K Remote DMA complete - for now just a placeholder -
-// and the right place to reset the intr status bit.
-//-----------------------------------------------------------------------------
-
-	.global ne2k_rdc
-
-ne2k_rdc:
-
-	mov	net_port,%dx
-	add     $io_ne2k_int_stat,%dx   // reset the interrupt bit
-	mov     $0x40,%al
-	out     %al,%dx
-
-	ret
-
-
 //-----------------------------------------------------------------------------
 // NE2K get error statistics
 // returns 3 bytes in the byte_t array[3] pointed to by arg1.
@@ -1291,33 +1157,7 @@ ne2k_get_errstat:
 
 ne2k_get_tx_stat:
 	mov	net_port,%dx
-	add	$io_ne2k_int_stat,%dx
-	mov	$0x0a,%al	// Clear PTX & TXE bits in ISR
-	out	%al,%dx
-
-	mov	net_port,%dx
 	add	$io_ne2k_tx_stat,%dx
-	in	%dx,%al
-	xor	%ah,%ah
-	ret
-
-//---------------------------------------------------------------------------
-// Ne2k - get RX error status
-// return the content of the RX status register in AX
-//---------------------------------------------------------------------------
-
-	.global ne2k_get_rx_stat
-
-ne2k_get_rx_stat:
-	// called from interrupt RX RDY processing, must reset the 
-	// 
-	mov	net_port,%dx
-	add	$io_ne2k_int_stat,%dx
-	mov	$1,%al		// Clear PRX bit in ISR
-	out	%al,%dx
-
-	mov	net_port,%dx
-	add	$io_ne2k_rx_stat,%dx
 	in	%dx,%al
 	xor	%ah,%ah
 	ret
@@ -1329,7 +1169,6 @@ ne2k_get_rx_stat:
 ne2k_clr_int_reg:
 	mov	net_port,%dx
 	add	$io_ne2k_int_stat,%dx
-	//in	%dx,%al
 	mov	$0x7f,%al
 	out	%al,%dx
 	ret
@@ -1342,11 +1181,6 @@ ne2k_clr_int_reg:
 	.global ne2k_clr_err_cnt
 
 ne2k_clr_err_cnt:
-	mov	net_port,%dx
-	add	$io_ne2k_int_stat,%dx
-	mov	$0x20,%al
-	out	%al,%dx
-
 	mov	net_port,%dx
 	add	$io_ne2k_frame_errs,%dx
 	in	%dx,%al

@@ -37,7 +37,6 @@
 #define EN0_DCFG	0x0eU	/* Data configuration reg WR */
 #define EN0_IMR		0x0fU	/* Interrupt mask reg WR */
 
-/* From low level NE2K MAC */
 #ifndef __ASSEMBLER__
 
 extern word_t ne2k_int_stat();
@@ -55,8 +54,8 @@ extern void   ne2k_addr_set(byte_t *);
 extern word_t ne2k_rx_stat();
 extern word_t ne2k_tx_stat();
 
-extern word_t ne2k_pack_get(char *, word_t, word_t *, word_t);
-extern word_t ne2k_pack_put(char *, word_t, word_t);
+extern word_t ne2k_pack_get(char *, word_t);
+extern word_t ne2k_pack_put(char *, word_t);
 
 extern word_t ne2k_test();
 
