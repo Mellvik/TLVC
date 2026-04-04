@@ -28,7 +28,7 @@
 #include <linuxmt/config.h>
 #include <arch/asm-offsets.h>
 #include <linuxmt/netstat.h>
-#include "netbuf.h"
+#include "netlib.h"
 
 	.code16
 
@@ -325,6 +325,7 @@ ne2k_getpage:
 	ret
 
 
+#if NO_LONGER_USED
 //-----------------------------------------------------------------------------
 // Get RX status
 //-----------------------------------------------------------------------------
@@ -373,6 +374,7 @@ nrs_exit:
 	movw	ne2k_has_data,%ax
 #endif
 	ret
+#endif
 
 //-----------------------------------------------------------------------------
 // Get received packet
@@ -454,7 +456,7 @@ npg_next:
 npg_exit:
 	// This is effectively the replacement for the rx_stat routine,
 	// clear the has_data flag if ring buffer is empty.
-	cli			// Ensure we don't get a race condition when
+	//cli			// Ensure we don't get a race condition when
 				// updating ne2k_has_data
 	call	ne2k_getpage
 	cmp	%ah,%bl		// ring buffer empty?
@@ -462,7 +464,7 @@ npg_exit:
 	movw	$0,ne2k_has_data
 
 npg_exit_ok:
-	sti
+	//sti
 	pop     %di
 	pop     %bp
 	ret

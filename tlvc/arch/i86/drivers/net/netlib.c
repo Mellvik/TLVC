@@ -2,7 +2,7 @@
  * Initialize IO buffers 
  */
 
-#include "netbuf.h"
+#include "netlib.h"
 #include <linuxmt/kernel.h>
 #include <linuxmt/heap.h>
 
@@ -35,5 +35,20 @@ void netbuf_release(struct netbuf *buf) {
 		//printk("netbuf rel %x\n", n->data);
 		n = n->next;
 	} while (n != buf);
+}
+#endif
+
+#if NET_BUF_STRAT == PAGE_BUFS
+
+struct page *pbuf_init(struct pbuf *p)
+{
+	if (!(p->base = heap_alloc(PBUF_COUNT<<8, HEAP_TAG_NETWORK))) {
+		printk("eth: Page buffer alloc failed\n");
+		return NULL;
+	}
+	p->head = 1;
+	p->tail = 0;
+	p->top = p->base + (PBUF_COUNT<<8);
+	return p->base;
 }
 #endif

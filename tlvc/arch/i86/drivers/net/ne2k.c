@@ -1,14 +1,15 @@
 /*
  *
  * NE2K Ethernet driver - supports NICs using the NS DP8390 and
- * compatible chip sets. 
+ * compatible chip sets with programmed IO (PIO). 
  *
  * 8 bit i/f support and autoconfig added by Helge Skrivervik (@mellvik) april 2022
  * based on the RTL8019AS chip in the interface card from Weird Electronics.
  *
- * TLVC FEB 2023 - Added experimental io buffering (Helge Skrivervik)
+ * TLVC FEB 2023 - Added experimental io buffering (HS)
+ * TLVC MAR 2026 - Completely buffered, adapted to TH/BH interrupt regime (HS)
  *
- * For buffer configuration, see netbuf.h
+ * For buffer configuration, see netlib.h
  */
 
 #include <arch/io.h>
@@ -27,10 +28,10 @@
 #include <linuxmt/kernel.h>
 #include "eth-msgs.h"
 
-// Shared declarations between low and high parts
+// Shared declarations between low (ASM) and high (C) parts
 
 #include "ne2k.h"
-#include "netbuf.h"
+#include "netlib.h"
 
 /* runtime configuration set in /bootopts or defaults in ports.h */
 #define net_irq     (netif_parms[ETH_NE2K].irq)
@@ -39,16 +40,15 @@
 int net_port;	    /* required for ne2k-asm.S */
 
 
-static unsigned char usecount;
-static unsigned char found;
-static unsigned int verbose;
+static byte_t usecount;
+static byte_t found;
+static word_t verbose;
 static struct wait_queue rxwait;
 static struct wait_queue txwait;
 static struct netif_stat netif_stat;
 static byte_t model_name[] = "ne2k";
 static byte_t dev_name[] = "ne0";
 static size_t ne2k_getpkg(char *, size_t);
-struct netbuf *netbuf_init(struct netbuf *, int);
 
 extern int    ne2k_next_pk;
 extern word_t ne2k_flags;
@@ -57,11 +57,16 @@ extern byte_t ne2k_imask;
 extern struct eth eths[];
 extern unsigned char macaddr[];
 
-//#define LOCAL_DEBUG
-#ifdef LOCAL_DEBUG
+#define LOCAL_DEBUG 0
+#if LOCAL_DEBUG
 void kputchar(int);
 #else
 #define kputchar(x)
+#endif
+#if LOCAL_DEBUG > 1
+#define dprintk printk
+#else
+#define dprintk(...)
 #endif
 
 /*
@@ -84,7 +89,7 @@ static size_t ne2k_read(struct inode *inode, struct file *filp, char *data, size
 			    break;
 			}
 			kputchar('b');
-			//printk("b%04x/%d;", rnext, res);
+			dprintk("b%04x/%d;", rnext, res);
 			rnext->len = 0;
 			rnext = rnext->next;
 			break;
@@ -152,11 +157,11 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 
 	while (1) {
 		prepare_to_wait_interruptible(&txwait);
-#if NET_BUF_STRAT != NO_BUFS
-		n = nxt;
+#if NET_BUF_STRAT == HEAP_BUFS
+		//n = nxt;
 		while (nxt->len) {	/* search for available buffer */
 		    nxt = nxt->next;
-		    if (nxt == n) break;
+		    if (nxt == tnext) break;	/* tnext may have changed, that's ok */
 		}
 		if (nxt->len == 0) {
 		    kputchar('t');
@@ -167,8 +172,8 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 		    }
 		    res = len;
 		    nxt->len = len;
-		    //printk("%04x/%d;",nxt, nxt->len);
-		    //mark_bh(NETWORK_BH);
+		    dprintk("%04x/%d;",nxt, nxt->len);
+		    mark_bh(NETWORK_BH);
 		    break;
 		}
 #endif
@@ -191,7 +196,7 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 	}
 
 	finish_wait(&txwait);
-	if (res>0) mark_bh(NETWORK_BH);
+	//if (res>0) mark_bh(NETWORK_BH);
 	return res;
 }
 
@@ -250,6 +255,8 @@ void ne2k_int_bh(void)
 	kputchar('i');
 	//printk("i%x;",stat);
 	do {
+		/* Reminder: This looks like a good criteria for while() if inverted, but isn't:
+		 * The inverse logic doesn't work! */
 		if (!stat && !ne2k_has_data && !tnext->len) break;
 
 #if 0	/* debug */
@@ -262,7 +269,7 @@ void ne2k_int_bh(void)
 			page = ne2k_clr_oflow(netif_stat.oflow_keep); 
 
 			debug_eth("/CB%04x/ ", page);
-			if (ne2k_has_data)
+			if (ne2k_has_data)	/* In case we didn't purge everything */
 			    wake_up(&rxwait);
 			break; 
 		}
@@ -276,16 +283,16 @@ void ne2k_int_bh(void)
 		if (ne2k_has_data) {		/* Even if we didn't get an RX int, there may be 
 						 * data to pull from the NIC - buffer space 
 						 * permitting */
-#if NET_BUF_STRAT != NO_BUFS
+#if NET_BUF_STRAT == HEAP_BUFS
 		    struct netbuf *nxt = rnext;
 		    do {
 			if (nxt->len == 0) {	/* buffer available */
 			    nxt->len = ne2k_getpkg(nxt->data, MAX_PACKET_ETH);
 			    if (nxt->len < 0) {	/* we may get a bad packet from ne2k_getpkg() */
 				nxt->len = 0;
-				continue;	/* Nothing to read, exit loop */
+				continue;	/* Ignore, continue to next if any */
 			    }
-			    //printk("G%04x/%d/%d;", nxt, nxt->len, ne2k_has_data);
+			    dprintk("G%04x/%d/%d;", nxt, nxt->len, ne2k_has_data);
 			    break; 		/* Important: one pkt per
 						 * loop only - to keep 'ne2k_has_data'
 						 * in sync with reality */
@@ -293,35 +300,26 @@ void ne2k_int_bh(void)
 			nxt = nxt->next;
 			if (nxt == rnext) break;
 		    } while (ne2k_has_data);
+
 		    if (nxt->len) 
 #endif
 			wake_up(&rxwait);
 		}
 
 		if (stat & NE2K_ISR_TX) {
-			tnext->len = 0;
-			tnext = tnext->next;
 			outb(NE2K_ISR_TX, net_port + EN0_ISR);
 			inb(net_port + EN0_TSR);	// Keep NIC happy
 		}
 
-#if NET_BUF_STRAT != NO_BUFS
+#if NET_BUF_STRAT == HEAP_BUFS
 		if (tnext->len) {
 			ne2k_pack_put(tnext->data, tnext->len);
+			tnext->len = 0;
+			tnext = tnext->next;
 			kputchar('x');
 			wake_up(&txwait);
 		}
 #endif
-
-		if (stat & NE2K_ISR_RDC) {
-			/* RDC interrupts are never used and should always be masked.
-		 	 * The dma_read, dma_write routines may fail if the RDC intr
-			 * bit is cleared randomly.
-		 	 * The RDC bit will occasionally be set for other reasons 
-			 * such as an aborted remote DMA transfer. 
-		 	 */
-			outb(NE2K_ISR_RDC, net_port + EN0_ISR);
-		}
 
 		/* Transmit error detected, this should not happen. */
 		if (stat & NE2K_ISR_TXE) { 	
@@ -348,9 +346,19 @@ void ne2k_int_bh(void)
 			ne2k_clr_err_cnt();
 			outb(NE2K_ISR_CNT, net_port + EN0_ISR);
 		}
+
+		if (stat & NE2K_ISR_RDC) {
+			/* RDC interrupts are never used and should always be masked.
+		 	 * The dma_read, dma_write routines may fail if the RDC intr
+			 * bit is cleared randomly.
+		 	 * The RDC bit will occasionally be set for other reasons 
+			 * such as an aborted remote DMA transfer. 
+		 	 */
+			outb(NE2K_ISR_RDC, net_port + EN0_ISR);
+		}
 		stat = inb(net_port + EN0_ISR);		/* Refresh - new interrupts may have arrived */
-		//printk("#%02x;", stat);
-	} while (stat);
+		dprintk("#%02x;", stat);
+	} while (stat&~NE2K_ISR_RDC);			/* no extra loop for an RDC */
 	stat = page;		/* to keep compiler happy */
 }
 
@@ -576,24 +584,17 @@ void INITPROC ne2k_drv_init(void)
 		printk(" (%dk buffer)", 4<<(net_flags&0x3));
 		/* possibly adjust oflow_keep here */
 	}
-#if (NET_BUF_STRAT == NO_BUFS)
-	printk(", flags 0x%02x\n", net_flags);
-#else
 #if NET_BUF_STRAT == HEAP_BUFS
 	/* If no netbufs= in bootopts, initialize from netbuf.h */
 	if (netbufs[NET_RXBUFS] == -1) netbufs[NET_RXBUFS] = NET_IBUFCNT;
 	if (netbufs[NET_TXBUFS] == -1) netbufs[NET_TXBUFS] = NET_OBUFCNT;
-#else	/* Static buffers */
-	netbufs[NET_RXBUFS] = NET_IBUFCNT;
-	netbufs[NET_TXBUFS] = NET_OBUFCNT;
 #endif
 	printk(", flags 0x%02x, bufs %dr/%dt\n", net_flags, netbufs[NET_RXBUFS],
 							    netbufs[NET_TXBUFS]);
-#endif
 
 #if DEBUG_ETH
 	debug_setcallback(2, ne2k_display_status);	/* ^P lists status */
 #endif
-	ne2k_has_data = 0;
+	ne2k_has_data = 0;	// Superfluous
 	eths[ETH_NE2K].stats = &netif_stat;
 }
