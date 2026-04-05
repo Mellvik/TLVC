@@ -32,6 +32,22 @@
  * AGAIN: zero buffers is always a valid choice - which complicates the driver 
  * somewhat but makes benchmarking much more convenient.
  */
+/*
+ * March 2026 (HS): Added pagebuffers, 256 byte buffers modeled after the ne2k
+ * NIC buffers, a very simple scheme in which a packet is stored in as many pages
+ * as it takes and no inherent structure other than a 2 word header holding the 
+ * size of the packet (i.e. how many pages it takes) and a status word. For
+ * convenience, the 2 word header is kept while only the first word (size) is
+ * used.
+ * Memory allocation is thusly in pages and for coding efficiency the number of
+ * pages must be a power of 2, conveniently 32, 8k bytes. For now, this buffer
+ * strategy applies to incoming packets only. When selected, there is no output
+ * buffering.
+ * Initially, when page buffers are used, the buffer setting in bootopts is ignored.
+ */
+/* March 2026 (HS): Removed the non-buffered option and the static buffer option.
+ * IOW the driver always uses buffers, kernel reads and writes never touch
+ * the device */
 
 #define NET_RXBUFS  0 	/* indexes */
 #define NET_TXBUFS  1
@@ -39,48 +55,50 @@
 #define NO_BUFS     0	/* buffer support not compiled in */
 #define STATIC_BUFS 1	/* use static buffer allocation, ignore netbufs= in bootopts */
 #define HEAP_BUFS   2	/* allocate buffers from kernel heap */
+#define PAGE_BUFS   3	/* Use page buffers for receving, no buffers for output */
 
-/* Set the current strategy */
+/* Set the default strategy */
+//#define NET_BUF_STRAT	PAGE_BUFS
 #define NET_BUF_STRAT	HEAP_BUFS
 
-/* Use when strategy is STATIC_BUFS or HEAP_BUFS - in the latter case only 
- * if netbufs= is missing from /bootopts */
-#define NET_OBUFCNT 0
+/* Default buffer allocations (1 or more), in case
+ * netbufs= is missing from /bootopts */
+#define NET_OBUFCNT 2
 #define NET_IBUFCNT 2
 
 #ifndef __ASSEMBLER__
 
 #include <linuxmt/limits.h>
 
+struct netbuf *netbuf_init(struct netbuf *, int);
 extern int netbufs[];
 
 struct netbuf {
 	int len;			/* ZERO if available */
 	struct netbuf *next;
-#if NET_BUF_STRAT == HEAP_BUFS 
 	char *data;	/* allocate from heap */
-#else
-	char data[MAX_PACKET_ETH];
-#endif
 };
+
+struct page {
+	char c[256];
+};
+
+struct pbuf {		/* packet buffers split into pages */
+	struct page   *top;	/* MUST be first! */
+	struct page   *base;
+	unsigned char head;	/* always 1 ahead */
+	unsigned char tail;
+};
+
+#define PBUF_COUNT	32	/* Always power of 2 */
 
 void netbuf_release(struct netbuf *);
 
-#if NET_BUF_STRAT == HEAP_BUFS
 struct netbuf *net_ibuf;
 struct netbuf *rnext;
 
 struct netbuf *net_obuf;
-struct netbuf *tnext;
-#endif
-
-#if NET_BUF_STRAT == STATIC_BUFS
-struct netbuf net_ibuf[NET_IBUFCNT];
-struct netbuf *rnext;
-
-struct netbuf net_obuf[NET_OBUFCNT];
-struct netbuf *tnext;
-#endif
+struct netbuf *tnext, *pnext;
 
 #endif /* ASSEMBLER */
 
