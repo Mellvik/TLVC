@@ -71,8 +71,7 @@
 		high_addr_bits = 0x01;
 	dev->mem_start = ((reg0&0x3f) << 9) + (high_addr_bits << 15); 
  *
- * Maybe later. The kernel is already bursting at the seams, and /bootopts does a great
- * job for system configuration.
+ * As of April 2026, auto-setting of IRQ has been implemented, mem-address - Maybe later. 
  *
  */
 
@@ -233,9 +232,7 @@
  * E, P, W - ???
  */
 
-#define WD_AUTOIRQ	/* allow automatic setting if IRQ from boototps or config,
-			 * overriding NIC settings */
-#define LOCAL_DEBUG 3
+#define LOCAL_DEBUG 0
 #if LOCAL_DEBUG
 void kputchar(int);
 #else
@@ -276,16 +273,15 @@ static void wd_int_bh(void);
 
 extern struct eth eths[];
 
-#ifdef WD_AUTOIRQ
 /*
  * Set the IRQ to whatever the system says to use (from bootopts or defaults).
- * Works for all softconfig devices. The the new setting is not stored in NVRAM
+ * Works for all softconfig WD/SMC devices. The the new setting is not stored in NVRAM
  * but will survive reboots. Don't try to understand the bit-encodings, refer
  * to the developer notes above instead
  */
 static int INITPROC irq_set(int irq, int type)
 {
-	int old, irqreg, index = 0;
+	int old, irqreg, index;
 	unsigned int r4;
 	unsigned char irq_map[] = {4,9,3,5,7,10,11,15,4};
 
@@ -294,31 +290,25 @@ static int INITPROC irq_set(int irq, int type)
 	for (index = 0; index < sizeof(irq_map); index++) {
 		if (irq_map[index] == irq) break;
 	}
-	if (index == sizeof(irq_map)) return -1;
+	if (index == sizeof(irq_map))
+		return -1;			/* Illegal IRQ requested */
 	r4 = inb(net_port+4);
 	if (type < 0x2a) {	/* 8013 types */
 		index--;	/* compensate for different mapping */
 		old = irq_map[((r4&0x7f)>>5) + (inb(net_port+1)&4) + 1];
-		//if (irq != old) {
-			outb((r4&0x9f)|((index&3)<<5), net_port+4);
-			outb((inb(net_port+1)&0xfb)|(index&4), net_port+1);
-		//}
-		//printk("(%d) r4: %x r1: %x;", old, 
-		//	(r4&0x9f)|((index&3)<<5), (inb(net_port+1)&0xfb)|(index&4));
-		index++;
+		outb((r4&0x9f)|((index&3)<<5), net_port+4);
+		outb((inb(net_port+1)&0xfb)|(index&4), net_port+1);
+		//index++;	/* for the printk at the bottom */ 
 	} else {		/* 8x16 types */
 		outb(0x80|r4, net_port+4);	/* open NVRAM regs */
 		irqreg = inb(net_port+0xd);
 		old = irq_map[((irqreg & 0x40) >> 4) + ((irqreg & 0x0c) >> 2)];
-		//if (irq != old)
-			outb(((irqreg&~0x4c)|(((index&4)<<4)+((index&3)<<2))), net_port+0xd);
+		outb(((irqreg&~0x4c)|(((index&4)<<4)+((index&3)<<2))), net_port+0xd);
 		outb(r4, net_port+4);		/* close NVRAM regs */
-		//printk("(%d) rD: %x;", old, (irqreg&~0x4c)|(((index&4)<<4)+((index&3)<<2)));
 	}
 	//printk("IRQ set to %d; ", irq_map[index]);
 	return old;	/* 'old' is the irq stored in NVRAM before entry */
 }
-#endif
 
 /*
  * Get MAC address
@@ -373,9 +363,10 @@ static int INITPROC wd_probe(void) {
 	     * size MUST be reduced to 8k. This does not apply to the 8216 family. 
 	     * They should be left alone, they just work as is in 8bit ISA systems. 
 	     * In fact, forced 8bit mode may cause them to fail. 16k buffer 
-	     * (8216) works fine. 8416 is always 8k. Confusing? I know ...*/
+	     * (8216) works fine. 8416 is always 8k. Confusing? I know ...
+	     */
 
-	    outb(tmp ^ 0x01, net_port+1 );		/* attempt to clear 16bit bit */
+	    outb(tmp ^ 0x01, net_port+1 );	/* attempt to clear 16bit bit */
 	    i = inb(net_port+1);
 	    if ((i & 0x01) == 0x01		/* A 16 bit card ... */
 			&& (tmp & 0x01) == 0x01	/* in a 16 slot ... */
@@ -392,7 +383,7 @@ static int INITPROC wd_probe(void) {
 	    outb(tmp, net_port+1);	/* Restore original reg1 value. */
 	    if (type > 3 && !is_8bit)	/* 8013 variant, 16k if 16bit mode */
 		stop_page = WD_STOP_PG16;
-	} else {				/* We have a SMC8x16 */
+	} else {			/* We have a SMC8x16 */
 		memcpy(model_name, "smc", 3);
 		model_name[4] = '4';
 		model_name[6] = '6';
@@ -402,12 +393,11 @@ static int INITPROC wd_probe(void) {
 		}
 	}
 
-#ifdef WD_AUTOIRQ
 	if ((tmp = irq_set(net_irq, type)) < 0) {
 		printk("eth: Illegal IRQ (%d) requested, using NIC setting\n", net_irq);
 	} else if (tmp != net_irq)
 		printk("new irq %d(%d),", net_irq, tmp);
-#endif
+
 	if (net_flags&ETHF_BUF_MASK)		/* Force buffer size */
 		stop_page = WD_STOP_PG4 << (net_flags&0x03);
 
@@ -422,14 +412,14 @@ static int INITPROC wd_probe(void) {
 			printk("%02x;", (unsigned char)inb(net_port + i));
 		printk("\n");
 		outb(r4, net_port+4);		/* Disable NVRAM */
-/////////////////////
+
 #if 0		/* This code will recover a half-bricked 8x16 NIC and set
 		 * sensible params: 280/11/cc00. If the port address was
 		 * something else at last boot (or jumper config was set) 
-		 * the NIC will appear non responsive after the change. Set
-		 * the bootopts params correctly and reboot to fix, then
-		 * take it from there. Is this better than EZCONFIG? No,
-		 * but if the parameters are suffuciently screwed, EZCONFIG
+		 * the NIC will appear non responsive after the change.
+		 * Update bootopts and reboot to fix, then
+		 * take it from there. Is this better than EZSETUP? No,
+		 * but if the parameters are suffuciently screwed, EZSETUP
 		 * will not fix them. This may. 
 		 */
 		{
@@ -447,7 +437,6 @@ static int INITPROC wd_probe(void) {
 		outb(r1|0x80, net_port+1);	/* Flip hi-bit to make chgs permanent */
 		outb(r1, net_port+1);
 #endif
-///////////////////////
 	}
 		
 #endif
@@ -660,12 +649,10 @@ static size_t wd_pack_get(char *data, size_t len)
 		outb(this_frame, WD_8390_PORT + EN0_BOUNDARY);
 	}
 	/* Get the rx page (incoming packet pointer). */
-	//clr_irq();
 	outb(E8390_NODMA | E8390_PAGE1, WD_8390_PORT + E8390_CMD);
 	current_page = inb(WD_8390_PORT + EN1_CURPAG);
 	outb(E8390_NODMA | E8390_PAGE0, WD_8390_PORT + E8390_CMD);
 	wd_has_data = (current_rx_page != current_page);
-	//set_irq();
 
 	return res;
 }
@@ -727,67 +714,31 @@ static size_t wd_read(struct inode *inode, struct file *filp, char *data, size_t
 	return res;
 }
 
-#if 0
-static size_t wd_read(struct inode *inode, struct file *filp, char *data, size_t len)
-{
-	size_t res = 0;
-
-	do {
-		prepare_to_wait_interruptible(&rxwait);
-		if (wd_rx_stat() != WD_STAT_RX) {
-			if (filp->f_flags & O_NONBLOCK) {
-				res = -EAGAIN;
-				break;
-			}
-			do_wait();
-			if (current->signal) {
-				res = -EINTR;
-				break;
-			}
-		}
-		res = wd_pack_get(data, len);	/* returns packet data size read */
-	} while (0);
-
-	finish_wait(&rxwait);
-	return res;
-}
-#endif
 /*
  * Pass packet to driver for send
  */
 
 static size_t wd_pack_put(char *data, size_t len)
 {
-	do {
-		if (len > MAX_PACKET_ETH)
-			len = MAX_PACKET_ETH;
-		if (len < 64) len = 64;
+	if (len > MAX_PACKET_ETH)
+		len = MAX_PACKET_ETH;
+	if (len < 64) len = 64;
 
-		fmemcpyw((byte_t *)((WD_FIRST_TX_PG - WD_START_PG) << 8U),
-			net_ram, data, kernel_ds, (len+1)>>1);
-		outb(E8390_NODMA | E8390_PAGE0, WD_8390_PORT + E8390_CMD);
+	fmemcpyw((byte_t *)((WD_FIRST_TX_PG - WD_START_PG) << 8U),
+		net_ram, data, kernel_ds, (len+1)>>1);
+	outb(E8390_NODMA | E8390_PAGE0, WD_8390_PORT + E8390_CMD);
 
-#if REMOVE
-		/* FIXME: superfluous. Cannot get here unless we have a trans complete intr */
-		/* which means the NIC is ready for more */
-		if (inb(WD_8390_PORT + E8390_CMD) & E8390_TRANS) {
-			printk("eth: attempted send with the tr busy.\n");
-			len = -EIO;
-			break;
-		}
-#endif
-		outb(len & 0xffU, WD_8390_PORT + EN0_TCNTLO);
-		outb(len >> 8U, WD_8390_PORT + EN0_TCNTHI);
-		outb(WD_FIRST_TX_PG, WD_8390_PORT + EN0_TPSR);
-		outb(E8390_NODMA | E8390_TRANS, WD_8390_PORT + E8390_CMD);
-	} while (0);
+	outb(len & 0xffU, WD_8390_PORT + EN0_TCNTLO);
+	outb(len >> 8U, WD_8390_PORT + EN0_TCNTHI);
+	outb(WD_FIRST_TX_PG, WD_8390_PORT + EN0_TPSR);
+	outb(E8390_NODMA | E8390_TRANS, WD_8390_PORT + E8390_CMD);
+
 	return len;
 }
 
 static size_t wd_write(struct inode *inode, struct file *file, char *data, size_t len)
 {
 	size_t res = 0;
-	struct netbuf *n, *nxt;
 
 	kputchar('T');
 	if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
@@ -796,15 +747,7 @@ static size_t wd_write(struct inode *inode, struct file *file, char *data, size_
 	while (1) {
 		prepare_to_wait_interruptible(&txwait);
 #if NET_BUF_STRAT == HEAP_BUFS
-		//n = nxt;
-		//clr_irq();
-		//nxt = tnext;
-		//while (nxt->len) {	/* search for available buffer */
-		    //nxt = nxt->next;
-		    //if (nxt == tnext) break;
-		//}
 		if (fnext->len == 0) {
-		    //set_irq();
 		    kputchar('t');
 		    if (verified_memcpy_fromfs(fnext->data, data, len)) {
 			printk("ne0: memcpy error in write\n");
@@ -818,7 +761,6 @@ static size_t wd_write(struct inode *inode, struct file *file, char *data, size_
 		    mark_bh(NETWORK_BH);
 		    break;
 		}
-		//set_irq();
 #endif
 	/* No buffer available. Returning w/o sending means a lost packet and a retransmit cycle,
 	 * which is more than 3 secs, while waiting for a buffer to become available 
@@ -833,68 +775,13 @@ static size_t wd_write(struct inode *inode, struct file *file, char *data, size_
 	}
 
 	finish_wait(&txwait);
-	//if (res>0) mark_bh(NETWORK_BH);
 	return res;
 }
-
-#if 0
-static size_t wd_write(struct inode * inode, struct file * file,
-	char * data, size_t len)
-{
-	int res;
-
-	do {
-		prepare_to_wait_interruptible(&txwait);
-		if (wd_tx_stat() != WD_STAT_TX) {
-			if (file->f_flags & O_NONBLOCK) {
-				res = -EAGAIN;
-				break;
-			}
-			do_wait();
-			if(current->signal) {
-				res = -EINTR;
-				break;
-			}
-		}
-		res = wd_pack_put(data, len);
-	} while (0);
-	finish_wait(&txwait);
-	return res;
-}
-#endif
-
-#if 0
-static word_t wd_tx_stat(void)
-{
-	return (inb(WD_8390_PORT + E8390_CMD) & E8390_TRANS) ? 0 :
-		WD_STAT_TX;
-}
-#endif
 
 static int wd_select(struct inode * inode, struct file * filp, int sel_type)
 {
 	int res = 0;
 
-#if 0
-	switch (sel_type) {
-		case SEL_OUT:
-			if (wd_tx_stat() != WD_STAT_TX) {
-				select_wait(&txwait);
-				break;
-			}
-			res = 1;
-			break;
-		case SEL_IN:
-			if (wd_rx_stat() != WD_STAT_RX) {
-				select_wait(&rxwait);
-				break;
-			}
-			res = 1;
-			break;
-		default:
-			res = -EINVAL;
-	}
-#else
 	switch (sel_type) {
 		case SEL_OUT:
 			if (fnext->len == 0) {
@@ -920,7 +807,6 @@ static int wd_select(struct inode * inode, struct file * filp, int sel_type)
 		default:
 			res = -EINVAL;
 	}
-#endif
 	return res;
 }
 
