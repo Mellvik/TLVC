@@ -98,7 +98,7 @@ struct netbuf *net_ibuf;
 struct netbuf *rnext;
 
 struct netbuf *net_obuf;
-struct netbuf *tnext, *pnext;
+struct netbuf *tnext, *fnext;	/* transmit-next, fill-next pointers */
 
 #endif /* ASSEMBLER */
 

@@ -27,13 +27,13 @@
  * with a BOOT ROM.
  *
  * *About Soft-config*
- * While the 8013 carde reg1-4 to store the soft-config data (irq, shmem addr, IOaddr),
+ * Cards with type >= 0x20 have soft configuration capability.
+ * While the 8013 card uses reg1-4 to store coded soft-config data (irq, shmem addr, IOaddr),
  * 8x16 cards use a hidden or 'shadow' register set (NVRAM really) for this purpose. 
  * This register set hides behind the upper half of the IO space used
  * by the card, net_port+(8-15), and is enabled by setting the high bit in reg4
  * (net_port+4). Specifically, the saved base address is at (net_port + 0xb) and
- * the saved IRQ is (encoded) at (net_port + 0xd). This is different from the 8013
- * which as softconfig info stored in the lower 8 registers.
+ * the saved IRQ is (encoded) at (net_port + 0xd). 
  *
  * The softconfig registers/NVRAM are changed by writing to the appropriate register.
  * The changes stick until power cycled. In order to make the changes permanent, the high
@@ -59,10 +59,10 @@
  * some coding to do it because the information in NVRAM is encoded. Like, the irq must be 
  * retreived like this:  irq = ((irqreg & 0x40) >> 4) + ((irqreg & 0x0c) >> 2)
  * which still isn't the irq but an 'index' if you like. The driver needs an array that
- * matches up the indexes to the actual IRQs, like irqmap[] = {0, 9, 3, 5, 7, 10, 11, 15}
+ * matches up the indexes to the actual IRQs, like irqmap[] = {4, 9, 3, 5, 7, 10, 11, 15}
  *
  * For future reference:
- * On the 8013, the irq formual is (reg4>>5)+(reg1&4) which maps into this sequence:
+ * On the 8013, the irq formula is ((reg4&0x7f)>>5)+(reg1&4) which maps into this sequence:
  * irqmap[] = {9, 3, 5, 7, 10, 11, 15, 4}.
  * The IO address is similarly encoded. For the 8013:
  * 	high_addr_bits = reg5 & 0x1f;
@@ -233,7 +233,9 @@
  * E, P, W - ???
  */
 
-#define LOCAL_DEBUG 0
+#define WD_AUTOIRQ	/* allow automatic setting if IRQ from boototps or config,
+			 * overriding NIC settings */
+#define LOCAL_DEBUG 3
 #if LOCAL_DEBUG
 void kputchar(int);
 #else
@@ -274,8 +276,52 @@ static void wd_int_bh(void);
 
 extern struct eth eths[];
 
+#ifdef WD_AUTOIRQ
 /*
- * Get MAC
+ * Set the IRQ to whatever the system says to use (from bootopts or defaults).
+ * Works for all softconfig devices. The the new setting is not stored in NVRAM
+ * but will survive reboots. Don't try to understand the bit-encodings, refer
+ * to the developer notes above instead
+ */
+static int INITPROC irq_set(int irq, int type)
+{
+	int old, irqreg, index = 0;
+	unsigned int r4;
+	unsigned char irq_map[] = {4,9,3,5,7,10,11,15,4};
+
+	if ((type & 0x20) == 0) return -1;
+	if (irq == 2) irq_map[1] = 2;		/* make boot messages consistent */
+	for (index = 0; index < sizeof(irq_map); index++) {
+		if (irq_map[index] == irq) break;
+	}
+	if (index == sizeof(irq_map)) return -1;
+	r4 = inb(net_port+4);
+	if (type < 0x2a) {	/* 8013 types */
+		index--;	/* compensate for different mapping */
+		old = irq_map[((r4&0x7f)>>5) + (inb(net_port+1)&4) + 1];
+		//if (irq != old) {
+			outb((r4&0x9f)|((index&3)<<5), net_port+4);
+			outb((inb(net_port+1)&0xfb)|(index&4), net_port+1);
+		//}
+		//printk("(%d) r4: %x r1: %x;", old, 
+		//	(r4&0x9f)|((index&3)<<5), (inb(net_port+1)&0xfb)|(index&4));
+		index++;
+	} else {		/* 8x16 types */
+		outb(0x80|r4, net_port+4);	/* open NVRAM regs */
+		irqreg = inb(net_port+0xd);
+		old = irq_map[((irqreg & 0x40) >> 4) + ((irqreg & 0x0c) >> 2)];
+		//if (irq != old)
+			outb(((irqreg&~0x4c)|(((index&4)<<4)+((index&3)<<2))), net_port+0xd);
+		outb(r4, net_port+4);		/* close NVRAM regs */
+		//printk("(%d) rD: %x;", old, (irqreg&~0x4c)|(((index&4)<<4)+((index&3)<<2)));
+	}
+	//printk("IRQ set to %d; ", irq_map[index]);
+	return old;	/* 'old' is the irq stored in NVRAM before entry */
+}
+#endif
+
+/*
+ * Get MAC address
  */
 
 static void wd_get_hw_addr(word_t *data)
@@ -316,32 +362,37 @@ static int INITPROC wd_probe(void) {
 	stop_page = WD_STOP_PG8;	/* 8K buffer is always the default */
 
 	/*  device found - check what type */
-	tmp = inb(net_port+1);
+	if ((type = inb(net_port+0xe)) <= 0x29) {	/* WD 80x3 */
+	    tmp = inb(net_port+1);
 
-	/* The BUS SIZE detection is not completely reliable as the backplane may be 16bit
-	 * while the system is 8bit - or vise versa. Instead of adding more detection
-	 * code, the user should use the flags for borderline cases. */
+	    /* The BUS SIZE detection is not completely reliable as the backplane may be 16bit
+	     * while the system is 8bit - or vise versa. Instead of adding more detection
+	     * code, the user should use the flags for borderline cases. */
 
-	/* NOTE: If the 8013 is used in an 8 bit system (i.e. 8 bit mode), buffer
-	 * size MUST be reduced to 8k. This does not apply to the 8216 family. 
-	 * They should be left alone, they just work as is in 8bit ISA systems. 
-	 * In fact, forced 8bit mode cause them to fail, and 16k buffer 
-	 * (8216) works fine. 8416 is always 8k. Confusing? I know ...*/
+	    /* NOTE: If the 8013 is used in an 8 bit system (i.e. 8 bit mode), buffer
+	     * size MUST be reduced to 8k. This does not apply to the 8216 family. 
+	     * They should be left alone, they just work as is in 8bit ISA systems. 
+	     * In fact, forced 8bit mode may cause them to fail. 16k buffer 
+	     * (8216) works fine. 8416 is always 8k. Confusing? I know ...*/
 
-	outb(tmp ^ 0x01, net_port+1 );		/* attempt to clear 16bit bit */
-	if (((type = (inb(net_port+1) & 0x01)) == 0x01)	/* A 16 bit card */
-				&& (tmp & 0x01) == 0x01	/* In a 16 slot */
-				&& (is_8bit != 1)) {	/* and not forced to 8bit mode */
+	    outb(tmp ^ 0x01, net_port+1 );		/* attempt to clear 16bit bit */
+	    i = inb(net_port+1);
+	    if ((i & 0x01) == 0x01		/* A 16 bit card ... */
+			&& (tmp & 0x01) == 0x01	/* in a 16 slot ... */
+			&& (is_8bit != 1)) {	/* and not forced to 8bit mode */
 
 		/* Set ASIC to word-wide mode, enable 16 bit memory access */
 		int reg5 = inb(net_port+WD_LAAR);
 		outb(LAAR_M16EN | LAAR_L16EN | (reg5&0x1f), net_port+WD_LAAR);
 		is_8bit = 0;		/* may be unset at this point, indicate 16bit */
-	} else {
-		if (!type) model_name[5] = '0';	
+	    } else {
+		if (!i) model_name[5] = '0';	
 		is_8bit = 1;	/* We're running 8bit regardless of bus and type */
-	}
-	if ((type = (unsigned)inb(net_port+0xe)) > 0x29) {	/* We have a SMC8x16 */
+	    }
+	    outb(tmp, net_port+1);	/* Restore original reg1 value. */
+	    if (type > 3 && !is_8bit)	/* 8013 variant, 16k if 16bit mode */
+		stop_page = WD_STOP_PG16;
+	} else {				/* We have a SMC8x16 */
 		memcpy(model_name, "smc", 3);
 		model_name[4] = '4';
 		model_name[6] = '6';
@@ -349,30 +400,56 @@ static int INITPROC wd_probe(void) {
 			model_name[4] -= 2;	/* SMC8216 ... has 16k buffer */
 			stop_page = WD_STOP_PG16;
 		}
-	} else if (type > 3 && !is_8bit)	/* 8013 variant, 16k if 16bit mode */
-		stop_page = WD_STOP_PG16;
-	outb(tmp, net_port+1);			/* Restore original reg1 value. */
+	}
 
+#ifdef WD_AUTOIRQ
+	if ((tmp = irq_set(net_irq, type)) < 0) {
+		printk("eth: Illegal IRQ (%d) requested, using NIC setting\n", net_irq);
+	} else if (tmp != net_irq)
+		printk("new irq %d(%d),", net_irq, tmp);
+#endif
 	if (net_flags&ETHF_BUF_MASK)		/* Force buffer size */
 		stop_page = WD_STOP_PG4 << (net_flags&0x03);
 
-#if LOCAL_DEBUG	> 1 /* Play with the NVRAM content here */
+#if LOCAL_DEBUG	> 2 /* Play with the NVRAM content here - handle with CARE */
 		/* TODO: add auto-config via bootopts */
 	if (!is_8bit && (type > 0x29)) {
 		unsigned int r1 = inb(net_port+1);
 		unsigned int r4 = inb(net_port+4);
-		//outb(r1|0x80, net_port+1);	/* Enable NVRAM write */
 
-		outb(0x80|r4, net_port+4); 
-		/* include the lower 8 registers for reference */
-		for (i = 0; i < 16; i++)
+		outb(0x80|r4, net_port+4); 	/* Enable NVRAM */
+		for (i = 8; i < 16; i++)
 			printk("%02x;", (unsigned char)inb(net_port + i));
 		printk("\n");
-		//outb(r1, net_port+1);
-		outb(r4, net_port+4);
+		outb(r4, net_port+4);		/* Disable NVRAM */
+/////////////////////
+#if 0		/* This code will recover a half-bricked 8x16 NIC and set
+		 * sensible params: 280/11/cc00. If the port address was
+		 * something else at last boot (or jumper config was set) 
+		 * the NIC will appear non responsive after the change. Set
+		 * the bootopts params correctly and reboot to fix, then
+		 * take it from there. Is this better than EZCONFIG? No,
+		 * but if the parameters are suffuciently screwed, EZCONFIG
+		 * will not fix them. This may. 
+		 */
+		{
+			unsigned char k[] = {0,0,8, 0x16, 0x3c, 0x5f, 0x5f, 0x5f};
+			outb(0x80|r4, net_port+4); 
+			for (i = 0; i < 8; i++)
+				outb(k[i], net_port+8+i);
+			outb(r4, net_port+4);
+			outb(0x80|r4, net_port+4); 
+			for (i = 0; i < 16; i++)
+				printk("%02x;", (unsigned char)inb(net_port + i));
+			printk("\n");
+			outb(r4, net_port+4);
+		}
+		outb(r1|0x80, net_port+1);	/* Flip hi-bit to make chgs permanent */
+		outb(r1, net_port+1);
+#endif
+///////////////////////
 	}
 		
-	printk("net_flags %04x buffer %dk\n", net_flags, stop_page>>2);
 #endif
 	netif_stat.oflow_keep = stop_page < WD_STOP_PG16 ? 1 : 3; /* Scaled by RAM size */
 	wd_stop();	/* make sure interrupts are off */
@@ -589,7 +666,7 @@ static size_t wd_pack_get(char *data, size_t len)
 	outb(E8390_NODMA | E8390_PAGE0, WD_8390_PORT + E8390_CMD);
 	wd_has_data = (current_rx_page != current_page);
 	//set_irq();
-	
+
 	return res;
 }
 #if 0
@@ -710,7 +787,7 @@ static size_t wd_pack_put(char *data, size_t len)
 static size_t wd_write(struct inode *inode, struct file *file, char *data, size_t len)
 {
 	size_t res = 0;
-	struct netbuf *n, *nxt = tnext;
+	struct netbuf *n, *nxt;
 
 	kputchar('T');
 	if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
@@ -719,24 +796,29 @@ static size_t wd_write(struct inode *inode, struct file *file, char *data, size_
 	while (1) {
 		prepare_to_wait_interruptible(&txwait);
 #if NET_BUF_STRAT == HEAP_BUFS
-		n = nxt;
-		while (nxt->len) {	/* search for available buffer */
-		    nxt = nxt->next;
-		    if (nxt == n) break;
-		}
-		if (nxt->len == 0) {
+		//n = nxt;
+		//clr_irq();
+		//nxt = tnext;
+		//while (nxt->len) {	/* search for available buffer */
+		    //nxt = nxt->next;
+		    //if (nxt == tnext) break;
+		//}
+		if (fnext->len == 0) {
+		    //set_irq();
 		    kputchar('t');
-		    if (verified_memcpy_fromfs(nxt->data, data, len)) {
+		    if (verified_memcpy_fromfs(fnext->data, data, len)) {
 			printk("ne0: memcpy error in write\n");
 			res = -EIO; 
 			break;
 		    }
 		    res = len;
-		    nxt->len = len;
-		    dprintk("%04x/%d;",nxt, nxt->len);
+		    fnext->len = len;
+		    dprintk("%04x/%d;",fnext, fnext->len);
+		    fnext = fnext->next;
 		    mark_bh(NETWORK_BH);
 		    break;
 		}
+		//set_irq();
 #endif
 	/* No buffer available. Returning w/o sending means a lost packet and a retransmit cycle,
 	 * which is more than 3 secs, while waiting for a buffer to become available 
@@ -815,7 +897,7 @@ static int wd_select(struct inode * inode, struct file * filp, int sel_type)
 #else
 	switch (sel_type) {
 		case SEL_OUT:
-			if (tnext->len == 0) {
+			if (fnext->len == 0) {
 				kputchar('s');
 				res = 1;
 				break;
@@ -905,7 +987,7 @@ static int wd_open(struct inode *inode, struct file *file)
 		net_ibuf = (struct netbuf *)heap_alloc(sizeof(struct netbuf) * (netbufs[NET_RXBUFS] +
 				netbufs[NET_TXBUFS]), HEAP_TAG_NETWORK);
 		net_obuf = net_ibuf + netbufs[NET_RXBUFS];
-		tnext = netbuf_init(net_obuf, netbufs[NET_TXBUFS]);
+		fnext = tnext = netbuf_init(net_obuf, netbufs[NET_TXBUFS]);
 		rnext = netbuf_init(net_ibuf, netbufs[NET_RXBUFS]);
 #endif
 		wd_start();
@@ -926,8 +1008,8 @@ static void wd_release(struct inode *inode, struct file *file)
 	if (--usecount == 0) {
 		wd_stop();
 #if NET_BUF_STRAT == HEAP_BUFS
-		if (rnext) netbuf_release(net_ibuf);
-		if (tnext) netbuf_release(net_obuf);
+		netbuf_release(net_ibuf);
+		netbuf_release(net_obuf);
 		heap_free(net_ibuf);
 #endif
 		free_irq(net_irq);
