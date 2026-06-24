@@ -164,6 +164,8 @@ int lance_debug = LANCE_DEBUG;
    available. Heap is a compile time option only - for
    simplicity: The buffer headers are statically allocated
    and changing that is just too messy for the benefit.
+
+   TODO: Use bootopts netbufs= to set the # of buffers to use.
  */
 
 //#define USE_HEAP
@@ -323,7 +325,7 @@ void INITPROC lance_drv_init(void) {
             printk("null-port in bootopts, ignored\n");
             return;
         }
-	for (port = &port_list[0]; *port; port++) {
+	for (port = &port_list[0]; *port; port++) {	/* look for device */
 	    ioaddr = *port;
 
 	    /* ne2k style: Look for 2x'W' (for 'word') at the end of the PROM */
@@ -571,13 +573,13 @@ int lance_open(struct inode *inode, struct file *filp)
 #endif
 	/* Give the network port time to acquaint itself with the net, otherwise our first packet out,
 	 * the gratuituous ARP packet which ktcp sends immediately on startup, will fail with a CERR
-	 * code, meaning Collission, which happens then the TP interface hasn't figured out its
+	 * code, meaning Collission, which happens when the TP interface hasn't figured out its
 	 * physical environment yet. The error is temporary, and affects only this early first packet.
 	 * It is however, sufficiently annoying to qualify this delay. The alternative would be to
 	 * send the ARP packet twice in ktcp. */
 
-	tstart = jiffies;
-	while (jiffies < (tstart + 7)) asm("nop");
+	tstart = jiffies();
+	while (jiffies() < (tstart + 7)) asm("nop");
 
 	outw(0x0000, ioaddr+LANCE_ADDR);
 	outw(0x0001, ioaddr+LANCE_DATA);	/* let the NIC initialize */
@@ -615,7 +617,7 @@ static void lance_init_ring(void)
     int i;
     int adjust = 0;	/* Use if we decide to ditch the low mem bounce buffer and just
 			 * allocate one extra here just in case. Or instead, we change the allocation
-			 * mechanisms to guarantee no-64k-borders */
+			 * mechanisms to guarantee no-64k-spanning */
 
     lp->cur_rx = lp->cur_tx = 0;
     lp->dirty_tx = 0;
@@ -668,7 +670,7 @@ static int lance_start_xmit(char *data, size_t len)
 
     /* Transmitter timeout, serious problems. */
     if (tbusy) {
-	long tickssofar = jiffies - tstart;
+	long tickssofar = jiffies() - tstart;
 	if (tickssofar < 10)
 	    return -EAGAIN;
 	outw(0, ioaddr+LANCE_ADDR);
@@ -697,7 +699,7 @@ static int lance_start_xmit(char *data, size_t len)
 	outw(0x0142, ioaddr+LANCE_DATA);	/* IDON|STRT|IENA */
 
 	tbusy = 0;
-	tstart = jiffies;
+	tstart = jiffies();
 
 	return -ETIME;
     }
@@ -769,7 +771,7 @@ static int lance_start_xmit(char *data, size_t len)
     outw(0x0000, ioaddr+LANCE_ADDR);
     outw(0x0048, ioaddr+LANCE_DATA);
 
-    tstart = jiffies;
+    tstart = jiffies();
 
     if (((lp->tx_ring[(entry+1) & TX_RING_MOD_MASK].base)&0xff000000) == 0)
 	tbusy = 0;

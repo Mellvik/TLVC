@@ -957,6 +957,7 @@ void wd_int_bh(void)
 		}
 		if (wd_has_data) {	/* do read processing */
 #if NET_BUF_STRAT == HEAP_BUFS
+#if 0
 		    struct netbuf *nxt = rnext;
 		    do {
 			if (nxt->len == 0) {	/* buffer available */
@@ -974,6 +975,22 @@ void wd_int_bh(void)
 			nxt = nxt->next;
 			if (nxt == rnext) break;
 		    } while (wd_has_data);
+#endif
+		    kputchar('J');
+		    if (gnext->len == 0) {
+			gnext->len = wd_pack_get(gnext->data, MAX_PACKET_ETH);
+			if (gnext->len < 0) {	/* we may get a bad packet from wd_pack_get() */
+			    gnext->len = 0;
+			    continue;	/* Ignore, continue to next if any */
+			}
+			dprintk("G%04x/%d/%d;", gnext, gnext->len, wd_has_data);
+			gnext = gnext->next;
+			wake_up(&rxwait);
+			break; 		/* Important: one pkt per
+					 * main loop - to keep 'wd_has_data'
+					 * in sync with reality */
+		    } else
+			break;
 #endif
 		}
 		if (stat & ENISR_TX) {
