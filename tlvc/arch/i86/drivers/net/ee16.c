@@ -1429,7 +1429,7 @@ static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 #define USE_RESTART_CU 3
 #if USE_RESTART_CU == 2		/* recovery before new packet */
 				/* recovery after: See below, the jury is out on which is best */
-	if (tx_avail < num_tx_bufs && (jiffies - last_tx)) {
+	if (tx_avail < num_tx_bufs && (jiffies() - last_tx)) {
 		ee16_restartCU(tx_reap);
 	}
 #endif
@@ -1469,7 +1469,7 @@ static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 #if USE_RESTART_CU == 3
 	/* If this is placed before filling the buffer, we may get underrun errors,
 	 * seemingly from memory contention. TO BE VERIFIED */
-	if (tx_avail < (num_tx_bufs-1) && (jiffies - last_tx)) {
+	if (tx_avail < (num_tx_bufs-1) && (jiffies() - last_tx)) {
 		ee16_restartCU(tx_reap);
 	}
 #endif
@@ -1483,7 +1483,7 @@ static void ee16_put_packet(unsigned int ioaddr, char *buf, int len)
 	else
 		tx_head += TX_BUF_SIZE;
 
-	last_tx = jiffies;	/* may want to track last TX complete int instead */
+	last_tx = jiffies();	/* may want to track last TX complete int instead */
 
 	/* Update the link in the previous block to point to this block.
 	 * This will allow the CU to process this frame and almost always trigger an immediate
