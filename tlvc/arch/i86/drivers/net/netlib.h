@@ -95,7 +95,7 @@ struct pbuf {		/* packet buffers split into pages */
 void netbuf_release(struct netbuf *);
 
 struct netbuf *net_ibuf;
-struct netbuf *rnext;
+struct netbuf *rnext, *gnext;
 
 struct netbuf *net_obuf;
 struct netbuf *tnext, *fnext;	/* transmit-next, fill-next pointers */

@@ -57,7 +57,7 @@ extern byte_t ne2k_imask;
 extern struct eth eths[];
 extern unsigned char macaddr[];
 
-#define LOCAL_DEBUG 0
+#define LOCAL_DEBUG 2
 #if LOCAL_DEBUG
 void kputchar(int);
 #else
@@ -149,7 +149,7 @@ static size_t ne2k_getpkg(char *data, size_t len) {
 static size_t ne2k_write(struct inode *inode, struct file *file, char *data, size_t len)
 {
 	size_t res = 0;
-	struct netbuf *n, *nxt = tnext;
+	//struct netbuf *n, *nxt = tnext;
 
 	kputchar('T');
 	if (len > MAX_PACKET_ETH) len = MAX_PACKET_ETH;
@@ -159,20 +159,21 @@ static size_t ne2k_write(struct inode *inode, struct file *file, char *data, siz
 		prepare_to_wait_interruptible(&txwait);
 #if NET_BUF_STRAT == HEAP_BUFS
 		//n = nxt;
-		while (nxt->len) {	/* search for available buffer */
-		    nxt = nxt->next;
-		    if (nxt == tnext) break;	/* tnext may have changed, that's ok */
-		}
-		if (nxt->len == 0) {
+		//while (nxt->len) {	/* search for available buffer */
+		    //nxt = nxt->next;
+		    //if (nxt == tnext) break;	/* tnext may have changed, that's ok */
+		//}
+		if (fnext->len == 0) {
 		    kputchar('t');
-		    if (verified_memcpy_fromfs(nxt->data, data, len)) {
+		    if (verified_memcpy_fromfs(fnext->data, data, len)) {
 			printk("ne0: memcpy error in write\n");
 			res = -EIO; 
 			break;
 		    }
 		    res = len;
-		    nxt->len = len;
-		    dprintk("%04x/%d;",nxt, nxt->len);
+		    fnext->len = len;
+		    dprintk("%04x/%d;",fnext, fnext->len);
+		    fnext = fnext->next;
 		    mark_bh(NETWORK_BH);
 		    break;
 		}
@@ -210,7 +211,7 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 
 	switch (sel_type) {
 		case SEL_OUT:
-			if (tnext->len == 0) {
+			if (fnext->len == 0) {
 				kputchar('s');
 				res = 1;
 				break;
@@ -226,7 +227,6 @@ int ne2k_select(struct inode *inode, struct file *filp, int sel_type)
 				break;
 			}
 			kputchar('W');
-			//mark_bh(NETWORK_BH);	// EXPERIMENTAL
 			select_wait(&rxwait);
 			break;
 
@@ -280,30 +280,26 @@ void ne2k_int_bh(void)
 			outb(NE2K_ISR_RX, net_port + EN0_ISR);
 		}
 
-		if (ne2k_has_data) {		/* Even if we didn't get an RX int, there may be 
+		while (ne2k_has_data) {		/* Even if we didn't get an RX int, there may be 
 						 * data to pull from the NIC - buffer space 
 						 * permitting */
 #if NET_BUF_STRAT == HEAP_BUFS
-		    struct netbuf *nxt = rnext;
-		    do {
-			if (nxt->len == 0) {	/* buffer available */
-			    nxt->len = ne2k_getpkg(nxt->data, MAX_PACKET_ETH);
-			    if (nxt->len < 0) {	/* we may get a bad packet from ne2k_getpkg() */
-				nxt->len = 0;
-				continue;	/* Ignore, continue to next if any */
-			    }
-			    dprintk("G%04x/%d/%d;", nxt, nxt->len, ne2k_has_data);
-			    break; 		/* Important: one pkt per
-						 * loop only - to keep 'ne2k_has_data'
-						 * in sync with reality */
-			} 
-			nxt = nxt->next;
-			if (nxt == rnext) break;
-		    } while (ne2k_has_data);
-
-		    if (nxt->len) 
-#endif
+		    kputchar('J');
+		    if (gnext->len == 0) {
+			gnext->len = ne2k_getpkg(gnext->data, MAX_PACKET_ETH);
+			if (gnext->len < 0) {	/* we may get a bad packet from ne2k_getpkg() */
+			    gnext->len = 0;
+			    continue;	/* Ignore, continue to next if any */
+			}
+			dprintk("G%04x/%d/%d;", gnext, gnext->len, ne2k_has_data);
+			gnext = gnext->next;
 			wake_up(&rxwait);
+			break; 		/* Important: one pkt per
+					 * main loop - to keep 'ne2k_has_data'
+					 * in sync with reality */
+		    } else
+			break;
+#endif
 		}
 
 		if (stat & NE2K_ISR_TX) {
@@ -422,8 +418,8 @@ static int ne2k_open(struct inode *inode, struct file *file)
 				netbufs[NET_TXBUFS]), HEAP_TAG_NETWORK);
 		net_obuf = net_ibuf + netbufs[NET_RXBUFS];
 		//printk("eth: using %d/%d buffers\n", netbufs[NET_RXBUFS], netbufs[NET_TXBUFS]);
-		tnext = netbuf_init(net_obuf, netbufs[NET_TXBUFS]);
-		rnext = netbuf_init(net_ibuf, netbufs[NET_RXBUFS]);
+		fnext = tnext = netbuf_init(net_obuf, netbufs[NET_TXBUFS]);
+		gnext = rnext = netbuf_init(net_ibuf, netbufs[NET_RXBUFS]);
 #endif
 
 		ne2k_start();
