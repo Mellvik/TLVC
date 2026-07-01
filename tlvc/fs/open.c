@@ -368,7 +368,10 @@ int sys_open(const char *filename, int flags, int mode)
     if ((mode_t)((flags + 1) & O_ACCMODE)) flag++;
     if (flag & (O_TRUNC | O_CREAT)) flag |= FMODE_WRITE;
 
-    debug_file("OPEN '%t' flags 0x%x\n", filename, flags);
+#ifdef CONFIG_COMPAT_V7
+    debug_file("V7 compat mode is %s\n", current->task_is_V7?"on":"off");
+#endif
+    debug_file("OPEN[%P] '%t' flags 0x%x\n", filename, flags);
     error = open_namei(filename, flag, mode, &inode, NULL);
     if (!error) {
 	if ((error = open_fd(flags, inode)) < 0)
@@ -377,6 +380,13 @@ int sys_open(const char *filename, int flags, int mode)
     debug_file(" = %d\n", error);
     return error;
 }
+
+#ifdef CONFIG_COMPAT_V7
+int sys_creat(const char *filename, int mode)
+{
+    return(sys_open(filename, O_CREAT|O_TRUNC|O_WRONLY, mode));
+}
+#endif
 
 static void close_fp(register struct file *filp)
 {
@@ -414,7 +424,7 @@ int sys_close(unsigned int fd)
     register struct file *filp;
     register struct file_struct *cfiles = &current->files;
 
-    debug_file("CLOSE %d\n", fd);
+    debug_file("CLOSE[%P] %d\n", fd);
     if (fd < NR_OPEN) {
 	clear_bit(fd, &cfiles->close_on_exec);
 	if ((filp = cfiles->fd[fd])) {

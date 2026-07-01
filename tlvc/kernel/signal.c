@@ -86,6 +86,7 @@ int kill_process(pid_t pid, sig_t sig, int priv)
     register struct task_struct *p;
 
     debug_sig("SIGNAL kill_proc sig %d pid %d\n", sig, pid);
+    printk("SIGNAL kill_proc sig %d pid %d\n", sig, pid);
     for_each_task(p)
 	if (p->pid == pid && p->state < TASK_ZOMBIE)
 	    return send_sig(sig, p, 0);
@@ -132,6 +133,12 @@ int sys_signal(int signr, __kern_sighandler_t handler)
 	      _FP_SEG(handler), _FP_OFF(handler), current->pid);
     if (((unsigned int)signr > NSIG) || signr == SIGKILL || signr == SIGSTOP)
 	return -EINVAL;
+
+#ifdef CONFIG_COMPAT_V7		/* Don't do V7 signal handling for now */
+    if (current->task_is_V7 && (handler != KERN_SIG_IGN))
+	handler = KERN_SIG_DFL;
+#endif
+
     if (handler == KERN_SIG_DFL)
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_DFL;
     else if (handler == KERN_SIG_IGN)

@@ -126,3 +126,30 @@ int sys_gettimeofday(register struct timeval *tv, struct timezone *tz)
     /* success */
     return 0;
 }
+
+#ifdef CONFIG_COMPAT_V7
+#include <linuxmt/timeb.h>
+
+time_t sys_time(void)
+{
+    current->task_is_V7 |= 0x100;	/* AX does not return errors */
+    return current_time();		/* AX+DX long return works with V7 */
+}
+
+int sys_ftime(struct timeb *tb)
+{
+    jiff_t now;
+    struct timeb tmp_tb;
+
+    tmp_tb.time = current_time();
+    now = jiffies();
+    tmp_tb.millitm = (unsigned short)(xtime.tv_usec/1000) + (unsigned short)((now - xtime_jiffies) % HZ) * 10;
+    tmp_tb.timezone = xzone.tz_minuteswest;
+    tmp_tb.dstflag = 1; /* DST enabled */
+    verified_memcpy_tofs(tb, &tmp_tb, sizeof(struct timeb));
+
+    return 0;
+}
+
+#endif
+

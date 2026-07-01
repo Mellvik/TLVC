@@ -75,15 +75,29 @@ static int cp_stat(register struct inode *inode, struct stat *statbuf)
 	}
     }
 #endif
-
+#ifdef CONFIG_COMPAT_V7
+    /* compensate for short ino_t in V7/Venix stat and different file type mode flags */
+    if (current->task_is_V7) {
+	if ((tmp.st_mode&S_IFMT) > 0100000 || (tmp.st_mode&S_IFMT) == 010000) return -EBADF;
+	if  (tmp.st_mode&S_IFMT) tmp.st_mode |= 0100000;		// covers the regular file case too.
+	verified_memcpy_tofs((char *)statbuf, (char *)&tmp, 4);
+	return verified_memcpy_tofs((char *)statbuf+4, (char *)&tmp+6, sizeof(tmp)-6);
+    } else
+#endif
     return verified_memcpy_tofs((char *) statbuf, (char *) &tmp, sizeof(tmp));
 }
 
 int sys_stat(char *filename, struct stat *statbuf)
 {
+#ifdef CONFIG_COMPAT_V7
+    int is_V7 = current->task_is_V7;
+#endif
     struct inode *inode;
     int error = namei(filename, &inode, 0, 0);
 
+#ifdef CONFIG_COMPAT_V7		/* namei() may clear the V7 flag */
+    current->task_is_V7 = is_V7;
+#endif
     if (!error) {
 	error = cp_stat(inode, statbuf);
 	iput(inode);
@@ -124,6 +138,12 @@ int sys_readlink(char *path, char *buf, size_t bufsiz)
     register struct inode_operations *iop;
     int error = -EINVAL;
 
+#ifdef CONFIG_COMPAT_V7
+    /* This is syscall 59, which is exece/execve() on V7/Venix. */
+    if (current->task_is_V7) {
+	return(sys_execve(path, buf, bufsiz));
+    }
+#endif
     if ((bufsiz > 0)
 	&& !(error = verify_area(VERIFY_WRITE, buf, bufsiz))
 	&& !(error = lnamei(path, &inode))

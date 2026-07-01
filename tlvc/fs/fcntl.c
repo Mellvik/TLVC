@@ -39,16 +39,28 @@ int sys_dup2(unsigned int oldfd, unsigned int newfd)
 	/* following POSIX.1 6.2.1, if newfd >= NR_OPEN, return -EBADF */
 	if (newfd < NR_OPEN) {
 	    sys_close(newfd);
+	    printk("DUP[%P]: old %d, new %d\n", oldfd, newfd);
 	    return dupfd(oldfd, newfd);
 	}
     }
     return -EBADF;
 }
 
+#ifdef CONFIG_COMPAT_V7
+/* V7/Venix doesn't use/have dup2. Instead the 0100 bit of fildes is set to indicate dup2 */
+int sys_dup(unsigned int fildes, unsigned int newfd)
+{
+    //if (current->task_is_V7) printk("DUP[%P]: old %x, new %x\n", fildes, newfd);
+    if (current->task_is_V7 && (fildes&0100)) return(sys_dup2(fildes&~0100, newfd));
+	//{ int r = sys_dup2(fildes&~0x40, newfd); printk("got r=%d for old0%d, f=%d\n", r, fildes&~0x40, newfd); return r;}
+    return dupfd(fildes, 0);
+}
+#else
 int sys_dup(unsigned int fildes)
 {
     return dupfd(fildes, 0);
 }
+#endif
 
 int sys_fcntl(unsigned int fd, unsigned int cmd, unsigned int arg)
 {

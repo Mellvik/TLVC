@@ -333,7 +333,7 @@ no_inodes:
     return 0;
 }
 
-int sys_pipe(unsigned int *filedes)
+long sys_pipe(unsigned int *filedes)
 {
     int fd[2];
     int error;
@@ -341,6 +341,13 @@ int sys_pipe(unsigned int *filedes)
     debug("PIPE: called.\n");
 
     if ((error = do_pipe(fd))) return error;
+    printk("PIPE[%P]: return %d/%d(%08lx)\n", fd[0], fd[1], *(long *)fd);
+#ifdef CONFIG_COMPAT_V7
+    if (current->task_is_V7) {
+	verified_memcpy_tofs(filedes, fd, 2 * sizeof(int));
+	return *(long *)fd;
+    }
+#endif
 
     debug("PIPE: Returned %d %d.\n", fd[0], fd[1]);
 

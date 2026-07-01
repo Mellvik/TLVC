@@ -28,6 +28,8 @@
  *                      for details.
  *
  *      30 Jun 2024     Greg Haerr. Added support for loading OS/2 v1.x binaries.
+ *
+ *      01 Jul 2026	Helge Skrivervik. Support for V7/Venix syscalls and binaries.
  */
 
 #include <linuxmt/config.h>
@@ -42,9 +44,11 @@
 #include <linuxmt/mm.h>
 #include <linuxmt/minix.h>
 //#include <linuxmt/os2.h>
+#include <linuxmt/v7.h>
 #include <linuxmt/init.h>
 #include <linuxmt/debug.h>
 #include <linuxmt/memory.h>
+#include <linuxmt/heap.h>	/* for V7 compat */
 #include <arch/segment.h>
 #pragma GCC diagnostic ignored "-Wunused-label"
 
@@ -52,6 +56,8 @@
 #define debug_reloc     debug
 #define debug_reloc2    debug
 #define debug_os2       debug
+#define debug_v7	debug //printk
+//#define DEBUG_V7
 
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     char *sptr, size_t slen);
@@ -64,6 +70,26 @@ static int FARPROC execve_os2(struct inode *inode, struct file *filp,
 static segment_s *mm_table[MAX_SEGS]; /* holds process segments until exec guaranteed */
 #endif
 
+#ifdef CONFIG_COMPAT_V7
+static int v7_task;
+static int fs_strlen(char *bf)
+{
+	int i = 0;
+#ifdef DEBUG_V7
+	int c;
+	while ((c=get_user_char(bf++))) {
+		kputchar(c);
+		i++;
+	}
+	printk("\n");
+#else
+	while (get_user_char(bf++)) i++;
+#endif
+	return i;
+}
+
+#endif
+
 int sys_execve(const char *filename, char *sptr, size_t slen)
 {
     int retval;
@@ -71,6 +97,57 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
     seg_t ds;
     struct inode *inode;
     word_t magic;
+
+#ifdef CONFIG_COMPAT_V7
+    char *stk_ptr;
+
+    v7_task = current->task_is_V7;	/* make sure we always know where we're coming from
+    					 * even if some 2nd level syscall clears the flag */
+    if (v7_task) {			/* The following is essentially a copy of the 
+    					 * code found in the exec library file */
+	int stack_bytes, rv;
+	char *pcp, *baseoff;
+	int argv_len=0, argv_count=0;
+	int envp_len=0, envp_count=0;
+	unsigned short *pip;
+	char **p;
+	char *cc;
+
+
+	for (p=(char **)sptr; p && (cc = (char *)get_user(p)) && argv_len >= 0; p++) {
+	    int l = fs_strlen(cc)+1;
+	    argv_count++; argv_len += l;
+	}
+	for (p=(char **)slen; p && (cc = (char *)get_user(p)) && argv_len >= 0; p++) {
+	    envp_count++; envp_len += fs_strlen(cc)+1;
+	}
+	stack_bytes = 2 + (argv_count<<1) + 2 + argv_len +
+			  (envp_count<<1) + 2 + envp_len;
+	stk_ptr = heap_alloc(stack_bytes, HEAP_TAG_EXSTK);
+	if (!stk_ptr) return -ENOMEM;
+
+	pip = (unsigned short *)stk_ptr;
+	pcp = stk_ptr + 2*(1+argv_count+1+envp_count+1);
+	baseoff = stk_ptr;
+	*pip++ = argv_count;	/* argc */
+	for (p=(char **)sptr; p && (cc = (char *)get_user(p)); p++) {
+    	    *pip++ = pcp-baseoff;
+	    rv = fs_strlen(cc)+1;
+	    verified_memcpy_fromfs(pcp, cc, rv);
+	    pcp += rv;
+	}
+	*pip++ = 0;			/* end of argv */
+	for (p=(char **)slen; p && (cc = (char *)get_user(p)); p++) {
+    	    *pip++ = pcp-baseoff;
+	    rv = fs_strlen(cc)+1;
+	    verified_memcpy_fromfs(pcp, cc, rv);
+	    pcp += rv;
+	}
+	*pip++ = 0;			/* end of envp */
+	sptr = stk_ptr;
+	slen = stack_bytes;
+    }
+#endif
 
     /* Open the image */
     debug_cache("\nEXEC(%P): '%t' env %d ", filename, slen);
@@ -84,18 +161,28 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
     if (!(filp->f_op) || !(filp->f_op->read)) goto error_exec2_5;
 
     /* Read the header */
+#ifdef DEBUG_V7
+    printk("exec[%P]: task V7 flag: %x;", current->task_is_V7);
+#endif
     ds = current->t_regs.ds;
     current->t_regs.ds = kernel_ds;
     retval = filp->f_op->read(inode, filp, (char *)&magic, sizeof(magic));
     current->t_regs.ds = ds;
     if (retval != sizeof(magic)) goto error_exec2_5;
+#ifdef DEBUG_V7
+    printk(" [%P] %x\n", current->task_is_V7);
+#endif
 
 #ifdef CONFIG_EXEC_OS2
     if (magic == MZMAGIC)
         retval = execve_os2(inode, filp, sptr, slen);
     else
 #endif
+#ifdef CONFIG_COMPAT_V7
+    if (magic == AOUTMAGIC || magic == OMAGIC || magic == NMAGIC)
+#else
     if (magic == AOUTMAGIC)
+#endif
         retval = execve_aout(inode, filp, sptr, slen);
     else retval = -ENOEXEC;
     goto normal_out;
@@ -105,6 +192,9 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
         retval = -ENOEXEC;
   normal_out:
     close_filp(inode, filp);
+#ifdef CONFIG_COMPAT_V7
+    if (v7_task) heap_free(stk_ptr);
+#endif
 
     if (retval)
   error_exec2:
@@ -195,15 +285,19 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     int retval;
     seg_t ds = current->t_regs.ds;
     seg_t base_data = 0;
-    segment_s * seg_code;
-    segment_s * seg_data;
+    segment_s *seg_code;
+    segment_s *seg_data;
     size_t len, min_len, heap, stack = 0;
     size_t bytes;
     segext_t paras;
-    ASYNCIO_REENTRANT struct minix_exec_hdr mh;         /* 32 bytes */
+    ASYNCIO_REENTRANT volatile struct minix_exec_hdr mh;         /* 32 bytes */
 #ifdef CONFIG_EXEC_MMODEL
     ASYNCIO_REENTRANT struct elks_supl_hdr esuph;       /* 24 bytes */
     int need_reloc_code = 1;
+#endif
+#ifdef CONFIG_COMPAT_V7
+    struct v7_exec *v7hdr = (struct v7_exec *)&mh;
+    unsigned magic;
 #endif
 
     /* (Re)read the header */
@@ -214,6 +308,31 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     /* Sanity check it */
     if (retval != sizeof(mh)) goto error_exec3;
 
+#ifdef CONFIG_COMPAT_V7
+    magic = v7hdr->a_magic;
+    if (magic == NMAGIC || magic == OMAGIC) {
+    	/* rearrange the V7 exec header into struct minix mh */
+	mh.minstack = v7hdr->a_stack;
+	v7hdr->a_stack = 0;
+	mh.syms = v7hdr->a_syms;
+	mh.bseg = v7hdr->a_bss;	/* may use memmove here */
+	mh.dseg = v7hdr->a_data;
+	mh.tseg = v7hdr->a_text;
+	/* mh.entry matches between the two structs */
+	mh.chmem = 0x2000;	/* experimenta, 8k default */
+	mh.hlen = 32;
+	mh.version = 3;		/* simplify logic below */
+	if (!mh.minstack)	/* a_stack = 0 means the stack is above the */
+	    mh.minstack = 0x1000; /* heap, stretching to the phys end of the seg. */
+	    			  /* We cap that to 4k or whatever chmem decides */
+#ifdef DEBUG_V7
+	unsigned long *x = &mh.type;
+	for (int i = 0; i < 8; i++)
+		printk(":0x%08lx:\n", *(x+i));
+#endif
+
+    } else
+#endif
     if ((mh.type != MINIX_SPLITID_AHISTORICAL && mh.type != MINIX_SPLITID) ||
         (size_t)mh.tseg == 0) {
         debug("EXEC: bad header, result %d\n", retval);
@@ -221,6 +340,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     }
 
     /* Look for the binary in memory */
+    /* FIXME: This will match TINY Venix programs too, havoc will ensue */
     seg_code = 0;
     currentp = &task[0];
     do {
@@ -280,10 +400,33 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     /*
      * mh.version == 1: chmem is size of heap, 0 means use default heap
      * mh.version == 0: old ld86 used chmem as size of data+bss+heap+stack
+     * mh.version == 3: V7/Venix binaries, stack always stars at zero. 
      */
     switch (mh.version) {
     default:
         goto error_exec3;
+
+#ifdef CONFIG_COMPAT_V7
+    /* Memory layout on Venix/V7: 
+     * TINY model 1: <8k stack><text><data><bss><heap>
+     * TINY model 2: <text><data><bss><heap><stack> occupying a full segment
+     * 		on Venix. We cap the stack to whatever the header (above) says.
+     * SMALL model data seg: <8k stack><data><bss><heap>
+     * (the latter may not be universally true, but we'll stick with
+     * it for now).
+     * NOTE: On Venix/86 the heap seems to be allowed to grow until it either
+     * reaches the end of the segment or hit a used part of that segment.
+     * We use the TLVC model instead and allocate default or header-specified heap.
+     * Also, Venix/86 binaries expect segment sizes to be exact, no rounding or overflow,
+     * otherwise memory references become skewed and crashes ensue. 
+    */
+    case 3:	/* Venix binary */
+    	len = mh.dseg + mh.bseg + (mh.chmem ? mh.chmem : INIT_HEAP);
+	stack = mh.minstack;
+	if (magic == NMAGIC) len += stack;	/* allocation size for DSEG */
+	goto v7_continue;
+#endif
+
     case 1:
         len = min_len;
         {
@@ -292,6 +435,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
                 retval = -EFBIG;
                 goto error_exec3;
             }
+	    /* FIXME: Not useful for venix binaries */
             if (add_overflow(len, slen, &len)) {        /* add argv, envp */
                 retval = -E2BIG;
                 goto error_exec3;
@@ -308,6 +452,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
             }
         }
         debug("EXEC: stack %u heap %u env %u total %u\n", stack, heap, slen, len);
+        debug_v7("EXEC: stack %u heap %u env %u total %u\n", stack, heap, slen, len);
         break;
     case 0:
         len = mh.chmem;
@@ -341,16 +486,19 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 
     /* Round data segment length up to a paragraph boundary
        (If the length overflows at this point, blame argv and envp...) */
+    /* V7 binaries use the first location of bss (link time fixed address) to store
+       **envp, so no rounding */
     if (add_overflow(len, 15, &len)) {
         retval = -E2BIG;
         goto error_exec3;
     }
     len &= ~(size_t)15;
 
+v7_continue:
     debug("EXEC: Malloc time\n");
 
     /*
-     *      Looks good. Get the memory we need
+     *      Looks good. Allocate memory
      */
 
     if (!seg_code) {
@@ -381,16 +529,30 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 #ifdef CONFIG_EXEC_MMODEL
         paras += bytes_to_paras((size_t)esuph.esh_ftseg);
 #endif
-        debug_reloc("EXEC: allocating %04x paras (%04x bytes) for text segment(s)\n",
+        debug_reloc("EXEC: allocating %04x paras (%d bytes) for text segment(s)\n",
             paras, bytes);
+#ifdef CONFIG_COMPAT_V7
+	if (magic == OMAGIC) {	/* tiny model alloction - merge everything */
+	    len += bytes + stack;
+	    paras = bytes_to_paras(len);
+	    seg_code = seg_alloc(paras, SEG_FLAG_VSEG);
+            debug_v7("EXEC: allocating %04x paras (text: %d bytes) for TINY segment @ %x:%x\n",
+            paras, len, seg_code->base, (unsigned)mh.entry);
+	} else
+#endif
+	{
         seg_code = seg_alloc(paras, SEG_FLAG_CSEG);
+        debug_v7("EXEC: allocating %04x paras (%d bytes) for text segment @ %x:%x\n",
+            paras, bytes, seg_code->base, (unsigned int)mh.entry);
+	}
         if (!seg_code) goto error_exec3;
         currentp->t_regs.ds = seg_code->base;
-        retval = filp->f_op->read(inode, filp, 0, bytes);
+        retval = filp->f_op->read(inode, filp, (char *)((unsigned int)mh.entry), bytes);
         if (retval != bytes) {
             debug("EXEC(tseg read): bad result %u, expected %u\n", retval, bytes);
             goto error_exec4;
         }
+	
 #ifdef CONFIG_EXEC_COMPRESS
         retval = -ENOEXEC;
         if (esuph.esh_compr_tseg &&
@@ -420,7 +582,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
         }
 #endif
     } else {
-        seg_get (seg_code);
+        seg_get(seg_code);
 
   code_seg_found_exec:
 #ifdef CONFIG_EXEC_MMODEL
@@ -431,12 +593,20 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
         filp->f_pos += (size_t)mh.tseg;
 #endif
     }
-
-    paras = len >> 4;
+    paras = len >> 4;	/* LOOKS bad, we did this above, but only for OMAGIC */
     retval = -ENOMEM;
-    debug_reloc("EXEC: allocating %04x paras (%04x bytes) for data segment\n", paras, len);
-    seg_data = seg_alloc (paras, SEG_FLAG_DSEG);
+    debug_reloc("EXEC: allocating %04x paras (%d bytes) for data segment\n", paras, len);
+#ifdef CONFIG_COMPAT_V7
+    if (magic == OMAGIC)
+	seg_data = seg_code;
+    else
+#endif
+    {
+    seg_data = seg_alloc(paras, SEG_FLAG_DSEG);
     if (!seg_data) goto error_exec4;
+    }
+    debug_v7("EXEC: allocating %04x paras (%d bytes) for data segment @ %x:0\n", paras, len, seg_data->base);
+
     debug("EXEC: Malloc succeeded - cs=%x ds=%x\n", seg_code->base, seg_data->base);
 
     bytes = (size_t)mh.dseg;
@@ -447,7 +617,16 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
                 //paras += 1;           /* add 16 bytes for safety offset */
     }
 #endif
-    currentp->t_regs.ds = seg_data->base;
+    currentp->t_regs.ds = seg_data->base;	/* OK even for OMAGIC */
+#ifdef CONFIG_COMPAT_V7
+    if (magic == NMAGIC) base_data = mh.minstack;	/* data above stack (MAY NEED TO FIX) */
+    else if (magic == OMAGIC) {
+	if ((size_t)mh.entry)
+	    base_data = mh.minstack + (size_t)mh.tseg;	/* stack below text */
+	else
+	    base_data = (size_t)mh.tseg;	/* stack above heap */
+    }
+#endif
     retval = filp->f_op->read(inode, filp, (char *)base_data, bytes);
     if (retval != bytes) {
         debug("EXEC(dseg read): bad result %d, expected %u\n", retval, bytes);
@@ -492,9 +671,21 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 
     /* set data/stack limits and copy argc/argv */
     currentp->t_enddata = (size_t)mh.dseg + (size_t)mh.bseg + base_data;
-    currentp->t_endseg = len;
+    currentp->t_endseg = len;		/* top end of allocated data segment */
+
     currentp->t_regs.dx = currentp->t_minstack = stack;
+#ifdef CONFIG_COMPAT_V7
+    if (magic == NMAGIC || (magic == OMAGIC && (word_t)mh.entry))
+    	current->t_begstack = mh.minstack - 2 - slen;	/* stack below text */
+    else
+#endif
     currentp->t_begstack = (currentp->t_endseg - slen) & ~1; /* force even SP and argv */
+
+#ifdef CONFIG_COMPAT_V7
+    if (v7_task)
+	fmemcpyb((char *)currentp->t_begstack, seg_data->base, sptr, kernel_ds, slen);
+    else 
+#endif
     fmemcpyb((char *)currentp->t_begstack, seg_data->base, sptr, ds, slen);
 
     finalize_exec(inode, seg_code, seg_data, (word_t)mh.entry, 0);
@@ -557,7 +748,7 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
         else n++;       /* increments for each array traversed */
     } while (n < 2);
 
-    /* Clear signal handlers */
+    /* Clear signal handlers FIXME: This needs more work for V7 */
     i = 0;
     do {
         currentp->sig.action[i].sa_dispose = SIGDISP_DFL;
@@ -592,6 +783,18 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
      * user stack and to CS:entry of the user process.
      */
     arch_setup_user_stack(currentp, entry, seg_code->base);
+#ifdef DEBUG_V7
+    if (currentp->t_begstack < currentp->t_endbrk) { 
+    	printk("V7: ready to exec, sp: %x ds %x enddata %x\n", currentp->t_regs.sp,
+			currentp->t_regs.ds, currentp->t_enddata);
+	//for (int q=0; q<7; q++) pokeb(entry+q, seg_code->base, 0xa0);	/* NOP replacing FPU trap */
+	printk("\n code:");
+	for (int q=0; q<16; q++) printk("%02x ", peekb(entry+q, seg_code->base));
+	printk("\n stack:");
+	for (int q=0; q<16; q++) printk("%02x ", peekb(currentp->t_regs.sp+q, seg_data->base));
+	printk("\n");
+    }
+#endif
 }
 
 #ifdef CONFIG_EXEC_OS2
