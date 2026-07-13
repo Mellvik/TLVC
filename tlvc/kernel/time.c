@@ -130,10 +130,14 @@ int sys_gettimeofday(register struct timeval *tv, struct timezone *tz)
 #ifdef CONFIG_COMPAT_V7
 #include <linuxmt/timeb.h>
 
-time_t sys_time(void)
+time_t sys_time(time_t *tloc)
 {
-    current->task_is_V7 |= 0x100;	/* AX does not return errors */
-    return current_time();		/* AX+DX long return works with V7 */
+    time_t t = current_time();
+    if (tloc)
+	verified_memcpy_tofs(tloc, &t, sizeof(t));
+    if (current->task_is_V7)
+	current->task_is_V7 |= 0x100;	/* AX does not return errors */
+    return t;				/* AX+DX long return V7 style */
 }
 
 int sys_ftime(struct timeb *tb)

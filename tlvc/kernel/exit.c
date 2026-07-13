@@ -10,12 +10,6 @@
 #include <linuxmt/init.h>
 #include <linuxmt/debug.h>
 
-#ifdef CONFIG_COMPAT_V7
-extern int __DX;
-#define STR(x) #x
-#define STRING(x) STR(x)
-#endif
-
 static void FARPROC reparent_children(void)
 {
     register struct task_struct *p;
@@ -49,7 +43,7 @@ static void FARPROC reparent_children(void)
 
 /* note: 'usage' parameter ignored */
 #ifdef CONFIG_COMPAT_V7
-long sys_wait4(pid_t pid, int *status, int options, void *usage)
+long sys_wait4(pid_t i_pid, int *i_status, int i_options, void *usage)
 #else
 int sys_wait4(pid_t pid, int *status, int options, void *usage)
 #endif
@@ -58,18 +52,25 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
     int waitagain;
 
 #ifdef CONFIG_COMPAT_V7
+    pid_t pid = i_pid;
+    int *status = i_status;
+    int options = i_options;
+
     /* V7 wait() has *status as the only API level arg (classic wait()).
      * *status is updated by the libc front end. IOW, wait is called with NO
-     * arguments - attempts to access them will screw up the stack! */
+     * arguments - attempts to access them may screw up the stack! */
     /* On return, Venix expects child pid in AX, std syscall error handling,
      * status in DX on return - thus the long. DX upper byte is exit status,
      * DX low byte is the signal - if any. */
-    int retval[2] = { 0, 0 };
-    if (current->task_is_V7) {
+
+    int retval[2] = { -1, -1 };
+    int v7 = current->task_is_V7;
+
+    if (v7) {
 	pid = -1;
 	options = 0;
+	status = 0;
 	printk("WAIT(%P)V7 for %d opts %x\n", pid, options);
-	//current->task_is_V7 |= 0x100;	/* AX error return OK */
     }
 #endif
     debug_wait("WAIT(%P) for %d opts %x\n", pid, options);
@@ -87,12 +88,12 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
                 }
 
 #ifdef CONFIG_COMPAT_V7
-		if (current->task_is_V7)
-		    retval[1] = p->signal + (p->exit_status<<8);
+		if (v7)
+		    retval[1] = p->signal + p->exit_status; 	/* status already ih hi byte */
 		else
 #endif
                 if (status) {
-                    if (verified_memcpy_tofs(status, &p->exit_status, sizeof(int)))
+                    if (verified_memcpy_tofs(i_status, &p->exit_status, sizeof(int)))
 			return -EFAULT;
                 }
 
@@ -107,8 +108,8 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
 
                 debug_wait("WAIT(%P) got %d\n", p->pid);
 #ifdef CONFIG_COMPAT_V7
-                printk("WAIT(%P) got %d\n", p->pid);
-		if (current->task_is_V7) {
+                printk("WAIT(%P) got %d status %x V7 %d\n", p->pid, retval[1], v7);
+		if (v7) {
 			retval[0] = p->pid;
 			return *(long *)retval;
 		} else
@@ -133,8 +134,8 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
     if (current->signal) {
         debug_wait("WAIT(%P) return -EINTR\n");
 #ifdef CONFIG_COMPAT_V7
-	if (current->task_is_V7) {
-	    retval[1] = p->signal + (p->exit_status<<8);
+	if (v7) {
+	    retval[1] = p->signal + p->exit_status;
 	    //printk("WAIT(%P): V7 wait interrupted, status 0x%04x\n", retval[1]);
 	    return *(long *)retval;
 	}
@@ -146,7 +147,7 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
 
   debug_wait("WAIT(%P) return -ECHILD\n");
 #ifdef CONFIG_COMPAT_V7
-  if (current->task_is_V7) {
+  if (v7) {
 	retval[0] = -ECHILD;
 	return *(long *)retval;
   } else

@@ -86,7 +86,6 @@ int kill_process(pid_t pid, sig_t sig, int priv)
     register struct task_struct *p;
 
     debug_sig("SIGNAL kill_proc sig %d pid %d\n", sig, pid);
-    printk("SIGNAL kill_proc sig %d pid %d\n", sig, pid);
     for_each_task(p)
 	if (p->pid == pid && p->state < TASK_ZOMBIE)
 	    return send_sig(sig, p, 0);
@@ -127,17 +126,30 @@ int sys_kill(pid_t pid, sig_t sig)
     return kill_process(pid, sig, 0);
 }
 
-int sys_signal(int signr, __kern_sighandler_t handler)
+int sys_signal(int signr, __kern_sighandler_t h)
 {
-    debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
-	      _FP_SEG(handler), _FP_OFF(handler), current->pid);
+    __kern_sighandler_t handler = h;
+    int retval = 0;
+    //debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
+//	      _FP_SEG(handler), _FP_OFF(handler), current->pid);
     if (((unsigned int)signr > NSIG) || signr == SIGKILL || signr == SIGSTOP)
 	return -EINVAL;
 
 #ifdef CONFIG_COMPAT_V7		/* Don't do V7 signal handling for now */
-    if (current->task_is_V7 && (handler != KERN_SIG_IGN))
-	handler = KERN_SIG_DFL;
+    /* NOTE: the V7 'hander' arg is a 16bit pointer to a routine in the process' 
+     * address space, not a long. A Venix signal handler returns via IRET. 
+     * Finally, Venix expects the (address of the) previous signal handler 
+     * (if any) to be returned. */
+    if (current->task_is_V7) {
+	if (_FP_OFF(handler) == (unsigned int)KERN_SIG_IGN)
+	    handler = KERN_SIG_IGN;	/* zero out SEG part */
+	else
+	    handler = KERN_SIG_DFL;
+	retval = (unsigned int)_FP_OFF(handler);
+    }
 #endif
+    debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
+	      _FP_SEG(handler), _FP_OFF(handler), current->pid);
 
     if (handler == KERN_SIG_DFL)
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_DFL;
@@ -155,5 +167,5 @@ int sys_signal(int signr, __kern_sighandler_t handler)
 	current->sig.handler = handler;
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_CUSTOM;
     }
-    return 0;
+    return retval;
 }

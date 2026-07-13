@@ -82,7 +82,6 @@ pid_t do_fork(int virtual)
     if ((t = find_empty_process()) == NULL)
         return -EAGAIN;
     debug_wait("FORK(%P): -> %d\n", t->pid);
-    printk("FORK[%P]: -> %d\n", t->pid);
 
     /* Fix up what's different */
 

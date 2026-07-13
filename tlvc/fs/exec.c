@@ -75,7 +75,7 @@ static int v7_task;
 static int fs_strlen(char *bf)
 {
 	int i = 0;
-#ifdef DEBUG_V7
+#ifdef DEBUG_V7_EXTRA	/* very noisy! */
 	int c;
 	while ((c=get_user_char(bf++))) {
 		kputchar(c);
@@ -162,16 +162,13 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
 
     /* Read the header */
 #ifdef DEBUG_V7
-    printk("exec[%P]: task V7 flag: %x;", current->task_is_V7);
+    printk("exec[%P]: V7 task-flag: %x, file %t\n", current->task_is_V7, filename);
 #endif
     ds = current->t_regs.ds;
     current->t_regs.ds = kernel_ds;
     retval = filp->f_op->read(inode, filp, (char *)&magic, sizeof(magic));
     current->t_regs.ds = ds;
     if (retval != sizeof(magic)) goto error_exec2_5;
-#ifdef DEBUG_V7
-    printk(" [%P] %x\n", current->task_is_V7);
-#endif
 
 #ifdef CONFIG_EXEC_OS2
     if (magic == MZMAGIC)
@@ -313,19 +310,18 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     if (magic == NMAGIC || magic == OMAGIC) {
     	/* rearrange the V7 exec header into struct minix mh */
 	mh.minstack = v7hdr->a_stack;
-	v7hdr->a_stack = 0;
+	mh.chmem = (size_t)v7hdr->a_heap;
 	mh.syms = v7hdr->a_syms;
 	mh.bseg = v7hdr->a_bss;	/* may use memmove here */
 	mh.dseg = v7hdr->a_data;
 	mh.tseg = v7hdr->a_text;
 	/* mh.entry matches between the two structs */
-	mh.chmem = 0x2000;	/* experimenta, 8k default */
+	v7hdr->a_stack = 0;
 	mh.hlen = 32;
-	mh.version = 3;		/* simplify logic below */
-	if (!mh.minstack)	/* a_stack = 0 means the stack is above the */
-	    mh.minstack = 0x1000; /* heap, stretching to the phys end of the seg. */
-	    			  /* We cap that to 4k or whatever chmem decides */
-#ifdef DEBUG_V7
+	mh.version = 3;		  /* simplify logic below */
+	if (!mh.minstack)	  /* a_stack = 0 means default stack size, located */
+	    mh.minstack = 0x2000; /* above the heap, stretching to end of segment. */
+#ifdef DEBUG_V7_EXTRA
 	unsigned long *x = &mh.type;
 	for (int i = 0; i < 8; i++)
 		printk(":0x%08lx:\n", *(x+i));
@@ -400,7 +396,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     /*
      * mh.version == 1: chmem is size of heap, 0 means use default heap
      * mh.version == 0: old ld86 used chmem as size of data+bss+heap+stack
-     * mh.version == 3: V7/Venix binaries, stack always stars at zero. 
+     * mh.version == 3: V7/Venix binaries, stack usually starts at zero. 
      */
     switch (mh.version) {
     default:
@@ -410,20 +406,29 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     /* Memory layout on Venix/V7: 
      * TINY model 1: <8k stack><text><data><bss><heap>
      * TINY model 2: <text><data><bss><heap><stack> occupying a full segment
-     * 		on Venix. We cap the stack to whatever the header (above) says.
+     * 		on Venix. Heap and stack mey be changed using chmem.
      * SMALL model data seg: <8k stack><data><bss><heap>
      * (the latter may not be universally true, but we'll stick with
      * it for now).
-     * NOTE: On Venix/86 the heap seems to be allowed to grow until it either
-     * reaches the end of the segment or hit a used part of that segment.
-     * We use the TLVC model instead and allocate default or header-specified heap.
+     * NOTE: On Venix/86 the default is to allocate a full 64k segment - data 
+     * segment if small, code segment if tiny - to maximize heap size.
+     * We keep this as the default but let chmem enter modified values into
+     * the a.out header, where the unused a_drsize is now a_heap.
+     *
      * Also, Venix/86 binaries expect segment sizes to be exact, no rounding or overflow,
      * otherwise memory references become skewed and crashes ensue. 
     */
     case 3:	/* Venix binary */
+	stack = mh.minstack;
+	if (!mh.chmem)
+	    len = 0xffff;
+	else
+    	    len = mh.dseg + mh.bseg + mh.chmem + stack;
+#if 0
     	len = mh.dseg + mh.bseg + (mh.chmem ? mh.chmem : INIT_HEAP);
 	stack = mh.minstack;
 	if (magic == NMAGIC) len += stack;	/* allocation size for DSEG */
+#endif
 	goto v7_continue;
 #endif
 
@@ -435,7 +440,6 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
                 retval = -EFBIG;
                 goto error_exec3;
             }
-	    /* FIXME: Not useful for venix binaries */
             if (add_overflow(len, slen, &len)) {        /* add argv, envp */
                 retval = -E2BIG;
                 goto error_exec3;
@@ -486,8 +490,6 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 
     /* Round data segment length up to a paragraph boundary
        (If the length overflows at this point, blame argv and envp...) */
-    /* V7 binaries use the first location of bss (link time fixed address) to store
-       **envp, so no rounding */
     if (add_overflow(len, 15, &len)) {
         retval = -E2BIG;
         goto error_exec3;
@@ -533,10 +535,11 @@ v7_continue:
             paras, bytes);
 #ifdef CONFIG_COMPAT_V7
 	if (magic == OMAGIC) {	/* tiny model alloction - merge everything */
-	    len += bytes + stack;
+	    //len += bytes + stack;
+	    if (len != 0xffff) len += bytes;
 	    paras = bytes_to_paras(len);
 	    seg_code = seg_alloc(paras, SEG_FLAG_VSEG);
-            debug_v7("EXEC: allocating %04x paras (text: %d bytes) for TINY segment @ %x:%x\n",
+            debug_v7("EXEC: allocating %04x paras (%d bytes) for TINY segment @ %x:%x\n",
             paras, len, seg_code->base, (unsigned)mh.entry);
 	} else
 #endif
@@ -593,7 +596,7 @@ v7_continue:
         filp->f_pos += (size_t)mh.tseg;
 #endif
     }
-    paras = len >> 4;	/* LOOKS bad, we did this above, but only for OMAGIC */
+    paras = len >> 4;
     retval = -ENOMEM;
     debug_reloc("EXEC: allocating %04x paras (%d bytes) for data segment\n", paras, len);
 #ifdef CONFIG_COMPAT_V7
@@ -621,10 +624,9 @@ v7_continue:
 #ifdef CONFIG_COMPAT_V7
     if (magic == NMAGIC) base_data = mh.minstack;	/* data above stack (MAY NEED TO FIX) */
     else if (magic == OMAGIC) {
+	base_data = (size_t)mh.tseg;
 	if ((size_t)mh.entry)
-	    base_data = mh.minstack + (size_t)mh.tseg;	/* stack below text */
-	else
-	    base_data = (size_t)mh.tseg;	/* stack above heap */
+	    base_data += mh.minstack;	/* stack below text */
     }
 #endif
     retval = filp->f_op->read(inode, filp, (char *)base_data, bytes);
@@ -748,7 +750,7 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
         else n++;       /* increments for each array traversed */
     } while (n < 2);
 
-    /* Clear signal handlers FIXME: This needs more work for V7 */
+    /* Clear signal handlers */
     i = 0;
     do {
         currentp->sig.action[i].sa_dispose = SIGDISP_DFL;
