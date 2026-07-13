@@ -295,7 +295,7 @@ size_t tty_write(struct inode *inode, struct file *file, char *data, size_t len)
     while (count < len) {
         ret = chq_wait_wr(&tty->outq, (file->f_flags & O_NONBLOCK) | count);
         if (ret < 0) {
-            if (count != 0 && ret == -EAGAIN) {
+            if (count != 0 && ret == -EAGAIN) {	/* queue is full and something has been written already */
                 tty->ops->write(tty);
                 wake_up(&tty->outq.wait);
                 schedule();
@@ -395,6 +395,9 @@ int tty_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
     register struct tty *tty = determine_tty(inode->i_rdev);
     int ret, dev;
 
+    if (!determine_tty(inode->i_rdev))	/* not a tty device */
+	return -EINVAL;
+
     switch (cmd) {
     case TCGETS:
         ret = verified_memcpy_tofs(arg, &tty->termios, sizeof(struct termios));
@@ -414,6 +417,67 @@ int tty_ioctl(struct inode *inode, struct file *file, int cmd, char *arg)
             return -EINVAL;
         set_console(dev);
         return 0;
+    case TIOCGETP:	/* Unix v7 gtty() */
+#ifdef CONFIG_COMPAT_V7
+	{
+	    struct sgttyb st;
+	    st.sg_ispeed = st.sg_ospeed = tty->termios.c_cflag&CBAUD;
+	    st.sg_erase = tty->termios.c_cc[VERASE];
+	    st.sg_kill  = tty->termios.c_cc[VKILL];
+	    st.sg_flags = (O_RAW * !(tty->termios.c_oflag & OPOST)) +
+		      (O_CBREAK * !(tty->termios.c_lflag & ICANON)) +
+		      (O_ECHO * (tty->termios.c_lflag & ECHO)) +
+		      (O_CRMOD * (tty->termios.c_iflag & ICRNL));
+	    if (tty->termios.c_cflag&PARENB) {
+		if (tty->termios.c_cflag&PARODD) st.sg_flags |= O_ODDP;
+		else st.sg_flags |= O_EVENP;
+	    }
+	    ret = verified_memcpy_tofs(arg, &st, sizeof(struct sgttyb));
+	    break;
+	}
+#else
+	return -EINVAL;
+#endif
+    case TIOCSETP:	/* Unix V7 stty() */
+#ifdef CONFIG_COMPAT_V7
+	{
+	  struct sgttyb st;
+	  ret = verified_memcpy_fromfs(&st, arg, sizeof(struct sgttyb));
+	  if (ret == 0) {
+	    int fl;
+
+	    fl = st.sg_flags;
+	    if (fl&O_RAW) {
+		tty->termios.c_lflag &= ~(ICANON | ISIG | ECHO);
+		tty->termios.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+		tty->termios.c_oflag &= ~OPOST;
+	    }
+	    if (fl&O_CBREAK) tty->termios.c_lflag &= ~ICANON;
+	    if (fl&O_ECHO) tty->termios.c_lflag |= ECHO;
+	    if (fl&O_CRMOD) {
+		tty->termios.c_iflag |= ICRNL;
+		tty->termios.c_oflag |= ONLCR;
+	    }
+	    if (fl&O_ODDP) {
+		tty->termios.c_cflag |= (PARENB | PARODD);
+		tty->termios.c_iflag |= ISTRIP;
+	    }
+	    if (fl&O_EVENP) {
+		tty->termios.c_cflag |= PARENB;
+		tty->termios.c_cflag &= ~PARODD;
+		tty->termios.c_iflag |= ISTRIP;
+	    }
+	    tty->termios.c_cflag &= ~CBAUD;
+	    tty->termios.c_cflag |= st.sg_ispeed;
+
+	    /* Inform subdriver of new settings TEST THIS MAY NOT BE REQUIRED */
+	    //if (ret == 0 && tty->ops->ioctl != NULL)
+		ret = tty->ops->ioctl(tty, TCSETS, &tty->termios);
+	    break;
+	  }
+	}
+#endif
+	return -EINVAL;
     default:
         ret = ((tty->ops->ioctl == NULL)
             ? -EINVAL

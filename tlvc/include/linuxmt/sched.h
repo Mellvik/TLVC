@@ -71,7 +71,7 @@ struct task_struct {
     segoff_t                    t_endbrk;       /* current break (end of heap) */
     segoff_t                    t_begstack;     /* start SP, argc/argv strings above */
     segoff_t                    t_endseg;       /* end of dataseg (data+bss+heap+stack) */
-    segoff_t                    t_minstack;     /* min stack size */
+    segoff_t                    t_minstack;     /* min (allocated) stack size */
 
 /* Other */
     unsigned long               average;        /* fixed point CPU % usage */
@@ -85,6 +85,7 @@ struct task_struct {
      * changing struct task size and having to recompile 'ps' etc when changed */
     int                         kstack_max;
     int                         kstack_prevmax;
+#define task_is_V7		kstack_max	/*(ab)use kstack_max to flag Venix/V7 tasks */
 
     unsigned int                kstack_magic;   /* To detect stack corruption */
     __u16                       t_kstack[KSTACK_BYTES/2];

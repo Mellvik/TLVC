@@ -110,10 +110,10 @@ unsigned get_ustack(register struct task_struct *t,int off)
 /*
  * Called by sys_execve()
  */
-void arch_setup_user_stack (register struct task_struct * t, word_t entry, seg_t cseg)
+void arch_setup_user_stack(register struct task_struct *t, word_t entry, seg_t cseg)
 {
     put_ustack(t, -2, USER_FLAGS);		/* Flags */
-    put_ustack(t, -4, cseg);	/* user CS */
+    put_ustack(t, -4, cseg);			/* user CS */
     put_ustack(t, -6, entry);			/* user entry point */
     put_ustack(t, -8, 0);			/* user BP */
     t->t_regs.sp -= 8;

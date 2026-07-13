@@ -53,9 +53,9 @@ int memory_lseek(struct inode *inode, register struct file *filp,
     default:
 	return -EINVAL;
     }
-    if (offset != filp->f_pos) {
+    //if (offset != filp->f_pos) {
 	filp->f_pos = offset;
-    }
+    //}
     return 0;
 }
 
@@ -354,7 +354,7 @@ static struct file_operations kmem_fops = {
  */
 int memory_open(register struct inode *inode, struct file *filp)
 {
-#ifdef DEBUG
+#ifdef DEBUG_MM
     static char *mdev_nam[] = {
 
     /*  Unimplemented minors will print out the correct device name

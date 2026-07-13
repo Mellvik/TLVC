@@ -85,19 +85,40 @@ static int twovalues(int retval, int *copyval, int *copyaddr)
 	return -EFAULT;
     return retval;
 }
-
-uid_t sys_getuid(int *euid)
+#ifdef CONFIG_COMPAT_V7
+static unsigned long ret_ulong(unsigned int r, unsigned int e)
 {
+	unsigned int ret[2] = { r, e};
+	current->task_is_V7 |= 0x100;	/* no error in ax */
+	return *(unsigned long *)ret;
+}
+
+unsigned long sys_getuid(int *euid)
+{
+    if (current->task_is_V7)
+	return ret_ulong(current->uid, current->euid);
+#else
+uid_t sys_getuid(int *euid) {
+#endif
     return twovalues(current->uid, (int *)&current->euid, euid);
 }
 
-uid_t sys_getgid(int *egid)
+#ifdef CONFIG_COMPAT_V7
+unsigned long sys_getgid(int *egid)
 {
+    if (current->task_is_V7)
+	return ret_ulong(current->gid, current->egid);
+#else
+uid_t sys_getgid(int *egid) {
+#endif
     return twovalues(current->gid, (int *)&current->egid, egid);
 }
 
 pid_t sys_getpid(int *ppid)
 {
+#ifdef CONFIG_COMPAT_V7
+    if (current->task_is_V7) return current->pid;
+#endif
     return twovalues(current->pid, (int *)&current->ppid, ppid);
 }
 

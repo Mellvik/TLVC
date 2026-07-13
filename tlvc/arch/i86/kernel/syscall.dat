@@ -16,6 +16,7 @@
 #
 # Package versions are matched.
 # Elks version          - 0.3.0
+# May 23 2026 hs: Added time(), creat() and more for V7 compat layer
 #
 # Name		No	Args	Flag, comment
 #
@@ -26,18 +27,20 @@ write		+4	3
 open		+5	3	!
 close		+6	1	 
 wait4		+7	4
-creat		8	0	- Not needed alias for open
+creat		+8	2	= CONFIG_COMPAT_V7
 link		+9	2	 
 unlink		+10	1	 
 execve		+11	3	* execve minix style
 chdir		+12	1	 
-time		13	1	- Use settimeofday
+time		+13	1	= CONFIG_COMPAT_V7
 mknod		+14	3	 
 chmod		+15	2	 
 chown		+16	3	 
 brk		+17	1	* This is only to tell the system
 stat		+18	2	 
 lseek		+19	3	* nb 2nd arg is an io ptr to long not a long.
+#				  Except if V7 compat: the high wd of offset
+#				  is encoded into the 3rd arg.
 getpid		+20	1	* this gets both pid & ppid
 mount		+21	4	 
 umount		+22	1	 
@@ -53,13 +56,15 @@ chroot		+31	1
 vfork		+32	0
 access		+33	2	 
 nice		34	1
-sleep		35	1	- use alarm & signal, or select, instead
+#sleep		35	1	- use alarm & signal, or select, instead
+ftime		+35	2	= CONFIG_COMPAT_V7
 sync		+36	0	 
 kill		+37	2	 
 rename		+38	2	 
 mkdir		+39	2	 
 rmdir		+40	1	 
-dup		+41	1	. There is a fcntl lib function too.
+dup		+41	2	. There is a fcntl lib function too.
+#				  Venix uses dup for dup2 calls too, hence 2 parms
 pipe		+42	1	= CONFIG_PIPE
 times		43	2	- use gettimeofday and libc times instead
 profil		44	4	@

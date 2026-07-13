@@ -26,7 +26,7 @@
 #define DEBUG_INODE	0		/* track inode handling */
 #define DEBUG_NET	0		/* networking*/
 #define DEBUG_MAP	0		/* L1 mapping */
-#define DEBUG_MM	0		/* mem char device*/
+#define DEBUG_MM	0		/* mem char device, malloc, brk */
 #define DEBUG_SCHED	0		/* scheduler/wait*/
 #define DEBUG_SIG	0		/* signals*/
 #define DEBUG_SUP	0		/* superblock, mount, umount*/

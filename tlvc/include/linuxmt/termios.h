@@ -7,6 +7,7 @@
 
 /* This is just a magic number to make these relatively unique ('T') */
 #define __TERMIOS_MAJ 	('T'<<8)
+#define __V7SGTTY_MAJ	('t'<<8)
 
 /*@+namechecks@*/
 
@@ -65,6 +66,12 @@
 #define TIOCMIWAIT	(__TERMIOS_MAJ+0x5C)	/* wait for a change on serial input line(s) */
 #define TIOCGICOUNT	(__TERMIOS_MAJ+0x5D)	/* read serial port inline interrupt counts */
 #define TIOSETCONSOLE	(__TERMIOS_MAJ+0x5E)	/* set console dev_t*/
+
+#define TIOCGETP	(__V7SGTTY_MAJ+0x8)	/* For unix v7/early BSD emul */
+#define TIOCSETP	(__V7SGTTY_MAJ+0x9)
+#define TCGETS_V7	TIOCGETP
+#define TCSETS_V7	TIOCSETP
+
 
 /* Used for packet mode */
 #define TIOCPKT_DATA		 0

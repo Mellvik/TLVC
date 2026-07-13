@@ -42,6 +42,7 @@ int sys_ioctl(int fd, unsigned int cmd, unsigned int arg)
 
     if (fd >= NR_OPEN || !(filp = current->files.fd[fd]))
 	return -EBADF;
+
     switch (cmd) {
     case FIOCLEX:
 	FD_SET(fd, &current->files.close_on_exec);

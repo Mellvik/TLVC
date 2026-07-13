@@ -8,6 +8,11 @@
  * Compile-time configuration
  */
 
+#define CONFIG_COMPAT_V7	/* Enable code to run converted Venix binaries */
+#ifdef CONFIG_COMPAT_V7
+#define CONFIG_EXEC_LOW_STACK	/* stack below data is OK */
+#endif
+
 #define CONFIG_OPTSEG_HIGH	/* Load /bootopts (of any size) into high memory */
 				/* Not currently working on FAT boot devices */
 #ifdef CONFIG_ARCH_IBMPC

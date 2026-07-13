@@ -29,6 +29,7 @@ typedef struct segment segment_s;
 #define SEG_FLAG_RAMDSK	 0x06   /* ram disk buffers */
 #define SEG_FLAG_BUFHEAD 0x07	/* bufheads for ext/xms buffers */
 #define SEG_FLAG_NETBUF	 0x08	/* ring buffers for LANCE NICs */
+#define SEG_FLAG_VSEG	 0x09	/* tiny model test+data seg (V7) */
 #ifdef __KERNEL__
 
 #include <linuxmt/kernel.h>

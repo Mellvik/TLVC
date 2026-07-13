@@ -18,6 +18,10 @@ void check_ustack(void)
     segoff_t brk = current->t_endbrk;
     segoff_t stacklow = current->t_begstack - current->t_minstack;
 
+#ifdef CONFIG_COMPAT_V7
+    if (current->t_begstack < current->t_enddata)	/* stack is below */
+	return;
+#endif
     if (sp < brk) {
         printk("(%P)STACK OVERFLOW by %u\n", brk - sp);
         printk("CURBREAK %x, SP %x\n", brk, sp);
@@ -25,7 +29,9 @@ void check_ustack(void)
     }
     if (sp < stacklow) {
         /* notification only, allow process to continue */
-        printk("(%P)STACK USING %u UNUSED HEAP\n", stacklow - sp);
+        //printk("(%P)STACK USING %u UNUSED HEAP\n", stacklow - sp);
+        printk("(%P)STACK USING %u UNUSED HEAP (begstack: %x, enddata %x)\n", 
+		stacklow - sp, current->t_begstack, current->t_enddata);
     }
     if (sp > current->t_begstack) {
         printk("(%P)STACK UNDERFLOW: SP %x BEGSTACK %x\n", sp, current->t_begstack);

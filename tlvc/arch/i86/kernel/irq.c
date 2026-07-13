@@ -41,6 +41,9 @@ struct int_handler {
 
 static struct int_handler trampoline[NR_IRQS];
 static irq_handler irq_action[NR_IRQS];
+#ifdef CONFIG_COMPAT_V7
+void abort_v7(void);
+#endif
 
 /* called by _irqit assembler hook after saving registers */
 void do_IRQ(int i, struct pt_regs *regs)
@@ -120,7 +123,14 @@ int free_irq(int irq)
  */
 void INITPROC irq_init(void)
 {
-    int_handler_add(IDX_SYSCALL, 0x80, _irqit); /* INT 80 for system calls */
+    int_handler_add(IDX_SYSCALL, 0x80, _irqit);		/* INT 80 for system calls */
+#ifdef CONFIG_COMPAT_V7
+    int_handler_add(IDX_SYSCALL_V7, 0xf1, _irqit_v7);	/* INT F1 for V7 system calls */
+    int_handler_add(IDX_SYSFPU_V7, 0xf4, _sysfpu_v7);	/* FPU check, precedes FPU instructions */
+    int_handler_add(IDX_SYSIOT_V7, 0xf3, _abort_v7);	/* Used by the V7 abort() library call */
+    int_handler_add(IDX_SYSMAP_V7, 0xf5, _sysmap_v7);	/* code mapper */
+    int_handler_add(IDX_STKTRAP_V7, 0xf2, _stktrap_v7);	/* Venix stack overflow trap */
+#endif
 
 #if defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_PC98) || \
     defined(CONFIG_ARCH_SOLO86) || defined(CONFIG_ARCH_SWAN) || \
@@ -162,3 +172,11 @@ void INITPROC irq_init(void)
     enable_timer_tick();        /* reprogram timer for 100 HZ */
 #endif
 }
+
+#ifdef CONFIG_COMPAT_V7_UNUSED
+void abort_v7(void)
+{
+    printk("V7 IOT trap\n");
+    sys_kill(current->pid, SIGABRT);
+}
+#endif

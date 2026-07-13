@@ -15,25 +15,57 @@
 #include <arch/segment.h>
 #include <linuxmt/debug.h>
 
-int sys_lseek(unsigned int fd, loff_t * p_offset, unsigned int origin)
+/* V7 compat note:
+ * The high workd of the long offset parameter coming from Venix apps
+ * is encoded into the whence (lorigin) arg. The high bit flags this,
+ * introduced before the V7 shim layer was created and kept for compatibility
+ * with the syscall conversion option in the vrewrite.py tool.
+ * Also, the V7 call expects a long return:
+ * library syscall stub accordingly.
+*/
+
+loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin)
 {
     register struct file *file;
     register struct file_operations *fop;
     loff_t offset;
+    //unsigned int origin = lorigin;
 
-    offset = (loff_t) get_user_long(p_offset);
+#ifdef CONFIG_COMPAT_V7
+    int v7 = current->task_is_V7;
+    if (v7 || (fd&0x8000)) {
+			       /* The fd high bit flag is used by the code conversion
+				* tool when converting to TLVC native syscalls.
+				* Considered temporary */
+	offset = (((loff_t)lorigin)<<16) | (unsigned int)p_offset;
+	lorigin = (fd>>8)&0x3;
+	fd &= 0xff;
+    	printk("lseek: fd %d, offs %x, lorigin %x real offset %lx (%lu) (V7:%x)",
+		fd, p_offset, lorigin, offset, offset, v7);
+    } else
+#endif
+    	offset = (loff_t) get_user_long(p_offset);
+
     if (fd >= NR_OPEN || !(file = current->files.fd[fd]) || !(file->f_inode))
 	return -EBADF;
-    if (origin > 2) return -EINVAL;
+    if (lorigin > 2) return -EINVAL;
     fop = file->f_op;
-    if (fop && fop->lseek)
-	return fop->lseek(file->f_inode, file, offset, origin);
-
+    if (fop && fop->lseek) {
+#ifdef CONFIG_COMPAT_V7
+	int ret = fop->lseek(file->f_inode, file, offset, lorigin);
+	if (ret < 0) return ret;
+	offset = file->f_pos;
+	goto lseek_done;
+#else
+	return fop->lseek(file->f_inode, file, offset, lorigin);	/* really a bug: the new pos is not returned */
+	
+#endif
+    }
     /* this is the default handler if no lseek handler is present */
     /* Note: We already determined above that origin is in range. */
-    if (origin == 1)			/* SEEK_CUR */
+    if (lorigin == 1)			/* SEEK_CUR */
 	offset += file->f_pos;
-    else if (origin)			/* SEEK_END */
+    else if (lorigin)			/* SEEK_END */
 	offset += file->f_inode->i_size;
 
     if (offset < 0) return -EINVAL;
@@ -46,13 +78,16 @@ int sys_lseek(unsigned int fd, loff_t * p_offset, unsigned int origin)
 #endif
 
     file->f_pos = offset;
+#ifdef CONFIG_COMPAT_V7
+lseek_done:
+    if (v7) { printk(" return offset %lu\n", offset);return offset; }
+#endif
     put_user_long((unsigned long int)offset, (void *)p_offset);
-
     return 0;
 }
 
 /* fd_check -- validate file descriptor
- *  Failure is indicated by a returning a non-zero value. Success is
+ *  Failure is indicated by returning a non-zero value. Success is
  *  indicated by returning 0. The parameter "file" is used for passing
  *  back the pointer to the file struct associated with fd. The value of
  *  "file" is undefined when this function returns unsuccessfully.
@@ -87,6 +122,9 @@ int sys_read(unsigned int fd, char *buf, size_t count)
     struct file *file;
     int retval;
 
+#ifdef CONFIG_COMPAT_V7		/* may not be required FIXME */
+    int v7 = current->task_is_V7;
+#endif
     if (((retval = fd_check(fd, buf, count, FMODE_READ, &file)) == 0)
 	&& count) {
 	retval = -EINVAL;
@@ -96,6 +134,11 @@ int sys_read(unsigned int fd, char *buf, size_t count)
 	    schedule();
 	}
     }
+#ifdef CONFIG_COMPAT_V7
+    if (v7) {	/* FIXME; may not be needed */
+	current->task_is_V7 = v7;
+    }	
+#endif
     return retval;
 }
 
@@ -138,5 +181,6 @@ int sys_write(unsigned int fd, char *buf, size_t count)
 	    schedule();	// FIX: Check if this can be removed
 	}
     }
+    //if (current->task_is_V7) printk("wr: fd %d count %d ret %d\n", fd, count, written);
     return written;
 }
