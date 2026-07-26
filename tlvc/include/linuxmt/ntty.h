@@ -12,7 +12,7 @@
 #define PTYOUTQ_SIZE	512	/* pty output queue size (=TDB_WRITE_MAX and telnetd buffer) */
 
 /* For speed, the serial buffers must be sized in power of two steps */
-#define RSINQ_SIZE	1024	/* serial input queue, covers SLIP_MTU+128+8 */
+#define RSINQ_SIZE	512	/* serial input queue, increase to 1k if using SLIP w/o flow contr */
 #define RSOUTQ_SIZE	128	/* serial output queue size */
 
 /*
@@ -86,6 +86,26 @@ struct tty {		/* NOTE: first member used in fastser.S driver */
     struct tty_ops *ops;
     struct termios termios;
 };
+
+struct sgttyb {		/* V7/early BSD compatibility */
+    char sg_ispeed;         /* input speed */
+    char sg_ospeed;         /* output speed */
+    char sg_erase;          /* erase character */
+    char sg_kill;           /* kill character */
+    int  sg_flags;          /* mode flags */
+};
+			/* V7 mode flags */
+#define O_CBREAK  0002
+#define O_LCASE   0004
+#define O_ECHO    0010
+#define O_CRMOD   0020
+#define O_RAW     0040
+#define O_ODDP    0100
+#define O_EVENP   0200
+#define O_ANYP    0300
+#define O_XTABS	 06000
+#define O_CRT  0100000
+
 
 extern struct tty ttys[];
 

@@ -71,9 +71,11 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 	segment_s *seg, *best_seg = 0;
 	segext_t best_size = 0xFFFF;
 	list_s *n;
-	segext_t size00 = size0, incr = 0;
+	segext_t size00 = size0;
 
-#ifdef ALLOW_TOPDWN_ALLOC
+#ifndef ALLOW_TOPDWN_ALLOC
+	segext_t incr = 0;
+#else
 	if (type & SEG_FLAG_ALIGN1K) {	/* allocate from the top, always 1kaligned */
 	    n = _seg_all.prev;
 	    size00 = (size0 + 0x3f) & ~0x3f;	/* keep the alignment */
@@ -100,7 +102,9 @@ static segment_s *seg_free_get(segext_t size0, word_t type)
 		if (/*(seg->flags == SEG_FLAG_FREE) &&*/ (size1 >= size00) && (size1 < best_size)) {
 		    best_seg  = seg;
 		    best_size = size1;
+#ifndef ALLOW_TOPDWN_ALLOC
 		    incr = size00 - size0;
+#endif
 		    if (size1 == size00) break;
 		}
 		n = seg->free.next;
@@ -266,12 +270,14 @@ void mm_get_usage(struct mem_usage *mu)
 
 int sys_brk(segoff_t newbrk)
 {
-	/***unsigned int memfree, memused;
-	mm_get_usage(&memfree, &memused);
-	printk("brk(%P): new %x, edat %x, ebrk %x, free %x sp %x, eseg %x, %d/%dK\n",
+#if 0
+	struct mem_usage m;
+	mm_get_usage(&m);
+	printk("brk(%P): new %x, edat 0x%x, ebrk 0x%x, free 0x%x, sp 0x%x, minstk @0x%x, endseg 0x%x, %d/%dK\n",
 		newbrk, current->t_enddata, current->t_endbrk,
-		current->t_regs.sp - current->t_endbrk,
-		current->t_regs.sp, current->t_endseg, memfree, memused);***/
+		current->t_regs.sp - current->t_endbrk, current->t_regs.sp,
+		current->t_endseg - current->t_minstack, current->t_endseg, m.main_free, m.main_used);
+#endif
 
     if (newbrk < current->t_enddata)
         return -ENOMEM;
@@ -298,7 +304,7 @@ int sys_sbrk(int increment, segoff_t *pbrk)
 	segoff_t brk = current->t_endbrk;   /* always return start of old break*/
 	int err;
 
-	debug("sbrk incr %u pointer %04x curbreak %04x\n", increment, pbrk, brk);
+	debugmem("sbrk(%P) incr %u pointer %04x curbreak %04x\n", increment, pbrk, brk);
 	err = verify_area(VERIFY_WRITE, pbrk, sizeof(*pbrk));
 	if (err)
 		return err;

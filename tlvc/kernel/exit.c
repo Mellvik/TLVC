@@ -42,11 +42,38 @@ static void FARPROC reparent_children(void)
 }
 
 /* note: 'usage' parameter ignored */
+/* FIXME create a new wait() syscall that calls wait4() */
+#ifdef CONFIG_COMPAT_V7
+long sys_wait4(pid_t i_pid, int *i_status, int i_options, void *usage)
+#else
 int sys_wait4(pid_t pid, int *status, int options, void *usage)
+#endif
 {
     register struct task_struct *p;
     int waitagain;
 
+#ifdef CONFIG_COMPAT_V7
+    pid_t pid = i_pid;
+    int *status = i_status;
+    int options = i_options;
+
+    /* V7 wait() has *status as the only API level arg (classic wait()).
+     * The systemcall itself is called with NO
+     * arguments - attempts to use them may screw up the stack. */
+    /* On return, Venix expects child pid in AX, std syscall error handling,
+     * status in DX - thus the long. DH is exit status,
+     * DL is the signal - if any. */
+
+    int retval[2];
+    int v7 = current->task_is_V7;
+
+    if (v7) {
+	pid = -1;
+	options = 0;
+	status = 0;
+	//printk("WAIT(%P)V7 for %d opts %x\n", pid, options);
+    }
+#endif
     debug_wait("WAIT(%P) for %d opts %x\n", pid, options);
 
  for (;;) {
@@ -61,9 +88,14 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
                         continue;
                 }
 
+#ifdef CONFIG_COMPAT_V7
+		if (v7)
+		    retval[1] = p->signal + p->exit_status; 	/* status already in hi byte */
+		else
+#endif
                 if (status) {
                     if (verified_memcpy_tofs(status, &p->exit_status, sizeof(int)))
-                        return -EFAULT;
+			return -EFAULT;
                 }
 
                 /* just return status on stopped state, don't release task*/
@@ -76,6 +108,13 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
                 }
 
                 debug_wait("WAIT(%P) got %d\n", p->pid);
+#ifdef CONFIG_COMPAT_V7
+		//printk("WAIT(%P) got %d,status %x, V7: %d\n", p->pid, retval[1], v7);
+		if (v7) {
+			retval[0] = p->pid;
+			return *(long *)retval;
+		} else
+#endif
                 return p->pid;
             }
         } else {
@@ -95,13 +134,26 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
     interruptible_sleep_on(&current->child_wait);
     if (current->signal) {
         debug_wait("WAIT(%P) return -EINTR\n");
+#ifdef CONFIG_COMPAT_V7
+	if (v7) {
+	    retval[1] = p->signal + p->exit_status;
+	    //printk("WAIT(%P): V7 wait interrupted, status 0x%04x\n", retval[1]);
+	    return *(long *)retval;
+	}
+#endif
         return -EINTR;
     }
     debug_wait("WAIT(%P) wakeup\n");
   }
 
-    debug_wait("WAIT(%P) return -ECHILD\n");
-    return -ECHILD;
+  debug_wait("WAIT(%P) return -ECHILD\n");
+#ifdef CONFIG_COMPAT_V7
+  if (v7) {
+	retval[0] = -ECHILD;
+	return *(long *)retval;
+  } else
+#endif
+  return -ECHILD;
 }
 
 void do_exit(int status)

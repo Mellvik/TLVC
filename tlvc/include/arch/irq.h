@@ -3,11 +3,21 @@
 
 #ifdef __KERNEL__
 /* irq numbers >= 16 are hardware exceptions/traps or syscall */
-#define IDX_SYSCALL     16
+#define IDX_SYSCALL     16	/* regular syscalls */
 #define IDX_DIVZERO     17
-#define IDX_NMI         18
+#define IDX_NMI		18
 #define IDX_NECV25_IBRK 19      /* NEC V25 specific IO Break Exception */
-#define NR_IRQS         20      /* = # IRQs plus special indexes above */
+
+#ifdef CONFIG_COMPAT_V7
+#define IDX_SYSCALL_V7	20	/* Unix V7 syscalls - int 0xf1 */
+#define IDX_SYSFPU_V7	21	/* Venix FPU/math init, just returns, int 0xf4 */
+#define IDX_SYSIOT_V7	22	/* Venix abort() library call - int 0xf3 */
+#define	IDX_SYSMAP_V7	23	/* Venix code mapper - int 0xf5 */
+#define IDX_STKTRAP_V7	24	/* Venix application stack trap, int 0xf2 */
+#define NR_IRQS		25
+#else
+#define NR_IRQS		20      /* = # IRQs plus special indexes above */
+#endif
 
 #define INT_GENERIC  0  // use the generic interrupt handler (aka '_irqit')
 #define INT_SPECIFIC 1  // use a specific interrupt handler
@@ -25,8 +35,16 @@ int free_irq(int irq);
 
 /* irqtab.S */
 void _irqit (void);
-void int_vector_set (int vect, word_t proc, word_t seg);
+void int_vector_set(int vect, word_t proc, word_t seg);
 void idle_halt(void);
+
+#ifdef CONFIG_COMPAT_V7
+void _irqit_v7(void);
+void _sysfpu_v7(void);
+void _abort_v7(void);
+void _stktrap_v7(void);
+void _sysmap_v7(void);
+#endif
 
 void div0_handler(int irq, struct pt_regs *regs);
 void nmi_handler(int irq, struct pt_regs *regs);

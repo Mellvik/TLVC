@@ -60,7 +60,7 @@ struct task_struct *find_empty_process(void)
     t->pid = get_pid();
     t->ticks = 0;		/* for CONFIG_CPU_USAGE */
     t->average = 0;
-#ifdef CHECK_KSTACK
+#if defined(CHECK_KSTACK) || defined(CONFIG_COMPAT_V7) 
     t->kstack_max = 0;
     t->kstack_prevmax = 0;
 #endif
