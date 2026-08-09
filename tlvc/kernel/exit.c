@@ -10,6 +10,8 @@
 #include <linuxmt/init.h>
 #include <linuxmt/debug.h>
 
+#define debug_v7(...)
+
 static void FARPROC reparent_children(void)
 {
     register struct task_struct *p;
@@ -64,14 +66,15 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
      * status in DX - thus the long. DH is exit status,
      * DL is the signal - if any. */
 
-    int retval[2];
+    int retval[2] = { 0, 0};
     int v7 = current->task_is_V7;
 
     if (v7) {
+	current->task_is_V7 = 0;
 	pid = -1;
 	options = 0;
 	status = 0;
-	//printk("WAIT(%P)V7 for %d opts %x\n", pid, options);
+	debug_v7("WAIT(%P)V7 for %d opts %x\n", pid, options);
     }
 #endif
     debug_wait("WAIT(%P) for %d opts %x\n", pid, options);
@@ -109,9 +112,10 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
 
                 debug_wait("WAIT(%P) got %d\n", p->pid);
 #ifdef CONFIG_COMPAT_V7
-		//printk("WAIT(%P) got %d,status %x, V7: %d\n", p->pid, retval[1], v7);
+		debug_v7("WAIT(%P) got %d,status %x, V7: %d\n", p->pid, retval[1], v7);
 		if (v7) {
 			retval[0] = p->pid;
+			current->task_is_V7 = v7;
 			return *(long *)retval;
 		} else
 #endif
@@ -137,7 +141,8 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
 #ifdef CONFIG_COMPAT_V7
 	if (v7) {
 	    retval[1] = p->signal + p->exit_status;
-	    //printk("WAIT(%P): V7 wait interrupted, status 0x%04x\n", retval[1]);
+	    debug_v7("WAIT(%P): V7 wait interrupted, status 0x%04x\n", retval[1]);
+	    current->task_is_V7 = v7;
 	    return *(long *)retval;
 	}
 #endif
@@ -150,6 +155,8 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
 #ifdef CONFIG_COMPAT_V7
   if (v7) {
 	retval[0] = -ECHILD;
+	current->task_is_V7 = v7;
+	debug_v7("WAIT(%P) ECHILD, pid %d,status %x, V7: %d\n", p->pid, retval[1], v7);
 	return *(long *)retval;
   } else
 #endif

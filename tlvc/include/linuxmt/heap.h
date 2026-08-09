@@ -29,6 +29,7 @@
 #define HEAP_TAG_NETWORK 0x0A	/* packet buffer allocations */
 #define HEAP_TAG_OPTSEG	 0x0B
 #define HEAP_TAG_EXSTK	 0x0C	/* V7 execve stack buffer */
+#define HEAP_TAG_MAX	 0x0D
 
 
 // TODO: move free list node from header to body

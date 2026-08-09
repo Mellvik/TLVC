@@ -13,6 +13,7 @@
 #include <linuxmt/stat.h>
 #include <linuxmt/mm.h>
 #include <linuxmt/debug.h>
+#include <linuxmt/v7.h>
 
 #include <arch/segment.h>
 #include <arch/io.h>
@@ -89,7 +90,7 @@ static int twovalues(int retval, int *copyval, int *copyaddr)
 static unsigned long ret_ulong(unsigned int r, unsigned int e)
 {
 	unsigned int ret[2] = { r, e};
-	current->task_is_V7 |= 0x100;	/* no error in ax */
+	current->task_is_V7 |= V7_LONG_RETURN;	/* no error in ax */
 	return *(unsigned long *)ret;
 }
 

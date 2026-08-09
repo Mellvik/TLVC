@@ -267,28 +267,38 @@ void mm_get_usage(struct mem_usage *mu)
 
 
 // User data segment functions
-
+#define STACK_RESERVE 128
 int sys_brk(segoff_t newbrk)
 {
+    segoff_t heap_end = current->t_regs.sp < current->t_enddata ? current->t_endseg :
+					current->t_regs.sp - STACK_RESERVE;
 #if 0
 	struct mem_usage m;
 	mm_get_usage(&m);
-	printk("brk(%P): new %x, edat 0x%x, ebrk 0x%x, free 0x%x, sp 0x%x, minstk @0x%x, endseg 0x%x, %d/%dK\n",
+	printk("brk(%P): new %x, edat 0x%x, ebrk 0x%x, free 0x%x, sp 0x%x, minstk 0x%x, endseg 0x%x, %d/%dK\n",
 		newbrk, current->t_enddata, current->t_endbrk,
-		current->t_regs.sp - current->t_endbrk, current->t_regs.sp,
-		current->t_endseg - current->t_minstack, current->t_endseg, m.main_free, m.main_used);
+		heap_end - current->t_endbrk, current->t_regs.sp,
+		current->t_minstack, current->t_endseg, m.main_free, m.main_used);
 #endif
 
     if (newbrk < current->t_enddata)
         return -ENOMEM;
 
-    if (current->t_begstack > current->t_endbrk) {		/* stack above heap?*/
+#if NOT_USEABLE
+    if (current->t_begstack > current->t_endbrk) {		/* stack above heap? */
         if (newbrk > current->t_begstack - current->t_minstack) {
 	    printk("sys_brk(%d) fail: brk %x over by %u bytes\n",
 		current->pid, newbrk, newbrk - (current->t_begstack - current->t_minstack));
             return -ENOMEM;
 	}
     }
+#else
+    if (newbrk > heap_end)  {
+	printk("sys_brk(%P) fail: brk %x over by %u bytes\n", newbrk, newbrk - heap_end);
+        return -ENOMEM;
+    }
+#endif
+
 #ifdef CONFIG_EXEC_LOW_STACK
     if (newbrk > current->t_endseg)
         return -ENOMEM;

@@ -51,10 +51,13 @@ void stack_check(void)
 {
     segoff_t end = current->t_endbrk;
 
-#ifdef CONFIG_EXEC_LOW_STACK
+#if defined(CONFIG_EXEC_LOW_STACK) || defined(CONFIG_COMPAT_V7)
     if (current->t_begstack <= current->t_enddata) {	/* stack below heap?*/
-	if (current->t_regs.sp < (__u16)end)
+	//if (current->t_regs.sp < (__u16)end)
+	if (current->t_regs.sp < current->t_begstack && current->t_regs.sp > 12)
 	    return;
+	if (current->t_regs.sp <= 12)
+	    printk("[%P] Stack level very low %d\n", current->t_regs.sp);
 	end = 0;
     } else
 #endif
@@ -62,7 +65,7 @@ void stack_check(void)
 	/* optional: check stack over min stack*/
 	if (current->t_regs.sp < current->t_begstack - current->t_minstack) {
 	  if (current->t_minstack)	/* display if protected stack*/
-	    printk("(%d)STACK OVER MINSTACK by %u BYTES\n", current->pid,
+	    printk("(%P)STACK OVER MINSTACK by %u BYTES\n", 
 		current->t_begstack - current->t_minstack - current->t_regs.sp);
 	}
 
@@ -88,6 +91,9 @@ void INITPROC kfork_proc(void (*addr)())
     /* t_regs are invalid for idle task or handlers interrupting idle task */
     t->t_regs.ds = t->t_regs.es = t->t_regs.ss = kernel_ds;
     arch_build_stack(t, addr);
+#ifdef CONFIG_COMPAT_V7
+    t->task_is_V7 = 0;		// Should be superfluous FIXME
+#endif
 }
 
 /*

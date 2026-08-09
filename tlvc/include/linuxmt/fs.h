@@ -507,7 +507,7 @@ extern int check_disk_change(kdev_t);
 
 extern int _namei(const char *,struct inode *,int,struct inode **);
 
-//extern int sys_dup(unsigned int, unsigned int);
+//extern int sys_dup(unsigned int);	/* V7 version has two args */
 
 extern struct buffer_head *bread(dev_t,block_t);
 extern struct buffer_head *bread32(dev_t,block32_t);
