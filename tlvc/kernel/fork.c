@@ -85,6 +85,18 @@ pid_t do_fork(int virtual)
 
     /* Fix up what's different */
 
+    //printk("FORK(%P): -> %d dseg %x cseg %x V7=%x\n", t->pid, current->mm[SEG_DATA],
+		//current->mm[SEG_CODE], current->task_is_V7);
+#ifdef CONFIG_COMPAT_V7
+    if (current->mm[SEG_DATA] == current->mm[SEG_CODE]) {	/* parent is V7 tiny single seg */
+	printk("FORK: Zero dseg, parent %P\n");			/* don't put this after the t_regs.ds
+								 * assignment below, DS will get lost */
+	t->mm[SEG_CODE] = seg_dup(current->mm[SEG_CODE]);
+	t->mm[SEG_DATA] = seg_get(t->mm[SEG_CODE]);
+	t->t_regs.ds = t->t_regs.es = t->t_regs.ss = (t->mm[SEG_CODE])->base;
+    } else
+#endif
+    {
     /*
      * We do shared text.
      */
@@ -104,6 +116,7 @@ pid_t do_fork(int virtual)
 	}
 
 	t->t_regs.ds = t->t_regs.es = t->t_regs.ss = (t->mm[SEG_DATA])->base;
+    }
     }
 
     /* Increase the reference count to all open files */
@@ -133,6 +146,14 @@ pid_t do_fork(int virtual)
 
     /*
      *      Return the created task.
+     *
+     *	    V7 compat note: called from Venix, the calling process will do a Venix syscall exit,
+     *	    the created task will do a TLVC syscall exit. Technically incorrect, but since there
+     *	    are no args other than pid or zero (AX) and the stack beyond the general regs is 
+     *	    clean, we can leave it like that. Again technically, CX - the Venix error indicator -
+     *	    should be zeroed. However, since AX is zero, the value in CX is just stored in errno
+     *	    and nothing more happens. This is the Venix syscall stub speaking, it will not change.
+     *	    If there is an error in fork(), the caller will do normal error processing.
      */
     return t->pid;
 }

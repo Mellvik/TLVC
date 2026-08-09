@@ -43,7 +43,7 @@ void _irqit_v7(void);
 void _sysfpu_v7(void);
 void _abort_v7(void);
 void _stktrap_v7(void);
-void _sysmap_v7(void);
+void _codemap_v7(void);
 #endif
 
 void div0_handler(int irq, struct pt_regs *regs);

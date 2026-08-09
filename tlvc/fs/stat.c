@@ -15,7 +15,7 @@
 
 #include <arch/segment.h>
 
-static int cp_stat(register struct inode *inode, struct stat *statbuf)
+static int cp_stat(register struct inode *inode, struct stat *statbuf, int v7)
 {
     static struct stat tmp;		/* static not reentrant: conserve stack usage*/
 
@@ -29,57 +29,19 @@ static int cp_stat(register struct inode *inode, struct stat *statbuf)
     tmp.st_gid		= inode->i_gid;
     tmp.st_size 	= (off_t) inode->i_size;
     tmp.st_rdev 	= kdev_t_to_nr(inode->i_rdev);
-    tmp.st_mtime	= inode->i_mtime;
     tmp.st_atime	= inode->i_atime;
+    tmp.st_mtime	= inode->i_mtime;
     tmp.st_ctime	= inode->i_ctime;
 
-/*
- * st_blocks and st_blksize are approximated with a simple algorithm if
- * they aren't supported directly by the filesystem. The minix and msdos
- * filesystems don't keep track of blocks, so they would either have to
- * be counted explicitly (by delving into the file itself), or by using
- * this simple algorithm to get a reasonable (although not 100% accurate)
- * value.
- */
-
-/*
- * Use minix fs values for the number of direct and indirect blocks.  The
- * count is now exact for the minix fs except that it counts zero blocks.
- * Everything is in BLOCK_SIZE'd units until the assignment to
- * tmp.st_blksize.
- */
-
-#if 0
-
-#define D_B   7
-#define I_B   (BLOCK_SIZE / sizeof(unsigned short))
-
-/* This code does nothing useful. The results of the calculations below
- * are stored in local variables and nothing is done with them.
- * Al
- */
-
-    if (!inode->i_blksize) {
-	unsigned int blocks, indirect;
-
-	blocks = (tmp.st_size + BLOCK_SIZE - 1) >> BLOCK_SIZE_BITS;
-	if (blocks > D_B) {
-	    indirect = (blocks - D_B + I_B - 1) / I_B;
-	    blocks += indirect;
-	    if (indirect > 1) {
-		indirect = (indirect - 1 + I_B - 1) / I_B;
-		blocks += indirect;
-		if (indirect > 1)
-		    blocks++;
-	    }
-	}
-    }
-#endif
+    //printk("stat: v7 %x (%x)\n", v7, current->task_is_V7);
 #ifdef CONFIG_COMPAT_V7
     /* compensate for short ino_t in V7/Venix stat and different file type mode flags */
-    if (current->task_is_V7) {
-	if ((tmp.st_mode&S_IFMT) > 0100000 || (tmp.st_mode&S_IFMT) == 010000) return -EBADF;
-	if  (tmp.st_mode&S_IFMT) tmp.st_mode |= 0100000;		// covers the regular file case too.
+    if (v7) {
+	//printk("stat: V7 %x, size %lu, mode 0%o\n", v7, tmp.st_size, tmp.st_mode);
+	if ((tmp.st_mode&S_IFMT) > 0100000 || (tmp.st_mode&S_IFMT) == 010000) 
+	    return -EBADF;					/* ignore sock, link, fifo */
+	if  (tmp.st_mode&S_IFMT) tmp.st_mode |= 0100000;	/* file, dir, blkdev, chrdev */
+	if  (tmp.st_size > 4096) tmp.st_mode |= 0010000;	/* S_ILRG - probably not useful */
 	verified_memcpy_tofs((char *)statbuf, (char *)&tmp, 4);
 	return verified_memcpy_tofs((char *)statbuf+4, (char *)&tmp+6, sizeof(tmp)-6);
     } else
@@ -90,18 +52,21 @@ static int cp_stat(register struct inode *inode, struct stat *statbuf)
 int sys_stat(char *filename, struct stat *statbuf)
 {
 #ifdef CONFIG_COMPAT_V7
-    int is_V7 = current->task_is_V7;
+    int v7 = current->task_is_V7;
+    current->task_is_V7 = 0;
+#else 
+    int v7 = 0;
 #endif
     struct inode *inode;
     int error = namei(filename, &inode, 0, 0);
 
-#ifdef CONFIG_COMPAT_V7		/* namei() may clear the V7 flag */
-    current->task_is_V7 = is_V7;
-#endif
     if (!error) {
-	error = cp_stat(inode, statbuf);
+	error = cp_stat(inode, statbuf, v7);
 	iput(inode);
     }
+#ifdef CONFIG_COMPAT_V7		/* namei() may cause disk I/O and the V7 flag may be reset */
+    current->task_is_V7 = v7;
+#endif
 
     return error;
 }
@@ -112,7 +77,7 @@ int sys_lstat(char *filename, struct stat *statbuf)
     int error = lnamei(filename, &inode);
 
     if (!error) {
-	error = cp_stat(inode, statbuf);
+	error = cp_stat(inode, statbuf, 0);
 	iput(inode);
     }
 
@@ -123,11 +88,26 @@ int sys_fstat(unsigned int fd, register struct stat *statbuf)
 {
     struct file *f;
     int ret;
+    int stat_sz = sizeof(struct stat);
 
-    ret = fd_check(fd, (char *) statbuf, sizeof(struct stat),
+#ifdef CONFIG_COMPAT_V7
+    int v7 = current->task_is_V7;
+    if (v7) {
+	current->task_is_V7 = 0;	/* Probably superfluous, check! */
+	stat_sz -= 2;			/* V7 stat-struct is 2 bytes shorter */
+    }
+#else
+    int v7 = 0;
+#endif
+
+    ret = fd_check(fd, (char *)statbuf, stat_sz,
 				FMODE_WRITE | FMODE_READ, &f);
     if (!ret)
-	cp_stat(f->f_inode, statbuf);
+	cp_stat(f->f_inode, statbuf, v7);
+
+#ifdef CONFIG_COMPAT_V7
+    current->task_is_V7 = v7;
+#endif
     return ret;
 }
 

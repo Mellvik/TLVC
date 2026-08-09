@@ -56,7 +56,7 @@
 #define debug_reloc     debug
 #define debug_reloc2    debug
 #define debug_os2       debug
-#define debug_v7	debug //printk
+#define debug_v7	debug
 //#define DEBUG_V7
 
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
@@ -101,8 +101,8 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
 #ifdef CONFIG_COMPAT_V7
     char *stk_ptr;
 
-    v7_task = current->task_is_V7;	/* make sure we always know where we're coming from
-    					 * even if some 2nd level syscall clears the flag */
+    v7_task = current->task_is_V7;
+
     if (v7_task) {			/* The following is essentially a copy of the 
     					 * code found in the exec library file */
 	int stack_bytes, rv;
@@ -189,15 +189,15 @@ int sys_execve(const char *filename, char *sptr, size_t slen)
         retval = -ENOEXEC;
   normal_out:
     close_filp(inode, filp);
-#ifdef CONFIG_COMPAT_V7
-    if (v7_task) heap_free(stk_ptr);
-#endif
 
     if (retval)
   error_exec2:
         iput(inode);
   error_exec1:
     debug("EXEC(%P): return %d\n", retval);
+#ifdef CONFIG_COMPAT_V7
+    if (v7_task) heap_free(stk_ptr);
+#endif
     return retval;
 }
 
@@ -275,6 +275,7 @@ static int FARPROC relocate(seg_t place_base, unsigned long rsize, segment_s *se
 }
 #endif
 
+/* ---------------------------------------------------------------------------*/
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     char *sptr, size_t slen)
 {
@@ -312,13 +313,13 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 	mh.minstack = v7hdr->a_stack;
 	mh.chmem = (size_t)v7hdr->a_heap;
 	mh.syms = v7hdr->a_syms;
-	mh.bseg = v7hdr->a_bss;	/* may use memmove here */
+	mh.bseg = v7hdr->a_bss;		/* may use memmove here */
 	mh.dseg = v7hdr->a_data;
 	mh.tseg = v7hdr->a_text;
 	/* mh.entry matches between the two structs */
 	v7hdr->a_stack = 0;
 	mh.hlen = 32;
-	mh.version = 3;		  /* simplify logic below */
+	mh.version = 3;		  /* to simplify switch below */
 	if (!mh.minstack)	  /* a_stack = 0 means default stack size, located */
 	    mh.minstack = 0x2000; /* above the heap, stretching to end of segment. */
 #ifdef DEBUG_V7_EXTRA
@@ -336,9 +337,11 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     }
 
     /* Look for the binary in memory */
-    /* FIXME: This will match TINY Venix programs too, havoc will ensue */
     seg_code = 0;
     currentp = &task[0];
+#ifdef CONFIG_COMPAT_V7
+    if (magic != OMAGIC)	/* Don't share tiny programs */
+#endif
     do {
         if ((currentp->state <= TASK_STOPPED) && (currentp->t_inode == inode)) {
             debug("EXEC found copy\n");
@@ -404,31 +407,30 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 
 #ifdef CONFIG_COMPAT_V7
     /* Memory layout on Venix/V7: 
-     * TINY model 1: <8k stack><text><data><bss><heap>
+     * TINY model 1: <8k stack><text><data><bss><heap> = 64k
      * TINY model 2: <text><data><bss><heap><stack> occupying a full segment
-     * 		on Venix. Heap and stack mey be changed using chmem.
+     * 		on Venix. Heap (on both) and stack (on the second)adjustable using chmem.
      * SMALL model data seg: <8k stack><data><bss><heap>
      * (the latter may not be universally true, but we'll stick with
-     * it for now).
-     * NOTE: On Venix/86 the default is to allocate a full 64k segment - data 
-     * segment if small, code segment if tiny - to maximize heap size.
-     * We keep this as the default but let chmem enter modified values into
-     * the a.out header, where the unused a_drsize is now a_heap.
+     * it for now). Heap adjustable.
      *
-     * Also, Venix/86 binaries expect segment sizes to be exact, no rounding or overflow,
-     * otherwise memory references become skewed and crashes ensue. 
+     * NOTE I: On Venix/86 the default is to allocate a full 64k segment - data 
+     * segment if small, code segment if tiny - to maximize heap size.
+     * We keep this as the default for now. chmem can change it later.
+     * The formerly unused a_drsize is now a_heap.
+     *
+     * NOTE II: From this point on (V7), mh.minstack remains the size of the
+     * allocated stack while 'stack' is the actual stack size, mh.minstack - slen.
+     * TODO: Make similar adjustment to the rest of the code.
     */
     case 3:	/* Venix binary */
-	stack = mh.minstack;
-	if (!mh.chmem)
-	    len = 0xffff;
+	stack = mh.minstack - slen;
+	if (!mh.chmem)		/* chmem == 0 => use entire seg */
+	    len = 0xfff0;
 	else
-    	    len = mh.dseg + mh.bseg + mh.chmem + stack;
-#if 0
-    	len = mh.dseg + mh.bseg + (mh.chmem ? mh.chmem : INIT_HEAP);
-	stack = mh.minstack;
-	if (magic == NMAGIC) len += stack;	/* allocation size for DSEG */
-#endif
+    	    len = mh.dseg + mh.bseg + mh.chmem + stack + slen;
+        debug_v7("EXEC(v7): dseg %u, bss %u, stack %u heap %u total %stext %u\n", 
+		(unsigned)mh.dseg, (unsigned)mh.bseg, stack, mh.chmem, magic == OMAGIC? "w/":"w/o ", len);
 	goto v7_continue;
 #endif
 
@@ -456,7 +458,6 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
             }
         }
         debug("EXEC: stack %u heap %u env %u total %u\n", stack, heap, slen, len);
-        debug_v7("EXEC: stack %u heap %u env %u total %u\n", stack, heap, slen, len);
         break;
     case 0:
         len = mh.chmem;
@@ -504,6 +505,7 @@ v7_continue:
      */
 
     if (!seg_code) {
+	int seg_type = SEG_FLAG_CSEG;
         bytes = (size_t)mh.tseg;
         paras = bytes_to_paras(bytes);
         retval = -ENOMEM;
@@ -535,19 +537,16 @@ v7_continue:
             paras, bytes);
 #ifdef CONFIG_COMPAT_V7
 	if (magic == OMAGIC) {	/* tiny model alloction - merge everything */
-	    //len += bytes + stack;
-	    if (len != 0xffff) len += bytes;
+	    if (len < 0xfff0)	/* if not allocating a full segment, add tseg */
+		len += bytes;	/* add tseg to total */
 	    paras = bytes_to_paras(len);
-	    seg_code = seg_alloc(paras, SEG_FLAG_VSEG);
-            debug_v7("EXEC: allocating %04x paras (%d bytes) for TINY segment @ %x:%x\n",
-            paras, len, seg_code->base, (unsigned)mh.entry);
-	} else
-#endif
-	{
-        seg_code = seg_alloc(paras, SEG_FLAG_CSEG);
-        debug_v7("EXEC: allocating %04x paras (%d bytes) for text segment @ %x:%x\n",
-            paras, bytes, seg_code->base, (unsigned int)mh.entry);
+	    seg_type = SEG_FLAG_VSEG;
 	}
+#endif
+        seg_code = seg_alloc(paras, seg_type);
+        debug_v7("EXEC: allocated %04x paras (%u text bytes) for text seg, entry %x:%x\n",
+            paras, bytes, seg_code->base, (unsigned int)mh.entry);
+
         if (!seg_code) goto error_exec3;
         currentp->t_regs.ds = seg_code->base;
         retval = filp->f_op->read(inode, filp, (char *)((unsigned int)mh.entry), bytes);
@@ -598,17 +597,17 @@ v7_continue:
     }
     paras = len >> 4;
     retval = -ENOMEM;
-    debug_reloc("EXEC: allocating %04x paras (%d bytes) for data segment\n", paras, len);
+    debug_reloc("EXEC: allocating %04x paras (%u bytes) for data segment\n", paras, len);
 #ifdef CONFIG_COMPAT_V7
     if (magic == OMAGIC)
-	seg_data = seg_code;
+	seg_data = seg_get(seg_code);
     else
 #endif
     {
     seg_data = seg_alloc(paras, SEG_FLAG_DSEG);
     if (!seg_data) goto error_exec4;
+    debug_v7("EXEC: allocating %04x paras (%u bytes) for data segment @ %x:0\n", paras, len, seg_data->base);
     }
-    debug_v7("EXEC: allocating %04x paras (%d bytes) for data segment @ %x:0\n", paras, len, seg_data->base);
 
     debug("EXEC: Malloc succeeded - cs=%x ds=%x\n", seg_code->base, seg_data->base);
 
@@ -622,7 +621,7 @@ v7_continue:
 #endif
     currentp->t_regs.ds = seg_data->base;	/* OK even for OMAGIC */
 #ifdef CONFIG_COMPAT_V7
-    if (magic == NMAGIC) base_data = mh.minstack;	/* data above stack (MAY NEED TO FIX) */
+    if (magic == NMAGIC) base_data = mh.minstack;	/* stack below data (MAY NEED TO FIX) */
     else if (magic == OMAGIC) {
 	base_data = (size_t)mh.tseg;
 	if ((size_t)mh.entry)
@@ -685,12 +684,14 @@ v7_continue:
 
 #ifdef CONFIG_COMPAT_V7
     if (v7_task)
-	fmemcpyb((char *)currentp->t_begstack, seg_data->base, sptr, kernel_ds, slen);
-    else 
+	ds = kernel_ds;
 #endif
     fmemcpyb((char *)currentp->t_begstack, seg_data->base, sptr, ds, slen);
 
     finalize_exec(inode, seg_code, seg_data, (word_t)mh.entry, 0);
+#ifdef CONFIG_COMPAT_V7_XX		/* Experimental - delete */
+    if (!v7_task) current->task_is_V7 = 0;	/* initialize */
+#endif
     return 0;           /* success */
 
   error_exec5:

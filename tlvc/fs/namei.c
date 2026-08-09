@@ -427,6 +427,13 @@ int do_mknod(char *pathname, int offst, int mode, dev_t dev)
 
 int sys_mknod(char *pathname, int mode, dev_t dev)
 {
+#ifdef CONFIG_COMPAT_V7
+    if (current->task_is_V7) {
+	if (mode & 070000) mode &= ~0100000;
+	if (mode & S_IFDIR)
+	    return sys_mkdir(pathname, mode);
+    }
+#endif
     if (S_ISDIR(mode) || (!S_ISFIFO(mode) && !suser())) return -EPERM;
 
     switch (mode & S_IFMT) {
@@ -445,6 +452,23 @@ int sys_mknod(char *pathname, int mode, dev_t dev)
     return do_mknod(pathname, offsetof(struct inode_operations,mknod), mode, dev);
 }
 
+#ifdef CONFIG_COMPAT_V7
+/* return 0 if pathname ends in either '/..' or '/.' */
+int is_dotdot(char *p)
+{
+    char c;
+
+    while (get_user_char(p++));
+    p -= 2;
+    if (get_user_char(p) == '.') {
+	if ((c = get_user_char(--p)) == '/' || 
+    		(c == '.' && get_user_char(--p) == '/'))
+	    return 0;
+    }
+    return -1;
+}
+#endif
+
 int sys_mkdir(char *pathname, int mode)
 {
     return do_mknod(pathname, offsetof(struct inode_operations,mkdir), (mode & 0777)|S_IFDIR, 0);
@@ -460,6 +484,18 @@ int do_rmthing(char *pathname, size_t offst)
     int (*op) ();
     int error;
 
+#ifdef CONFIG_COMPAT_V7		/* low pri, V7 apps shouldn't do this */
+    /* V7 doesn't have sys_rmdir and expects unlink to do it. It also attempts to unlink 
+     * '.' and '..' before unlinking the directory itself.
+     */
+    if (current->task_is_V7) {
+	if (namei(pathname, &dir, IS_DIR, 0) == 0) {
+	    iput(dir);
+	    if (is_dotdot(pathname) == 0) return 0;	/* just ignore . and .. */
+	    offst = offsetof(struct inode_operations, rmdir);
+	}
+    }
+#endif
     error = dir_namei(pathname, &namelen, &basename, NULL, &dir);
     if (!error) {
 	dirp = dir;
@@ -513,6 +549,9 @@ int sys_link(char *oldname, char *pathname)
     int error;
 
     debug_file("LINK '%t' '%t'\n", oldname, pathname);
+#ifdef CONFIG_COMPAT_V7
+    if (current->task_is_V7 && is_dotdot(pathname) == 0) return 0;
+#endif
     error = namei(oldname, &oldinode, 0, 0);
     if (!error) {
         error = do_mknod(pathname, offsetof(struct inode_operations,link), (int)oldinode, 0);

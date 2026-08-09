@@ -363,14 +363,16 @@ int sys_open(const char *filename, int flags, int mode)
 {
     struct inode *inode;
     int error, flag;
+#ifdef CONFIG_COMPAT_V7_NOTNEEDED
+    int v7 = current->task_is_V7;
+    debug_file("V7 compat mode is %s (%x)\n", v7?"ON":"off", v7);
+    current->task_is_V7 = 0;
+#endif
 
     flag = flags;
     if ((mode_t)((flags + 1) & O_ACCMODE)) flag++;
     if (flag & (O_TRUNC | O_CREAT)) flag |= FMODE_WRITE;
 
-#ifdef CONFIG_COMPAT_V7
-    debug_file("V7 compat mode is %s\n", current->task_is_V7?"on":"off");
-#endif
     debug_file("OPEN[%P] '%t' flags 0x%x\n", filename, flags);
     error = open_namei(filename, flag, mode, &inode, NULL);
     if (!error) {
@@ -378,6 +380,9 @@ int sys_open(const char *filename, int flags, int mode)
 	    iput(inode);
     }
     debug_file(" = %d\n", error);
+#ifdef CONFIG_COMPAT_V7_NOTNEEDED
+    current->task_is_V7 = v7;
+#endif
     return error;
 }
 

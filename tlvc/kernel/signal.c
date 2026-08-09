@@ -136,7 +136,7 @@ int sys_signal(int signr, __kern_sighandler_t h)
 	return -EINVAL;
 
 #ifdef CONFIG_COMPAT_V7		/* Don't do V7 signal handling for now */
-    /* NOTE: the V7 'hander' arg is a 16bit pointer to a routine in the process' 
+    /* NOTE: the V7 'hanlder' arg is a 16bit pointer to a routine in the process' 
      * address space, not a long. A Venix signal handler returns via IRET. 
      * Finally, Venix expects the (address of the) previous signal handler 
      * (if any) to be returned. */

@@ -71,7 +71,7 @@ struct task_struct {
     segoff_t                    t_endbrk;       /* current break (end of heap) */
     segoff_t                    t_begstack;     /* start SP, argc/argv strings above */
     segoff_t                    t_endseg;       /* end of dataseg (data+bss+heap+stack) */
-    segoff_t                    t_minstack;     /* min (allocated) stack size */
+    segoff_t                    t_minstack;     /* allocated stack size, incl argc/argv */
 
 /* Other */
     unsigned long               average;        /* fixed point CPU % usage */

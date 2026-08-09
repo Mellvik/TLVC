@@ -4,6 +4,7 @@
 #include <arch/asm-offsets.h>
 #include <arch/ports.h>
 #include <arch/irq.h>
+#include <linuxmt/v7.h>
 
         .arch   i8086, nojumps
         .code16
@@ -66,17 +67,24 @@
  * For most system calls we simply swap 2x2 registers and go, but there are
  * important exceptions. Notably the stat structure is slightly different
  * (inode_t is u_16 on venix) affecting stat/fstat. While TLVC never returns
- * longs in registers (e.g lseek), Venix has many which does. The upper nibble
+ * longs in registers (e.g lseek), Venix has many syscalls which does. 
+ * More examples: The upper nibble
  * of t_mode in struct stat is different (also stat/fstat). Syscall details in Wiki.
  * Finally, Venix returns result or -1 in ax, while CX holds the error # if any.
- * CX equals zero if all is good (creative use of the jcxz instruction). All 
+ * CX equals zero on exit if all is good (creative use of the jcxz instruction). All 
  * this and more is handled here.
  * 
- * A V7 syscall sets a flag in a (normally) unused variable in the task struct,
- * which informs the syscall routine to do whatever is needed. This flag may
- * be cleared in cases like nested syscalls, and not reliable for proper handling
- * of a syscall return. An extra flag added to the syscall number in AX before
- * pushing it on the stack guarantees correct exit handling.
+ * A syscall from a Venix app sets a flag in a (normally) unused variable in the
+ * task struct. This flag informs syscall routines to do whatever special processing
+ * is needed - if any. In some syscalls the flag is cleared on entry, restored on 
+ * exit in order to not affect nested syscalls or shared support routines.
+ * The task flag is used by a few routines to enable special processing on exit,
+ * always related to long returns.
+ * For robustness, the task flag does not trigger the mandatory special processing 
+ * when syscalls returns. Insted, V7 syscalls have their own path to syscalls,
+ * automating proper exit processing.
+ * Finally, in addition to syscalls, other Venix traps (INTs) are handled here,
+ * see below.
  */
 
 #ifdef CONFIG_COMPAT_V7
@@ -84,18 +92,19 @@
 	.global _sysfpu_v7	/* int F4 */
 	.global _abort_v7	/* int F3 */
 	.global _stktrap_v7	/* int F2 */
-	.global _sysmap_v7	/* int F5 */
+	.global _codemap_v7	/* int F5 */
 
 _sysfpu_v7:
-	// FPU is required, just return
+	// FPU is required, fall through to sysret
 	//mov	$sysfpu_msg,%ax
-	//call	_intmsg
-_sysret:
+	//call	intmsg
+sysret:
 	add	$4,%sp	// skip dynamic handler return stack
 	iret
 	
-_intmsg:
+intmsg:
 	// entered with string ptr in AX
+	// watch the stack!
 	push	%ds
 	push	%si
         mov     %sp,%si
@@ -109,36 +118,38 @@ _intmsg:
 
 _stktrap_v7:	/* Stack trap INT, may need a more elaborate message */
 	mov	$stktrap_msg,%ax
-	call	_intmsg
-	jmp	_sysret
+	call	intmsg
+	jmp	sysret
 
-_sysmap_v7:
+_codemap_v7:
 	// codemap not implemented, this is fatal
 	mov	$codemap_msg,%ax
-	call	_intmsg
-	add	$2,%sp
-	// just drop into _abort
+	call	intmsg
+	// drop into _abort
 
 _abort_v7:
+	// abort trap: find pid, pass on to kill
 	push	%ds
+	push	%si
         mov     %sp,%si
-        mov     %ss:4(%si),%ds	// Get kernel DS set
+        mov     %ss:6(%si),%ds	// Set kernel DS
+	mov	%ss:4(%si),%si
+	movb	$IDX_SYSCALL_V7,(%si)
 
-	mov	current,%bx;
-	mov	$6,%ax
-	push	%ax		// SIGABRT/SIGIOT
-	push	2(%bx)		// pid
-	
-	call	sys_kill
-	add	$4,%sp
+	mov	current,%si
+	mov	$6,%dx		// SIGABRT
+	mov	$37,%bx		// sys_kill
+	mov	2(%si),%ax	// pid
+	pop	%si
 	pop	%ds
-	ret
+	// fall through 
 
 //---------------- start syscall handling -----------------------------
 
 _irqit_v7:			// Handle Venix/V7 syscall
 	xchg	%ax,%bx		// rearrange args
 	xchg	%cx,%dx
+#if 0
 	cmp	$0x13,%al	// lseek needs special treatment to get
 				// a long into the arg list...
 	jnz	1f
@@ -151,6 +162,7 @@ _irqit_v7:			// Handle Venix/V7 syscall
 				// ... for now
 	pop	%dx
 1:
+#endif
 	push    %ds
 	push    %si
 	push    %di
@@ -164,13 +176,9 @@ _irqit_v7:			// Handle Venix/V7 syscall
 					// behaviour. Any non-zero number will do, but
 					// using the syscall # allows for some useful
 					// tracing/debugging.
-
-	inc	%ah			// Additional 'protection': set a 'local' V7 return flag.
-					// The task_V7 flag may get turned off during syscall
-					// processing, IOW not a reliable trigger for correct
-					// syscall exit processing.
 	pop	%bx
 	jmp	_irqit_cont
+
 #endif	/* CONFIG_COMPAT_V7 */
 
         .global _irqit
@@ -188,14 +196,6 @@ _irqit:
 //
         mov     %sp,%si
         mov     %ss:8(%si),%ds
-#ifdef CONFIG_COMPAT_V7
-	/* give native syscalls a guaranteed clean slate */
-	push    %bx
-	mov     current,%bx
-	movw    $0,TASK_USER_V7(%bx)
-	pop	%bx
-
-#endif
 //
 //      Determine which stack to use
 //
@@ -280,16 +280,15 @@ save_regs:
 !
 !       ----------PROCESS SYSCALL----------
 */
-do_syscall:
-        sti
-        call    check_ustack    // Check user mode stack
-
+#ifdef CONFIG_COMPAT_V7
+do_syscall_v7:
+	sti
+	call	check_ustack
 #ifdef CONFIG_TRACE
         call    trace_begin
 #endif
-
-        pop     %ax             // get syscall function code in AX
-#if 0				/* DEBUG message: syscall entry */
+	pop	%ax		// Syscall #
+#ifdef SHOW_SYSCALL_V7		/* DEBUG message: syscall entry */
 	push	%ax
 	mov	$callno,%bx
 	push	%ax
@@ -298,40 +297,49 @@ do_syscall:
 	add	$4,%sp
 	pop	%ax
 #endif
-	xor	%ah,%ah		// discard V7 flag, it's on the stack anyway
-        call    syscall
-        push    %ax             // syscall return value in ax
-	push	%dx		// for V7 COMPAT, return longs
-#ifdef CONFIG_COMPAT_V7
-	//mov	%sp,%bx
-	//test	$0x100,12(%bx)
-	//jnz	restore_regs_V7	
+	call	syscall
+
+//
+// Some V7 syscalls return a 'long' in AX:DX. If the return value is a 32bit number
+// and not simply two ints like in pipe() and wait(), we need to check whether
+// we're dealing with a valid return or an error code. The test is DX == 0xffff.
+// If true, we're *almost* sure it's an error code. The exception
+// (so far) is time(): If (when) we get REALLY close to the end of time :-), that is,
+// less than 10 hrs (the upper bit of AX must be set in order for the value to qualify
+// as an error), all time() returns will be considered errors. I can live with that.
+//
+
+	mov     current,%bx
+	mov	TASK_USER_V7(%bx),%cx	// has syscall # and return flags
+	movw    $0,TASK_USER_V7(%bx)	// clear V7 flag
+	add	$6,%sp			// discard BX, CX, DX
+	test	$V7_LONG_RETURN,%cx	// test the 'long return' bit
+	mov	$0,%cx			// CX is now the error flag
+	jz	err_chk			// not set -> regular error handling
+	cmp	$0xffff,%dx		// long error code ??
+	jnz	no_err			// dx=-1: normal ax error processing
+	jmp	is_err
+err_chk:
+	test	%ax,%ax			// AX negative?
+	jns	no_err
+is_err:
+	neg	%ax
+	mov	%ax,%cx			// CX goes to 'errno' in the app
+	mov	$-1,%ax			// app level error indicator
+no_err:
+        push    %ax             	// syscall return low
+	push	%dx			// return high
+
+#ifdef SHOW_SYSCALL_V7		/* DEBUG: syscall exit */
 	mov	%sp,%bx
-	mov	14(%bx),%cx	// syscall #
-	push	%cx
-#if 0		/* DEBUG: syscall exit */
+	mov	14(%bx),%cx		// syscall #
 	mov	$callno1,%ax
 	mov	current,%bx
 	push	TASK_USER_V7(%bx)	// V7 flag
-	push	%cx		// syscall #
-	push	%ax		// format string
+	push	%cx
+	push	%ax			// format string
 	call	printk
 	add	$6,%sp
-#endif
-
-	// update the V7 flag if needed, it may have been cleared
-	// during syscall execution...
-	pop %cx
-#if 0	/* probably not needed --------------- */
-	mov current,%bx
-	test $1,%ch
-	jz 1f
-	cmp $0,TASK_USER_V7(%bx)	// insurance
-	jnz 1f
-	xor %ch,%ch
-	mov %cx,TASK_USER_V7(%bx)
-1:
-#endif
 #endif
 
 #ifdef CONFIG_TRACE
@@ -341,11 +349,66 @@ do_syscall:
         cmpw    $0,bh_active    // Any active bottom halfs?
         je      1f              // No
         call    do_bottom_half  // Run bottom halves
-        //call schedule         // experimental
 
 1:	call    do_signal       // process signals
         cli
+
+        decw    intr_count
 	pop	%dx
+	pop	%ax
+
+	pop	%di
+	pop	%si
+	jmp	restore_regs_v7
+#endif
+
+// ---------------- 'normal syscall' ------------
+do_syscall:
+        sti
+        call    check_ustack    // Check user mode stack
+
+#ifdef CONFIG_TRACE
+        call    trace_begin
+#endif
+
+        pop     %ax             // get syscall function code in AX
+
+#if SHOW_SYSCALL		/* DEBUG message: syscall entry */
+	push	%ax
+	mov	$callno,%bx
+	push	%ax
+	push	%bx
+	call	printk
+	add	$4,%sp
+	pop	%ax
+#endif
+        call    syscall
+        push    %ax             // syscall return value in ax
+
+#ifdef SHOW_SYSCALL		/* DEBUG: syscall exit */
+	mov	%sp,%bx
+	mov	12(%bx),%cx	// syscall #
+	mov	$callno1,%ax
+	mov	current,%bx
+	push	TASK_USER_V7(%bx)	// V7 flag
+	push	%cx
+	push	%ax		// format string
+	call	printk
+	add	$6,%sp
+#endif
+
+#ifdef CONFIG_TRACE
+        // strace.c must be compiled with tail optimization off to protect top of stack
+        call    trace_end       // syscall return value is top of stack
+#endif
+syscall_ret:
+        cmpw    $0,bh_active    // Any active bottom halfs?
+        je      1f		// No
+        call    do_bottom_half  // Run bottom halves
+        //call	schedule	// experimental
+
+1:	call    do_signal	// process signals
+        cli
         jmp     restore_regs
 //
 //      Done.
@@ -494,50 +557,14 @@ restore_regs:
         decw    intr_count
         pop     %ax
 
-#ifdef CONFIG_COMPAT_V7
-//
-// Some V7 syscalls return a 'long' in AX:DX. if the return value is a real 32bit value
-// and not simply two ints like in pipe() and wait(), we need to check whether
-// we're dealing with a valid return or an error code. The test is DX == 0xffff.
-// If true, we're quite (although not completely) sure it's an error code. The exception
-// (so far) is time(): If (when) we get REALLY close to the end of time :-), that is,
-// less than 10 hrs (the upper bit of ax must be set in order for the value to qualify
-// as an error), all time() returns will be considered errors. I can live with that.
-//
-	mov	%sp,%bx
-	//testw	$0x100,10(%bx)		// check original AX for V7 flag
-	//jz	normal_restore
-	//mov	10(%si),%bx
-	mov	current,%bx
-	cmp	$0,TASK_USER_V7(%bx)
-	je	normal_restore
-	mov	TASK_USER_V7(%bx),%cx	// has syscall #
-	add	$6,%sp			// discard BX, CX, DX
-	test	$0x100,%cx		// test the 'long return' bit
-	mov	$0,%cx			// CX is now the error flag
-	jz	1f			// regular error handling
-	cmp	$0xffff,%dx		// long error code ??
-	jnz	skip_pops		// dx=-1: normal ax error processing
-1:
-	or	%ax,%ax
-	jge	skip_pops		// No error
-long_err:
-	neg	%ax
-	mov	%ax,%cx			// CX goes to 'errno' in the app
-	mov	$-1,%ax			// app level error indicator
-skip_pops:
-	pop	%di
-	pop	%si			// CLEAN UP THIS
-	jmp	s_pops
-normal_restore:
-#endif	/* Normal register restore */
 	pop	%bx
 	pop	%cx
         pop     %dx
 
         pop     %di
         pop     %si
-s_pops:
+
+restore_regs_v7:
         pop     %bp             // discard orig_AX
         pop     %es
         pop     %ds
@@ -567,6 +594,7 @@ ret_from_syscall:
         mov     current,%bx           // Ensure we have the
         lea     TASK_USER_BX(%bx),%sp // right kernel SP
         xor     %ax,%ax               // Just in case we are starting a new task
+1:
         push    %ax
         cli
         jmp     restore_regs

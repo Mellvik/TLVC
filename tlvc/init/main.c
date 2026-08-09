@@ -61,6 +61,7 @@ int nr_map_bufs, nr_ext_bufs, nr_xms_bufs;
 #ifdef CONFIG_CALIBRATE_DELAY
 void calibrate_delay(void);
 #endif
+int sys_dup(unsigned int);	/* avoid 2nd arg confusion with V7 version */
 
 #define BOOT_TIMER	/* display jiffies at system startup - for benchmarking */
 
@@ -350,6 +351,9 @@ void INITPROC kernel_init(void)
     if (boot_console) copycon();
     console_init();	/* init direct, bios or headless console */
 
+#ifdef CONFIG_COMPAT_V7
+    printk("Venix binary compatible kernel\n");
+#endif
 #ifdef CONFIG_CHAR_DEV_RS
     serial_init();
 #endif

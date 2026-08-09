@@ -14,34 +14,31 @@
 #include <linuxmt/fs.h>
 #include <arch/segment.h>
 #include <linuxmt/debug.h>
+#include <linuxmt/v7.h>
 
-/* V7 compat note:
- * The high workd of the long offset parameter coming from Venix apps
- * is encoded into the whence (lorigin) arg. The high bit flags this,
- * introduced before the V7 shim layer was created and kept for compatibility
- * with the syscall conversion option in the vrewrite.py tool.
- * Also, the V7 call expects a long return:
- * library syscall stub accordingly.
+/* Venix compat note:
+ * 1) Venix expects the new offset as a long return.
+ * 2) Venix passes the offset in a long, occupying p_offset and lorigin. The origin
+ *    arg is passed in SI, which is the 5th arg in a TLVC syscall. Instead of 'fixing'
+ *    that with extra code at syscall entry, we accept 'di' as a dummy and use 'si'
+ *    as is.
 */
 
-loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin)
+loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin, int di, int si)
 {
     register struct file *file;
     register struct file_operations *fop;
     loff_t offset;
-    //unsigned int origin = lorigin;
 
 #ifdef CONFIG_COMPAT_V7
     int v7 = current->task_is_V7;
-    if (v7 || (fd&0x8000)) {
-			       /* The fd high bit flag is used by the code conversion
-				* tool when converting to TLVC native syscalls.
-				* Considered temporary */
-	offset = (((loff_t)lorigin)<<16) | (unsigned int)p_offset;
-	lorigin = (fd>>8)&0x3;
-	fd &= 0xff;
-    	printk("lseek: fd %d, offs %x, lorigin %x real offset %lx (%lu) (V7:%x)",
-		fd, p_offset, lorigin, offset, offset, v7);
+    current->task_is_V7 = 0;
+    unsigned int origin = lorigin;
+    if (v7) {
+	offset = (((loff_t)origin)<<16) | (unsigned int)p_offset;
+    	//printk("lseek[%P]: fd %d, offs %x, origin %x real offset %lx (%ld) (V7:%x) [%x,%x]",
+		//fd, p_offset, lorigin, offset, offset, v7, a, b);
+	lorigin = si;	/* now using the 5th arg, now xchg %di,%si in irqtab.S */
     } else
 #endif
     	offset = (loff_t) get_user_long(p_offset);
@@ -53,7 +50,7 @@ loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin)
     if (fop && fop->lseek) {
 #ifdef CONFIG_COMPAT_V7
 	int ret = fop->lseek(file->f_inode, file, offset, lorigin);
-	if (ret < 0) return ret;
+	if (ret < 0) return (loff_t)ret;
 	offset = file->f_pos;
 	goto lseek_done;
 #else
@@ -80,7 +77,11 @@ loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin)
     file->f_pos = offset;
 #ifdef CONFIG_COMPAT_V7
 lseek_done:
-    if (v7) { printk(" return offset %lu\n", offset);return offset; }
+    if (v7) { 
+	current->task_is_V7 = v7|V7_LONG_RETURN;
+	//printk(" return offset %ld\n", offset);
+	return offset;
+    }
 #endif
     put_user_long((unsigned long int)offset, (void *)p_offset);
     return 0;
@@ -124,6 +125,7 @@ int sys_read(unsigned int fd, char *buf, size_t count)
 
 #ifdef CONFIG_COMPAT_V7		/* may not be required FIXME */
     int v7 = current->task_is_V7;
+    current->task_is_V7 = 0;
 #endif
     if (((retval = fd_check(fd, buf, count, FMODE_READ, &file)) == 0)
 	&& count) {
@@ -135,9 +137,8 @@ int sys_read(unsigned int fd, char *buf, size_t count)
 	}
     }
 #ifdef CONFIG_COMPAT_V7
-    if (v7) {	/* FIXME; may not be needed */
-	current->task_is_V7 = v7;
-    }	
+    //if (v7) printk("READ[%P] fd %d ret %d pos %lu buf %x (V7=%x)\n", fd, retval, file->f_pos, buf, current->task_is_V7);
+    current->task_is_V7 = v7;
 #endif
     return retval;
 }
@@ -148,6 +149,10 @@ int sys_write(unsigned int fd, char *buf, size_t count)
     struct file *file;
     register struct inode *inode;
     int written;
+#ifdef CONFIG_COMPAT_V7		/* may not be required FIXME */
+    int v7 = current->task_is_V7;
+    current->task_is_V7 = 0;
+#endif
 
     if (((written = fd_check(fd, buf, count, FMODE_WRITE, &file)) == 0)
 	&& (count != 0)) {
@@ -181,6 +186,9 @@ int sys_write(unsigned int fd, char *buf, size_t count)
 	    schedule();	// FIX: Check if this can be removed
 	}
     }
-    //if (current->task_is_V7) printk("wr: fd %d count %d ret %d\n", fd, count, written);
+#ifdef CONFIG_COMPAT_V7
+    current->task_is_V7 = v7;
+    //if (v7 && written > 1) printk("wr: fd %d count %d ret %d\n", fd, count, written);
+#endif
     return written;
 }

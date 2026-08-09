@@ -32,6 +32,7 @@
 #include <linuxmt/string.h>
 
 #include <linuxmt/config.h>
+#include <linuxmt/v7.h>
 #include <arch/system.h>
 #include <arch/segment.h>
 #include <arch/irq.h>
@@ -136,8 +137,8 @@ time_t sys_time(time_t *tloc)
     if (tloc)
 	verified_memcpy_tofs(tloc, &t, sizeof(t));
     if (current->task_is_V7)
-	current->task_is_V7 |= 0x100;	/* AX does not return errors */
-    return t;				/* AX+DX long return V7 style */
+	current->task_is_V7 |= V7_LONG_RETURN;	/* AX does not return errors */
+    return t;					/* AX+DX long return V7 style */
 }
 
 int sys_ftime(struct timeb *tb)

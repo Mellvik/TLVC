@@ -7,7 +7,9 @@
 #define OMAGIC	0x107	/* tiny model binary */
 #define NMAGIC	0x109	/* small model, stack usually @ bottom of DS */
 			/* may include code mapping for large text */
+#define V7_LONG_RETURN	0x1000	/* Long return flag in V7 syscalls */
 
+#ifndef __ASSEMBLER__
 struct v7_exec {
 short		a_magic;	/* magic number */
 unsigned short	a_stack;	/* size of stack if Z type, 0 otherwise */
@@ -20,4 +22,4 @@ long		a_trsize;	/* size of text relocation */
 long		a_heap;		/* heap size unless default (max) */
 				/* was a_drsize, size of data relocation */
 };
-
+#endif
