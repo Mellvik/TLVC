@@ -107,11 +107,36 @@ CONFIG_CPU_8086
   Select the target processor for which this kernel image is to be
   built. The available options are:
 
-	8086	The 8086 and 8088 processors.		(Default)
+	8086	The 8086 and 8088 processors		(Default)
 
-	80186	The 80186 and 80188 processors.
+	80186	The 80186 and 80188 processors (untested)
 
-	80286	The 80286 processor.
+	80286	The 80286 processor (untested)
+
+Venix compatibility
+CONFIG_COMPAT_V7
+   Saying yes will include a system call shim layer that enables
+   Venix/86 binaries to run on the system - with some but very
+   few limitations. The most important one being that an FPU is
+   required. Practically any Venix binary will run fine on TLVC,
+   but not all Venix binaries SHOULD be run. Like `mknod` to make
+   devices is not a good idea, and making directories is safer
+   using natiuve tools.
+
+   Most importantly, the Venix V7 (K&R) software development 
+   tools work fine and turn TLVC into a software development 
+   platform. Refer to the Wiki documents for details.
+
+Include Venix tools
+CONFIG_VENIX_TOOLS
+   Saying yes will include a large set of tools, mostly for
+   software development, to be included on HD images. Be 
+   aware the (initially) programs built with these tools 
+   will be V7 type. Eventually, TLVC native libraries will be
+   converted and native apps may be built.
+
+   Be aware that this option will consume several megabytes
+   of disk space.
 
 System has a math coprocessor
 CONFIG_HW_FPU
