@@ -3,6 +3,18 @@
 TLVC is a Linux-based OS for vintage 16bit PCs: A small (even floppy-based if desired), efficient, configurable tool for testing, diagnosing, understanding and playing with vintage PCs: IBM PC compatibles with ISA bus from the 5150 (original 8088 PC) to the 386 and newer. A platform for learning, experimenting, mastering, having fun with old computers: Getting them to run, check out hardware components, find and fix problems, see what they can (and cannot) do, push them, and in many cases becoming impressed with what the old clunkers with a few hundred Kbytes of RAM and a 4 or 12MHz processor can deliver. And not the least, to develop software to improve on and add to the system. No graphics, no gaming, just text/terminal I/O which is what this age of hardware is suited for. If you're so inclined, running 4 users - console, serial, telnet - concurrently is no problem - with enough memory (640k) and - PC/AT and up - XMS for software, buffers, RAMdisk and more.
 
 TLVC is a fork of ELKS 0.6.0 with a different focus: OS efficiency and speed more than wide compatibility and applications. A key difference from ELKS is BIOS independence. While TLVC - like any other PC operating system - uses the BIOS to boot, that's where BIOS dependency ends. Native (aka 'direct') block device drivers makes the system faster and more responsive. It also allows for experimentation with protected mode if you're so inclined and have a 286 or newer system. 
+> *Hardware supported by TLVC (incomplete list)*
+> 
+> - Systems: Anything PC compatible
+> - Memory: Whatever is available - Main, UMB, HMA, XMS, not LIM
+> - Floppy: Any size and format (320k untested), XT with 720k 3.5in, no 2880k/3.5in (just ask)
+> - HD: Anything that ever worked on a PC: MFM drives, IDE, ATA, XT/IDE, XF/CF
+> - Network: NE1k/NE2k, any WD/SME (80x3, 8216/8416), 3C509, Lance/PCnet, Intel EtherExpress16, some configurable from `/bootopts`
+> - AST SixpakPlus, broad clock type support
+> - Serial: up to 4, individual IRQs, recognizes chip type, uses FIFO etc. Supports HW and SW flow control
+> - PicoMem: NE2k emulator works
+
+### NEW: TLVC runs Venix/86 binaries, including full K&R development kit! Check pull requests for details.
 
 Curious? Interested? Please check out the growing collection of really detailed and useful Wiki guides for more info:
 [About TLVC](https://github.com/Mellvik/TLVC/wiki/About-TLVC#tlvc---tiny-linux-for-vintage-computers) - Getting Started with TLVC - Configure and Build TLVC - TLVC Networking Guide - TLVC and Emulators - [TLVC Memory and Buffer subsystem](https://github.com/Mellvik/TLVC/wiki/TLVC-Memory-and-Buffer-subsystem)
