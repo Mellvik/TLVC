@@ -17,7 +17,7 @@ mainmenu_option next_comment
 		bool 'Compaq DeskPro Hardware (fast mode)' CONFIG_HW_COMPAQFAST n
 		bool 'MK-88 Hardware (IRQ 3 keyboard)' CONFIG_HW_MK88 n
 		bool 'Include IBM PC/XT or compatible (8bit ISA) support' CONFIG_HW_PCXT n
-		bool 'Add calibrated delay for drivers' CONFIG_CALIBRATE_DELAY n
+#		bool 'Add calibrated delay for drivers' CONFIG_CALIBRATE_DELAY n
 
 		comment 'Devices'
 
@@ -26,6 +26,11 @@ mainmenu_option next_comment
 		comment 'BIOS support'
 
 		bool 'Advanced Power Management support'         CONFIG_APM y
+
+		comment 'Venix/86 compatibility'
+
+		bool 'Support Venix binaries'		CONFIG_COMPAT_V7 n
+		bool 'Include Venix tools on hd-images' CONFIG_VENIX_TOOLS n
 
 	elif [ "$CONFIG_ARCH_8018X" = "y" ]; then
 

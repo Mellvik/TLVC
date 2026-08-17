@@ -151,9 +151,7 @@ struct file_operations ee16_fops =
 #define STARTED_RU      2
 #define STARTED_CU      1
 
-/* macros from Linux jiffies.h, typecheck() removed */
-#define time_after(a,b)	 ((long)((b) - (a)) < 0)
-#define time_before(a,b)	time_after(b,a)
+#define time_before(a,b)	time_after(b,a)	/* from sched.h */
 
 #define eeprom_delay()	ee16_udelay(40)
 

@@ -57,7 +57,7 @@ extern byte_t ne2k_imask;
 extern struct eth eths[];
 extern unsigned char macaddr[];
 
-#define LOCAL_DEBUG 2
+//#define LOCAL_DEBUG 2
 #if LOCAL_DEBUG
 void kputchar(int);
 #else
