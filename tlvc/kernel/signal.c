@@ -130,22 +130,14 @@ int sys_signal(int signr, __kern_sighandler_t h)
 {
     __kern_sighandler_t handler = h;
     int retval = 0;
-    //debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
-//	      _FP_SEG(handler), _FP_OFF(handler), current->pid);
+
     if (((unsigned int)signr > NSIG) || signr == SIGKILL || signr == SIGSTOP)
 	return -EINVAL;
-
-#ifdef CONFIG_COMPAT_V7		/* Don't do V7 signal handling for now */
-    /* NOTE: the V7 'hanlder' arg is a 16bit pointer to a routine in the process' 
-     * address space, not a long. A Venix signal handler returns via IRET. 
-     * Finally, Venix expects the (address of the) previous signal handler 
-     * (if any) to be returned. */
-    if (current->task_is_V7) {
-	if (_FP_OFF(handler) == (unsigned int)KERN_SIG_IGN)
-	    handler = KERN_SIG_IGN;	/* zero out SEG part */
-	else
-	    handler = KERN_SIG_DFL;
-	retval = (unsigned int)_FP_OFF(handler);
+#ifdef CONFIG_COMPAT_V7
+    if (current->task_is_V7) {		/* arg is unsigned int, fix it */
+	retval = (int)current->sig.action[signr - 1].sa_dispose;
+	if (retval == (int)SIGDISP_CUSTOM)
+	    retval = (int)current->sig.handler;	/* return previous handler */
     }
 #endif
     debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
@@ -157,7 +149,10 @@ int sys_signal(int signr, __kern_sighandler_t h)
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_IGN;
     else {
 	struct segment *s = current->mm[SEG_CODE];
-
+#ifdef CONFIG_COMPAT_V7
+	if (current->task_is_V7) 
+	    handler = _MK_FP(s->base, _FP_OFF(h));
+#endif
 	if (_FP_SEG(handler) < s->base || _FP_SEG(handler) >= s->base + s->size) {
 	    printk("SIGNAL sys_signal supplied handler is bad\n");
 	    debug_sig("SIGNAL sys_signal cs not in [%x, %x]\n",

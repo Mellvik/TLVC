@@ -142,7 +142,7 @@ void arch_setup_user_stack(register struct task_struct *t, word_t entry, seg_t c
  */
 
 void arch_setup_sighandler_stack(register struct task_struct *t,
-				 __kern_sighandler_t addr,unsigned signr)
+				 __kern_sighandler_t addr, unsigned signr)
 {
     debug("Stack %x:%x was %x %x %x %x\n", _FP_SEG(addr), _FP_OFF(addr),
 	   get_ustack(t,0), get_ustack(t,2), get_ustack(t,4), get_ustack(t,6));
@@ -150,7 +150,14 @@ void arch_setup_sighandler_stack(register struct task_struct *t,
     put_ustack(t, -4, _FP_OFF(addr));
     put_ustack(t, -2, _FP_SEG(addr));
     put_ustack(t, 0, (int)get_ustack(t,6));
-    put_ustack(t, 6, (int)signr);
+#ifdef CONFIG_COMPAT_V7
+    if (current->task_is_V7) {	/* keep the flags reg on top if V7 */
+				/* so the Venix cbhandler can return via iret */
+	pokeb(_FP_OFF(addr) + 30 + (31-signr)*6, _FP_SEG(addr), 0xcf);
+    } else			/* replace 'popf' with 'iret'   ^^^^  */
+				/* Ugh - kernel is modifying the app ... */
+#endif
+    	put_ustack(t, 6, (int)signr);
     t->t_regs.sp -= 6;
     debug("Stack is %x %x %x %x %x %x %x\n", get_ustack(t,0), get_ustack(t,2),
 	   get_ustack(t,4), get_ustack(t,6), get_ustack(t,8), get_ustack(t,10),

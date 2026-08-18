@@ -39,8 +39,7 @@ chown		+16	3
 brk		+17	1	* This is only to tell the system
 stat		+18	2	 
 lseek		+19	3	* nb 2nd arg is an io ptr to long not a long.
-#				  Except if V7 compat: the high wd of offset
-#				  is encoded into the 3rd arg.
+#				  Except if V7 compat: allowing 5 args
 getpid		+20	1	* this gets both pid & ppid
 mount		+21	4	 
 umount		+22	1	 

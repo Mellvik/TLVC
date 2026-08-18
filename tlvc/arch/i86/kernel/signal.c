@@ -35,7 +35,11 @@ int do_signal(void)
 	}
 	current->signal ^= mask;
 
+#ifdef CONFIG_COMPAT_V7
+	debug_sig("SIGNAL process signal %d pid %d V7 %x\n", signr, current->pid, current->task_is_V7);
+#else
 	debug_sig("SIGNAL process signal %d pid %d\n", signr, current->pid);
+#endif
 	sah = current->sig.handler;
 	sd = &current->sig.action[signr - 1].sa_dispose;
 	if (*sd == SIGDISP_DFL) {			/* Default */

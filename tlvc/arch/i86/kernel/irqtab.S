@@ -66,23 +66,22 @@
  *
  * For most system calls we simply swap 2x2 registers and go, but there are
  * important exceptions. Notably the stat structure is slightly different
- * (inode_t is u_16 on venix) affecting stat/fstat. While TLVC never returns
+ * (inode_t is u_16 on venix) affecting stat/fstat. Also, while TLVC never returns
  * longs in registers (e.g lseek), Venix has many syscalls which does. 
- * More examples: The upper nibble
- * of t_mode in struct stat is different (also stat/fstat). Syscall details in Wiki.
- * Finally, Venix returns result or -1 in ax, while CX holds the error # if any.
- * CX equals zero on exit if all is good (creative use of the jcxz instruction). All 
- * this and more is handled here.
+ * More syscall details in Wiki.
+ * Finally, like TLVC Venix will in most cases return result or -1 in AX, but
+ * unlike TLVC, Venix uses CX to hold the error # if any. errno is updated in the
+ * app (libc), not by the kernel. 
  * 
- * A syscall from a Venix app sets a flag in a (normally) unused variable in the
- * task struct. This flag informs syscall routines to do whatever special processing
- * is needed - if any. In some syscalls the flag is cleared on entry, restored on 
+ * The kernel uses a flag in the task struct ('task_is_V7') to identify Venix apps.
+ * This flag is updated every time a syscall is made and holds the syscall #.
+ * In some syscalls the flag is cleared on entry, restored on 
  * exit in order to not affect nested syscalls or shared support routines.
- * The task flag is used by a few routines to enable special processing on exit,
+ * The task flag is also used by a few routines to enable special processing on exit,
  * always related to long returns.
- * For robustness, the task flag does not trigger the mandatory special processing 
- * when syscalls returns. Insted, V7 syscalls have their own path to syscalls,
- * automating proper exit processing.
+ * For robustness, the task flag is not used as a trigger for special processing 
+ * when syscalls returns. Instead, V7 syscalls have their own path into and out of 
+ * syscalls.
  * Finally, in addition to syscalls, other Venix traps (INTs) are handled here,
  * see below.
  */
@@ -95,7 +94,7 @@
 	.global _codemap_v7	/* int F5 */
 
 _sysfpu_v7:
-	// FPU is required, fall through to sysret
+	// FPU is required, ignore and fall through to sysret
 	//mov	$sysfpu_msg,%ax
 	//call	intmsg
 sysret:
@@ -116,7 +115,7 @@ intmsg:
 	pop	%ds
 	ret
 
-_stktrap_v7:	/* Stack trap INT, may need a more elaborate message */
+_stktrap_v7:	/* Stack trap, may need a more elaborate message */
 	mov	$stktrap_msg,%ax
 	call	intmsg
 	jmp	sysret
@@ -149,20 +148,7 @@ _abort_v7:
 _irqit_v7:			// Handle Venix/V7 syscall
 	xchg	%ax,%bx		// rearrange args
 	xchg	%cx,%dx
-#if 0
-	cmp	$0x13,%al	// lseek needs special treatment to get
-				// a long into the arg list...
-	jnz	1f
-				// TODO: maybe test (%bh != 0) in which case
-				// fd is bogus, just let is pass
-	push	%dx
-	mov	%si,%dx		// whence is in %si
-	mov	%dl,%bh		// whence to high byte of fd
-	//or	$0x80,%bh	// add flag, to be 'converted src compatible'
-				// ... for now
-	pop	%dx
-1:
-#endif
+
 	push    %ds
 	push    %si
 	push    %di
@@ -172,10 +158,8 @@ _irqit_v7:			// Handle Venix/V7 syscall
 
 	push	%bx
 	mov	current,%bx
-	mov	%ax,TASK_USER_V7(%bx)	// set the task_V7 flag, used by the syscalls to adapt
-					// behaviour. Any non-zero number will do, but
-					// using the syscall # allows for some useful
-					// tracing/debugging.
+	mov	%ax,TASK_USER_V7(%bx)	// save the syscall # in the task flag, useful
+					// for tracing/debugging.
 	pop	%bx
 	jmp	_irqit_cont
 
@@ -275,7 +259,7 @@ save_regs:
 	je	do_syscall
 	cmpb	$IDX_SYSCALL_V7,%al
 #endif
-	jne	doirq
+	jne	doirq		// Not a syscall, must be a trap or interrupt
 /*
 !
 !       ----------PROCESS SYSCALL----------
@@ -300,18 +284,18 @@ do_syscall_v7:
 	call	syscall
 
 //
-// Some V7 syscalls return a 'long' in AX:DX. If the return value is a 32bit number
-// and not simply two ints like in pipe() and wait(), we need to check whether
+// Some V7 syscalls use both AX and DX for returns. If the return value is a 32bit number
+// and not simply two ints (like in pipe() and wait()), we need to check whether
 // we're dealing with a valid return or an error code. The test is DX == 0xffff.
 // If true, we're *almost* sure it's an error code. The exception
 // (so far) is time(): If (when) we get REALLY close to the end of time :-), that is,
 // less than 10 hrs (the upper bit of AX must be set in order for the value to qualify
-// as an error), all time() returns will be considered errors. I can live with that.
+// as an error), all time() returns will be considered errors. We can live with that.
 //
 
 	mov     current,%bx
 	mov	TASK_USER_V7(%bx),%cx	// has syscall # and return flags
-	movw    $0,TASK_USER_V7(%bx)	// clear V7 flag
+	//movw	$0,TASK_USER_V7(%bx)	// Don't clear V7 flag anymore, always on for V7 apps
 	add	$6,%sp			// discard BX, CX, DX
 	test	$V7_LONG_RETURN,%cx	// test the 'long return' bit
 	mov	$0,%cx			// CX is now the error flag
