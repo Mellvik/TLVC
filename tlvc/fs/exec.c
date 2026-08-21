@@ -496,6 +496,9 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
         goto error_exec3;
     }
     len &= ~(size_t)15;
+#ifdef CONFIG_COMPAT_V7
+    current->task_is_V7 = 0;		/* Not a V7 task */
+#endif
 
 v7_continue:
     debug("EXEC: Malloc time\n");
