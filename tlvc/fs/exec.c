@@ -317,7 +317,6 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 	mh.dseg = v7hdr->a_data;
 	mh.tseg = v7hdr->a_text;
 	/* mh.entry matches between the two structs */
-	v7hdr->a_stack = 0;
 	mh.hlen = 32;
 	mh.version = 3;		  /* to simplify switch below */
 	if (!mh.minstack)	  /* a_stack = 0 means default stack size, located */
@@ -409,18 +408,21 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     /* Memory layout on Venix/V7: 
      * TINY model 1: <8k stack><text><data><bss><heap> = 64k
      * TINY model 2: <text><data><bss><heap><stack> occupying a full segment
-     * 		on Venix. Heap (on both) and stack (on the second)adjustable using chmem.
-     * SMALL model data seg: <8k stack><data><bss><heap>
-     * (the latter may not be universally true, but we'll stick with
-     * it for now). Heap adjustable.
+     * 		on Venix. Heap (on both) and stack (on the second) adjustable using chmem.
+     * SMALL model data seg, model 1: <8k stack><data><bss><heap>
+     *			     model 2: <data><bss><heap><stack> - full segment allocated
+     * unless adjusted using chmem(1).
      *
-     * NOTE I: On Venix/86 the default is to allocate a full 64k segment - data 
-     * segment if small, code segment if tiny - to maximize heap size.
-     * We keep this as the default for now. chmem can change it later.
-     * The formerly unused a_drsize is now a_heap.
+     * NOTE I: On Venix/86 the default is to allocate the entire 64k segment - data 
+     * segment (small model), code segment (tiny model) - if the stack is located high.
+     * If the stack is below, Venix does not allocate the heap statically, but somehow
+     * manages to 'soft reserve' the rest of the data segment and allocate heap on demand.
+     * The formerly unused a_drsize field in the a.out header is now a_heap.
      *
      * NOTE II: From this point on (V7), mh.minstack remains the size of the
      * allocated stack while 'stack' is the actual stack size, mh.minstack - slen.
+     * v7hdr->a_stack is the stack start address from the a.out header, usually
+     * 0x2000 (8k) if low, 0x0 if high.
      * TODO: Make similar adjustment to the rest of the code.
     */
     case 3:	/* Venix binary */
@@ -624,7 +626,7 @@ v7_continue:
 #endif
     currentp->t_regs.ds = seg_data->base;	/* OK even for OMAGIC */
 #ifdef CONFIG_COMPAT_V7
-    if (magic == NMAGIC) base_data = mh.minstack;	/* stack below data (MAY NEED TO FIX) */
+    if (magic == NMAGIC) base_data = v7hdr->a_stack? mh.minstack:0;
     else if (magic == OMAGIC) {
 	base_data = (size_t)mh.tseg;
 	if ((size_t)mh.entry)
@@ -679,10 +681,11 @@ v7_continue:
 
     currentp->t_regs.dx = currentp->t_minstack = stack;
 #ifdef CONFIG_COMPAT_V7
-    if (magic == NMAGIC || (magic == OMAGIC && (word_t)mh.entry))
-    	current->t_begstack = mh.minstack - 2 - slen;	/* stack below text */
+    if ((magic == NMAGIC && v7hdr->a_stack) || (magic == OMAGIC && (word_t)mh.entry))
+    	current->t_begstack = mh.minstack - 2 - slen;	/* stack below data or text */
     else
 #endif
+							/* stack above heap */
     currentp->t_begstack = (currentp->t_endseg - slen) & ~1; /* force even SP and argv */
 
 #ifdef CONFIG_COMPAT_V7
