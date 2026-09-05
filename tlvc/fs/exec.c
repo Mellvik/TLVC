@@ -330,7 +330,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     } else
 #endif
     if ((mh.type != MINIX_SPLITID_AHISTORICAL && mh.type != MINIX_SPLITID) ||
-        (size_t)mh.tseg == 0) {
+        mh.tseg == 0) {
         debug("EXEC: bad header, result %d\n", retval);
         goto error_exec3;
     }
@@ -398,7 +398,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     /*
      * mh.version == 1: chmem is size of heap, 0 means use default heap
      * mh.version == 0: old ld86 used chmem as size of data+bss+heap+stack
-     * mh.version == 3: V7/Venix binaries, stack usually starts at zero. 
+     * mh.version == 3: V7/Venix binaries
      */
     switch (mh.version) {
     default:
@@ -407,23 +407,29 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 #ifdef CONFIG_COMPAT_V7
     /* Memory layout on Venix/V7: 
      * TINY model 1: <8k stack><text><data><bss><heap> = 64k
-     * TINY model 2: <text><data><bss><heap><stack> occupying a full segment
-     * 		on Venix. Heap (on both) and stack (on the second) adjustable using chmem.
+     * TINY model 2: <text><data><bss><heap><stack> occupying a full segment.
+     * 		     Heap (on both) and stack (on the second) adjustable using chmem.
      * SMALL model data seg, model 1: <8k stack><data><bss><heap>
      *			     model 2: <data><bss><heap><stack> - full segment allocated
-     * unless adjusted using chmem(1).
+     *				      unless adjusted using chmem(1).
      *
-     * NOTE I: On Venix/86 the default is to allocate the entire 64k segment - data 
-     * segment (small model), code segment (tiny model) - if the stack is located high.
+     * NOTE I: On Venix/86, if high stack, the default is to allocate the entire 64k segment - data 
+     * segment (small model), code segment (tiny model).
      * If the stack is below, Venix does not allocate the heap statically, but somehow
      * manages to 'soft reserve' the rest of the data segment and allocate heap on demand.
-     * The formerly unused a_drsize field in the a.out header is now a_heap.
+     * The formerly unused a_drsize field in the a.out header is now a_heap, allowing
+     * fixed heap allocation.
      *
      * NOTE II: From this point on (V7), mh.minstack remains the size of the
      * allocated stack while 'stack' is the actual stack size, mh.minstack - slen.
      * v7hdr->a_stack is the stack start address from the a.out header, usually
      * 0x2000 (8k) if low, 0x0 if high.
      * TODO: Make similar adjustment to the rest of the code.
+     *
+     * NOTE III: A small mode binary may have tseg > 64k ('code mapped') and the
+     * allocated memory must be contiguous. This matches with the allocation
+     * scheme for medium model TLVC binaries.
+     *		 
     */
     case 3:	/* Venix binary */
 	stack = mh.minstack - slen;
@@ -511,7 +517,7 @@ v7_continue:
 
     if (!seg_code) {
 	int seg_type = SEG_FLAG_CSEG;
-        bytes = (size_t)mh.tseg;
+        bytes = (size_t)mh.tseg;	/* if V7 code mapped this is wrong, fixed downstream */
         paras = bytes_to_paras(bytes);
         retval = -ENOMEM;
 #ifdef CONFIG_ROMFS_FS
@@ -546,15 +552,27 @@ v7_continue:
 		len += bytes;	/* add tseg to total */
 	    paras = bytes_to_paras(len);
 	    seg_type = SEG_FLAG_VSEG;
+	} else if (mh.tseg > 0xffffL) {	/* code mapped, (big) binary */
+	    paras = (mh.tseg >> 4) + 1;
+	    bytes = 0x0e000;	/* code mapping, 56k per seg */
 	}
 #endif
         seg_code = seg_alloc(paras, seg_type);
+        if (!seg_code) goto error_exec3;
+
         debug_v7("EXEC: allocated %04x paras (%u text bytes) for text seg, entry %x:%x\n",
             paras, bytes, seg_code->base, (unsigned int)mh.entry);
 
-        if (!seg_code) goto error_exec3;
         currentp->t_regs.ds = seg_code->base;
-        retval = filp->f_op->read(inode, filp, (char *)((unsigned int)mh.entry), bytes);
+        retval = filp->f_op->read(inode, filp, 0, bytes);
+#ifdef CONFIG_COMPAT_V7
+	if (retval == bytes && mh.tseg > 0xffffL) {	/* get rest of 'code mapped' binary */
+	    currentp->t_regs.ds += 0xe00;
+	    bytes = (size_t)(mh.tseg - bytes);
+	    retval = filp->f_op->read(inode, filp, 0, bytes);
+	    currentp->t_regs.ds -= 0xe00;
+	}
+#endif
         if (retval != bytes) {
             debug("EXEC(tseg read): bad result %u, expected %u\n", retval, bytes);
             goto error_exec4;
