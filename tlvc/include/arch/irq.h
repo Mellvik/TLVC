@@ -10,11 +10,12 @@
 
 #ifdef CONFIG_COMPAT_V7
 #define IDX_SYSCALL_V7	20	/* Unix V7 syscalls - int 0xf1 */
-#define IDX_SYSFPU_V7	21	/* Venix FPU/math init, just returns, int 0xf4 */
+#define IDX_STKTRAP_V7	21	/* Venix application stack trap, int 0xf2 */
 #define IDX_SYSIOT_V7	22	/* Venix abort() library call - int 0xf3 */
-#define	IDX_SYSMAP_V7	23	/* Venix code mapper - int 0xf5 */
-#define IDX_STKTRAP_V7	24	/* Venix application stack trap, int 0xf2 */
-#define NR_IRQS		25
+#define IDX_SYSFPU_V7	23	/* Venix FPU/math init, just returns, int 0xf4 */
+#define	IDX_SYSMAPC_V7	24	/* Venix code map call - int 0xf5 */
+#define	IDX_SYSMAPR_V7	25	/* Venix code map return - int 0xf6 */
+#define NR_IRQS		26
 #else
 #define NR_IRQS		20      /* = # IRQs plus special indexes above */
 #endif
@@ -26,8 +27,8 @@
 #include <linuxmt/types.h>
 
 /* irq.c*/
-typedef void (* int_proc) (void);  // any INT handler
-typedef void (* irq_handler) (int,struct pt_regs *);   // IRQ handler
+typedef void (* int_proc) (void);			// any INT handler
+typedef void (* irq_handler) (int,struct pt_regs *);	// IRQ handler
 
 void do_IRQ(int,struct pt_regs *);
 int request_irq(int,irq_handler,int hflag);
@@ -43,7 +44,8 @@ void _irqit_v7(void);
 void _sysfpu_v7(void);
 void _abort_v7(void);
 void _stktrap_v7(void);
-void _codemap_v7(void);
+void _cm_call_v7(void);
+void _cm_ret_v7(void);
 #endif
 
 void div0_handler(int irq, struct pt_regs *regs);

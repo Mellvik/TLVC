@@ -126,10 +126,11 @@ void INITPROC irq_init(void)
     int_handler_add(IDX_SYSCALL, 0x80, _irqit);		/* INT 80 for system calls */
 #ifdef CONFIG_COMPAT_V7
     int_handler_add(IDX_SYSCALL_V7, 0xf1, _irqit_v7);	/* INT F1 for V7 system calls */
-    int_handler_add(IDX_SYSFPU_V7, 0xf4, _sysfpu_v7);	/* FPU check, precedes FPU instructions */
-    int_handler_add(IDX_SYSIOT_V7, 0xf3, _abort_v7);	/* Used by the V7 abort() library call */
-    int_handler_add(IDX_SYSMAP_V7, 0xf5, _codemap_v7);	/* code mapper */
     int_handler_add(IDX_STKTRAP_V7, 0xf2, _stktrap_v7);	/* Venix stack overflow trap */
+    int_handler_add(IDX_SYSIOT_V7,  0xf3, _abort_v7);	/* Used by the V7 abort() library call */
+    int_handler_add(IDX_SYSFPU_V7,  0xf4, _sysfpu_v7);	/* FPU check, precedes FPU instructions */
+    int_handler_add(IDX_SYSMAPC_V7, 0xf5, _cm_call_v7);	/* code map call */
+    int_handler_add(IDX_SYSMAPR_V7, 0xf6, _cm_ret_v7);	/* code map return */
 #endif
 
 #if defined(CONFIG_ARCH_IBMPC) || defined(CONFIG_ARCH_PC98) || \

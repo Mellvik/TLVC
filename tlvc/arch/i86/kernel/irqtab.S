@@ -88,10 +88,11 @@
 
 #ifdef CONFIG_COMPAT_V7
 	.global _irqit_v7	/* int F1 */
-	.global _sysfpu_v7	/* int F4 */
-	.global _abort_v7	/* int F3 */
 	.global _stktrap_v7	/* int F2 */
-	.global _codemap_v7	/* int F5 */
+	.global _abort_v7	/* int F3 */
+	.global _sysfpu_v7	/* int F4 */
+	.global _cm_call_v7	/* int F5 */
+	.global _cm_ret_v7	/* int F6 */
 
 _sysfpu_v7:
 	// FPU is required, ignore and fall through to sysret
@@ -120,11 +121,42 @@ _stktrap_v7:	/* Stack trap, may need a more elaborate message */
 	call	intmsg
 	jmp	sysret
 
-_codemap_v7:
-	// codemap not implemented, this is fatal
-	mov	$codemap_msg,%ax
-	call	intmsg
-	// drop into _abort
+_cm_ret_v7:
+	add	$4,%sp	// skip dynamic handler return stack
+
+	// code adapted from the Venix kernel
+	popw    %cx
+	popw    %cx
+	movw    2,%bx
+	subw    (%bx),%cx
+	pushw   %cx
+	pushw   2(%bx)   
+	subw    $4,%bx
+	movw    %bx,2  
+	iret
+
+_cm_call_v7:
+	add	$4,%sp	// skip dynamic handler return stack
+
+	// code adapted from the Venix kernel
+	popw    %cx
+	popw    %cx
+	orw     %dx,%dx
+	je      l1d
+	addw    %dx,%cx
+	movw    2,%bx  
+	addw    $4,%bx
+	movw    %bx,2 
+	movw    %dx,(%bx)
+	popw    %dx
+	popw    2(%bx)
+	xorw    %bx,%bx
+	pushw   %bx
+	pushw   %dx
+l1d:
+	pushw   %cx
+	pushw   %ax
+	iret
 
 _abort_v7:
 	// abort trap: find pid, pass on to kill
@@ -696,7 +728,7 @@ callno1:
 stktrap_msg:
 	.ascii "int STKTRAP\n\0"
 codemap_msg:
-	.ascii "int CODEMAP\n\0"
+	//.ascii "int CODEMAP\n\0"
 
         .bss
         .p2align 1
