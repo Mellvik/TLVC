@@ -8,9 +8,8 @@
  * Compile-time configuration
  */
 
-#define CONFIG_COMPAT_V7	/* Enable code to run converted Venix binaries */
 #ifdef CONFIG_COMPAT_V7
-#define CONFIG_EXEC_LOW_STACK	/* stack below data is OK */
+#define CONFIG_EXEC_LOW_STACK	/* stack below data is OK FIXME: Still useful? */
 #endif
 
 #define CONFIG_OPTSEG_HIGH	/* Load /bootopts (of any size) into high memory */
