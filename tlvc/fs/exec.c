@@ -517,6 +517,8 @@ v7_continue:
 
     if (!seg_code) {
 	int seg_type = SEG_FLAG_CSEG;
+	unsigned int entry = (unsigned int)mh.entry;
+
         bytes = (size_t)mh.tseg;	/* if V7 code mapped this is wrong, fixed downstream */
         paras = bytes_to_paras(bytes);
         retval = -ENOMEM;
@@ -552,9 +554,10 @@ v7_continue:
 		len += bytes;	/* add tseg to total */
 	    paras = bytes_to_paras(len);
 	    seg_type = SEG_FLAG_VSEG;
-	} else if (mh.tseg > 0xffffL) {	/* code mapped, (big) binary */
+	} else if (mh.tseg > 0xffffL) {	/* code mapped (dual segment) binary */
 	    paras = (mh.tseg >> 4) + 1;
 	    bytes = 0x0e000;	/* code mapping, 56k per seg */
+	    entry = 0;		/* code mapping: always load tseg from zero */
 	}
 #endif
         seg_code = seg_alloc(paras, seg_type);
@@ -564,9 +567,9 @@ v7_continue:
             paras, bytes, seg_code->base, (unsigned int)mh.entry);
 
         currentp->t_regs.ds = seg_code->base;
-        retval = filp->f_op->read(inode, filp, 0, bytes);
+	retval = filp->f_op->read(inode, filp, (char *)entry, bytes);
 #ifdef CONFIG_COMPAT_V7
-	if (retval == bytes && mh.tseg > 0xffffL) {	/* get rest of 'code mapped' binary */
+	if (retval == bytes && mh.tseg > 0xffffL) {	/* get rest of code mapped binary */
 	    currentp->t_regs.ds += 0xe00;
 	    bytes = (size_t)(mh.tseg - bytes);
 	    retval = filp->f_op->read(inode, filp, 0, bytes);
