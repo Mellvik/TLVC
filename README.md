@@ -13,8 +13,13 @@ TLVC is a fork of ELKS 0.6.0 with a different focus: OS efficiency and speed mor
 > - AST SixpakPlus, broad clock type support
 > - Serial: up to 4, individual IRQs, recognizes chip type, uses FIFO etc. Supports HW and SW flow control
 > - PicoMem: NE2k emulator works
+```
+NEWS august 2026: TLVC now runs Venix/86 binaries, including a complete K&R development kit!
+Check pull requests for details.
 
-### NEW: TLVC runs Venix/86 binaries, including full K&R development kit! Check pull requests for details.
+Also check out the project 'report' on Medium.com: Reviving Venix/86: The Project
+https://mindset3.medium.com/reviving-venix-86-the-project-400c436aa4df)
+```
 
 Curious? Interested? Please check out the growing collection of really detailed and useful Wiki guides for more info:
 [About TLVC](https://github.com/Mellvik/TLVC/wiki/About-TLVC#tlvc---tiny-linux-for-vintage-computers) - Getting Started with TLVC - Configure and Build TLVC - TLVC Networking Guide - TLVC and Emulators - [TLVC Memory and Buffer subsystem](https://github.com/Mellvik/TLVC/wiki/TLVC-Memory-and-Buffer-subsystem)
