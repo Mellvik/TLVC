@@ -19,9 +19,10 @@
 /* Venix compat note:
  * 1) Venix expects the new offset as a long return.
  * 2) Venix passes the offset in a long, occupying p_offset and lorigin. The origin
- *    arg is passed in SI, which is the 5th arg in a TLVC syscall. Instead of 'fixing'
- *    that with extra code at syscall entry, we accept 'di' as a dummy and use 'si'
- *    as is.
+ *    arg is passed in SI by Venix, which becomes the 5th arg in a TLVC syscall. 
+ *    Swapping DI and SI, which would be the natural thing to do, has severe
+ *    consequences for the entire syscall handling regime, so we don't. 
+ *    Instead, we accept 'di' as a dummy 4th arg and use 'si' as is - in 5th position.
 */
 
 loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin, int di, int si)
@@ -38,7 +39,7 @@ loff_t sys_lseek(unsigned int fd, loff_t *p_offset, unsigned int lorigin, int di
 	offset = (((loff_t)origin)<<16) | (unsigned int)p_offset;
     	//printk("lseek[%P]: fd %d, offs %x, origin %x real offset %lx (%ld) (V7:%x) [%x,%x]",
 		//fd, p_offset, lorigin, offset, offset, v7, a, b);
-	lorigin = si;	/* now using the 5th arg, now xchg %di,%si in irqtab.S */
+	lorigin = si;	/* now using the 5th arg, avoid xchg %di,%si in irqtab.S */
     } else
 #endif
     	offset = (loff_t) get_user_long(p_offset);
@@ -188,7 +189,6 @@ int sys_write(unsigned int fd, char *buf, size_t count)
     }
 #ifdef CONFIG_COMPAT_V7
     current->task_is_V7 = v7;
-    //if (v7 && written > 1) printk("wr: fd %d count %d ret %d\n", fd, count, written);
 #endif
     return written;
 }

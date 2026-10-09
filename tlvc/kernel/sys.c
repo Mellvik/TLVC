@@ -156,8 +156,12 @@ int sys_setuid(uid_t uid)
     return 0;
 }
 
-#ifdef NOT_YET
+#ifdef NOT_YET /*CONFIG_COMPAT_V7*/
 
+/* NOTE: None of this is currently recorded by TLVC - IOW useless.
+ * Venix expects 1/60 sec ticks. We ignore that and use jiffies.
+ * If a system utility turns out to use this, we'll have to fix it.
+ */
 int sys_times(struct tms *tbuf)
 {
     if (tbuf) {
@@ -170,8 +174,11 @@ int sys_times(struct tms *tbuf)
 	put_user_long(current->cutime, &tbuf->tms_cutime);
 	put_user_long(current->cstime, &tbuf->tms_cstime);
     }
-    return jiffies;
+    return 0;
 }
+#endif
+
+#ifdef NOT_YET
 
 /*
  * This needs some heavy checking ...

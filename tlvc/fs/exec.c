@@ -310,7 +310,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     magic = v7hdr->a_magic;
     if (magic == NMAGIC || magic == OMAGIC) {
     	/* rearrange the V7 exec header into struct minix mh */
-	mh.minstack = v7hdr->a_stack;
+	mh.minstack = v7hdr->a_stack ? v7hdr->a_stack : v7hdr->a_hstack;
 	mh.chmem = (size_t)v7hdr->a_heap;
 	mh.syms = v7hdr->a_syms;
 	mh.bseg = v7hdr->a_bss;		/* may use memmove here */
@@ -319,8 +319,8 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 	/* mh.entry matches between the two structs */
 	mh.hlen = 32;
 	mh.version = 3;		  /* to simplify switch below */
-	if (!mh.minstack)	  /* a_stack = 0 means default stack size, located */
-	    mh.minstack = 0x2000; /* above the heap, stretching to end of segment. */
+	if (!mh.minstack)	  /* a_stack == 0 means stack high, size in a_hstack */
+	    mh.minstack = 0x2000; /* unless zero, then set to 8k */
 #ifdef DEBUG_V7_EXTRA
 	unsigned long *x = &mh.type;
 	for (int i = 0; i < 8; i++)
@@ -406,27 +406,26 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 
 #ifdef CONFIG_COMPAT_V7
     /* Memory layout on Venix/V7: 
-     * TINY model 1: <8k stack><text><data><bss><heap> = 64k
-     * TINY model 2: <text><data><bss><heap><stack> occupying a full segment.
-     * 		     Heap (on both) and stack (on the second) adjustable using chmem.
-     * SMALL model data seg, model 1: <8k stack><data><bss><heap>
-     *			     model 2: <data><bss><heap><stack> - full segment allocated
-     *				      unless adjusted using chmem(1).
+     * TINY  model 1 (stack below): <8k stack><text><data><bss><heap> = 64k
+     * TINY  model 2 (stack above): <text><data><bss><heap><stack> occupying a full segment.
+     * 		     Heap (on both) and stack (when above) adjustable using chmem.
+     * SMALL model 1: data seg <8k stack><data><bss><heap> = 64k (default)
+     *	     model 2: data seg <data><bss><heap><stack> - occupyinig a full segment.
+     * 		     Heap (on both) and stack (when above) adjustable using chmem.
      *
      * NOTE I: On Venix/86, if high stack, the default is to allocate the entire 64k segment - data 
      * segment (small model), code segment (tiny model).
-     * If the stack is below, Venix does not allocate the heap statically, but somehow
-     * manages to 'soft reserve' the rest of the data segment and allocate heap on demand.
-     * The formerly unused a_drsize field in the a.out header is now a_heap, allowing
-     * fixed heap allocation.
+     * If the stack is below, Venix does not preallocate heap, but instead uses expansion swap
+     * to allocate heap on demand.
+     * The formerly unused (long)a_drsize field in the a.out header is now a_heap and a_hstack,
+     * allowing size adjustments via the chmem command. v7hdr->a_stack is never touched because
+     * it's also a flag: Zero means stack high - 8k unless a_hstack is nonzeros, in which case
+     * a_hstack has the stack size.
      *
-     * NOTE II: From this point on (V7), mh.minstack remains the size of the
+     * NOTE II: From this point on (V7 only), mh.minstack remains the size of the
      * allocated stack while 'stack' is the actual stack size, mh.minstack - slen.
-     * v7hdr->a_stack is the stack start address from the a.out header, usually
-     * 0x2000 (8k) if low, 0x0 if high.
-     * TODO: Make similar adjustment to the rest of the code.
      *
-     * NOTE III: A small mode binary may have tseg > 64k ('code mapped') and the
+     * NOTE III: A small model binary may have tseg > 64k ('code mapped') and the
      * allocated memory must be contiguous. This matches with the allocation
      * scheme for medium model TLVC binaries.
      *		 
@@ -434,7 +433,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     case 3:	/* Venix binary */
 	stack = mh.minstack - slen;
 	if (!mh.chmem)		/* chmem == 0 => use entire seg */
-	    len = 0xfff0;
+	    len = 0xfff0;	/* this will override any stack size setting */
 	else
     	    len = mh.dseg + mh.bseg + mh.chmem + stack + slen;
         debug_v7("EXEC(v7): dseg %u, bss %u, stack %u heap %u total %stext %u\n", 
@@ -467,7 +466,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
         }
         debug("EXEC: stack %u heap %u env %u total %u\n", stack, heap, slen, len);
         break;
-    case 0:
+    case 0:			/* FIXME: This is not useful anymore, delete */
         len = mh.chmem;
         if (len) {
             if (len <= min_len) {                       /* check bad chmem*/
@@ -702,6 +701,7 @@ v7_continue:
 
     currentp->t_regs.dx = currentp->t_minstack = stack;
 #ifdef CONFIG_COMPAT_V7
+    /* FIXME: simplify: if (magic != MAGIC && v7hdr->a_stack) will always catch stack low */
     if ((magic == NMAGIC && v7hdr->a_stack) || (magic == OMAGIC && (word_t)mh.entry))
     	current->t_begstack = mh.minstack - 2 - slen;	/* stack below data or text */
     else

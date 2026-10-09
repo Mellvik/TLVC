@@ -19,7 +19,7 @@ extern int optind;
 
 struct info {
   int execflag;			/* 1 == ack executable, 2 == gnu executable,
-				 * 3 == core */
+				 * 3 == core, 4 == Venix executable */
   unsigned char magic[4];	/* First four bytes of the magic number */
   unsigned char mask[4];	/* Mask to apply when matching */
   char *description;		/* What it means */
@@ -46,8 +46,10 @@ struct info {
 	"bcc object file",
   0x00, 0x00, 0x00, 0x01, 0x07, 	0xff, 0xff, 0xff, 0xff,
 	"MINIX-68k gnu object file",
+/*	Collides with Venix tiny binary stack high
   0x00, 0x07, 0x01, 0x00, 0x00, 	0xff, 0xff, 0xff, 0xff,
 	"gnu object file",
+*/
   0x00, 0x7f, 0x45, 0x4c, 0x46, 	0xff, 0xff, 0xff, 0xff,
 	"ia16-elf object file",
   0x00, 0xb8, 0xc0, 0x07, 0x00, 	0xff, 0xff, 0xff, 0x00,
@@ -66,6 +68,10 @@ struct info {
 	"MINIX-68k gnu executable",
   0x03, 0x82, 0x12, 0xC4, 0xC0,		0xff, 0xff, 0xff, 0xff,
 	"core file",
+  0x04, 0x09, 0x01, 0x00, 0x00,		0xff, 0xff, 0x00, 0x00,
+	"Venix split I&D executable,",
+  0x04, 0x07, 0x01, 0x00, 0x00,		0xff, 0xff, 0x00, 0x00,
+	"Venix combined I&D executable,",
 };
 
 int tabsize = sizeof(table) / sizeof(struct info);
@@ -280,6 +286,16 @@ int type;
 		default:printf(" of unknown executable"); break;
 	}
 	printf(" '%.32s'\n", buf+4);
+	return;
+  }
+  if (type == 4) {
+	unsigned int *b = (unsigned int *)buf;
+	//printf(" %x %x\n", b[1], b[15]); return;
+	if (b[1]) 
+		printf(" stack (%d) low", b[1]);
+	else
+		printf(" stack (%d) high", b[15]?b[15]:0x2000);
+	printf("\n");
 	return;
   }
 
