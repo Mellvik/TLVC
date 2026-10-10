@@ -12,14 +12,17 @@
 #ifndef __ASSEMBLER__
 struct v7_exec {
 short		a_magic;	/* magic number */
-unsigned short	a_stack;	/* size of stack if Z type, 0 otherwise */
+unsigned short	a_stack;	/* If non-zero: size of low-stack, 
+				 * if zero: stack is high, size in a_hstack */
 long		a_text;		/* size of text segment */
 long		a_data;		/* size of initialized data */
 long		a_bss;		/* size of uninitialized data */
 long		a_syms;		/* size of symbol table */
 long		a_entry;	/* entry point */
 long		a_trsize;	/* size of text relocation */
-long		a_heap;		/* heap size unless default (max) */
+unsigned short	a_heap;		/* heap size unless default (max) */
+unsigned short	a_hstack;	/* size of stack if located high, 8k if zero */
 				/* was a_drsize, size of data relocation */
+				/* used by chmem to adjust sizes */
 };
 #endif
