@@ -35,9 +35,7 @@
 #include <string.h>
 #include <linuxmt/minix.h>
 #include <linuxmt/v7.h>
-#include <linuxmt/config.h>
 
-#define SEPBIT   0x00200000	/* this bit is set for separate I/D */
 #define MAGIC       0x0301	/* magic number for executable progs */
 #define MAX         65520L	/* maximum allocation size */
 
@@ -88,8 +86,7 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		return msg("%s: bad header\n", filename);
 	len = header.hlen;
 	magic = v7hdr->a_magic;
-	printf("magic: %x (%lx)\n", magic, header.type);
-#ifdef CONFIG_COMPAT_V7
+
 	if (magic != MAGIC && magic != OMAGIC && magic != NMAGIC)
 		return msg("%s: not an executable\n", filename);
 
@@ -97,14 +94,7 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		return msg("%s: unsupported a.out version %u\n", filename,
 			   (unsigned)header.version);
 	if (magic != MAGIC) len = 32;		/* no length in V7 header */
-#else
-	if (magic != MAGIC)
-		return msg("%s: not an executable\n", filename);
 
-	if (header.version > 1)
-		return msg("%s: unsupported a.out version %u\n", filename,
-			   (unsigned)header.version);
-#endif
 	if (len >= sizeof(header) + sizeof(suplhdr)) {
 		if (read(fd, &suplhdr, sizeof(suplhdr)) != sizeof(suplhdr))
 			return msg("%s: bad header\n", filename);
@@ -112,7 +102,6 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		memset(&suplhdr, 0, sizeof(suplhdr));
 	if (!first) hdr();
 
-#ifdef CONFIG_COMPAT_V7
 	if (magic != MAGIC) {
 	    tseg = v7hdr->a_text;
 	    ftseg = 0;
@@ -135,54 +124,48 @@ int do_chmem(char *filename, int changeheap, int changestack,
 
 	    printf("%5lu  %5u  %5u  %5u  %5u  %5u   %6lu %6lu %s\n", tseg,
 		ftseg, dseg, bseg, oldheap, oldstack, totdata, total, filename);
-	} else 
-#endif
-	{
-	tseg = header.tseg;
-	ftseg = (size_t)suplhdr.esh_ftseg;
-	dseg = (size_t)header.dseg;
-	bseg = (size_t)header.bseg;
-	dsegsize = dseg + bseg;
-	//if ((header.type & SEPBIT) == 0)	/* not seperate I&D (HISTORICAL) */
-		//dsegsize += (size_t)header.tseg;
+	} else {
+	    tseg = header.tseg;
+	    ftseg = (size_t)suplhdr.esh_ftseg;
+	    dseg = (size_t)header.dseg;
+	    bseg = (size_t)header.bseg;
+	    dsegsize = dseg + bseg;
 
-	if (header.chmem == 0) {				/* default heap*/
+	    if (header.chmem == 0) {				/* default heap*/
 		oldheap = INIT_HEAP;
 		displayheap = 0;
-	} else if (header.version == 1)
+	    } else if (header.version == 1)
 		displayheap = oldheap = header.chmem;
-	else
+	    else
 		displayheap = oldheap = header.chmem - dsegsize;	/* v0 displays effective heap, not header value*/
 
-	if (header.version == 1)
+	    if (header.version == 1)
 		oldstack = header.minstack? header.minstack: INIT_STACK;
-	else oldstack = 0;					/* v0 doesn't display seperate stack*/
+	    else oldstack = 0;			/* v0 doesn't display seperate stack*/
 
-	if (header.chmem >= 0xFFF0) {
+	    if (header.chmem >= 0xFFF0) {
 		totdata = 0xFFF0;
 		total = totdata + tseg + ftseg;
-	} else {
+	    } else {
 		totdata = (unsigned long)oldheap+oldstack+dsegsize;
 		total = (unsigned long)tseg+ftseg+dsegsize+oldheap+oldstack;
-	}
-	printf("%5lu  %5u  %5u  %5u  %5u  %5u   %6lu %6lu %s", tseg, ftseg, dseg, bseg,
+	    }
+	    printf("%5lu  %5u  %5u  %5u  %5u  %5u   %6lu %6lu %s", tseg, ftseg, dseg, bseg,
 		displayheap, header.minstack, totdata, total, filename);
 
-	if (header.version == 0)
+	    if (header.version == 0)
 		printf(" (v0 header)");
-	if (suplhdr.esh_compr_tseg || suplhdr.esh_compr_dseg || suplhdr.esh_compr_ftseg)
+	    if (suplhdr.esh_compr_tseg || suplhdr.esh_compr_dseg || suplhdr.esh_compr_ftseg)
 		printf(" (%u %u %u)",
 			suplhdr.esh_compr_tseg, suplhdr.esh_compr_ftseg, suplhdr.esh_compr_dseg);
 	}
 
-#ifdef CONFIG_COMPAT_V7
 	if (magic != MAGIC) {
 		char *type;
 		if (magic == OMAGIC) type = "V7 tiny";
 		else type = "V7 split I&D";
 	 	printf("%56s %s, stack %s ", "", type, (size_t)v7hdr->a_stack?"low":"high");
 	}
-#endif
 	printf("\n");
 
 	if (rdonly) {
@@ -191,10 +174,8 @@ int do_chmem(char *filename, int changeheap, int changestack,
 	}
 
 	if (!changeheap)
-		//heap = header.chmem;
 		heap = oldheap;
 	if (!changestack)
-		//stack = header.minstack;
 		stack = oldstack;
 	if (stack == oldstack && heap == oldheap) {
 		printf("No changes made\n");
@@ -204,12 +185,11 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		return msg("%s: heap too large: %ld\n", filename, heap);
 	if (stack > MAX)
 		return msg("%s: stack too large: %ld\n", filename, stack);
-#ifdef CONFIG_COMPAT_V7
+
 	if (magic != MAGIC && v7hdr->a_stack && changestack) {
 		printf("Warning: stack located low, cannot change\n"); 
 		stack = v7hdr->a_stack;
 	}
-#endif
 	newstack = stack? stack: INIT_STACK;
 	newheap = heap? heap: INIT_HEAP;
 
@@ -233,14 +213,11 @@ int do_chmem(char *filename, int changeheap, int changestack,
 
 	printf("%5lu  %5u  %5u  %5u  %5lu  %5lu   %6lu %6lu %s\n",
 			tseg, ftseg, dseg, bseg, heap, stack, totdata, total, filename);
-#ifdef CONFIG_COMPAT_V7
 	if (magic != MAGIC) {
 	    v7hdr->a_heap = heap;
 	    /* Never change a_stack, it's either actual & fixed (low) or 0 (high) */ 
 	    if (v7hdr->a_stack == 0) v7hdr->a_hstack = stack;
-	} else
-#endif
-	{
+	} else {
 	    header.chmem = (unsigned)heap;
 	    header.minstack = (unsigned)stack;
 	    header.version = 1;
