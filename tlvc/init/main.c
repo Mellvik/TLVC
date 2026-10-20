@@ -434,6 +434,9 @@ static void INITPROC kernel_banner(seg_t init, seg_t extra)
     printk("data 0x%x, top 0x%x, %uK free\n",
            kernel_ds,  memend, (int)((memend - membase) >> 6));
     if (memend > 0xa000) printk("Warning: base RAM > 640k\n");
+#ifdef CONFIG_COMPAT_V7
+    printk("V7 compatible kernel\n");
+#endif
 }
 
 static void INITPROC try_exec_process(const char *path)

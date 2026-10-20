@@ -20,6 +20,7 @@
 #include <linuxmt/mem.h>
 #include <linuxmt/sched.h>
 #include <linuxmt/fixedpt.h>
+#include <linuxmt/config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -36,6 +37,7 @@
 #include <libgen.h>	/* for basename() */
 
 #define LINEARADDRESS(off, seg)		((off_t) (((off_t)seg << 4) + off))
+#define STACK_RESERVE 128	/* minimal stack reserve when showing avail heap */
 
 static int maxtasks;
 
@@ -152,14 +154,15 @@ int main(int argc, char **argv)
 {
 	int c, fd;
 	unsigned int j, ds, off;
-	word_t cseg, dseg;
+	word_t cseg, dseg, cseg_b, dseg_b;
 	struct passwd * pwent;
 	int f_listall = 0;
+	int f_debug = 0;
 	char *progname = argv[0];
 	int f_uptime = !strcmp(basename(progname), "uptime");
 	struct task_struct task_table;
 
-	while ((c = getopt(argc, argv, "lu")) != -1) {
+	while ((c = getopt(argc, argv, "ldu")) != -1) {
         	switch (c) {
         	case 'l':       /* list all - CSEG/DSEG */
         		f_listall = 1;
@@ -167,8 +170,11 @@ int main(int argc, char **argv)
         	case 'u':       /* uptime */
         		f_uptime = 1;
         		break;
+		case 'd':	/* debug */
+			f_debug = 1;
+			break;
         	default:
-        		printf("Usage: %s: [-lu]\n", progname);
+        		printf("Usage: %s: [-ldu]\n", progname);
         		return 1;
         	}
 	}
@@ -210,6 +216,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	if (f_debug) printf("TSK");
 	printf("  PID  PPID  PGRP  TTY USER STAT ");
 	printf(f_listall? "TSK": "CPU");
 	printf(" ");
@@ -240,6 +247,7 @@ int main(int argc, char **argv)
 		default:				c = '?'; break;
 		}
 		pwent = getpwuid(task_table.uid);
+		if (f_debug) printf("%3d", j);
 
 		/* pid ppid grp tty user stat*/
 		printf("%5d %5d %5d %4s %-8s%c ",
@@ -258,27 +266,32 @@ int main(int argc, char **argv)
 		}
 		/* CSEG*/
 		cseg = (word_t)task_table.mm[SEG_CODE];
-		if (f_listall) printf(" %4x ",
-            cseg? getword(fd, (word_t)cseg+offsetof(struct segment, base), ds): 0);
+            	cseg_b = cseg? getword(fd, (word_t)cseg+offsetof(struct segment, base), ds): 0;
+		if (f_listall) printf(" %4x ", cseg_b);
 
 		/* DSEG*/
 		dseg = (word_t)task_table.mm[SEG_DATA];
-		if (f_listall) printf("%4x",
-            dseg? getword(fd, (word_t)dseg+offsetof(struct segment, base), ds): 0);
+		dseg_b = dseg? getword(fd, (word_t)dseg+offsetof(struct segment, base), ds): 0;
+		if (f_listall) printf("%4x", dseg_b);
 
-		if (dseg) {
+		if (dseg) {		/* dseg == cseg => tiny V7 app */
 			/* heap*/
 			printf(" %5u ", (word_t)(task_table.t_endbrk - task_table.t_enddata));
 
 			/* free*/
-			printf("%5u ", (word_t)(task_table.t_regs.sp - task_table.t_endbrk));
+			if (task_table.t_begstack < task_table.t_enddata)	/* stack below */
+			    printf("%5u ", (word_t)(task_table.t_endseg - task_table.t_endbrk));
+			else
+			    printf("%5u ", (word_t)(task_table.t_regs.sp - task_table.t_endbrk
+						    - STACK_RESERVE));
 
 			/* stack*/
 			//printf("%5u ", (word_t)(task_table.t_begstack - task_table.t_regs.sp));
 
 			/* size*/
-			segext_t size = getword(fd, (word_t)cseg+offsetof(struct segment, size), ds)
-					+ getword(fd, (word_t)dseg+offsetof(struct segment, size), ds);
+			segext_t size = getword(fd, (word_t)cseg+offsetof(struct segment, size), ds);
+			if (cseg_b != dseg_b)
+			    size += getword(fd, (word_t)dseg+offsetof(struct segment, size), ds);
 			printf("%6ld ", (long)size << 4);
 
 			process_name(fd, task_table.t_begstack, task_table.t_regs.ss);
