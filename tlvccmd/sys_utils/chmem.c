@@ -109,7 +109,7 @@ int do_chmem(char *filename, int changeheap, int changestack,
 	    dseg = (size_t)v7hdr->a_data;
 	    bseg = (size_t)v7hdr->a_bss;
 	    dsegsize = dseg + bseg;
-	    displayheap = oldheap = hdrheap = (size_t)v7hdr->a_heap;
+	    oldheap = hdrheap = (size_t)v7hdr->a_heap;
 	    if (!oldheap)
 		oldheap = 0xFFF0;
 
@@ -119,15 +119,15 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		dsegsize += (size_t)tseg + oldstack;
 		if (oldheap >= 0xFFF0) oldheap -= dsegsize;
 		totdata = total = (unsigned long)(oldheap + dsegsize);
+		displayheap = oldheap;
 	    } else {
-		if (oldheap >= 0xFFF0) totdata = 0xFFF0;
-		else totdata = (unsigned long)dsegsize + oldheap + oldstack;
+		if (oldheap >= 0xFFF0)
+		    totdata = 0xFFF0;
+		else
+		    totdata = (unsigned long)dsegsize + oldheap + oldstack;
 		total = totdata + tseg;
-	    }
-	    displayheap = oldheap;
-	    if (!v7hdr->a_stack || displayheap >= 0xFFF0)
 		displayheap = totdata - dsegsize - oldstack;
-
+	    }
 	    printf("%5lu  %5u  %5u  %5u  %5u  %5u   %6lu %6lu %s\n", tseg, ftseg,
 		    dseg, bseg, displayheap, oldstack, totdata, total, filename);
 	} else {
@@ -191,7 +191,7 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		printf("No changes made\n");
 		return 0;
 	}
-	if (heap > 0xFFFF)
+	if (heap > 0xFFF0)
 		return msg("%s: heap too large: %ld\n", filename, heap);
 	if (stack > MAX)
 		return msg("%s: stack too large: %ld\n", filename, stack);
