@@ -171,13 +171,22 @@ static int cat_file(int ifd, int ofd)
 int main(int argc, char **argv)
 {
 	int	multi, mw;
-	int	line;
+	int	line, prevline;
 	int	col;
+	int	ssp_opt = 0;
 	char	*name, ch, next[80];
 	char 	*divider = "\n::::::::::::::\n";
 
 	if (isatty(2) && getWindowSize(2, 2, &line, &col) == 0)
 		LINES = MAXLINES = line;
+	if (*argv[1] == '-') {
+		++argv; --argc;
+		if (argv[0][1] == 's') ssp_opt++;
+		else {
+			printf("Unknown command line option: %s\n", *argv);
+			return 0;
+		}
+	}
 	multi = (argc >= 3); 		/* multiple input files */
 	do {
 		line = 1;
@@ -207,14 +216,15 @@ int main(int argc, char **argv)
 			continue;
 		}
 		if (cflag) WRITE(1, CLEAR_SCREEN);
+		prevline = 0;		/* lengt of previous line */
 		while ((fd > -1) && ((read(fd, &ch, 1)) != 0)) {
 			switch (ch) {
-				case '\r':
-					col = 0;
-					break;
-
 				case '\n':
 					line++;
+					if (ssp_opt && !prevline && !col) continue;
+					prevline = col;
+					/* fall thru */
+				case '\r':
 					col = 0;
 					break;
 

@@ -70,6 +70,7 @@ int do_chmem(char *filename, int changeheap, int changestack,
 	int fd;
 	int rdonly = !changeheap && !changestack;
 	unsigned int magic, oldheap, oldstack, dsegsize, displayheap, newheap;
+	unsigned int hdrheap, hdrstack;		/* for change detection */
 	unsigned long newstack, totdata, total;
 	struct minix_exec_hdr header;
 	struct elks_supl_hdr suplhdr;
@@ -102,28 +103,33 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		memset(&suplhdr, 0, sizeof(suplhdr));
 	if (!first) hdr();
 
-	if (magic != MAGIC) {
+	if (magic != MAGIC) {		/* V7 app */
 	    tseg = v7hdr->a_text;
 	    ftseg = 0;
 	    dseg = (size_t)v7hdr->a_data;
 	    bseg = (size_t)v7hdr->a_bss;
 	    dsegsize = dseg + bseg;
-	    oldheap = (size_t)v7hdr->a_heap;
-	    if (!oldheap) oldheap = 0xFFF0;
-	    oldstack = v7hdr->a_stack? v7hdr->a_stack:v7hdr->a_hstack;
-	    if (oldstack == 0) oldstack = 0x2000; /* stack high, unmodified */
-	    if (magic == OMAGIC) {
+	    oldheap = hdrheap = (size_t)v7hdr->a_heap;
+	    if (!oldheap)
+		oldheap = 0xFFF0;
+
+	    hdrstack = oldstack = v7hdr->a_stack? v7hdr->a_stack:v7hdr->a_hstack;
+	    if (oldstack == 0) oldstack = 0x2000; /* stack high, default size */
+	    if (magic == OMAGIC) {		  /* tiny model */
 		dsegsize += (size_t)tseg + oldstack;
 		if (oldheap >= 0xFFF0) oldheap -= dsegsize;
 		totdata = total = (unsigned long)(oldheap + dsegsize);
+		displayheap = oldheap;
 	    } else {
-		if (oldheap >= 0xFFF0) totdata = 0xFFF0;
-		else totdata = (unsigned long)dsegsize + oldheap + oldstack;
+		if (oldheap >= 0xFFF0)
+		    totdata = 0xFFF0;
+		else
+		    totdata = (unsigned long)dsegsize + oldheap + oldstack;
 		total = totdata + tseg;
+		displayheap = totdata - dsegsize - oldstack;
 	    }
-
-	    printf("%5lu  %5u  %5u  %5u  %5u  %5u   %6lu %6lu %s\n", tseg,
-		ftseg, dseg, bseg, oldheap, oldstack, totdata, total, filename);
+	    printf("%5lu  %5u  %5u  %5u  %5u  %5u   %6lu %6lu %s\n", tseg, ftseg,
+		    dseg, bseg, displayheap, oldstack, totdata, total, filename);
 	} else {
 	    tseg = header.tseg;
 	    ftseg = (size_t)suplhdr.esh_ftseg;
@@ -131,17 +137,21 @@ int do_chmem(char *filename, int changeheap, int changestack,
 	    bseg = (size_t)header.bseg;
 	    dsegsize = dseg + bseg;
 
-	    if (header.chmem == 0) {				/* default heap*/
+	    hdrheap = header.chmem;
+	    if (header.chmem == 0) {		/* default heap */
 		oldheap = INIT_HEAP;
 		displayheap = 0;
 	    } else if (header.version == 1)
 		displayheap = oldheap = header.chmem;
-	    else
-		displayheap = oldheap = header.chmem - dsegsize;	/* v0 displays effective heap, not header value*/
+	    else {
+					/* v0 displays effective heap, not header value */
+		displayheap = oldheap = header.chmem - dsegsize;
+	    }
 
 	    if (header.version == 1)
 		oldstack = header.minstack? header.minstack: INIT_STACK;
 	    else oldstack = 0;			/* v0 doesn't display seperate stack*/
+	    hdrstack = header.minstack;
 
 	    if (header.chmem >= 0xFFF0) {
 		totdata = 0xFFF0;
@@ -177,11 +187,11 @@ int do_chmem(char *filename, int changeheap, int changestack,
 		heap = oldheap;
 	if (!changestack)
 		stack = oldstack;
-	if (stack == oldstack && heap == oldheap) {
+	if (stack == hdrstack && heap == hdrheap) {
 		printf("No changes made\n");
 		return 0;
 	}
-	if (heap > 0xFFFF)
+	if (heap > 0xFFF0)
 		return msg("%s: heap too large: %ld\n", filename, heap);
 	if (stack > MAX)
 		return msg("%s: stack too large: %ld\n", filename, stack);
@@ -195,9 +205,10 @@ int do_chmem(char *filename, int changeheap, int changestack,
 
 	if (magic == OMAGIC) dsegsize -= oldstack;	/* avoid counting both old and new stack */
 	if (newheap < 0xFFF0 && (unsigned long)dsegsize+newheap+newstack > MAX) {
+		//printf("dseg %u newheap %u newstack %lu\n", dsegsize, newheap, newstack);
 		heap = MAX - dsegsize - newstack - 128;		/* reserve 128 bytes for environment*/
 		if (heap < newheap)
-			return msg("%s: heap+stack too large: %ld\n", filename, heap + newstack);
+			return msg("%s: heap+stack too large, max is %ld\n", filename, heap + newstack);
 		msg("Warning: heap truncated to %ld\n", heap);
 		newheap = heap;
 	}
@@ -207,21 +218,28 @@ int do_chmem(char *filename, int changeheap, int changestack,
 	else
 		totdata = (unsigned long)newheap + newstack + dsegsize;
 
-	total = totdata;
-	if (magic != OMAGIC)
-		total += tseg;
-
-	printf("%5lu  %5u  %5u  %5u  %5lu  %5lu   %6lu %6lu %s\n",
-			tseg, ftseg, dseg, bseg, heap, stack, totdata, total, filename);
+	displayheap = heap;
 	if (magic != MAGIC) {
 	    v7hdr->a_heap = heap;
 	    /* Never change a_stack, it's either actual & fixed (low) or 0 (high) */ 
-	    if (v7hdr->a_stack == 0) v7hdr->a_hstack = stack;
+	    if (v7hdr->a_stack == 0) 	/* high stack */
+		v7hdr->a_hstack = stack;
+	    else if (!heap) {		/* heap fills the segment */
+		totdata = 0xFFF0;
+		displayheap = totdata - dseg - bseg - stack;
+	    }
 	} else {
 	    header.chmem = (unsigned)heap;
 	    header.minstack = (unsigned)stack;
 	    header.version = 1;
 	}
+
+	total = totdata;
+	if (magic != OMAGIC)
+		total += tseg;
+
+	printf("%5lu  %5u  %5u  %5u  %5u  %5lu   %6lu %6lu %s\n",
+			tseg, ftseg, dseg, bseg, displayheap, stack, totdata, total, filename);
 
 	lseek(fd, 0L, SEEK_SET);
 	if (write(fd, &header, sizeof(header)) != sizeof(header)) {

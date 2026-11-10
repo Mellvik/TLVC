@@ -124,7 +124,7 @@ int sys_read(unsigned int fd, char *buf, size_t count)
     struct file *file;
     int retval;
 
-#ifdef CONFIG_COMPAT_V7		/* may not be required FIXME */
+#ifdef CONFIG_COMPAT_V7_UNUSED		/* may not be required FIXME */
     int v7 = current->task_is_V7;
     current->task_is_V7 = 0;
 #endif
@@ -137,8 +137,8 @@ int sys_read(unsigned int fd, char *buf, size_t count)
 	    schedule();
 	}
     }
-#ifdef CONFIG_COMPAT_V7
-    //if (v7) printk("READ[%P] fd %d ret %d pos %lu buf %x (V7=%x)\n", fd, retval, file->f_pos, buf, current->task_is_V7);
+#ifdef CONFIG_COMPAT_V7_UNUSED
+    if (v7) printk("READ[%P] fd %d ret %d pos %lu buf %x (V7=%x)\n", fd, retval, file->f_pos, buf, current->task_is_V7);
     current->task_is_V7 = v7;
 #endif
     return retval;
