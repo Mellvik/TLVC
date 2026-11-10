@@ -25,6 +25,7 @@ BEGIN {
 
 	if ($3 == "x" || $3 == "") next;
 	else if ($4 == "@" || $4 == "-") next;
+	else if ($4 == "&") next;
 	else if ($4 == "*") funcname = "_" $1;
 	else funcname = $1;
 	if ($4 == "=") cond = $5;
