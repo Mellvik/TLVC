@@ -20,7 +20,7 @@ static void generate(sig_t sig, sigset_t msksig, register struct task_struct *p)
 {
     register __sigdisposition_t sd;
 
-    sd = p->sig.action[sig - 1].sa_dispose;
+    sd = p->sig.sa[sig - 1].sa_dispose;
     if ((sd == SIGDISP_IGN) ||
        ((sd == SIGDISP_DFL) &&
         (msksig & (SM_SIGCONT | SM_SIGCHLD | SM_SIGWINCH | SM_SIGURG)))) {
@@ -29,7 +29,7 @@ static void generate(sig_t sig, sigset_t msksig, register struct task_struct *p)
 	return;
     }
     debug_sig("SIGNAL gen_sig %d mask %x action %x:%x pid %d\n", sig, msksig,
-	      _FP_SEG(p->sig.handler[sig]), _FP_OFF(p->sig.handler[sig]), p->pid);
+	      p->mm[SEG_CODE]->base, p->sig.sa[sig].handler, p->pid);
     p->signal |= msksig;
     if ((p->state == TASK_INTERRUPTIBLE) /* && (p->signal & ~p->blocked) */ ) {
 	debug_sig("SIGNAL wakeup pid %d\n", p->pid);
@@ -141,14 +141,14 @@ int sys_signal(int signr, __kern_sighandler_t h)
     if (((unsigned int)signr > NSIG) || signr == SIGKILL || signr == SIGSTOP)
 	return -EINVAL;
     hd.handler = h;
+
 #ifdef CONFIG_COMPAT_V7
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
     if (current->task_is_V7) {
-	retval = (int)current->sig.action[signr - 1].sa_dispose;
-	if (retval == (int)SIGDISP_CUSTOM)
-	    retval = (int)current->sig.handler[signr - 1];	/* return previous handler */
-	if (hd.hdlr[0] > 2)
+	retval = (int)current->sig.sa[signr - 1].sa_dispose;
+	if (retval >= (int)SIGDISP_CUSTOM)
 	    hd.hdlr[1] = s->base;
 	else
 	    hd.hdlr[1] = 0;
@@ -159,9 +159,10 @@ int sys_signal(int signr, __kern_sighandler_t h)
 	      hd.hdlr[1], hd.hdlr[0], current->pid);
 
     if (hd.handler == KERN_SIG_DFL)
-	current->sig.action[signr - 1].sa_dispose = SIGDISP_DFL;
+	//current->sig.action[signr - 1].sa_dispose = SIGDISP_DFL;
+	current->sig.sa[signr - 1].sa_dispose = SIGDISP_DFL;
     else if (hd.handler == KERN_SIG_IGN)
-	current->sig.action[signr - 1].sa_dispose = SIGDISP_IGN;
+	current->sig.sa[signr - 1].sa_dispose = SIGDISP_IGN;
     else {
 	if (_FP_SEG(hd.handler) < s->base || _FP_SEG(hd.handler) >= s->base + s->size) {
 	    printk("SIGNAL sys_signal supplied handler is bad\n");
@@ -169,8 +170,8 @@ int sys_signal(int signr, __kern_sighandler_t h)
 		      s->base, s->base + s->size);
 	    return -EINVAL;
 	}
-	current->sig.handler[signr - 1] = hd.handler;
-	current->sig.action[signr - 1].sa_dispose = SIGDISP_CUSTOM;
+	//current->sig_action[signr - 1].sa_dispose = SIGDISP_CUSTOM;
+	current->sig.sa[signr - 1].handler = _FP_OFF(hd.handler);
     }
     return retval;
 }

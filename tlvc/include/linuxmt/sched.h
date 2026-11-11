@@ -23,8 +23,13 @@ struct fs_struct {
 };
 
 struct signal_struct {
-    __kern_sighandler_t         handler[NSIG];
-    struct __kern_sigaction_struct action[NSIG];
+    union {
+    void (*handler)();
+    __sigdisposition_t		sa_dispose;
+
+    /*__kern_sighandler_t	handler;*/
+    /*struct __kern_sigaction_struct action;*/
+    } sa[NSIG];
 };
 
 /* Standard segment entry indices for a.out executables */

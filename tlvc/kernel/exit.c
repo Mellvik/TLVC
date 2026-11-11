@@ -44,9 +44,8 @@ static void FARPROC reparent_children(void)
 }
 
 /* note: 'usage' parameter ignored */
-/* FIXME create a new wait() syscall that calls wait4() */
 #ifdef CONFIG_COMPAT_V7
-long sys_wait4(pid_t i_pid, int *i_status, int i_options, void *usage)
+unsigned long sys_wait4(pid_t i_pid, int *i_status, int i_options, void *usage)
 #else
 int sys_wait4(pid_t pid, int *status, int options, void *usage)
 #endif
@@ -58,23 +57,25 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
     pid_t pid = i_pid;
     int *status = i_status;
     int options = i_options;
-
-    /* V7 wait() has *status as the only API level arg (classic wait()).
-     * The systemcall itself is called with NO
-     * arguments - attempts to use them may screw up the stack. */
-    /* On return, Venix expects child pid in AX, std syscall error handling,
-     * status in DX - thus the long. DH is exit status,
-     * DL is the signal - if any. */
-
-    int retval[2] = { 0, 0};
+    union {
+	int retval[2];
+	unsigned long l;
+    } r;
     int v7 = current->task_is_V7;
+    r.l = 0L;
+
+    /* V7 wait(int *status) is very different from modern day wait4().
+     * On return, Venix expects child pid in AX, -1 if there were no children,
+     * status in DX - thus the long. DH is exit status, DL is the signal - if any. 
+     * If the argument is non-zero, it holds an address into which status 
+     * is to be returned. 
+     */
 
     if (v7) {
-	current->task_is_V7 = 0;
+	status = (int *)i_pid;
 	pid = -1;
 	options = 0;
-	status = 0;
-	debug_v7("WAIT(%P)V7 for %d opts %x\n", pid, options);
+	debug_v7("WAIT(%P)V7 for %d stat %x\n", pid, status);
     }
 #endif
     debug_wait("WAIT(%P) for %d opts %x\n", pid, options);
@@ -92,14 +93,21 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
                 }
 
 #ifdef CONFIG_COMPAT_V7
-		if (v7)
-		    retval[1] = p->signal + p->exit_status; 	/* status already in hi byte */
-		else
-#endif
+		int stat = p->exit_status;
+		if (v7) {
+		    stat += p->signal; 		/* status already in hi byte */
+		    r.retval[1] = stat;
+		}
+                if (status) {
+                    if (verified_memcpy_tofs(status, &stat, sizeof(int)))
+			return -EFAULT;
+                }
+#else
                 if (status) {
                     if (verified_memcpy_tofs(status, &p->exit_status, sizeof(int)))
 			return -EFAULT;
                 }
+#endif
 
                 /* just return status on stopped state, don't release task*/
                 if (p->state == TASK_STOPPED)
@@ -110,13 +118,13 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
                     task_slots_unused++;
                 }
 
-                debug_wait("WAIT(%P) got %d\n", p->pid);
-#ifdef CONFIG_COMPAT_V7
-		debug_v7("WAIT(%P) got %d,status %x, V7: %d\n", p->pid, retval[1], v7);
+#ifndef CONFIG_COMPAT_V7
+		debug_wait("WAIT(%P) got %d\n", p->pid);
+#else
+		debug_v7("WAIT(%P) got %d,status %x,V7: %d\n", p->pid, r.retval[1], v7);
 		if (v7) {
-			retval[0] = p->pid;
-			current->task_is_V7 = v7;
-			return *(long *)retval;
+			r.retval[0] = p->pid;
+			return r.l;
 		} else
 #endif
                 return p->pid;
@@ -129,37 +137,25 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
       }
     }
 
+#ifdef CONFIG_COMPAT_V7
+    if (!v7)
+#endif
     if (options & WNOHANG)
         return 0;
+
     if (!waitagain)
         break;
 
     debug_wait("WAIT(%P) sleep\n");
     interruptible_sleep_on(&current->child_wait);
     if (current->signal) {
-        debug_wait("WAIT(%P) return -EINTR\n");
-#ifdef CONFIG_COMPAT_V7
-	if (v7) {
-	    retval[1] = p->signal + p->exit_status;
-	    debug_v7("WAIT(%P): V7 wait interrupted, status 0x%04x\n", retval[1]);
-	    current->task_is_V7 = v7;
-	    return *(long *)retval;
-	}
-#endif
+        debug_wait("WAIT(%P) got signal %d, return -EINTR\n", current->signal);
         return -EINTR;
     }
     debug_wait("WAIT(%P) wakeup\n");
   }
 
-  debug_wait("WAIT(%P) return -ECHILD\n");
-#ifdef CONFIG_COMPAT_V7
-  if (v7) {
-	retval[0] = -ECHILD;
-	current->task_is_V7 = v7;
-	debug_v7("WAIT(%P) ECHILD, pid %d,status %x, V7: %d\n", p->pid, retval[1], v7);
-	return *(long *)retval;
-  } else
-#endif
+  debug_wait("WAIT(%P) exit, return -ECHILD\n");
   return -ECHILD;
 }
 
@@ -168,7 +164,7 @@ void do_exit(int status)
     int i;
     struct task_struct *parent;
 
-    debug_wait("EXIT(%P) status %d\n", status);
+    debug_wait("EXIT(%P) status %d V7 0x%x\n", status, current->task_is_V7);
     _close_allfiles();
 
     /* release process group and TTY*/
@@ -195,6 +191,7 @@ void do_exit(int status)
     current->exit_status = status;
 
     /* Let the parent know */
+    /* V7 has no SIGCHLD but the signal just bounces off. */
     kill_process(current->ppid, SIGCHLD, 1);
 
     /* Free the text, chroot, and current working directory inodes */
