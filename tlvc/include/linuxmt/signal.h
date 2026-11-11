@@ -206,7 +206,8 @@ typedef __attribute__((__stdcall__)) __far void (*__kern_sighandler_t)(int);
 #define SIG_IGN	((sighandler_t) 1)	/* ignore signal */
 #define SIG_ERR	((sighandler_t) -1)	/* error return from signal */
 
-typedef unsigned char __sigdisposition_t;
+typedef unsigned int __sigdisposition_t;
+//typedef unsigned char __sigdisposition_t;
 
 #ifdef __KERNEL__
 #define KERN_SIG_DFL ((__kern_sighandler_t) 0L)  /* default signal handling */

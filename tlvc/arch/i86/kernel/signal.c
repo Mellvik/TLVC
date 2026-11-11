@@ -22,7 +22,7 @@
 int do_signal(void)
 {
     register __sigdisposition_t *sd;
-    register __kern_sighandler_t sah;
+    void (*sah)();
     unsigned int signr;
     sigset_t mask;
 
@@ -40,8 +40,8 @@ int do_signal(void)
 #else
 	debug_sig("SIGNAL process signal %d pid %d\n", signr, current->pid);
 #endif
-	sah = current->sig.handler;
-	sd = &current->sig.action[signr - 1].sa_dispose;
+	sah = current->sig.sa[signr - 1].handler;
+	sd = &current->sig.sa[signr - 1].sa_dispose;
 	if (*sd == SIGDISP_DFL) {			/* Default */
 	    if ((mask &					/* Default Ignore */
 			(SM_SIGCONT | SM_SIGCHLD | SM_SIGWINCH | SM_SIGURG))
@@ -66,10 +66,13 @@ int do_signal(void)
 	    }
 	}
 	else if (*sd != SIGDISP_IGN) {			/* Set handler */
+
+	    /* FIXME - simplify by removing the seg from the arch_setup call */
+	    __kern_sighandler_t ad = _MK_FP(current->mm[SEG_CODE]->base, (unsigned int)sah);
 	    debug_sig("SIGNAL setup return stack for handler %x:%x\n",
-		      _FP_SEG(sah), _FP_OFF(sah));
+		      _FP_SEG(ad), _FP_OFF(ad));
 	    //debug_sig("Stack at %x\n", current->t_regs.sp);
-	    arch_setup_sighandler_stack(current, sah, signr);
+	    arch_setup_sighandler_stack(current, ad, signr);
 	    //debug_sig("Stack at %x\n", current->t_regs.sp);
 	    *sd = SIGDISP_DFL;
 	    debug_sig("SIGNAL reset pending signals\n");

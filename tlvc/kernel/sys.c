@@ -89,9 +89,14 @@ static int twovalues(int retval, int *copyval, int *copyaddr)
 #ifdef CONFIG_COMPAT_V7
 static unsigned long ret_ulong(unsigned int r, unsigned int e)
 {
-	unsigned int ret[2] = { r, e};
-	current->task_is_V7 |= V7_LONG_RETURN;	/* no error in ax */
-	return *(unsigned long *)ret;
+    union {
+	unsigned int p[2];
+	unsigned long f;
+    } retval;
+    retval.p[0] = r;
+    retval.p[1] = e;
+    current->task_is_V7 |= V7_LONG_RETURN;	/* no error in ax */
+    return retval.f;
 }
 
 unsigned long sys_getuid(int *euid)

@@ -56,7 +56,7 @@
 #define debug_reloc     debug
 #define debug_reloc2    debug
 #define debug_os2       debug
-#define debug_v7	debug
+//#define debug_v7	printk
 //#define DEBUG_V7
 
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
@@ -277,7 +277,7 @@ static int FARPROC relocate(seg_t place_base, unsigned long rsize, segment_s *se
 
 /* ---------------------------------------------------------------------------*/
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
-    char *sptr, size_t slen)
+			       char *sptr, size_t slen)
 {
     register struct task_struct *currentp;
     int retval;
@@ -646,12 +646,17 @@ v7_continue:
 #endif
     currentp->t_regs.ds = seg_data->base;	/* OK even for OMAGIC */
 #ifdef CONFIG_COMPAT_V7
+#if 0
     if (magic == NMAGIC) base_data = v7hdr->a_stack? mh.minstack:0;
     else if (magic == OMAGIC) {
 	base_data = (size_t)mh.tseg;
 	if ((size_t)mh.entry)
 	    base_data += mh.minstack;	/* stack below text */
     }
+#else
+    if (magic == NMAGIC || magic == OMAGIC) base_data = v7hdr->a_stack;	/* stack below */
+    if (magic == OMAGIC) base_data += (size_t)mh.tseg;			/* tiny model  */
+#endif
 #endif
     retval = filp->f_op->read(inode, filp, (char *)base_data, bytes);
     if (retval != bytes) {
@@ -782,8 +787,9 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
     i = 0;
     do {
         currentp->sig.action[i].sa_dispose = SIGDISP_DFL;
+	currentp->sig.handler[i] = (__kern_sighandler_t)NULL;
     } while (++i < NSIG);
-    currentp->sig.handler = (__kern_sighandler_t)NULL;
+    //currentp->sig.handler = (__kern_sighandler_t)NULL;
 
     /* Close required files */
     i = 0;

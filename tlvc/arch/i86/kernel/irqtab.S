@@ -121,7 +121,7 @@ _stktrap_v7:	/* Stack trap, may need a more elaborate message */
 	call	intmsg
 	jmp	sysret
 
-_cm_ret_v7:
+_cm_ret_v7:	/* return from code mapped call */
 	add	$4,%sp	// skip dynamic handler return stack
 
 	// code adapted from the Venix kernel
@@ -135,7 +135,7 @@ _cm_ret_v7:
 	movw    %bx,2  
 	iret
 
-_cm_call_v7:
+_cm_call_v7:	/* code mapped call */
 	add	$4,%sp	// skip dynamic handler return stack
 
 	// code adapted from the Venix kernel
@@ -335,6 +335,12 @@ do_syscall_v7:
 	cmp	$0xffff,%dx		// long error code ??
 	jnz	no_err			// dx=-1: normal ax error processing
 	jmp	is_err
+//
+// On error returns:
+// Venix expects -1 in AX to indicate error. If there is an error, the actual
+// error code (errno) is in CX. TLVC returns -errno in AX, so - except for long returns,
+// see above - if AX is negative, we negate it and move it to CX, then -1 to AX.
+// 
 err_chk:
 	test	%ax,%ax			// AX negative?
 	jns	no_err
