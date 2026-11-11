@@ -19,12 +19,13 @@ void check_ustack(void)
     segoff_t stacklow = current->t_begstack - current->t_minstack;
 
 #ifdef CONFIG_COMPAT_V7
-    if (current->t_begstack < current->t_enddata)	/* stack is below */
+    if (current->t_begstack < current->t_enddata) {	/* stack is below */
 	if (sp&0x8000) {		/* SP is 'negative' */
 	    printk("[%P] STACK OVERFLOW by %u bytes, SP %x\n", (int)-sp, sp);
             do_exit(SIGSEGV);
 	}
 	return;
+    }
 #endif
     if (sp < brk) {
         printk("(%P)STACK OVERFLOW by %u\n", brk - sp);

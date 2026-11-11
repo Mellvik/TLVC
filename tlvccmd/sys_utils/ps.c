@@ -264,6 +264,8 @@ int main(int argc, char **argv)
 		    unsigned long cpu_percent = (task_table.average + FIXED_HALF) >> 1;
 		    printf("%3d", FIXED_INT(cpu_percent));
 		}
+		/* FIXME: Any process will ALWAYS have both cseg and dseg, these tests
+		 * seem superfluous. */
 		/* CSEG*/
 		cseg = (word_t)task_table.mm[SEG_CODE];
             	cseg_b = cseg? getword(fd, (word_t)cseg+offsetof(struct segment, base), ds): 0;
@@ -274,7 +276,7 @@ int main(int argc, char **argv)
 		dseg_b = dseg? getword(fd, (word_t)dseg+offsetof(struct segment, base), ds): 0;
 		if (f_listall) printf("%4x", dseg_b);
 
-		if (dseg) {		/* dseg == cseg => tiny V7 app */
+		if (dseg) {
 			/* heap*/
 			printf(" %5u ", (word_t)(task_table.t_endbrk - task_table.t_enddata));
 

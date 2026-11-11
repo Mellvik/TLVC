@@ -20,7 +20,9 @@
 
 volatile jiff_t jiffies;
 static int spin_on;
+#ifdef CHECK_ISTACK
 static int delaytick;
+#endif
 
 #ifdef CONFIG_CPU_USAGE
 static void calc_cpu_usage(void)

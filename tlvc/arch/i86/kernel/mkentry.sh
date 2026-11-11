@@ -25,7 +25,7 @@ awk '/^#/{next;}
    if ( $4 != "-" )
       assigned_to[callno] = $1;
 
-   if ( $4 == "=" )
+   if ( $4 == "=" || $4 == "&" )
       depends_on[callno] = toupper($5);
 
    if ( $3 == "x" || $3 == "" ) next;
