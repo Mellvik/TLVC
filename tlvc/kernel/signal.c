@@ -29,7 +29,7 @@ static void generate(sig_t sig, sigset_t msksig, register struct task_struct *p)
 	return;
     }
     debug_sig("SIGNAL gen_sig %d mask %x action %x:%x pid %d\n", sig, msksig,
-	      _FP_SEG(p->sig.handler), _FP_OFF(p->sig.handler), p->pid);
+	      _FP_SEG(p->sig.handler[sig]), _FP_OFF(p->sig.handler[sig]), p->pid);
     p->signal |= msksig;
     if ((p->state == TASK_INTERRUPTIBLE) /* && (p->signal & ~p->blocked) */ ) {
 	debug_sig("SIGNAL wakeup pid %d\n", p->pid);
@@ -126,40 +126,50 @@ int sys_kill(pid_t pid, sig_t sig)
     return kill_process(pid, sig, 0);
 }
 
+/*
+ * The V7 signal syscall has a short (*f)() in arg 2,
+ */
 int sys_signal(int signr, __kern_sighandler_t h)
 {
-    __kern_sighandler_t handler = h;
+    union {
+	__kern_sighandler_t handler;
+	unsigned int hdlr[2];
+    } hd;
+    struct segment *s = current->mm[SEG_CODE];
     int retval = 0;
 
     if (((unsigned int)signr > NSIG) || signr == SIGKILL || signr == SIGSTOP)
 	return -EINVAL;
+    hd.handler = h;
 #ifdef CONFIG_COMPAT_V7
-    if (current->task_is_V7) {		/* arg is unsigned int, fix it */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+    if (current->task_is_V7) {
 	retval = (int)current->sig.action[signr - 1].sa_dispose;
 	if (retval == (int)SIGDISP_CUSTOM)
-	    retval = (int)current->sig.handler;	/* return previous handler */
+	    retval = (int)current->sig.handler[signr - 1];	/* return previous handler */
+	if (hd.hdlr[0] > 2)
+	    hd.hdlr[1] = s->base;
+	else
+	    hd.hdlr[1] = 0;
     }
+#pragma GCC diagnostic pop
 #endif
     debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
-	      _FP_SEG(handler), _FP_OFF(handler), current->pid);
+	      hd.hdlr[1], hd.hdlr[0], current->pid);
 
-    if (handler == KERN_SIG_DFL)
+    if (hd.handler == KERN_SIG_DFL)
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_DFL;
-    else if (handler == KERN_SIG_IGN)
+    else if (hd.handler == KERN_SIG_IGN)
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_IGN;
     else {
-	struct segment *s = current->mm[SEG_CODE];
-#ifdef CONFIG_COMPAT_V7
-	if (current->task_is_V7) 
-	    handler = _MK_FP(s->base, _FP_OFF(h));
-#endif
-	if (_FP_SEG(handler) < s->base || _FP_SEG(handler) >= s->base + s->size) {
+	if (_FP_SEG(hd.handler) < s->base || _FP_SEG(hd.handler) >= s->base + s->size) {
 	    printk("SIGNAL sys_signal supplied handler is bad\n");
 	    debug_sig("SIGNAL sys_signal cs not in [%x, %x]\n",
 		      s->base, s->base + s->size);
 	    return -EINVAL;
 	}
-	current->sig.handler = handler;
+	current->sig.handler[signr - 1] = hd.handler;
 	current->sig.action[signr - 1].sa_dispose = SIGDISP_CUSTOM;
     }
     return retval;

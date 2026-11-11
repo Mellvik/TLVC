@@ -40,7 +40,7 @@ int do_signal(void)
 #else
 	debug_sig("SIGNAL process signal %d pid %d\n", signr, current->pid);
 #endif
-	sah = current->sig.handler;
+	sah = current->sig.handler[signr - 1];
 	sd = &current->sig.action[signr - 1].sa_dispose;
 	if (*sd == SIGDISP_DFL) {			/* Default */
 	    if ((mask &					/* Default Ignore */

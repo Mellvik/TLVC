@@ -23,7 +23,7 @@ struct fs_struct {
 };
 
 struct signal_struct {
-    __kern_sighandler_t         handler;
+    __kern_sighandler_t         handler[NSIG];
     struct __kern_sigaction_struct action[NSIG];
 };
 
