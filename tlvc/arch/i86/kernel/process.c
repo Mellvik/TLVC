@@ -151,7 +151,7 @@ void arch_setup_sighandler_stack(register struct task_struct *t,
     put_ustack(t, -2, _FP_SEG(addr));
     put_ustack(t, 0, (int)get_ustack(t,6));
 #ifdef CONFIG_COMPAT_V7
-    if (current->task_is_V7) {	/* keep the flags reg on top if V7 */
+    if (current->task_is_V7) {	/* keep the flags-register on top if V7 */
 				/* so the Venix cbhandler can return via iret */
 	pokeb(_FP_OFF(addr) + 30 + (31-signr)*6, _FP_SEG(addr), 0xcf);
     } else			/* replace 'popf' with 'iret'   ^^^^  */

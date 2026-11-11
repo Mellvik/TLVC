@@ -95,6 +95,7 @@ struct sgttyb {		/* V7/early BSD compatibility */
     int  sg_flags;          /* mode flags */
 };
 			/* V7 mode flags */
+#define O_TANDEM  0001	/* for XON/XOFF */
 #define O_CBREAK  0002
 #define O_LCASE   0004
 #define O_ECHO    0010
