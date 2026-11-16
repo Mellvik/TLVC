@@ -106,17 +106,17 @@ int sys_wait4(pid_t pid, int *status, int options, void *usage)
                 if (status) {
                     if (verified_memcpy_tofs(status, &p->exit_status, sizeof(int)))
 			return -EFAULT;
-                }
+		}
 #endif
 
-                /* just return status on stopped state, don't release task*/
-                if (p->state == TASK_STOPPED)
-                    p->exit_status = 0;
-                else {
-                    p->state = TASK_UNUSED;     /* unassign task entry*/
-                    next_task_slot = p;
-                    task_slots_unused++;
-                }
+		/* just return status on stopped state, don't release task*/
+		if (p->state == TASK_STOPPED)
+		    p->exit_status = 0;
+		else {
+		    p->state = TASK_UNUSED;     /* unassign task entry*/
+		    next_task_slot = p;
+		    task_slots_unused++;
+		}
 
 #ifndef CONFIG_COMPAT_V7
 		debug_wait("WAIT(%P) got %d\n", p->pid);
@@ -191,7 +191,9 @@ void do_exit(int status)
     current->exit_status = status;
 
     /* Let the parent know */
-    /* V7 has no SIGCHLD but the signal just bounces off. */
+    /* V7 has no SIGCHLD. Ideally, if the parent is a V7 task, don't send.
+     * However, the signal - contrary to what the doc says - bounces off.
+     */
     kill_process(current->ppid, SIGCHLD, 1);
 
     /* Free the text, chroot, and current working directory inodes */
@@ -206,6 +208,7 @@ void do_exit(int status)
      * be used outside of an int... :) */
     current->state = TASK_ZOMBIE;
     wake_up(&parent->child_wait);
+    debug_wait("EXIT(%P): schedule\n");
     schedule();
     /* no return */
     halt();

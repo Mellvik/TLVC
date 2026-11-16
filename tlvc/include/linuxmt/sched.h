@@ -24,7 +24,7 @@ struct fs_struct {
 
 struct signal_struct {
     union {
-    void (*handler)();
+    void (*handler)(int);
     __sigdisposition_t		sa_dispose;
 
     /*__kern_sighandler_t	handler;*/

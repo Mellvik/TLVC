@@ -29,7 +29,7 @@ static void generate(sig_t sig, sigset_t msksig, register struct task_struct *p)
 	return;
     }
     debug_sig("SIGNAL gen_sig %d mask %x action %x:%x pid %d\n", sig, msksig,
-	      p->mm[SEG_CODE]->base, p->sig.sa[sig].handler, p->pid);
+	      sd >= 2? p->mm[SEG_CODE]->base:0, p->sig.sa[sig].handler, p->pid);
     p->signal |= msksig;
     if ((p->state == TASK_INTERRUPTIBLE) /* && (p->signal & ~p->blocked) */ ) {
 	debug_sig("SIGNAL wakeup pid %d\n", p->pid);
@@ -127,8 +127,9 @@ int sys_kill(pid_t pid, sig_t sig)
 }
 
 /*
- * The V7 signal syscall has a short (*f)() in arg 2,
+ * The V7 signal syscall has a short (*f)() in arg 2
  */
+// FIXME: Needs cleaup after sighandler changed to short ...
 int sys_signal(int signr, __kern_sighandler_t h)
 {
     union {
@@ -148,13 +149,14 @@ int sys_signal(int signr, __kern_sighandler_t h)
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
     if (current->task_is_V7) {
 	retval = (int)current->sig.sa[signr - 1].sa_dispose;
-	if (retval >= (int)SIGDISP_CUSTOM)
+	if (hd.hdlr[0] >= (unsigned int)SIGDISP_CUSTOM)
 	    hd.hdlr[1] = s->base;
 	else
 	    hd.hdlr[1] = 0;
-    }
+    } 
 #pragma GCC diagnostic pop
 #endif
+
     debug_sig("SIGNAL sys_signal %d action %x:%x pid %d\n", signr,
 	      hd.hdlr[1], hd.hdlr[0], current->pid);
 
@@ -164,14 +166,15 @@ int sys_signal(int signr, __kern_sighandler_t h)
     else if (hd.handler == KERN_SIG_IGN)
 	current->sig.sa[signr - 1].sa_dispose = SIGDISP_IGN;
     else {
-	if (_FP_SEG(hd.handler) < s->base || _FP_SEG(hd.handler) >= s->base + s->size) {
+	//if (_FP_SEG(hd.handler) < s->base || _FP_SEG(hd.handler) >= s->base + s->size) {
+	if (hd.hdlr[1] < s->base || hd.hdlr[1] >= s->base + s->size) {
 	    printk("SIGNAL sys_signal supplied handler is bad\n");
 	    debug_sig("SIGNAL sys_signal cs not in [%x, %x]\n",
 		      s->base, s->base + s->size);
 	    return -EINVAL;
 	}
 	//current->sig_action[signr - 1].sa_dispose = SIGDISP_CUSTOM;
-	current->sig.sa[signr - 1].handler = _FP_OFF(hd.handler);
+	current->sig.sa[signr - 1].handler = (void (*)())_FP_OFF(hd.handler);
     }
     return retval;
 }

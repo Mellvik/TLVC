@@ -36,7 +36,7 @@ int do_signal(void)
 	current->signal ^= mask;
 
 #ifdef CONFIG_COMPAT_V7
-	debug_sig("SIGNAL process signal %d pid %d V7 %x\n", signr, current->pid, current->task_is_V7);
+	debug_sig("SIGNAL process signal %d pid %d V7 0x%x\n", signr, current->pid, current->task_is_V7);
 #else
 	debug_sig("SIGNAL process signal %d pid %d\n", signr, current->pid);
 #endif
@@ -68,7 +68,9 @@ int do_signal(void)
 	else if (*sd != SIGDISP_IGN) {			/* Set handler */
 
 	    /* FIXME - simplify by removing the seg from the arch_setup call */
-	    __kern_sighandler_t ad = _MK_FP(current->mm[SEG_CODE]->base, (unsigned int)sah);
+	    __kern_sighandler_t ad = ((unsigned int)sah >= 2 ) ? 
+			   (_MK_FP(current->mm[SEG_CODE]->base, (unsigned int)sah)) :
+			   ((__kern_sighandler_t)sah);
 	    debug_sig("SIGNAL setup return stack for handler %x:%x\n",
 		      _FP_SEG(ad), _FP_OFF(ad));
 	    //debug_sig("Stack at %x\n", current->t_regs.sp);

@@ -18,21 +18,21 @@
 /*
  * Kernel debug options, set =1 to turn on. Works across multiple files.
  */
-#define DEBUG_EVENT	1		/* generate debug events on CTRLP*/
+#define DEBUG_EVENT	1		/* generate debug events on CTRLP */
 #define DEBUG_LEVEL	0		/* default startup debug level */
-#define DEBUG_ETH	0		/* ethernet*/
-#define DEBUG_FAT	0		/* FAT filesystem*/
-#define DEBUG_FILE	0		/* sys open and file i/o*/
+#define DEBUG_ETH	0		/* ethernet */
+#define DEBUG_FAT	0		/* FAT filesystem */
+#define DEBUG_FILE	0		/* sys open and file i/o */
 #define DEBUG_INODE	0		/* track inode handling */
-#define DEBUG_NET	0		/* networking*/
+#define DEBUG_NET	0		/* networking */
 #define DEBUG_MAP	0		/* L1 mapping */
 #define DEBUG_MM	0		/* mem char device, malloc, brk */
-#define DEBUG_SCHED	0		/* scheduler/wait*/
-#define DEBUG_SIG	0		/* signals*/
-#define DEBUG_SUP	0		/* superblock, mount, umount*/
-#define DEBUG_TTY	0		/* tty driver*/
-#define DEBUG_TUNE	0		/* tunable debug statements*/
-#define DEBUG_WAIT	0		/* wait, exit*/
+#define DEBUG_SCHED	0		/* scheduler/sleep/wake */
+#define DEBUG_SIG	0		/* signals */
+#define DEBUG_SUP	0		/* superblock, mount, umount */
+#define DEBUG_TTY	0		/* tty driver */
+#define DEBUG_TUNE	0		/* tunable debug statements */
+#define DEBUG_WAIT	0		/* wait, exit */
 #define DEBUG_CACHE	0		/* Floppy sector cache */
 #define DEBUG_ASYNC	0		/* Async req's added/completed */
 #define DEBUG_BUFFER	0		/* Block IO L1/L2 cache/buffer */
@@ -41,9 +41,9 @@
 #define DEBUG_BIOSIO	0		/* BIOS low level block IO driver */
 
 #if DEBUG_EVENT
-void dprintk(const char *, ...);		/* printk when debugging on*/
-void debug_event(int evnum);            /* generate debug event*/
-void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event*/
+void dprintk(const char *, ...);	/* printk when debugging on */
+void debug_event(int evnum);            /* generate debug event */
+void debug_setcallback(int evnum, void (*cbfunc)()); /* callback on debug event */
 #define PRINTK		dprintk
 #else
 #define PRINTK		printk

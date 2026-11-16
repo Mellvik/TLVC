@@ -56,7 +56,7 @@
 #define debug_reloc     debug
 #define debug_reloc2    debug
 #define debug_os2       debug
-//#define debug_v7	printk
+#define debug_v7	debug
 //#define DEBUG_V7
 
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
@@ -275,7 +275,7 @@ static int FARPROC relocate(seg_t place_base, unsigned long rsize, segment_s *se
 }
 #endif
 
-/* ---------------------------------------------------------------------------*/
+/* --------------------------------------------------------------------------- */
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 			       char *sptr, size_t slen)
 {
@@ -288,9 +288,9 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     size_t len, min_len, heap, stack = 0;
     size_t bytes;
     segext_t paras;
-    ASYNCIO_REENTRANT volatile struct minix_exec_hdr mh;         /* 32 bytes */
+    volatile struct minix_exec_hdr mh;         /* 32 bytes */
 #ifdef CONFIG_EXEC_MMODEL
-    ASYNCIO_REENTRANT struct elks_supl_hdr esuph;       /* 24 bytes */
+    struct elks_supl_hdr esuph;       /* 24 bytes */
     int need_reloc_code = 1;
 #endif
 #ifdef CONFIG_COMPAT_V7
@@ -310,6 +310,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     magic = v7hdr->a_magic;
     if (magic == NMAGIC || magic == OMAGIC) {
     	/* rearrange the V7 exec header into struct minix mh */
+	/* keep the v7 a_stack in place, it's used later. */
 	mh.minstack = v7hdr->a_stack ? v7hdr->a_stack : v7hdr->a_hstack;
 	mh.chmem = (size_t)v7hdr->a_heap;
 	mh.syms = v7hdr->a_syms;
@@ -545,12 +546,12 @@ v7_continue:
 #ifdef CONFIG_EXEC_MMODEL
         paras += bytes_to_paras((size_t)esuph.esh_ftseg);
 #endif
-        debug_reloc("EXEC: allocating %04x paras (%d bytes) for text segment(s)\n",
+        debug_reloc("EXEC: allocating %04x paras (%u bytes) for text segment(s)\n",
             paras, bytes);
 #ifdef CONFIG_COMPAT_V7
 	if (magic == OMAGIC) {	/* tiny model alloction - merge everything */
 	    if (len < 0xfff0)	/* if not allocating a full segment, add tseg */
-		len += bytes;	/* add tseg to total */
+		len += bytes;	/* ... to total */
 	    paras = bytes_to_paras(len);
 	    seg_type = SEG_FLAG_VSEG;
 	} else if (mh.tseg > 0xffffL) {	/* code mapped (dual segment) binary */
@@ -631,7 +632,7 @@ v7_continue:
     {
     seg_data = seg_alloc(paras, SEG_FLAG_DSEG);
     if (!seg_data) goto error_exec4;
-    debug_v7("EXEC: allocating %04x paras (%u bytes) for data segment @ %x:0\n", paras, len, seg_data->base);
+    debug_v7("EXEC: allocated %04x paras (%u bytes) for data segment @ %x:0\n", paras, len, seg_data->base);
     }
 
     debug("EXEC: Malloc succeeded - cs=%x ds=%x\n", seg_code->base, seg_data->base);
@@ -708,7 +709,7 @@ v7_continue:
 #ifdef CONFIG_COMPAT_V7
     /* FIXME: simplify: if (magic != MAGIC && v7hdr->a_stack) will always catch stack low */
     if ((magic == NMAGIC && v7hdr->a_stack) || (magic == OMAGIC && (word_t)mh.entry))
-    	current->t_begstack = mh.minstack - 2 - slen;	/* stack below data or text */
+    	current->t_begstack = (mh.minstack - 2 - slen) & ~1;	/* stack below data or text */
     else
 #endif
 							/* stack above heap */
@@ -721,9 +722,6 @@ v7_continue:
     fmemcpyb((char *)currentp->t_begstack, seg_data->base, sptr, ds, slen);
 
     finalize_exec(inode, seg_code, seg_data, (word_t)mh.entry, 0);
-#ifdef CONFIG_COMPAT_V7_XX		/* Experimental - delete */
-    if (!v7_task) current->task_is_V7 = 0;	/* initialize */
-#endif
     return 0;           /* success */
 
   error_exec5:
@@ -770,6 +768,10 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
 
     /* An even start break address speeds up libc malloc/sbrk */
     currentp->t_endbrk =  (currentp->t_enddata + 1) & ~1;
+#ifdef DEBUG_V7
+    printk("EXEC(%P): begstack 0x%x enddata 0x%x endbrk 0x%x\n", currentp->t_begstack,
+					currentp->t_enddata, currentp->t_endbrk);
+#endif
 
     /* argv and envp are two NULL-terminated arrays of pointers, located
      * right after argc.  This fixes them up so that the loaded program
@@ -786,10 +788,8 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
     /* Clear signal handlers */
     i = 0;
     do {
-        currentp->sig.action[i].sa_dispose = SIGDISP_DFL;
-	currentp->sig.handler[i] = (__kern_sighandler_t)NULL;
+        currentp->sig.sa[i].sa_dispose = SIGDISP_DFL;
     } while (++i < NSIG);
-    //currentp->sig.handler = (__kern_sighandler_t)NULL;
 
     /* Close required files */
     i = 0;
@@ -819,18 +819,6 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
      * user stack and to CS:entry of the user process.
      */
     arch_setup_user_stack(currentp, entry, seg_code->base);
-#ifdef DEBUG_V7
-    if (currentp->t_begstack < currentp->t_endbrk) { 
-    	printk("V7: ready to exec, sp: %x ds %x enddata %x\n", currentp->t_regs.sp,
-			currentp->t_regs.ds, currentp->t_enddata);
-	//for (int q=0; q<7; q++) pokeb(entry+q, seg_code->base, 0xa0);	/* NOP replacing FPU trap */
-	printk("\n code:");
-	for (int q=0; q<16; q++) printk("%02x ", peekb(entry+q, seg_code->base));
-	printk("\n stack:");
-	for (int q=0; q<16; q++) printk("%02x ", peekb(currentp->t_regs.sp+q, seg_data->base));
-	printk("\n");
-    }
-#endif
 }
 
 #ifdef CONFIG_EXEC_OS2
