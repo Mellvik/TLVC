@@ -56,8 +56,8 @@
 #define debug_reloc     debug
 #define debug_reloc2    debug
 #define debug_os2       debug
-#define debug_v7	printk
-#define DEBUG_V7
+#define debug_v7	debug
+//#define DEBUG_V7
 
 static int FARPROC execve_aout(struct inode *inode, struct file *filp,
     char *sptr, size_t slen);
@@ -322,7 +322,7 @@ static int FARPROC execve_aout(struct inode *inode, struct file *filp,
 	mh.version = 3;		  /* to simplify switch below */
 	if (!mh.minstack)	  /* a_stack == 0 means stack high, size in a_hstack */
 	    mh.minstack = 0x2000; /* unless zero, then set to 8k */
-#ifdef DEBUG_V7_XXX
+#ifdef DEBUG_V7_EXTRA
 	unsigned long *x = &mh.type;
 	for (int i = 0; i < 8; i++)
 		printk(":0x%08lx:\n", *(x+i));
@@ -709,7 +709,7 @@ v7_continue:
 #ifdef CONFIG_COMPAT_V7
     /* FIXME: simplify: if (magic != MAGIC && v7hdr->a_stack) will always catch stack low */
     if ((magic == NMAGIC && v7hdr->a_stack) || (magic == OMAGIC && (word_t)mh.entry))
-    	current->t_begstack = (mh.minstack  - slen) & ~1;	/* stack below data or text */
+    	current->t_begstack = (mh.minstack - 2 - slen) & ~1;	/* stack below data or text */
     else
 #endif
 							/* stack above heap */
@@ -768,8 +768,10 @@ static void FARPROC finalize_exec(struct inode *inode, segment_s *seg_code,
 
     /* An even start break address speeds up libc malloc/sbrk */
     currentp->t_endbrk =  (currentp->t_enddata + 1) & ~1;
+#ifdef DEBUG_V7
     printk("EXEC(%P): begstack 0x%x enddata 0x%x endbrk 0x%x\n", currentp->t_begstack,
 					currentp->t_enddata, currentp->t_endbrk);
+#endif
 
     /* argv and envp are two NULL-terminated arrays of pointers, located
      * right after argc.  This fixes them up so that the loaded program
