@@ -86,6 +86,7 @@
  * see below.
  */
 
+//#define SHOW_SYSCALL_V7
 #ifdef CONFIG_COMPAT_V7
 	.global _irqit_v7	/* int F1 */
 	.global _stktrap_v7	/* int F2 */
@@ -327,7 +328,7 @@ do_syscall_v7:
 
 	mov     current,%bx
 	mov	TASK_USER_V7(%bx),%cx	// has syscall # and return flags
-	//movw	$0,TASK_USER_V7(%bx)	// Don't clear V7 flag anymore, always on for V7 apps
+	//movw	$0,TASK_USER_V7(%bx)	// Don't clear V7 flag - needed in do_signal
 	add	$6,%sp			// discard BX, CX, DX
 	test	$V7_LONG_RETURN,%cx	// test the 'long return' bit
 	mov	$0,%cx			// CX is now the error flag
@@ -351,6 +352,7 @@ is_err:
 no_err:
         push    %ax             	// syscall return low
 	push	%dx			// return high
+	push	%cx			// save errno
 
 #ifdef SHOW_SYSCALL_V7		/* DEBUG: syscall exit */
 	mov	%sp,%bx
@@ -376,6 +378,7 @@ no_err:
         cli
 
         decw    intr_count
+	pop	%cx
 	pop	%dx
 	pop	%ax
 
@@ -384,7 +387,7 @@ no_err:
 	jmp	restore_regs_v7
 #endif
 
-// ---------------- 'normal syscall' ------------
+// ---------------- native syscall ------------
 do_syscall:
         sti
         call    check_ustack    // Check user mode stack
