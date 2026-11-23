@@ -200,6 +200,13 @@ typedef __attribute__((__stdcall__)) __far void (*__kern_sighandler_t)(int);
  *     or to use the custom handler (which is the same throughout a single
  *     process).  As there are only 3 possible dispositions, the SIGDISP_*
  *     values can be 8-bit or smaller.  -- tkchia 20200512
+ *
+ * November 2026 @mellvik: Having a single signal-handler is insufficient and
+ *     confusing - no error messages, no indications as to why the wrong
+ *     signal-handler is called (check PR #257). The sigaction array is
+ *     now a full int and doubles as keeper of the sig-handler address if
+ *     >= 2. A safe shortcut that reduces the code size and limits the
+ *     task struct growth to 12 bytes per task. 
  */
 
 #define SIG_DFL	((sighandler_t) 0)	/* default signal handling */

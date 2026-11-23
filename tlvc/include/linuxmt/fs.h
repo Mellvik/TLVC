@@ -120,7 +120,7 @@
 #endif
 
 /* allow for reduced stack usage when not using async IO */
-#if defined(CONFIG_BLK_DEV_HD) && defined(CONFIG_BLK_DEV_FD)
+#if defined(CONFIG_BLK_DEV_HD) || defined(CONFIG_BLK_DEV_FD)
 #define ASYNCIO_REENTRANT
 #else
 #define ASYNCIO_REENTRANT	static
