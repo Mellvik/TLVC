@@ -1,0 +1,167 @@
+.TH AR 1
+.SH NAME
+ar \- archive and library maintainer
+.SH SYNOPSIS
+.B ar
+key [ posname ] afile name ...
+.SH DESCRIPTION
+.B ar
+maintains groups of files combined into a single archive file.
+Its main use is to create and update library files (object modules) as used by the loader.
+It can be used, though, for any similar purpose.
+Since it assumes no particular format for its files, it can be used to archive files of object modules, source files, or anything else.
+.PP
+.I key
+is one character from the set
+.BR drqtpmx ,
+optionally concatenated with one or more of
+.BR vuaibcl .
+.I afile
+is the archive file.
+The
+.I names
+are constituent files in the archive file.
+The meanings of the
+.I key
+characters are:
+.TP 8
+.B d
+Delete the named files from the archive file.
+.TP
+.B r
+Replace the named files in the archive file.
+If the optional character
+.B u
+is used with
+.BR r ,
+then only those files with modified dates later than the archive files are replaced.
+If an optional positioning character from the set
+.B abi
+is used, then the
+.I posname
+argument must be present and specifies that new files are to be placed after
+.RB ( a )
+or before
+.RB ( b
+or
+.BR i )
+.IR posname .
+Otherwise new files are placed at the end.
+If no names are given, an attempt is made to replace all files in the archive with any copies found in the current directory.
+.TP
+.B q
+Quickly append the named files to the end of the archive file.
+Optional positioning characters are invalid.
+The command does not check whether the added members are already in the archive.
+Useful only to avoid quadratic behavior when creating a large archive piece-by-piece.
+.TP
+.B t
+Print a table of contents of the archive file.
+If no names are given, all files in the archive are tabled.
+If names are given, only those files are tabled.
+When used with
+.BR v ,
+it gives a verbose directory listing analogous to that of
+.BR ls (1).
+User/group ID numbers are given instead of names.
+.TP
+.B p
+Print the named files in the archive.
+.TP
+.B m
+Move the named files to the end of the archive.
+If a positioning character is present, then the
+.I posname
+argument must be present and, as in
+.BR r ,
+specifies where the files are to be moved.
+.TP
+.B x
+Extract the named files.
+If no names are given, all files in the archive are extracted.
+In neither case does
+.B x
+alter the archive file.
+.TP
+.B v
+Verbose.
+Under the verbose option,
+.B ar
+gives a file-by-file description of the making of a new archive file from the old archive and the constituent files.
+When used to change files in the archive, it lists each file, preceding it with a letter indicating its activity, such as `a' (appended), `r' (replaced), or `d' (deleted).
+When used with
+.BR t ,
+it gives a long listing of all information about the files.
+When used with
+.BR p ,
+it precedes each file with a name.
+.TP
+.B c
+Create.
+Normally
+.B ar
+will create
+.I afile
+when it needs to.
+The create option suppresses the normal message that is produced when
+.I afile
+is created.
+.TP
+.B l
+Local.
+Normally
+.B ar
+places its temporary files in the directory
+.BR /tmp .
+This option causes them to be placed in the local directory.
+.SH EXAMPLES
+Create a new archive called
+.I modlib
+with modules
+.I mod1.o
+and
+.IR mod2.o :
+.RS
+.nf
+ar r modlib mod1.o mod2.o
+.fi
+.RE
+List verbosely all modules in the archive:
+.RS
+.nf
+ar tv modlib
+.fi
+.RE
+Insert new modules
+.I mod1.o
+and
+.IR mod3.o :
+.RS
+.nf
+ar r modlib mod1.o mod3.o
+.fi
+.RE
+(\fImod1.o\fR was replaced since it previously existed in
+.IR modlib ;
+.I mod3.o
+was added to the end as a new module.)
+.PP
+Add new module
+.I mod2.o
+before
+.I mod3.o
+in the archive:
+.RS
+.nf
+ar rb mod3.o modlib mod2.o
+.fi
+.RE
+.SH FILES
+.TP 12
+.B /tmp/v*
+temporaries
+.SH "SEE ALSO"
+ld(1), ar(4), lorder(1), ranlib(1)
+.SH BUGS
+If the same file is mentioned twice in an argument list, it may be put in the archive twice.
+.sp

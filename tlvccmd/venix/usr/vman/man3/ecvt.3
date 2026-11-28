@@ -1,0 +1,63 @@
+.TH ECVT 3
+.SH NAME
+ecvt, fcvt, gcvt \- output conversion
+.SH SYNOPSIS
+.nf
+.B "char *ecvt(value, ndigit, decpt, sign)"
+.B "double value;"
+.B "int ndigit, *decpt, *sign;"
+.sp
+.B "char *fcvt(value, ndigit, decpt, sign)"
+.B "double value;"
+.B "int ndigit, *decpt, *sign;"
+.sp
+.B "char *gcvt(value, ndigit, buf)"
+.B "double value;"
+.B "char *buf;"
+.fi
+.SH DESCRIPTION
+.B ecvt
+converts the
+.I value
+to a null-terminated string of
+.I ndigit
+ASCII digits
+and returns a pointer thereto.
+The position of the decimal point relative
+to the beginning of the string is stored indirectly through
+.I decpt
+(negative
+means to the left of the returned digits).
+If the sign of the result is negative,
+the word pointed to by
+.I sign
+is non-zero, otherwise it is zero.
+The
+low-order digit is rounded.
+.PP
+.B fcvt
+is identical to
+.BR ecvt ,
+except that the correct digit has been rounded for
+Fortran F-format output of the number of digits specified by
+.IR ndigit .
+.PP
+.B gcvt
+converts the
+.I value
+to a null-terminated ASCII string in
+.I buf
+and
+returns a pointer to
+.IR buf .
+It attempts to produce
+.I ndigit
+significant digits
+in Fortran F-format if possible, otherwise E-format, ready for printing.
+Trailing zeros may be suppressed.
+.SH "SEE ALSO"
+printf(3)
+.SH BUGS
+The return values point to static data whose content is overwritten by
+each call.
+.sp

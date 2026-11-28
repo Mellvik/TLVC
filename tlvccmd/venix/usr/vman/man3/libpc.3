@@ -1,0 +1,283 @@
+.TH LIBPC 3P "PDP-11 Only"
+.SH NAME
+libpc \- library of external routines for Pascal programs
+.SH SYNOPSIS
+.nf
+.ta .8i
+const	bufsize = ?;
+type	br1 = 1..bufsize;
+	br2 = 0..bufsize;
+	br3 = \-1..bufsize;
+	ok = \-1..0;
+	buf = packed array[br1] of char;
+	alfa = packed array[1..8] of char;
+	string = packed array[1..?] of char;
+	filetype = file of ?;
+	long = record high,low:integer end;
+.sp
+{all routines must be declared extern}
+.sp
+.ta 1.4i
+function argc:integer;
+function argv(i:integer):string;
+function environ(i:integer):string;
+procedure	argshift;
+.sp
+procedure	buff(var f:filetype);
+procedure	nobuff(var f:filetype);
+procedure	notext(var f:text);
+procedure	diag(var f:text);
+procedure	pcreat(var f:text; s:string);
+procedure	popen(var f:text; s:string);
+procedure	pclose(var f:filetype);
+.sp
+procedure	trap(err:integer);
+procedure	encaps(procedure p; procedure q(n:integer));
+.sp
+function perrno:integer;
+function uread(fd:integer; var b:buf; len:br1):br3;
+function uwrite(fd:integer; var b:buf; len:br1):br3;
+.sp
+function strbuf(var b:buf):string;
+function strtobuf(s:string; var b:buf; len:br1):br2;
+function strlen(s:string):integer;
+function strfetch(s:string; i:integer):char;
+procedure	strstore(s:string; i:integer; c:char);
+function clock; integer;
+.fi
+.SH DESCRIPTION
+This library contains some often used external routines for Pascal programs.
+Two versions exist: one for the EM-1 interpreter and another one
+that is used when programs are translated into PDP-11 code.
+The routines
+can be divided into several categories:
+.PP
+Argument control:
+.RS
+.TP 1i
+argc
+Gives the number of arguments provided when the
+program is called.
+.TP
+argv
+Selects the specified argument from the argument list
+and returns a pointer to it.
+This pointer is nil if the
+index is out of bounds (<0 or >=argc).
+.TP
+environ
+Returns a pointer to the i-th environment string
+(i>=0).
+Returns null if i is beyond the end of the
+environment list.
+.TP
+argshift
+Effectively deletes the first argument from the argument
+list.
+Its function is equivalent to `shift' in the
+VENIX shell: argv[2] becomes argv[1], argv[3]
+becomes argv[2], etc.
+It is a useful procedure to skip
+optional flag arguments.
+Note that the matching of
+arguments and files is done at the time a file is opened
+by a call to reset or rewrite.
+.RE
+.PP
+Additional file handling routines:
+.RS
+.TP 1i
+buff
+Turn on buffering of a file.
+Not very useful, because
+all files are buffered except standard output to a terminal
+and diagnostic output.
+Input files are always
+buffered.
+.TP
+nobuff
+Turn off buffering of an output file.
+It causes the
+current contents of the buffer to be flushed.
+.TP
+notext
+Only useful for input files.
+End of line characters are
+not replaced by a space and character codes out of
+the ASCII range (0\-127) do not cause an error message.
+.TP
+diag
+Initialize a file for output on the diagnostic output
+stream (fd=2).
+Output is not buffered.
+.TP
+pcreat
+The same as rewrite(f), except that you must provide
+the filename yourself.
+The name must be zero terminated.
+Only text files are allowed.
+.TP
+popen
+The same as reset(f), except that you must provide
+the filename yourself.
+The name must be zero terminated.
+Only text files are allowed.
+.TP
+pclose
+Gives you the opportunity to close files hidden in
+records or arrays.
+All other files are closed automatically.
+.RE
+.PP
+String handling:
+.RS
+.TP 1i
+strbuf
+Type conversion from character array to string.
+It is
+your own responsibility that the string is zero terminated.
+.TP
+strtobuf
+Copy string into buffer until the string terminating
+zero byte is found or until the buffer if full, whatever
+comes first.
+The zero byte is also copied.
+The
+number of copied characters, excluding the zero byte,
+is returned.
+So if the result is equal to the buffer
+length, then the end of buffer is reached before the
+end of string.
+.TP
+strlen
+Returns the string length excluding the terminating
+zero byte.
+.TP
+strfetch
+Fetches the i-th character from a string.
+There is no
+check against the string length.
+.TP
+strstore
+Stores a character in a string.
+There is no check
+against string length, so this is a dangerous procedure.
+.RE
+.PP
+Trap handling:
+.RS
+These routines allow you to handle all the possible error situations
+yourself.
+You may define your own trap handler, written
+in Pascal, instead of the default handler that produces an error
+message and quits.
+You may also generate traps yourself.
+.TP 1i
+trap
+Trap generates the trap passed as argument (0\-255).
+The trap numbers 128\-255 may be used freely.
+The
+others are reserved for standard run-time errors.
+.TP
+encaps
+Encapsulate the execution of `p' with the trap handler
+`q'.
+Encaps replaces the previous trap handler by `q',
+calls `p' and restores the previous handler when `p'
+returns.
+If, during the execution of `p', a trap
+occurs, then `q' is called with the trap number as
+parameter.
+For the duration of `q' the previous trap
+handler is restored, so that you may handle only
+some of the errors in `q'.
+All the other errors must
+then be raised again by a call to `trap'.
+.PP
+Encapsulations may be nested: you may encapsulate a procedure
+while executing an encapsulated routine.
+.PP
+Jumping out of an encapsulated procedure (non-local goto) is
+dangerous, because the previous trap handler must be restored.
+Therefore, you may only jump out of procedure `p' from inside
+`q' and you may only jump out of one level of encapsulation.
+If
+you want to exit several levels of encapsulation, use traps.
+Note
+that `p' may not have parameters.
+.PP
+The following error codes are used by the Pascal runtime system:
+.PP
+.nf
+.ta .5i
+64	more args expected
+65	error in exp
+66	error in ln
+67	error in sqrt
+68	assertion failed
+69	array bound error in pack
+70	array bound error in unpack
+71	only positive j in `i mod j'
+72	file not yet open
+96	file xxx: not writable
+97	file xxx: not readable
+98	file xxx: end of file
+99	file xxx: truncated
+100	file xxx: reset error
+101	file xxx: rewrite error
+102	file xxx: close error
+103	file xxx: read error
+104	file xxx: write error
+105	file xxx: digit expected
+106	file xxx: non-ASCII char read
+.fi
+.RE
+.PP
+VENIX system calls:
+.RS
+The routines of this category require global variables or routines
+of the monitor library
+.BR libmon (3).
+.TP 1i
+uread
+Equal to the read system call.
+Its normal name is
+blocked by the standard Pascal routine read.
+.TP
+uwrite
+As above but for
+.BR write (2).
+.TP
+perrno
+Because external data references are not possible in
+Pascal, this routine returns the global variable errno,
+indicating the result of the last system call.
+.RE
+.PP
+Miscellaneous:
+.RS
+.TP 1i
+clock
+Return the number of ticks of user and system time
+consumed by the program.
+.RE
+.SH FILES
+.nf
+.ta 1.6i
+/usr/lib/libpc.a	the version for compiled programs
+/usr/lib/em1_pc.a	the version for interpreted programs
+.fi
+.SH "SEE ALSO"
+pc(1), pc_emlib(3), pc_prlib(3), libmon(3)
+.SH DIAGNOSTICS
+Two routines may cause fatal error messages to be generated.
+These are:
+.TP 8
+pcreat
+Rewrite error (trap 77) if the file cannot be created.
+.TP
+popen
+Reset error (trap 76) if the file cannot be opened for reading
+.SH AUTHOR
+Johan Stevenson, Vrije Universiteit.
+.sp

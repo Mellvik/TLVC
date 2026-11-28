@@ -1,0 +1,75 @@
+.TH GETC 3S
+.SH NAME
+getc, getchar, fgetc, getw \- get character or word from stream
+.SH SYNOPSIS
+.nf
+.B "#include <stdio.h>"
+.sp
+.B "int getc(stream)"
+.B "FILE *stream;"
+.sp
+.B "int getchar()"
+.sp
+.B "int fgetc(stream)"
+.B "FILE *stream;"
+.sp
+.B "int getw(stream)"
+.B "FILE *stream;"
+.fi
+.SH DESCRIPTION
+.B getc
+returns the next character from the named input
+.IR stream .
+.PP
+.B getchar()
+is identical to
+.BR getc(stdin) .
+.PP
+.B fgetc
+behaves like
+.BR getc ,
+but is a genuine function, not a macro; it may be
+used to save object text.
+.PP
+.B getw
+returns the next word from the named input
+.IR stream .
+It returns the
+constant
+.B EOF
+upon end of file or error, but since that is a good integer
+value,
+.B feof
+and
+.BR ferror (3)
+should be used to check the success of
+.BR getw .
+.B getw
+assumes no special alignment in the file.
+.SH "SEE ALSO"
+fopen(3), putc(3), gets(3), scanf(3), fread(3), ungetc(3)
+.SH DIAGNOSTICS
+These functions return the integer constant
+.B EOF
+at end of file or upon
+read error.
+.PP
+A stop with message, `Reading bad file', means an attempt has been
+made to read from a stream that has not been opened for reading by
+.BR fopen .
+.SH BUGS
+The end-of-file return from
+.B getchar
+is incompatible with that in UNIX
+editions 1\-6.
+.PP
+Because it is implemented as a macro,
+.B getc
+treats a
+.I stream
+argument with
+side effects incorrectly.
+In particular,
+.B getc(*f++);
+doesn't work sensibly.
+.sp

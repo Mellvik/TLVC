@@ -1,0 +1,167 @@
+.TH SDATA 2
+.SH NAME
+sdata \- manipulate a shared data segment
+.SH SYNOPSIS
+.TP
+PDP-11:
+.nf
+.B "sdata(arg, reg, offset)"
+.B "char *arg;"
+.fi
+.TP
+8086:
+.nf
+.B "sdata(arg, 0, offset)"
+.B "char *arg;"
+.fi
+.SH DESCRIPTION
+.B sdata
+manipulates a shared data segment.
+On the PDP-11, the segment
+is placed in the 8kb user data segment indicated by argument
+.IR reg .
+On
+the 8086, the extra memory segment is used.
+.PP
+The operation is given by
+.IR arg :
+.TP
+.I filename
+If
+.I arg
+is a file name (null terminated string), then a ``named''
+segment is opened; that file is windowed into the shared segment.
+If this is the first process to call up the file, then the file is first
+read into memory; if the file has already been
+.BR sdata 'd
+by another
+process, then it is hooked up without further I/O.
+The window
+will be placed into the file at an initial offset given by
+.IR offset \(mu64
+bytes (PDP-11) or
+.IR offset \(mu512
+bytes (8086).
+.sp
+The size of the shared data segment is given by the length of the
+file, rounded up to the next 64 (PDP-11) or 512 (8086) byte
+boundary.
+.TP
+.B "(char *) 0"
+The window offset into the previously hooked-to segment is
+changed to
+.IR offset \(mu64
+(PDP-11) or
+.IR offset \(mu512
+(8086) bytes.
+This
+allows the user to move his window to any location in the segment.
+.TP
+.B "(char *) 1"
+An ``unnamed'' segment is opened.
+This segment is not associated
+with any disk file, and can not be shared by multiple
+processes; it merely allows an individual process to hook into an
+extra memory area.
+.I offset
+is the length of the segment, in 64
+(PDP-11) or 512 (8086) byte units.
+.TP
+.B "(char *) 2"
+(reserved for future use)
+.TP
+.B "(char *) 3"
+The previously opened segment (named or unnamed) is closed,
+and memory is unmapped for the calling process.
+Closing a
+named segment does not affect any other processes hooked to the
+same segment.
+When a named segment is no longer held open
+by any processes, it is dropped from memory unless the associated
+file has the `sticky bit' set (mode 01000 \- see
+.BR chmod (2)).
+In this case the segment remains intact forever.
+.PP
+The user is responsible for making sure that the memory mapped for the
+shared data segment is not otherwise used by his program.
+The
+.B sdata
+call returns an error if it is.
+See
+.BR phys (2).
+.PP
+Only one shared data segment per process can be hooked to at a time.
+If
+several processes may be simultaneously writing to the same area at once,
+you will probably wish to use semaphores (see
+.BR semset (2))
+to prevent
+conflicts.
+.PP
+.B "PDP-11 NOTES"
+.br
+After hooking to a shared data segment, PDP-11 programs may access it
+as part of their normal user memory.
+On the PDP-11, the top 8kb of
+virtual memory (register 7) is always reserved for the program stack, and
+should never be used; however, register 6 will be available unless the program
+is very large, or unless it has been previously allocated by
+.BR phys (2)
+(see also note below concerning
+.BR phys ).
+The
+.BR size (1)
+command can be used
+to determine the amount of space used by your program.
+.PP
+All free memory pages can be mapped into the same shared file (presumably
+with different offsets) by opening the shared file, and then setting
+.I arg
+to zero and giving different values of
+.I reg
+on subsequent
+.B sdata
+calls.
+.PP
+The mapping of physical memory (with
+.BR phys (2))
+to another register may
+be lost when a shared segment is opened; to be safe, if
+.B phys
+calls are
+needed they should be done after opening the shared segment.
+.PP
+.B "8086 NOTES"
+.br
+On the 8086, the
+.B getes
+and
+.B putes
+calls may be used to read and write to
+the shared segment once it is hooked to.
+See
+.BR getes (3).
+.SH "SEE ALSO"
+phys(2), semset(2), getes(3)
+.SH DIAGNOSTICS
+On error \-1 is returned.
+.PP
+Shared data segments is a feature of VENIX which is not portable to
+standard UNIX.
+.SH ASSEMBLER
+(sdata = 49.)
+.TP
+PDP-11:
+.nf
+sys sdata; file; reg; offset
+.fi
+.TP
+8086:
+.nf
+BX = 49
+AX = file
+DX = ?
+CX = offset
+int 0Xf1
+.fi
+.sp

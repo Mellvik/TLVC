@@ -1,0 +1,52 @@
+.TH INTRO 1
+.SH NAME
+intro \- introduction to commands
+.SH DESCRIPTION
+This section describes publicly accessible commands in alphabetic order.
+Certain distinctions of purpose are made in the headings:
+.TP 8
+(1)
+Commands of general utility.
+.TP
+(1C)
+Commands for communication with other systems.
+.TP
+(1G)
+Commands used primarily for graphics.
+.TP
+(1M)
+Commands used primarily for system maintenance.
+.PP
+Most of the documents mentioned in the ``SEE ALSO'' section can be
+found in other VENIX Manuals.
+.SH DIAGNOSTICS
+Upon termination each command returns two bytes of status, one supplied
+by the system giving the cause for termination, and (in the case of
+`normal' termination) one supplied by the program, see
+.B wait
+and
+.BR exit (2).
+The former byte is 0 for normal termination, the latter is customarily 0
+for successful execution, nonzero to indicate troubles such as erroneous
+parameters, bad or inaccessible data, or other inability to cope with the
+task at hand.
+It is called variously `exit code', `exit status' or `return
+code', and is described only where special conventions are involved.
+.PP
+When programs are executed from the shell, the exit code is stored in a
+shell variable.
+It may be seen, for example, by typing:
+.IP
+.B "echo $?"
+.PP
+in the Bourne shell
+.RB ( sh ),
+or by typing:
+.IP
+.B "echo $status"
+.PP
+in the C shell
+.RB ( csh ).
+See shell programming documentation for details on
+how shell scripts may make use of this exit code.
+.sp

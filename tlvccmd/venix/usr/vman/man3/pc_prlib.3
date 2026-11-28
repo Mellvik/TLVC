@@ -1,0 +1,817 @@
+.TH PC_PRLIB 3P "PDP-11 Only"
+.SH NAME
+pc_prlib \- library of Pascal runtime routines
+.SH SYNOPSIS
+.nf
+.ta 1.2i
+type	alpha=packed array[1..8] of char;
+	pstring= ^packed array[] of char;
+.sp
+function	_abi(i:integer):integer;
+function	_abl(i:long):long;
+function	_mdi(i,j:integer):integer;
+function	_mdl(i,j:long):long;
+function	_abr(r:real):real;
+function	_sin(r:real):real;
+function	_cos(r:real):real;
+function	_atn(r:real):real;
+function	_exp(r:real):real;
+function	_log(r:real):real;
+function	_sqt(r:real):real;
+function	_rnd(r:real):integer;
+.sp
+type	compared=\-1..1;
+	gotoinfo=record
+	    procdesc:integer;
+	    pcoffset:integer;
+	    nlocals: integer;
+	end;
+.sp
+function	_bcp(s1,s2:pstring; sz:integer):compared;
+function	_bts(low,high,size:integer):set of 0..(8*size\-1);
+procedure	_gto(p:^gotoinfo);
+.sp
+procedure	_new(var p:^integer; size:integer);
+procedure	_dis(var p:^integer; size:integer);
+procedure	_sav(var p:^integer);
+procedure	_rst(var p:^integer);
+.sp
+type	arrdescr=record
+	    lowbnd:  integer;
+	    diffbnds:integer;
+	    elsize:  integer;
+	end;
+	arr1=array[] of ?;
+	arr2=packed array[] of ?;
+.sp
+procedure	_pac(var ap:arr1; i:integer; var zp:arr2;
+	        var zd,ad:arrdescr);
+procedure	_unp(var zp:arr2; var ap:arr1; i:integer;
+	        var zd,ad:arrdescr);
+function	_asz(var dp:arrdescr):integer;
+.sp
+procedure	_ass(b:boolean; line:integer);
+procedure	procentry(var name:alpha);
+procedure	procexit(var name:alpha);
+.sp
+const	lowbyte=[0..7];
+	MAGIC  =[1,3,5,7];
+	WINDOW =[11];
+	ELNBIT =[12];
+	EOFBIT =[13];
+	TXTBIT =[14];
+	WRBIT  =[15];
+type	file=record
+	    ptr:   ^char;
+	    flags:  set of [0..15];
+	    fname:  string;
+	    ufd:    0..15;
+	    size:   integer;
+	    count:  0..buflen;
+	    buflen: max(512,size) div size * size;
+	    bufadr: packed array[1..max(512,size)]
+	                of char;
+	end;
+	filep=^file;
+const	NFILES=15;
+	_extfl:^array[] of filep;
+.sp
+procedure	_ini(var p:array[] of filep);
+procedure	_hlt(status:0..255);
+.sp
+procedure	_opn(f:filep; size:integer);
+procedure	_cre(f:filep; size:integer);
+procedure	_cls(f:filep);
+.sp
+procedure	_get(f:filep);
+procedure	_put(f:filep);
+function	_wdw(f:filep):^char;
+function	_efl(f:filep):boolean;
+function	_eln(f:filep):boolean;
+function	_rdc(f:filep):char;
+function	_rdi(f:filep):integer;
+function	_rdl(f:filep):long;
+function	_rdr(f:filep):real;
+procedure	_rln(f:filep);
+procedure	_wrc(f:filep; c:char);
+procedure	_wsc(f:filep; c:char; w:integer);
+procedure	_wri(f:filep; i:integer);
+procedure	_wsi(f:filep; i:integer; w:integer);
+procedure	_wrl(f:filep; l:long);
+procedure	_wsl(f:filep; l:long; w:integer);
+procedure	_wrr(f:filep; r:real);
+procedure	_wsr(f:filep; r:real; w:integer);
+procedure	_wrf(f:filep; r:real; w:integer; ndigit:integer);
+procedure	_wrs(f:filep; s:pstring; l:integer);
+procedure	_wss(f:filep; s:pstring; l:integer; w:integer);
+procedure	_wrb(f:filep; b:boolean);
+procedure	_wsb(f:filep; b:boolean; w:integer);
+procedure	_wrz(f:filep; s:string);
+procedure	_wsz(f:filep; s:string; w:integer);
+procedure	_wln(f:filep);
+procedure	_pag(f:filep);
+.fi
+.SH DESCRIPTION
+This library is used by the Pascal compiler.
+Two versions exist: one for
+use with interpretive (EM-1) code, and the other for compiled PDP-11
+code.
+This library contains all the runtime routines for standard Pascal
+programs.
+These routines can be divided into several categories.
+A
+description of each category with its routines follows.
+.PP
+Arithmetic routines:
+.RS
+.PD 0
+.TP 8
+_abi
+Compute the absolute value of an integer.
+.TP
+_abl
+Compute the absolute value of a long.
+.TP
+_mdi
+Perform the Pascal modulo operation on integers.
+.TP
+_mdl
+Perform the Pascal modulo operation on longs.
+.TP
+_abr
+Compute the absolute value of a real.
+.TP
+_sin
+Compute the sine of a real.
+.TP
+_cos
+Compute the cosine of a real.
+.TP
+_atn
+Compute the arc tangent of a real.
+.TP
+_exp
+Compute the e-power of a real.
+.TP
+_log
+Compute the natural logarithm of a real.
+.TP
+_sqt
+Compute the square root of a real.
+.TP
+_rnd
+Round a real to the nearest integer (\-3.5\(->\-4).
+.PD
+.RE
+.PP
+Miscellaneous routines:
+.RS
+.TP 8
+_bcp
+Compare two strings.
+Use dictionary ordering with the
+ASCII character set.
+.TP
+_bts
+Include a range of elements from low to high in a set of
+size bytes (size is even).
+.TP
+_gto
+Execute a non-local goto.
+When called, the static link
+points to the local base of the target procedure.
+The
+new EM-1 stack pointer is calculated by adding the
+number of locals to the new local base (jumping into
+statements is not allowed; there are no local generators
+in Pascal!).
+The new program counter can be computed
+out of the procedure descriptor number and the program
+counter offset.
+.RE
+.PP
+Heap management:
+.RS
+.PP
+There is one way to allocate new heap space (_new), but two
+different incompatible ways to deallocate it.
+.PP
+The most general one is by using dispose (_dis).
+A circular list
+of free blocks, ordered from low to high addresses, is maintained.
+Merging free blocks is done when a new block enters the
+free list.
+When a new block is requested (_new), the free list is
+searched using a first fit algorithm.
+Two global variables are
+needed:
+.TP 1i
+_highp
+Points to the free block with the highest address.
+.TP
+_lastp
+Points to the most recently entered free block or to a
+block in the neighborhood of the most recently allocated
+block.
+The free list is empty, when one of
+these pointers (but then at the same time both) is
+zero.
+.PP
+The second way to deallocate heap space is by using mark (_sav)
+and release (_rst).
+Mark saves the current value of the heap
+pointer HP in the program variable passed as a parameter.
+By
+calling release with this old HP value as its argument, the old
+HP value is restored, effectively deallocating all blocks requested
+between the calls to mark and release.
+The heap is used as
+second stack in this case.
+.PP
+It will be clear that these two ways of deallocating heap space
+can not be used together.
+To be able to maintain the free list,
+all blocks must be a multiple of 4 bytes long, with a minimum of
+4 bytes.
+.PP
+In summary:
+.PD 0
+.TP 8
+_new
+Allocate heap space.
+.TP
+_dis
+Deallocate heap space.
+.TP
+_sav
+Save the current value of HP.
+.TP
+_rst
+Restore an old value of HP.
+.PD
+.RE
+.PP
+Array operations:
+.RS
+.PP
+The only useful form of packing implemented, is packing words
+into bytes.
+All other forms of packing and unpacking result in a
+plain copy.
+.TP 8
+_pac
+Pack an unpacked array `a' into a packed array `z'.
+`ap'
+and `zp' are pointers to `a' and `z'.
+`ad' and `zd' are
+pointers to the descriptors of `a' and `z'.
+`i' is the index
+in `a' of the first element to be packed.
+Pack until `z' is
+full.
+.TP
+_unp
+Unpack `z' into `a'.
+`ap', `zp', `ad' and `zd' are as for
+_pac.
+`i' is the index in `a' where the first element of `z'
+is copied into.
+Unpack all elements of `z'.
+.TP
+_asz
+Compute array size.
+Used for copying conformant
+arrays.
+.RE
+.PP
+Debugging facilities:
+.RS
+The compiler allows you to verify assertions.
+It generates a call
+to the routine _ass to check the assertion at runtime.
+Another
+feature of the compiler is that it enables you to trace the procedure
+calling sequence.
+If the correct option is turned on, then a
+call to the procedure `procentry' is generated at the start of each
+compiled procedure or function.
+Likewise, the routine `procexit'
+is called just before a procedure or function exits.
+Default procedure
+`procentry' and `procexit' are available in this library.
+.TP 1i
+_ass
+If `b' is zero, then change eb[0] to `line' (to give an
+error message with source line number) and call the
+error routine.
+.TP
+procentry
+Print the name of the called procedure with up to
+seven argument words in decimal on standard output.
+Output must be declared in the program heading.
+.TP
+procexit
+Print the name of the procedure that is about to exit.
+Same remarks as for procentry.
+.RE
+.PP
+Files:
+.RS
+.PP
+Most of the runtime routines are needed for file handling.
+For
+each file in your Pascal program a record of type file, as
+described above, is allocated, static if your file is declared in the
+outermost block, dynamic if it is declared in inner blocks.
+The
+fields in the file record are used for:
+.TP 1i
+bufadr
+IO is buffered except for standard input and output if
+terminals are involved.
+The size of the buffer is the
+maximum of 512 and the file element size.
+.TP
+buflen
+The effective buffer length is the maximum number of
+file elements fitting in the buffer, multiplied by the
+element size.
+.TP
+size
+The file element size (1 or even).
+.TP
+flags
+Some flag bits are stored in the high byte and a magic
+pattern in the low byte provides detection of destroyed
+file information.
+.TP
+ptr
+Points to the file window inside the buffer.
+.TP
+count
+The number of bytes (the window inclusive) left in
+the buffer to be read or the number of free bytes (the
+window inclusive) for output files.
+.TP
+ufd
+The VENIX file descriptor for the file.
+.TP
+fname
+Points to the name of the file (INPUT for standard
+input, OUTPUT for standard output and LOCAL for
+local files).
+This field is used for generating error
+messages.
+.PP
+The constants used by the file handling routines are:
+.PD 0
+.TP 1i
+WINDOW
+Bit in flags set if the window of an input file is initialized.
+Used to resolve the famous interactive input
+problem.
+.TP
+EOFBIT
+Bit in flags set if end of file seen
+.TP
+ELNBIT
+Bit in flags set if linefeed seen
+.TP
+TXTBIT
+Bit in flags set for text files. Process linefeeds.
+.TP
+WRBIT
+Bit in flags set for output files
+.TP
+MAGIC
+Pattern for the low byte of flags
+.TP
+NFILES
+The maximum number of open files in VENIX
+.PD
+.RE
+.PP
+Prelude and postlude:
+.RS
+.PP
+These routines are called once for each Pascal program:
+.TP 8
+_ini
+When a file mentioned in the program heading is opened
+by reset or rewrite, its file pointer must be mapped onto
+one of the program arguments.
+The compiler knows
+how to map and therefore builds a table with a pointer
+to the file structure for each program argument.
+One of
+the first actions of the Pascal program is to call this procedure
+with this table as an argument.
+The global variable
+_extfl is used to save the address of this table.
+Another task of _ini is to initialize the standard input
+and output files.
+For standard output it must decide
+whether to buffer or not.
+If standard output is a terminal,
+then buffering is off by setting buflen to 1.
+A last
+task of _ini is to set the global variables _argc, _argv and
+_environ for possible reference later on.
+.TP
+_hlt
+If the program is about to finish, the buffered files must
+be flushed.
+That is done by this procedure.
+.RE
+.PP
+Opening and closing:
+.RS
+.PP
+Files in Pascal are opened for reading by reset and opened for
+writing by rewrite.
+Files to be rewritten may or may not exist
+already.
+Files not mentioned in the program heading are considered
+local files.
+The next steps must be done for reset and
+rewrite:
+.TP 8
+1.
+If size is zero, then a text file must be opened with elements
+of size 1.
+.TP
+2.
+Find out if this file is mentioned in the program heading
+(scan table pointed to by _extfl).
+If not, then it is a local
+file and goto 7.
+.TP
+3.
+If the file is standard input or output then return.
+.TP
+4.
+If there are not enough arguments supplied, generate an
+error.
+.TP
+5.
+If the file was already open, flush the buffer if necessary
+and close it.
+Note that reset may be used to force the
+buffer to be flushed.
+This is sometimes helpful against
+program or system crashes.
+.TP
+6.
+If it is a reset, open the file, otherwise create it.
+In both
+cases goto 9.
+.TP
+7.
+If the local file is to be written, then close it if it was
+open and create a new nameless file.
+First try to create it
+in /usr/tmp, then in /tmp and if both fail then try the
+current directory.
+See to it that the file is open for both
+reading and writing.
+.TP
+8.
+If the local file is to be read and the file is opened
+already, then flush the buffer and seek to the beginning.
+Otherwise open a temporary file as described in 7.
+.TP
+9.
+Initialize all the file record fields.
+.PP
+The necessary procedures are:
+.TP 8
+_opn
+Reset a file
+.TP
+_cre
+Rewrite a file
+.TP
+_cls
+Close a file.
+Closing of files is done for local files when
+the procedure in which they are declared exits.
+The
+compiler only closes local files if they are not part of a
+structured type.
+Files allocated in the heap are not
+closed when they are deallocated.
+There is an external
+routine `pclose' in
+.BR libpc (3),
+that may be called explicitly
+to do the closing in these cases.
+Closing may be necessary
+to flush buffers or to keep the number of simultaneously
+opened files below NFILES.
+Files declared in the
+outermost block are automatically closed when the program
+terminates.
+.RE
+.PP
+General file IO:
+.RS
+.PP
+These routines are provided for general file IO:
+.TP 8
+_put
+Append the file element in the window to the file and
+advance the window.
+.TP
+_get
+Advance the file window so that it points to the next element
+of the file.
+For text files (TXTBIT on) the ELNBIT
+in flags is set if the new character in the window is a
+line feed (ASCII 10) and the character is then changed
+into a space.
+Otherwise the ELNBIT is cleared.
+.TP
+_wdw
+Return the current pointer to the file window.
+.TP
+_eof
+Test if you reached end of file.
+Is always true for output
+files.
+.RE
+.PP
+Textfile routines:
+.RS
+.PP
+The rest of the routines all handle text files.
+.PD 0
+.TP 8
+_eln
+Return true if the next character on an input file is an
+end-of-line marker.
+An error occurs if eof(f) is true.
+.TP
+_rdc
+Return the character currently in the window and
+advance the window.
+.TP
+_rdi
+Build an integer from the next couple of characters on
+the file, starting with the character in the window.
+The
+integer may be preceeded by spaces (and line feeds), tabs
+and a sign.
+There must be at least one digit.
+The first
+non-digit signals the end of the integer.
+.TP
+_rdl
+Like _rdi, but for longs.
+.TP
+_rdr
+Like _rdi, but for reals. Syntax is as required for Pascal.
+.TP
+_rln
+Skips the current line and clears the WINDOW flag, so
+that the next routine requiring an initialized window
+knows that it has to fetch the next character first.
+.TP
+_wrc
+Write a character, not preceeded by spaces.
+.TP
+_wsc
+Write a character, left padded with spaces up to a field
+width of `w'.
+.TP
+_wri
+Write an integer, left padded with spaces up to a field
+width of 6.
+.TP
+_wsi
+Write an integer, left padded with spaces up to a field
+width of `w'.
+.TP
+_wrl
+Write a long, left padded with spaces up to a field width
+of 11.
+.TP
+_wsl
+Write a long, left padded with spaces up to a field width
+of `w'.
+.TP
+_wrr
+Write a real in scientific format, left padded with spaces
+up to a field width of 13.
+.TP
+_wsr
+Write a real in scientific format, left padded with spaces
+up to a field width of `w'.
+.TP
+_wrf
+Write a real in fixed point format, with exactly `ndigit'
+digits behind the decimal point, the last one rounded; it
+is left padded up to a field width of `w'.
+.TP
+_wrs
+Write a string of length `l', without additional spaces.
+.TP
+_wss
+Write a string of length `l', left padded up to a field
+width of `w'.
+.TP
+_wrb
+Write a boolean, represented by ``true'' or ``false'', left
+padded up to a field width of 5.
+.TP
+_wsb
+Write a boolean, represented by ``true'' or ``false'', left
+padded up to a field width of `w'.
+.TP
+_wrz
+Write a C-type string up to the zero-byte.
+.TP
+_wsz
+Write a C-type string, left padded up to a field width of
+w.
+.TP
+_wln
+Write a line feed (ASCII 10).
+.TP
+_pag
+Write a form feed (ASCII 12).
+.PD
+.RE
+.PP
+All the routines to which calls are generated by the compiler are
+described above.
+They use the following global defined routines to do
+some of the work:
+.PD 0
+.TP 1i
+_rf
+Check input files for MAGIC and WRBIT.
+Initialize the window
+if WINDOW is cleared.
+.TP
+_wf
+Check output files for MAGIC and WRBIT.
+.TP
+_incpt
+Advance the file window and read a new buffer if necessary.
+.TP
+_outcpt
+Write out the current buffer if necessary and advance the window.
+.TP
+_flush
+Flush the buffer if it is an output file.
+Append an extra line
+marker if EOLBIT is off.
+.TP
+_wstrin
+All output routines make up a string in a local buffer.
+They
+call _wstrin to output this buffer and to do the left padding.
+.TP
+_skipsp
+Skip spaces (and line feeds) on input files.
+.TP
+_getsig
+Read `+' or `\-' if present.
+.TP
+_fstdig
+See to it that the next character is a digit. Otherwise error.
+.TP
+_nxtdig
+Check if the next character is a digit.
+.TP
+_getint
+Do the work for _rdi.
+.TP
+_ecvt
+Convert real into string of digits for printout in scientific
+notation.
+.TP
+_fcvt
+Convert real into string of digits for fixed point printout
+.TP
+_fif
+Split real into integer and fraction part
+.TP
+_fef
+Split real into exponent and fraction part
+.PD
+.PP
+The following global variables are used:
+.PD 0
+.TP 1i
+_lastp
+For heap management (see above).
+.TP
+_highp
+For heap management (see above).
+.TP
+_extfl
+Used to save the argument of _ini for later reference.
+.TP
+_curfil
+Save the current file pointer, so that the error message can
+access the file name.
+.PD
+.SH FILES
+.nf
+.ta 1.6i
+/lib/pc_prlib.a	The library used by compiled programs.
+/lib/em1_pr.a	The library used by interpreted programs.
+/lib/pc/rterrors	The error messages
+.fi
+.SH "SEE ALSO"
+.TP 5
+[1]
+A.S. Tanenbaum, J.W. Stevenson & Hans van Staveren
+``Description of an experimental machine architecture for use of
+block structured languages'' Informatica rapport IR\-54.
+.TP
+[2]
+K.Jensen & N.Wirth ``PASCAL, User Manual and Report''
+Springer-Verlag.
+.TP
+[3]
+An improved version of the ISO standard proposal for the
+language Pascal ISO/TC97/SC5\-N462, received November
+1979.
+.TP
+[4]
+``VU-Pascal Reference Manual'' in the
+.IR "Programming Guide" .
+.TP
+[5]
+pc(1)
+.SH DIAGNOSTICS
+All errors discovered by this runtime system cause an EM-1 TRP instruction
+to be executed.
+This TRP instruction expects the error number on
+top of the stack.
+See [1] for a more extensive treatment of the subject.
+.PP
+EM-1 allows the user to specify a trap handling routine, called whenever
+an EM-1 machine trap or a language or user defined trap occurs.
+One of
+the first actions in _ini is to specify that the routine _fatal, available in
+this library, will handle traps.
+This routine is called with an error code
+(0..255) as argument.
+The file ``/lib/pc/rterrors'' is opened and searched
+for a message corresponding with this number.
+If the file can not be
+opened, or if the error number is not recorded in the file, then the same
+trap is generated again, but without a user-defined trap handler, so that
+the low levels generate an error message.
+Otherwise the following information
+is printed on file descriptor 2:
+.PD 0
+.TP 5
+\-
+The name of the Pascal program
+.TP
+\-
+The name of the file pointed to by _curfil, if the error number is
+between 96 and 127 inclusive.
+.TP
+\-
+The error message (or the error number if not found).
+.TP
+\-
+The source line number if not equal to 0.
+.PD
+.PP
+The routine _fatal stops the program as soon as the message is printed.
+.PP
+The following error codes are used by the Pascal runtime system:
+.PP
+.nf
+.ta .5i
+64	more args expected
+65	error in exp
+66	error in ln
+67	error in sqrt
+68	assertion failed
+69	array bound error in pack
+70	array bound error in unpack
+71	only positive j in `i mod j'
+72	file not yet open
+.sp
+96	file xxx: not writable
+97	file xxx: not readable
+98	file xxx: end of file
+99	file xxx: truncated
+100	file xxx: reset error
+101	file xxx: rewrite error
+102	file xxx: close error
+103	file xxx: read error
+104	file xxx: write error
+105	file xxx: digit expected
+106	file xxx: non-ASCII char read
+.fi
+.SH AUTHORS
+Johan Stevenson and Ard Verhoog, Vrije Universiteit.
+.sp

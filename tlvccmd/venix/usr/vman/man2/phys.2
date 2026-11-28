@@ -1,0 +1,96 @@
+.TH PHYS 2
+.SH NAME
+phys \- allow a process to access physical addresses
+.SH SYNOPSIS
+.TP
+PDP-11:
+.B "phys(segreg, size, physadr)"
+.TP
+8086:
+.B "phys(0, 0, physadr)"
+.SH DESCRIPTION
+.B phys
+allows a process to access physical memory, normally not in the
+process' address space.
+This call is obviously machine dependent and
+very dangerous.
+Its arguments and actions differ somewhat between
+PDP-11 and 8086 processors:
+.TP
+PDP-11:
+The argument
+.I segreg
+specifies a process virtual (data-space)
+address range of 8K bytes starting at virtual address
+.IR segreg \(mu8K
+bytes.
+This address range is mapped into physical address
+.IR physadr \(mu64
+bytes.
+Only the first
+.IR size \(mu64
+bytes of this mapping is
+addressable.
+If
+.I size
+is zero, any previous mapping of this virtual
+address range is nullified.
+For example, the call
+.sp
+.ti +5
+phys(6, 1, 0177775);
+.sp
+will map virtual addresses 0140000\-0140077 into physical
+addresses 017777500\-017777577.
+In particular, virtual address
+0140060 is the PDP-11 console located at physical address
+017777560.
+.TP
+8086:
+The user's extra segment is mapped into physical address
+.IR physadr \(mu512
+bytes.
+If
+.I physadr
+is \-1, any previous mapping of this
+virtual address range is nullified.
+For example, the call
+.sp
+.ti +5
+phys(0, 0, 0XB800/(512/16));
+.sp
+will map extra segment addresses 0 to 0XFFFF into physical
+addresses B8000\-C7FFF.
+.sp
+After mapping via
+.BR phys ,
+the extra segment may be read and written
+with the calls described in
+.BR getes (3).
+.PP
+This call may only be executed by the super-user or if the caller's group
+ID is zero.
+.SH "SEE ALSO"
+getes(3), sdata(2)
+.SH DIAGNOSTICS
+The function value zero is returned if the physical mapping is in effect.
+The value \-1 is returned if not super-user, or super group, or an
+.B sdata
+call is in effect.
+.SH ASSEMBLER
+(phys = 52.)
+.TP
+PDP-11:
+.nf
+sys phys; segreg; size; physadr
+.fi
+.TP
+8086:
+.nf
+BX = 52
+AX = ?
+DX = ?
+CX = physadr
+int 0Xf1
+.fi
+.sp

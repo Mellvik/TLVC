@@ -1,0 +1,49 @@
+.TH EXIT 2
+.SH NAME
+exit \- terminate process
+.SH SYNOPSIS
+.nf
+.B "exit(status)"
+.B "int status;"
+.sp
+.B "_exit(status)"
+.B "int status;"
+.fi
+.SH DESCRIPTION
+.B exit
+is the normal means of terminating a process.
+.B exit
+closes all the process'
+files and notifies the parent process if it is executing a
+.BR wait (2).
+The
+low-order 8 bits of
+.I status
+are available to the parent process.
+.PP
+This call can never return.
+.PP
+The C function
+.B exit
+may cause cleanup actions before the final `sys exit'.
+The function
+.B _exit
+circumvents all cleanup.
+.SH "SEE ALSO"
+wait(2)
+.SH ASSEMBLER
+(exit = 1.)
+.TP
+PDP-11:
+.nf
+R0 = status
+sys exit
+.fi
+.TP
+8086:
+.nf
+BX = 1
+AX = status
+int 0Xf1
+.fi
+.sp

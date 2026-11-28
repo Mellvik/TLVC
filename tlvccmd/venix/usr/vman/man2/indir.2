@@ -1,0 +1,51 @@
+.TH INDIR 2 "PDP-11 Only"
+.SH NAME
+indir \- indirect system call
+.SH ASSEMBLER
+(indir = 0.)
+.TP
+PDP-11:
+.nf
+sys indir; call
+.fi
+.PP
+The system call at the location
+.I call
+is executed.
+Execution resumes after
+the
+.B indir
+call.
+.PP
+The main purpose of
+.B indir
+is to allow a program to store system calls and
+their arguments in the data segment.
+Since system calls are executed with
+a trap, their arguments must be placed directly after the
+.B sys
+instruction.
+In order to keep system call arguments in the data segment (and thus
+allow shared-text (pure) programs which must have totally separate text
+and data portions), the
+.B indir
+call is used to indirectly execute the system
+call in the data portion.
+The C interface for any system call with arguments
+uses this method.
+.PP
+If
+.B indir
+is executed indirectly, it is a no-op.
+If the instruction at the
+indirect location is not a system call,
+.B indir
+returns error code EINVAL;
+see
+.BR intro (2).
+.PP
+Because of
+.BR indir 's
+special nature, it is executed at the assembler level
+only.
+.sp

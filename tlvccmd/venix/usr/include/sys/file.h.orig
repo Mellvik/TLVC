@@ -1,0 +1,38 @@
+/*
+ * One file structure is allocated
+ * for each open/creat/pipe call.
+ * Main use is to hold the read/write
+ * pointer associated with each open
+ * file.
+ */
+struct	file {
+	char	f_flag;
+	char	f_count;	/* reference count */
+	int	f_inode;	/* pointer to inode structure */
+	unsigned  f_offset[2];	/* read/write character pointer */
+} file[];
+
+/* flags */
+#define	FREAD	01
+#define	FWRITE	02
+#define	FPIPE	04
+
+/*
+ * Open call.
+ */
+#define	O_RDONLY	000		/* open for reading */
+#define	O_WRONLY	001		/* open for writing */
+#define	O_RDWR		002		/* open for read & write */
+#define	O_NDELAY	FNDELAY		/* non-blocking open */
+#define	O_APPEND	FAPPEND		/* append on each write */
+#define	O_CREAT		FCREAT		/* open with file create */
+#define	O_TRUNC		FTRUNC		/* open with truncation */
+#define	O_EXCL		FEXCL		/* error on create if file exists */
+
+/*
+ * Flock call.
+ */
+#define	LOCK_SH		1	/* shared lock */
+#define	LOCK_EX		2	/* exclusive lock */
+#define	LOCK_NB		4	/* don't block when locking */
+#define	LOCK_UN		8	/* unlock */

@@ -1,0 +1,73 @@
+.TH DUP 2
+.SH NAME
+dup, dup2 \- duplicate an open file descriptor
+.SH SYNOPSIS
+.nf
+.B "dup(fildes)"
+.B "int fildes;"
+.fi
+.PP
+.nf
+.B "dup2(fildes, fildes2)"
+.B "int fildes, fildes2;"
+.fi
+.SH DESCRIPTION
+Given a file descriptor returned from an
+.BR open ,
+.BR pipe ,
+or
+.BR creat (2)
+call,
+.B dup
+allocates another file descriptor synonymous with the original.
+The new
+file descriptor is returned.
+.B dup
+always returns the lowest available file
+descriptor.
+.PP
+In the second form of the call,
+.I fildes
+is a file descriptor referring to an
+open file, and
+.I fildes2
+is a non-negative integer less than the maximum
+value allowed for file descriptors (approximately 14).
+.B dup2
+causes
+.I fildes2
+to refer to the same file as
+.IR fildes .
+If
+.I fildes2
+already referred to an open
+file, it is closed first.
+.SH "SEE ALSO"
+creat(2), open(2), close(2), pipe(2)
+.SH DIAGNOSTICS
+The value \-1 is returned if: the given file descriptor is invalid; there are
+already too many open files.
+.SH ASSEMBLER
+(dup = 41.)
+.TP
+PDP-11:
+.nf
+R0 = file descriptor
+R1 = new file descriptor
+sys dup
+R0 = file descriptor
+.fi
+.TP
+8086:
+.nf
+BX = 41
+AX = fildes
+DX = new fildes
+int 0Xf1
+.fi
+.PP
+The
+.B dup2
+entry is implemented by adding 0100 to
+.IR fildes .
+.sp

@@ -1,0 +1,19 @@
+.TH TYPES 5
+.SH NAME
+types \- system type declarations
+.SH SYNOPSIS
+.nf
+.B "#include <sys/types.h>"
+.fi
+.SH DESCRIPTION
+Various system calls (e.g. stat(2)) return system information in variables of specific types. For portability purposes, these types are all declared in the include file <sys/types.h> and are given below:
+.nf
+typedef unsigned int daddr_t;   /* disk address */
+typedef char *       caddr_t;   /* core address */
+typedef int          ino_t;     /* i-node number */
+typedef long         time_t;    /* a time */
+typedef int          dev_t;     /* device code */
+.fi
+.SH "SEE ALSO"
+stat(2)
+.sp

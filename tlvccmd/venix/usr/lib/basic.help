@@ -1,0 +1,26 @@
+Help information for UBC Basic:
+
+!	cmd	issue system command "cmd" (e.g. !who)
+auto	L1,L2	provide line numbers starting at L1, increment of L2
+bye		exit from basic
+catalog		list files in user's catalog (directory)
+clear		clear stack + clear vars
+clear	stack	clear execution stack
+clear	vars	clear variable symbol table
+del	L1,L2	delete lines between L1 and L2
+dump		print out current variable names
+edit		use system editor on program
+help		print out help file
+list	L1,L2	list program between lines L1 and L2
+load    file	load the program from "file"
+merge	file	merge "file" with existing program
+old	file	load the program from "file"
+renumber L1,L2	renumber program starting at L1 with increment L2
+run	L1	start program running (at L1)
+save	file	save the current program in "file"
+scr		scratch the program, variables etc.
+timeoff		turn off run command timing
+timeon		turn on run command timing
+unsave	file	remove the file 
+vars		print variable names and values
+vi		use visual editor on program

@@ -1,0 +1,90 @@
+.TH GETGRENT 3
+.SH NAME
+getgrent, getgrgid, getgrnam, setgrent, endgrent \- get group file entry
+.SH SYNOPSIS
+.nf
+.B "#include <grp.h>"
+.sp
+.B "struct group *getgrent();"
+.sp
+.B "struct group *getgrgid(gid) int gid;"
+.sp
+.B "struct group *getgrnam(name) char *name;"
+.sp
+.B "int setgrent();"
+.sp
+.B "int endgrent();"
+.fi
+.SH DESCRIPTION
+.BR getgrent ,
+.BR getgrgid ,
+and
+.B getgrnam
+each return pointers to an object with
+the following structure containing the broken-out fields of a line in the
+group file.
+.PP
+.RS
+.nf
+.ta .5i 1.1i
+struct group {
+	char	*gr_name;
+	char	*gr_passwd;
+	int	gr_gid;
+	char	**gr_mem;
+};
+.fi
+.RE
+.PP
+The members of this structure are:
+.PD 0
+.TP 1i
+gr_name
+The name of the group.
+.TP
+gr_passwd
+The encrypted password of the group.
+.TP
+gr_gid
+The numerical group-ID.
+.TP
+gr_mem
+Null-terminated vector of pointers to the individual member
+names.
+.PD
+.PP
+.B getgrent
+simply reads the next line while
+.B getgrgid
+and
+.B getgrnam
+search
+until a matching
+.I gid
+or
+.I name
+is found (or until
+.B EOF
+is encountered).
+Each routine picks up where the others leave off so successive calls may
+be used to search the entire file.
+.PP
+A call to
+.B setgrent
+has the effect of rewinding the group file to allow
+repeated searches.
+.B endgrent
+may be called to close the group file when
+processing is complete.
+.SH FILES
+/etc/group
+.SH "SEE ALSO"
+getlogin(3), getpwent(3), group(4)
+.SH DIAGNOSTICS
+A null pointer (0) is returned on
+.B EOF
+or error.
+.SH BUGS
+All information is contained in a static area so it must be copied if it is
+to be saved.
+.sp

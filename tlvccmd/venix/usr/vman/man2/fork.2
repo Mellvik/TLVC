@@ -1,0 +1,55 @@
+.TH FORK 2
+.SH NAME
+fork \- spawn new process
+.SH SYNOPSIS
+.B "fork( )"
+.SH DESCRIPTION
+.B fork
+is the only way new processes are created.
+The new process' core
+image is a copy of that of the caller of
+.BR fork .
+The only distinction is the
+fact that the value returned in the old (parent) process contains the process
+ID of the new (child) process, while the value returned in the child is
+0.
+Process ID's range from 1 to 30,000.
+This process ID is used by
+.BR wait (2)
+and
+.BR kill (2).
+.PP
+Files open before the
+.B fork
+are shared, and have a common read-write
+pointer.
+In particular, this is the way that standard input and output files
+are passed and also how pipes are set up.
+.SH "SEE ALSO"
+wait(2), exec(2), kill(2)
+.SH DIAGNOSTICS
+Returns \-1 and fails to create a process if: the user is not super-user, or
+the system's process table is full.
+Only the super-user can take the last
+process-table slot.
+.SH ASSEMBLER
+(fork = 2.)
+.TP
+PDP-11:
+.nf
+sys fork
+(new process return)
+(old process return, R0 = new process ID)
+.fi
+The return locations in the old and new process differ by one
+work.
+The C-bit is set in the old process if a new process could
+not be created.
+.TP
+8086:
+.nf
+BX = 2
+int 0Xf1
+AX = 0 for child, child process ID for parent
+.fi
+.sp

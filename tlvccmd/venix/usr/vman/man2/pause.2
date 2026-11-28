@@ -1,0 +1,29 @@
+.TH PAUSE 2
+.SH NAME
+pause \- stop until signal
+.SH SYNOPSIS
+.B "pause( )"
+.SH DESCRIPTION
+.B pause
+never returns normally.
+It is used to give up control while waiting
+for a signal from
+.BR kill (2)
+or
+.BR alarm (2).
+.SH "SEE ALSO"
+kill(1), kill(2), alarm(2), signal(2), setjmp(3)
+.SH ASSEMBLER
+(pause = 29.)
+.TP
+PDP-11:
+.nf
+sys pause
+.fi
+.TP
+8086:
+.nf
+BX = 29
+int 0Xf1
+.fi
+.sp

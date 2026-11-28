@@ -1,0 +1,59 @@
+.TH ACCESS 2
+.SH NAME
+access \- determine accessibility of file
+.SH SYNOPSIS
+.nf
+.B "access(name, mode)"
+.B "char *name;"
+.fi
+.SH DESCRIPTION
+.B access
+checks the given file
+.I name
+for accessibility according to
+.IR mode ,
+which is 4 (read), 2 (write) or 1 (execute) or a combination thereof.
+Specifying mode 0 tests whether the directories leading to the file can be
+searched and the file exists.
+.PP
+An appropriate error indication is returned if
+.I name
+cannot be found or if
+any of the desired access modes would not be granted.
+On disallowed
+accesses \-1 is returned and the error code is in
+.BR errno .
+0 is returned
+from successful tests.
+.PP
+The user and group IDs with respect to which permission is checked are
+the real UID and GID of the process, so this call is useful to set-UID
+programs.
+.PP
+Notice that it is only access bits that are checked.
+A directory may be
+announced as writable by
+.BR access ,
+but an attempt to open it for writing
+will fail (although files may be created there); a file may look executable,
+but
+.B exec
+will fail unless it is in proper format.
+.SH "SEE ALSO"
+access(1), stat(2)
+.SH ASSEMBLER
+(access = 33.)
+.TP
+PDP-11:
+.nf
+sys access; name; mode
+.fi
+.TP
+8086:
+.nf
+BX = 33
+AX = name
+DX = mode
+int 0Xf1
+.fi
+.sp

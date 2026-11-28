@@ -1,0 +1,54 @@
+.TH OPEN 2
+.SH NAME
+open \- open for reading or writing
+.SH SYNOPSIS
+.nf
+.B "open(name, mode)"
+.B "char *name;"
+.fi
+.SH DESCRIPTION
+.B open
+opens the file
+.I name
+for reading (if
+.I mode
+is 0), writing (if
+.I mode
+is 1)
+or for both reading and writing (if
+.I mode
+is 2).
+.I name
+is the address of a
+string of ASCII characters representing a path name, terminated by a
+null character.
+.PP
+.B open
+returns a file descriptor which must be used in subsequent calls for
+other input-output functions on the file.
+.PP
+The file pointer is positioned at the beginning of the file (byte 0).
+.SH "SEE ALSO"
+creat(2), read(2), write(2), dup(2), close(2)
+.SH DIAGNOSTICS
+The value \-1 is returned if the file does not exist, if one of the necessary
+directories does not exist or is unreadable, if the file is not readable (resp.
+writable), or if too many files are open.
+.SH ASSEMBLER
+(open = 5.)
+.TP
+PDP-11:
+.nf
+sys open; name; mode
+R0 = file descriptor
+.fi
+.TP
+8086:
+.nf
+BX = 5
+AX = name
+DX = mode
+int 0Xf1
+AX = file descriptor
+.fi
+.sp

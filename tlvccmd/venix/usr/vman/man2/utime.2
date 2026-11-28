@@ -1,0 +1,40 @@
+.TH UTIME 2
+.SH NAME
+utime \- set file times
+.SH SYNOPSIS
+.nf
+.B "#include <sys/types.h>"
+.B "utime(file, timep)"
+.B "char *file;"
+.B "time_t timep[2];"
+.fi
+.SH DESCRIPTION
+The
+.B utime
+call uses the `accessed' and `updated' times in that order from
+the
+.I timep
+vector to set the corresponding recorded times for
+.IR file .
+.PP
+The caller must be the owner of the file or the super-user.
+.PP
+Actually, the `accessed' time is always set to the current time.
+.SH "SEE ALSO"
+stat(2)
+.SH ASSEMBLER
+(utime = 30.)
+.TP
+PDP-11:
+.nf
+sys utime; file; timep
+.fi
+.TP
+8086:
+.nf
+BX = 30
+AX = file
+DX = timep
+int 0Xf1
+.fi
+.sp

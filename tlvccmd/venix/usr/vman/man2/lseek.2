@@ -1,0 +1,87 @@
+.TH LSEEK 2
+.SH NAME
+lseek, tell \- move read/write pointer
+.SH SYNOPSIS
+.nf
+.B "long lseek(fildes, offset, whence)"
+.B "long offset;"
+.sp
+.B "long tell(fildes)"
+.fi
+.SH DESCRIPTION
+The file descriptor
+.I fildes
+refers to a file open for reading or writing.
+The
+read (resp. write) pointer for the file is set as follows:
+.RS
+.PP
+If
+.I whence
+is 0, the pointer is set to
+.I offset
+bytes.
+.PP
+If
+.I whence
+is 1, the pointer is set to its current location plus
+.IR offset .
+.PP
+If
+.I whence
+is 2, the pointer is set to the end of the file plus
+.IR offset .
+.RE
+.PP
+The returned value is the resulting pointer location.
+.PP
+The obsolete function
+\fBtell(\fIfildes\fB)\fR
+is identical to
+\fBlseek(\fIfildes\fB, 0L, 1).\fR
+.PP
+Seeking far beyond the end of a file, then writing, creates a gap or `hole',
+which occupies no physical space and reads as zeros.
+.SH "SEE ALSO"
+open(2), creat(2), fseek(3)
+.SH DIAGNOSTICS
+\-1 is returned for an undefined file descriptor, seek on a pipe, or seek to
+a position before the beginning of file.
+.SH BUGS
+.B lseek
+is a no-op on character special files.
+.SH ASSEMBLER
+(lseek = 19.)
+.TP
+PDP-11:
+.nf
+R0 = fildes
+sys lseek; offset1; offset2; whence
+.fi
+.sp
+.I offset1
+and
+.I offset2
+are the high and low words of
+.IR offset ;
+R0 and
+R1 contain the pointer upon return.
+.TP
+8086:
+.nf
+BX = 19
+AX = file descriptor
+DX = offset 1
+CX = offset 2
+SI = whence
+int 0Xf1
+.fi
+.sp
+.I offset1
+and
+.I offset2
+are the high and low words of
+.IR offset ;
+AX
+and DX contain the pointer upon return.
+.sp

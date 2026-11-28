@@ -1,0 +1,74 @@
+.TH CREAT 2
+.SH NAME
+creat \- create a new file
+.SH SYNOPSIS
+.nf
+.B "creat(name, mode)"
+.B "char *name;"
+.fi
+.SH DESCRIPTION
+.B creat
+creates a new file or prepares to rewrite an existing file called
+.IR name ,
+given as the address of a null-terminated string.
+If the file did not exist,
+it is given mode
+.IR mode ,
+as modified by the process' mode mask (see
+.BR umask (2)).
+Also see
+.BR chmod (2)
+for the construction of the
+.I mode
+argument.
+The owner ID of the file is set to the process' effective user and
+group ID.
+.PP
+The file is opened for writing only, and its file descriptor is returned.
+.PP
+If the file did exist, its mode and owner remain unchanged but it is truncated
+to 0 length.
+.PP
+The
+.I mode
+given is arbitrary; it need not allow writing.
+This feature is
+used by programs which deal with temporary files of fixed names.
+The
+creation is done with a mode that forbids writing.
+Then if a second
+instance of the program attempts a
+.BR creat ,
+an error is returned and the
+program knows that the name is unusable for the moment.
+The set-ID
+and sticky text bits can not be set by this mode; use
+.BR chmod (2)
+to accomplish
+this.
+.SH "SEE ALSO"
+write(2), close(2), chmod(2), umask(2)
+.SH DIAGNOSTICS
+The value \-1 is returned and the file not created if: a needed directory is
+not searchable; the file does not exist and the directory in which it is to
+be created is not writable; the file does exist and is unwritable; the file is
+a directory.
+If there are already too many files opened, the file is created
+but \-1 is returned.
+.SH ASSEMBLER
+(creat = 8.)
+.TP
+PDP-11:
+.nf
+sys creat; name; mode
+R0 = file descriptor
+.fi
+.TP
+8086:
+.nf
+BX = 8
+AX = name
+DX = mode
+int 0Xf1
+.fi
+.sp

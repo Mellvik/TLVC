@@ -1,0 +1,25 @@
+.TH DIR 4
+.SH NAME
+dir \- format of directories
+.SH SYNOPSIS
+.nf
+.B "#include <sys/types.h>"
+.B "#include <sys/dir.h>"
+.fi
+.SH DESCRIPTION
+A directory behaves exactly like an ordinary file, save that no user may write into a directory. The fact that a file is a directory is indicated by a bit in the flag word of its i-node entry (see
+.BR filsys (4)).
+The structure of a directory entry as given in the include file is:
+.nf
+#define DIRSIZ 14
+
+struct direct {
+        ino_t   d_ino;          /* inode number */
+        char    d_name[DIRSIZ]; /* file name */
+};
+.fi
+.PP
+By convention, the first two entries in each directory are for '.' and '..'. The first is an entry for the directory itself. The second is for the parent directory. The meaning of '..' is modified for the root directory file system. Since there is no parent, '..' has the same meaning as '.'.
+.SH "SEE ALSO"
+filsys(4)
+.sp

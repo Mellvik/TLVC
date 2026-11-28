@@ -1,0 +1,753 @@
+.TH BASIC 1
+.SH NAME
+basic \- UNIX BASIC Interpreter from University of British Columbia
+.SH SYNOPSIS
+.B basic
+[
+.B \-anrsxt
+] [ +n ] [ file ] [ plotfile ] [ args ... ]
+.SH DESCRIPTION
+.B basic
+is an ANSI compatible BASIC interpreter that runs under VENIX.
+.PP
+The following options are available:
+.TP
+.B \-a
+Abort (via IOT trap) on any error.
+Not for general use.
+.TP
+.B \-n
+Requires that variable names follow the ANSI standard of a
+letter followed by an optional digit.
+.TP
+.B \-r
+Runs the file specified.
+If
+.RI + n
+is specified also, then execution
+will start at line
+.IR n .
+Basic will exit upon completion of the program.
+.TP
+.B \-s
+Causes single precision to be used.
+Normally all floating point
+numbers are stored in double precision.
+With the
+.B \-s
+option, the
+numbers are stored as single precision, but all expressions are
+still evaluated in double precision.
+This option is most useful
+when a large floating point array is being used and there is not
+enough storage available for all of it in double precision.
+.TP
+.B \-t
+Is a debugging option that traces the operation of the interpreter.
+More
+.B \-t
+options produce more debugging output.
+.TP
+.B \-x
+Is a debugging option that suppresses the normal buffering of
+output.
+.TP
+.I file
+An optional file name that specifies a program that is to be read
+(or run if
+.B \-r
+was specified) before control is passed to the user.
+.TP
+.I args
+Is an optional list of arguments that are passed to the program via
+the ARG$ function.
+The program may then use the argument
+strings as it sees fit.
+.PP
+.B "BASIC Commands"
+.br
+The following commands are available to control the running of a
+BASIC program or interact with the system:
+.TP
+\fB!\fIcommand\fR
+causes the VENIX command
+.I command
+to be executed, and control to be returned to
+.BR basic .
+.TP
+\fBAUTO\fR [\fILINE1\fR], [\fILINE2\fR]
+causes the program to enter into automatic line numbering mode.
+Line numbering starts at
+.I LINE1
+and increments by
+.I LINE2
+for
+each line entered.
+Automatic numbering mode is terminated by
+a null line, an attention interrupt, or by any error.
+A star `*'
+will be printed if an automatically numbered line already exists
+in the program.
+To delete such a line, enter a line with at least
+one space.
+.TP
+.B BYE
+causes
+.B basic
+to exit.
+.TP
+.B CATALOG
+prints out the user's current file catalog (equivalent to
+.BR ls (1)).
+.TP
+.B CLEAR
+equivalent to
+.B "CLEAR VARS"
+plus
+.BR "CLEAR STACK" .
+This is also
+done automatically as part of the
+.B RUN
+command.
+.TP
+.B "CLEAR VARS"
+clears the variable symbol table.
+.TP
+.B "CLEAR STACK"
+clears the execution stack.
+This is necessary after a ``stack
+overflow'' error, if BASIC statements (such as ``print i'') are to
+be used.
+.TP
+\fBDEL\fR [\fILINE1\fR], [\fILINE2\fR]
+deletes
+.I LINE1
+through
+.I LINE2
+inclusive.
+It is also possible to
+delete a line by just specifying its line number.
+.TP
+.B DUMP
+displays the contents of the symbol table.
+This is mainly for
+debugging
+.B basic
+itself.
+.TP
+.B EDIT
+causes the program in memory to be written out into a scratch
+file and the system file editor
+.RB ( ed (1))
+invoked upon it.
+Any
+changes made to the program will be reflected in the memory
+version upon leaving the editor.
+.TP
+\fBLIST\fR [\fILINE1\fR], [\fILINE2\fR]
+causes the program to be listed from lines
+.I LINE1
+through
+.IR LINE2 .
+The default range is the entire program.
+.TP
+.B LOAD
+is the same as the
+.B OLD
+command.
+.TP
+\fBMERGE\fR [\fIFILE\fR]
+causes the program in
+.I FILE
+to be merged with the current program
+in memory.
+Existing lines will be replaced when duplicate
+line numbers are found.
+.TP
+\fBOLD\fR [\fIFILE\fR]
+causes the current program to be discarded, and a new program
+read in from
+.IR FILE .
+Execution may then be begun via the
+.B RUN
+command.
+Note that all previous variable names are cleared.
+.TP
+\fBRENUMBER\fR [\fILINE1\fR], [\fILINE2\fR]
+causes the program in memory to be renumbered, starting at
+.IR LINE1 ,
+with an increment of
+.IR LINE2 .
+.I LINE1
+and
+.I LINE2
+both
+default to 10.
+.TP
+\fBRUN\fR [\fILINE\fR]
+causes the program to start execution.
+If
+.I LINE
+is specified, then
+execution starts at that line number.
+.TP
+\fBSAVE\fR [\fIFILE\fR]
+causes the program in memory to be saved in
+.IR FILE .
+.I FILE
+defaults to the last name mentioned in an
+.B OLD
+or
+.B SAVE
+command.
+.TP
+.B SCR
+erases the program and then clears the symbol table.
+.TP
+\fBUNSAVE\fR [\fIFILE\fR]
+deletes (unlinks, removes) a file saved via the
+.B SAVE
+command.
+.TP
+.B VI
+is the same as
+.BR EDIT ,
+except that the visual editor
+.BR vi (1)
+is used
+instead of
+.BR ed .
+.PP
+.B "BASIC STATEMENTS"
+.br
+The following BASIC statements may be issued from a stored program
+or as a statement typed in immediate execution mode:
+.TP
+\fBCLOSE #\fIn\fR
+closes unit
+.IR n .
+It is quite legal to close a unit that has not been
+opened.
+When a program begins execution, unit 0 is opened for
+input on standard input, and unit 1 is opened for output on standard
+output.
+.TP
+\fBCHAIN\fR \fI"file"\fR [,\fIline\fR]
+replace the current program with the program in the file
+\fI"file"\fR,
+and start execution at the first line of the program, or at line
+.IR line ,
+if specified.
+Note that the
+\fI"file"\fR
+must be either a string
+expression or a string constant.
+.TP
+\fBDATA\fR \fIconstant-list\fR
+consists of one or more constants separated by commas.
+Blanks
+or tabs are not modified in DATA statements.
+.TP
+\fBDEF FN\fR \fIvar\fR(\fIargs\fR) = \fIexpr\fR
+causes a defined function
+\fB(FN \fIvar\fB)\fR
+to be defined with the given
+dummy arguments.
+When `\fBFN\fR \fIvar\fR(...)' appears in an expression
+later, the dummy arguments will have real values assigned to
+them and the value of the expression will be returned.
+.TP
+\fBDIM\fR \fIvar\fR(\fIbounds\fR), ...
+The dimensions of each of the named variables are defined by
+the bounds provided.
+Basic allows up to two dimensions for
+each vector variable.
+Note that a dimensioned variable is distinct
+from the scalar variable with the same name.
+(For example,
+.I a
+and
+.I a(i)
+are different, for all values of
+.IR i .)
+.TP
+.B END
+causes the program to terminate.
+Some BASIC versions require
+that
+.B END
+only appear on the last line of the program, but this
+restriction does not apply to VENIX
+.BR basic .
+.TP
+\fBFOR\fR \fIvar\fR = \fIexpr1\fR \fBTO\fR \fIexpr2\fR [\fBSTEP\fR \fIexpr3\fR]
+The variable specified is assigned the value of
+.IR expr1 .
+The values
+.I expr2
+and
+.I expr3
+(if specified) are evaluated and saved.
+The following statements up to the matching
+.B NEXT
+are executed until
+the value of
+.I var
+is greater than
+.IR expr2 .
+When the
+.B NEXT
+statement is executed, the value of
+.I expr3
+is added to
+.IR var .
+.I expr3
+defaults to 1, and may be negative.
+If
+.I expr3
+is negative, the
+.B FOR
+terminates when
+.I var
+is less than
+.IR expr2 .
+.TP
+\fBGOSUB\fR \fIline\fR
+causes execution to transfer to the line number specified.
+When
+a
+.B RETURN
+is executed, control will continue from the next
+statement after
+.BR GOSUB .
+.TP
+\fBGOTO\fR \fIline\fR
+causes execution to transfer to the line number specified.
+.TP
+\fBIF\fR \fIexpr\fR \fBTHEN\fR \fIstatement\fR
+If the expression
+.I expr
+is TRUE (non-zero), then
+.I statement
+will be
+executed.
+Some versions of BASIC only allow a statement
+number or a
+.B GOTO
+for
+.IR statement ,
+but here any legal statement
+is allowed, including another
+.B IF
+statement.
+Other variations of
+the
+.B IF
+statement are supported, where
+.B THEN
+is optional, and
+.I statement
+is a line number.
+.TP
+\fBINPUT\fR [#\fIn\fR,] [\fI"string"\fR,] \fIvar\fR, ...
+The variable (or variables) specified are read from the specified
+unit.
+If no unit is indicated, unit 0 is used.
+If the string is
+specified, it will be used as a prompt, as if printed via a
+.B PRINT
+statement.
+.TP
+\fBLET\fR \fIvar\fR = \fIexpr\fR
+assigns the value of
+.I expr
+to the variable
+.IR var .
+Note that
+.B LET
+is
+optional, but should be specified for compatibility with other
+BASIC's.
+.TP
+\fBNEXT\fR [\fIvar\fR]
+terminates the preceding
+.B FOR
+statement.
+The value of the
+.B FOR
+variable is incremented and if not greater than the limit, the execution
+continues at the statement following the
+.B FOR
+statement.
+.TP
+.B NOTRACE
+disables the tracing started by the
+.B TRACE
+statement.
+.TP
+\fBON\fR \fIexpr\fR \fBGOSUB\fR \fIline\fR, ...
+The value of
+.I expr
+is taken as an index into the list of line
+numbers and transfer is made to the n-th line number specified.
+.TP
+\fBOPEN\fR \fIfile\fR \fBFOR\fR [\fIINPUT/OUTPUT/APPEND\fR] #\fIn\fR
+opens the file
+.I file
+for either input or output on unit
+.IR n .
+.I file
+may
+be any string expression.
+The
+.I INPUT
+statement reads (by
+default) from unit 0, the
+.B PRINT
+statement writes by default to
+unit 1.
+.I APPEND
+is the same as
+.IR OUTPUT ,
+but writes at the end
+of the file.
+.TP
+\fBPRINT\fR [#\fIn\fR,] \fIexpr\fR [,] [;] ...
+The value of the expression is printed on the specified unit.
+If
+no unit is specified, then unit 1 is used.
+It may be either a
+number or a character string.
+If the comma is specified as a
+delimiter, the values will be aligned in fields 16 columns wide.
+If
+a semi-colon is used, there will be no spacing between fields.
+If
+there is no delimiter, the last value will be followed by a new
+line.
+A
+.B PRINT
+statement by itself will issue a
+.IR newline .
+.TP
+\fBPRINT\fR [#\fIn\fR,] \fBUSING\fR \fIfmt\fR; \fIexpr\fR [,] [;] ...
+The value of the expression is printed in the same fashion as the
+.B PRINT
+statement, except that the arithmetic expression is written
+according to the format specification
+.IR fmt .
+See the subsection
+``PRINT USING Format Specifications.''
+.TP
+\fBREAD\fR \fIvar\fR ...
+will read values (from subsequent
+.B DATA
+statements) into the
+variables given.
+An error will occur if there are insufficient
+values in
+.B DATA
+statements.
+.TP
+.B REM
+causes the following characters to be taken as a remark or comment.
+Note that the same effect can be obtained by starting a
+line with either a single or double quote.
+.TP
+.B RESTORE
+causes the next
+.B READ
+statement to start at the first
+.B DATA
+statement in the program.
+.TP
+.B RETURN
+causes control to be transferred to the statement following the
+last
+.B GOSUB
+or
+\fBON\fR \fIexpr\fR \fBGOSUB\fR
+statement.
+If there is no
+enclosing
+.BR GOSUB ,
+an error will occur.
+.TP
+.B STOP
+causes the program to terminate with an appropriate comment.
+.TP
+.B TRACE
+causes the line number of each statement to be printed as it is
+executed.
+This is sometimes helpful in following the execution
+of a program that is not behaving properly.
+.PP
+.B Variables
+.br
+In ANSI BASIC, a variable must start with a letter, and may have an
+optional digit following.
+In VENIX
+.BR basic ,
+only the first two characters
+of a variable name are considered significant; an arbitrarily long name
+may be used.
+The second character does not have to be a digit.
+.PP
+Following the name, either a
+.B %
+(percent) or
+.B $
+(dollar) sign may be
+present.
+The percent sign indicates that the variable is to hold only
+integer values.
+The dollar sign indicates that the variable is to hold
+string values.
+If neither is present, then the variable will hold floating
+point values.
+Real variables are normally double precision unless the
+.B \-s
+option is specified.
+.PP
+.B Functions
+.br
+The following standard functions are provided:
+.PP
+Those marked with an asterisk (*) are not ANSI BASIC and are a local
+implementation to facilitate communications with the VENIX operating
+system.
+.TP
+\fBABS(\fIvalue\fB)\fR
+returns the absolute value of
+.IR value .
+.TP
+\fBARG$(\fIn\fB)\fR *
+returns the
+.IR n -th
+argument specified when
+.B basic
+was opened.
+Argument zero is the name of the program file (if any).
+A null
+string will be returned if an argument is requested that was not
+specified.
+This is useful when the
+.B \-r
+option is used to run a previously
+stored program.
+.TP
+\fBATN(\fIvalue\fB)\fR
+returns the arc-tangent (in radians) function of
+.IR value .
+.TP
+\fBCHR$(\fIn\fB)\fR
+returns the ASCII character that corresponds to
+.IR n .
+.I n
+should
+normally be an integer in the range 0 \(<= n \(<= 127.
+Values in the
+range 128 \(<= n \(<= 255 are possible.
+All other values are taken
+modulo 256.
+.TP
+\fBCOS(\fIangle\fB)\fR
+returns the cosine function of
+.I angle
+in radians.
+.TP
+\fBDATE$()\fR *
+returns the current date in the format yy/mm/dd.
+.TP
+\fBEXP(\fIvalue\fB)\fR
+returns the natural anti-logarithm of
+.IR value .
+.TP
+\fBINT(\fIvalue\fB)\fR
+returns the integer value of
+.IR value .
+.TP
+\fBLEFT$(\fIstring, length\fB)\fR
+the first
+.I length
+characters of
+.I string
+are returned.
+It is an error if
+there are not
+.I length
+characters in
+.IR string .
+.TP
+\fBLOG(\fIvalue\fB)\fR
+returns the natural logarithm of
+.IR value .
+.TP
+\fBMID$(\fIstring,start, length\fB)\fR
+The middle
+.I length
+characters of
+.I string
+starting at offset
+.I start
+(1
+= first character) are returned.
+It is an error if there are not
+.I length
+characters in
+.I string
+after
+.IR start .
+.TP
+\fBRIGHT$(\fIstring, length\fB)\fR
+The last
+.I length
+characters of
+.I string
+are returned.
+It is an error if
+there are not
+.I length
+characters in
+.IR string .
+.TP
+\fBSIN(\fIangle\fB)\fR
+returns the sine function of
+.I angle
+in radians.
+.TP
+\fBSQR(\fIvalue\fB)\fR
+returns the square root of
+.IR value .
+.TP
+\fBSYS(\fIn\fB)\fR *
+executes system function
+.IR n ,
+as follows:
+.RS
+.nf
+.ta 1.5i 2i
+	1	turn off input echoing
+	2	turn on input echoing
+	3	get one character from keyboard
+	4	print symbol table
+	5	not implemented
+	6	not implemented
+	7	exit from \fBbasic\fP interpreter
+.fi
+.RE
+.TP
+\fBSYSTEM(\fI"string"\fB)\fR *
+executes
+\fI"string"\fR
+as a system (VENIX) command, and returns its
+exit status.
+Zero means the command terminated properly.
+.TP
+\fBTAN(\fIangle\fB)\fR
+returns the tangent function of
+.I angle
+in radians.
+.TP
+\fBTIME$()\fR
+returns the current time in hh:mm:ss format.
+.PP
+.B OPERATORS
+.br
+The following operators are available:
+.TP
++
+adds two numeric operands together.
+Concatenates two strings.
+.TP
+\-
+subtraction.
+.TP
+*
+multiplication.
+.TP
+/
+division.
+.TP
+^
+exponentiation.
+.TP
+<>
+not equal comparison.
+.TP
+=
+equal comparison, also assignment operator.
+.TP
+<
+less than comparison.
+.TP
+>
+greater than comparison.
+.TP
+<=
+less than or equal comparison.
+.TP
+>=
+greater than or equal comparison.
+.TP
+.B AND
+logical
+.B AND
+of two comparisons.
+.TP
+.B OR
+logical
+.B OR
+of two comparisons.
+.PP
+.B "PRINT USING Format Specifications"
+.br
+The
+.B "PRINT USING"
+statement format has the following general format
+([ and ] enclose optional features):
+.PP
+[+][**][$$]###[,]###[,]###.##[+]
+.PP
+The characters have the following meanings:
+.TP
+.B #
+indicates that a digit may be placed there.
+.TP
+.B \&.
+indicates a decimal point.
+.TP
++
+indicates a sign may be placed before (or after) the number.
+.TP
+.B **
+causes leading zeros to be replaced with asterisk fill.
+(Normally
+blanks are used).
+.TP
+.B $$
+causes a dollar sign to be placed at the start of the number.
+.TP
+.B ,
+A comma is inserted into the number if any digits have been
+printed.
+Unlike some versions of BASIC, the position of the
+comma is significant.
+.SH FILES
+.nf
+.ta 1.4i
+/usr/bin/basic	\fBbasic\fP interpreter
+/bin/ed	\fBed\fP command editor
+/bin/vi	\fBvi\fP command editor
+/tmp/Ba*	\fBed\fP or \fBvi\fP temporary files
+.fi
+.SH BUGS
+The
+.B MAT
+operation is not implemented.
+.br
+The
+.B "PRINT USING"
+implements only a minimal subset of the normal
+facilities.
+.sp

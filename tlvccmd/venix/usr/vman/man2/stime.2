@@ -1,0 +1,37 @@
+.TH STIME 2
+.SH NAME
+stime \- set time
+.SH SYNOPSIS
+.nf
+.B "stime(tp)"
+.B "long *tp;"
+.fi
+.SH DESCRIPTION
+.B stime
+sets the system's idea of the time and date.
+Time, pointed to by
+.IR tp ,
+is measured in seconds from 00:00:00 GMT Jan 1, 1970.
+Only the
+super-user may use this call.
+.SH "SEE ALSO"
+date(1), time(2), ctime(3)
+.SH DIAGNOSTICS
+Zero is returned if the time was set; \-1 if user is not the super-user.
+.SH ASSEMBLER
+(stime = 25.)
+.TP
+PDP-11:
+.nf
+R0, R1 = time
+sys stime
+.fi
+.TP
+8086:
+.nf
+BX = 25
+AX = time1
+DX = time2
+int 0Xf1
+.fi
+.sp

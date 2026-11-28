@@ -1,0 +1,45 @@
+.TH FREAD 3S
+.SH NAME
+fread, fwrite \- buffered binary input/output
+.SH SYNOPSIS
+.nf
+.B "#include <stdio.h>"
+.sp
+.B "fread(ptr, sizeof(*ptr), nitems, stream)"
+.B "FILE *stream;"
+.sp
+.B "fwrite(ptr, sizeof(*ptr), nitems, stream)"
+.B "FILE *stream;"
+.fi
+.SH DESCRIPTION
+.B fread
+reads, into a block beginning at
+.IR ptr ,
+.I nitems
+of data of the type of
+.I *ptr
+from the named input
+.IR stream .
+It returns the number of items actually
+read.
+.PP
+.B fwrite
+appends at most
+.I nitems
+of data of the type of
+.I *ptr
+beginning at
+.I ptr
+to the named output
+.IR stream .
+It returns the number of items actually
+written.
+.SH "SEE ALSO"
+read(2), write(2), fopen(3), getc(3), putc(3), gets(3), puts(3), printf(3),
+scanf(3)
+.SH DIAGNOSTICS
+.B fread
+and
+.B fwrite
+return 0 upon end of file or error.
+.sp

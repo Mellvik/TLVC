@@ -1,0 +1,38 @@
+.TH LOCK 2
+.SH NAME
+lock \- lock a process in primary memory
+.SH SYNOPSIS
+.B lock(flag)
+.SH DESCRIPTION
+If the
+.I flag
+argument is non-zero, the process executing this call will not
+be swapped out of memory except if it is required to grow.
+If the argument
+is zero, the process is
+.RB un lock ed.
+This call may only be executed by
+the super-user or if the caller's group ID is zero.
+.PP
+Processes are removed from memory when they exit.
+.SH BUGS
+.BR lock ed
+processes interfere with the compaction of primary memory and
+can cause deadlock.
+.SH DIAGNOSTICS
+Zero is returned if the call is successful; \-1 if not.
+.SH ASSEMBLER
+(lock = 53.)
+.TP
+PDP-11:
+.nf
+sys lock; flag
+.fi
+.TP
+8086:
+.nf
+BX = 53
+AX = flag
+int 0Xf1
+.fi
+.sp

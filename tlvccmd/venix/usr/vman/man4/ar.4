@@ -1,0 +1,35 @@
+.TH AR 4
+.SH NAME
+ar \- archive (library) file format
+.SH SYNOPSIS
+.nf
+.B "#include <ar.h>"
+.fi
+.SH DESCRIPTION
+The archive command
+.BR ar (1)
+is used to combine several files into one.
+Archives are used mainly as libraries to be searched by the link-editor
+.BR ld (1).
+.PP
+A file produced by
+\fBar\fR has a magic number at the start, followed by the constituent files, each preceded by a file header. The magic number and header layout as described in the include file are:
+.nf
+#define ARMAG   "!<arch>\en"
+#define SARMAG  8
+
+#define ARFMAG  "`\en"
+
+struct ar_hdr {
+        char    ar_name[16];
+        char    ar_date[12];
+        char    ar_uid[6];
+        char    ar_gid[6];
+        char    ar_mode[8];
+        char    ar_size[10];
+        char    ar_fmag[2];
+};
+.fi
+.SH "SEE ALSO"
+ar(1), ld(1), nm(1)
+.sp

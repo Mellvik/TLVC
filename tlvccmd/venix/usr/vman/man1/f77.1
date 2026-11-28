@@ -1,0 +1,151 @@
+.TH F77 1
+.SH NAME
+f77 \- Fortran 77 compiler
+.SH SYNOPSIS
+.B f77
+[ option ] ... file ...
+.SH DESCRIPTION
+.B f77
+is the VENIX Fortran 77 compiler.
+It accepts several types of arguments:
+.PP
+Arguments whose names end with `.f' are taken to be Fortran 77 source
+programs; they are compiled, and each object program is left on the file
+in the current directory whose name is that of the source with `.o' substituted
+for `.f'.
+.PP
+Arguments whose names end with `.r' are taken to be Ratfor source programs;
+these are first transformed by the
+.BR ratfor (1)
+preprocessor, then
+compiled by
+.BR f77 .
+.PP
+In the same way, arguments whose names end with `.c' or `.s' are taken
+to be C or assembly source programs and are compiled or assembled,
+producing a `.o' file.
+.PP
+The following options have the same meaning as in
+.BR cc (1).
+See
+.BR ld (1)
+for load-time options.
+.TP
+.B \-c
+Suppress loading and produce `.o' files for each source file.
+.TP
+.B \-p
+Prepare object files for profiling, see
+.BR prof (1).
+.TP
+.B \-O
+Invoke an object-code optimizer.
+.TP
+.B \-S
+Compile the named programs, and leave the assembler-language
+output on corresponding files suffixed `.s'.
+(No `.o' is created).
+.TP
+.B \-f
+Use a floating point interpreter (for PDP-11's that lack floating
+point hardware).
+.TP
+.BI "\-o " output
+Name the final output file
+.I output
+instead of
+.BR a.out .
+.PP
+The following options are peculiar to
+.BR f77 .
+.TP
+.B \-onetrip
+Compile DO loops that are performed at least once if reached.
+(Fortran 77 DO loops are not performed at all if the upper limit
+is smaller than the lower limit.)
+.TP
+.B \-u
+Make the default type of a variable `undefined' rather than using
+the default Fortran rules.
+.TP
+.B \-C
+Compile code to check that subscripts are within declared array
+bounds.
+.TP
+.B \-w
+Suppress all warning messages.
+If the option is
+.BR \-w66 ,
+only Fortran 66 compatibility warnings are suppressed.
+.TP
+.B \-F
+Apply the Ratfor preprocessor to relevant files, put the result in
+the file with the suffix changed to `.f', but do not compile.
+.TP
+.B \-m
+Apply the M4 preprocessor to each `.r' file before transforming it
+with the Ratfor preprocessor.
+.TP
+.BI \-R x
+Use the string
+.I x
+as a Ratfor option in processing `.r' files.
+.PP
+Other arguments are taken to be either loader option arguments, or
+.BR f77 -compatible
+object programs, typically produced by an earlier run, or
+perhaps libraries of
+.BR f77 -compatible
+routines.
+These programs, together
+with the results of any compilations specified, are loaded (in the order
+given) to produce an executable program with name
+.BR a.out .
+.SH EXAMPLES
+Compile program
+.I prog.f
+into executable file
+.IR prog :
+.IP
+f77 \-o prog prog.f
+.PP
+Compile program
+.I "main.f part1.f part2.f"
+into object module:
+.IP
+f77 \-c main.f part1.f part2.f
+.PP
+Produce executable file
+.I prog
+from object modules
+.IP
+f77 \-o prog main.o part1.o part2.o
+.SH FILES
+Note that file placement in /lib vs /usr/lib may change.
+.nf
+.ta 1.6i
+file.[fresc]	input file
+file.o	object file
+a.out	loaded output
+/lib/f77pass1	compiler
+/lib/f77pass2	pass 2
+/lib/copt	optional optimizer
+/usr/lib/libF77.a	intrinsic function library
+/usr/lib/libI77.a	Fortran I/O library
+/lib/libc.a	C library, see section 3
+ratfor(1)	Ratfor preprocessor
+.fi
+.SH "SEE ALSO"
+``Fortran 77'' in the
+.IR "Programming Guide" .
+.br
+prof(1), cc(1), ld(1)
+.SH DIAGNOSTICS
+The diagnostics produced by
+.B f77
+itself are intended to be self-explanatory.
+Occasional messages may be produced by the loader.
+.SH BUGS
+The Fortran 66 subset of the language has been exercised extensively; the
+newer features have not.
+.sp

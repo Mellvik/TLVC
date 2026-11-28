@@ -1,0 +1,26 @@
+.TH RAND 3
+.SH NAME
+rand, srand \- random number generator
+.SH SYNOPSIS
+.nf
+.B "srand(seed)"
+.B "int seed;"
+.sp
+.B "rand( )"
+.fi
+.SH DESCRIPTION
+.B rand
+uses a multiplicative congruential random number generator with
+period 2**32 to return successive pseudo-random numbers in the range from
+0 to 2**15\-1.
+.PP
+The generator is reinitialized by calling
+.B srand
+with 1 as argument.
+It can
+be set to a random starting point by calling
+.B srand
+with whatever you like
+as argument.
+(The current time is not a bad choice).
+.sp

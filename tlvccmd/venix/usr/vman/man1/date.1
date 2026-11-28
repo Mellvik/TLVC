@@ -1,0 +1,59 @@
+.TH DATE 1
+.SH NAME
+date \- print and set the date
+.SH SYNOPSIS
+.B "date [ \-l ] [ yymmddhhmm [.ss] ]"
+.SH DESCRIPTION
+If no argument is given, the current date and time are printed.
+If an argument is given, the current date is set.
+.I yy
+is the last two digits of the year; the first
+.I mm
+is the month number;
+.I dd
+is the day number in the month;
+.I hh
+is the hour number (24 hour system); the second
+.I mm
+is the minute number;
+.I .ss
+is optional and is the seconds.
+The year, month and day may be omitted, the current values being the defaults.
+The system operates in GMT.
+.B date
+takes care of the conversion to and from local standard and daylight time.
+.PP
+The
+.B \-l
+flag causes the current date to be loaded from the DEC Professional battery backed-up clock (PRO/VENIX only).
+This clock maintains the correct date even when the hardware is turned off, so that the system administrator need not set the date himself.
+Normally,
+.B `date \-l'
+is executed from the
+.B /etc/rc
+file on boot-up.
+.SH EXAMPLES
+Set the date to Oct 8, 12:45 AM.
+.RS
+.nf
+date 10080045
+.fi
+.RE
+Print today's date:
+.RS
+.nf
+date
+.fi
+.RE
+.SH FILES
+.TP 20
+.B /usr/adm/wtmp
+to record time-setting
+.SH "SEE ALSO"
+utmp(4)
+.SH DIAGNOSTICS
+`No permission' if you aren't the super-user and you try to change the date; `bad conversion' if the date set is syntactically incorrect.
+The
+.B \-l
+flag will produce an error if the battery backed-up clock is unreliable (usually due to power being off for a prolonged period), in which case the date must be set manually.
+.sp

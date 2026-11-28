@@ -1,0 +1,27 @@
+.TH HYPOT 3M
+.SH NAME
+hypot, cabs \- euclidean distance
+.SH SYNOPSIS
+.nf
+.B "#include <math.h>"
+.sp
+.B "double hypot(x, y)"
+.B "double x, y;"
+.sp
+.B "double cabs(z)"
+.B "struct { double x, y;} z;"
+.fi
+.SH DESCRIPTION
+.B hypot
+and
+.B cabs
+return
+.PP
+.ce
+\fBsqrt(\fIx*x + y*y\fB),\fR
+.PP
+taking precautions against unwarranted overflows.
+.SH "SEE ALSO"
+exp(3) for
+.B sqrt
+.sp

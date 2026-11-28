@@ -1,0 +1,595 @@
+.TH ED 1
+.SH NAME
+ed \- text editor
+.SH SYNOPSIS
+.B "ed [ \- ] [ \-x ] [ name ]"
+.SH DESCRIPTION
+.B ed
+is the standard line-oriented text editor.
+It is an alternative to
+.BR vi (1)
+and used chiefly with hard-copy terminals.
+.PP
+.B ed
+is more fully described in
+.I "Introducing the UNIX System,"
+chapter 7, by Henry McGilton and Rachel Morgan.
+This tutorial is recommended reading for new users.
+.PP
+If a
+.I name
+argument is given,
+.B ed
+simulates an
+.B e
+command (see below) on the named file; that is to say, the file is read into
+.BR ed 's
+buffer so that it can be edited.
+If
+.B \-x
+is present, an
+.B x
+command is simulated first to handle an encrypted file.
+The optional `\-' suppresses the printing of character counts by
+.BR e ,
+.BR r ,
+and
+.B w
+commands.
+.PP
+.B ed
+operates on a copy of any file it is editing; changes made in the copy have no effect on the file until a
+.B w
+(write) command is given.
+The copy of the text being edited resides in a temporary file called the
+.IR buffer .
+.PP
+Commands to
+.B ed
+have a simple and regular structure: zero or more
+.I addresses
+followed by a single character
+.IR command ,
+possibly followed by parameters to the command.
+These addresses specify one or more lines in the buffer.
+Missing addresses are supplied by default.
+.PP
+In general, only one command may appear on a line.
+Certain commands allow the addition of text to the buffer.
+While
+.B ed
+is accepting text, it is said to be in
+.IR "input mode" .
+In this mode, no commands are recognized; all input is merely collected.
+Input mode is left by typing a period `.' alone at the beginning of a line.
+.PP
+.B ed
+supports a limited form of
+.I "regular expression"
+notation.
+A regular expression specifies a set of strings of characters.
+A member of this set of strings is said to be
+.I matched
+by the regular expression.
+In the following specification for regular expressions the word `character' means any character but newline.
+.TP 4
+1.
+Any character except a special character matches itself.
+Special characters are the regular expression delimiter plus \e[ and sometimes ^ * $.
+.TP 4
+2.
+A
+.B .
+matches any character.
+.TP 4
+3.
+A
+.B \e
+followed by any character except a digit or () matches that character.
+.TP 4
+4.
+A nonempty string
+.I s
+bracketed [s] (or [^s]) matches any character in (or not in)
+.IR s .
+In
+.IR s ,
+.B \e
+has no special meaning, and
+.B ]
+may only appear as the first letter.
+A substring
+.IR a \- b ,
+with
+.I a
+and
+.I b
+in ascending ASCII order, stands for the inclusive range of ASCII characters.
+.TP 4
+5.
+A regular expression of form 1\-4 followed by
+.B *
+matches a sequence of 0 or more matches of the regular expression.
+.TP 4
+6.
+A regular expression,
+.IR x ,
+of form 1\-8, bracketed
+.B \e( x \e)
+matches what
+.I x
+matches.
+.TP 4
+7.
+A
+.B \e
+followed by a digit
+.I n
+matches a copy of the string that the bracketed regular expression beginning with the
+.IR n -th
+.B \e(
+matched.
+.TP 4
+8.
+A regular expression of form 1\-8,
+.IR x ,
+followed by a regular expression of form 1\-7,
+.IR y ,
+matches a match for
+.I x
+followed by a match for
+.IR y ,
+with the
+.I x
+match being as long as possible while still permitting a
+.I y
+match.
+.TP 4
+9.
+A regular expression of form 1\-8 preceded by
+.B ^
+(or followed by $), is constrained to matches that begin at the left (or end at the right) end of a line.
+.TP 4
+10.
+A regular expression of form 1\-9 picks out the longest among the leftmost matches in a line.
+.TP 4
+11.
+An empty regular expression stands for a copy of the last regular expression encountered.
+.PP
+Regular expressions are used in addresses to specify lines and in one command
+(see
+.B s
+below) to specify a portion of a line which is to be replaced.
+If it is desired to use one of the regular expression metacharacters as an ordinary character, that character may be preceded by `\e'.
+This also applies to the character bounding the regular expression (often `/') and to `\e' itself.
+.PP
+To understand addressing in
+.B ed
+it is necessary to know that at any time there is a
+.IR "current line" .
+Generally speaking, the current line is the last line affected by a command; however, the exact effect on the current line is discussed under the description of the command.
+Addresses are constructed as follows.
+.TP 4
+1.
+The character `.' addresses the current line.
+.TP 4
+2.
+The character `$' addresses the last line of the buffer.
+.TP 4
+3.
+A decimal number
+.I n
+addresses the
+.IR n -th
+line of the buffer.
+.TP 4
+4.
+`x addresses the line marked with the name
+.IR x ,
+which must be a lower-case letter.
+Lines are marked with the
+.B k
+command described below.
+.TP 4
+5.
+A regular expression enclosed in slashes `/' addresses the line found by searching forward from the current line and stopping at the first line containing a string that matches the regular expression.
+If necessary the search wraps around to the beginning of the buffer.
+.TP 4
+6.
+A regular expression enclosed in queries `?' addresses the line found by searching backward from the current line and stopping at the first line containing a string that matches the regular expression.
+If necessary the search wraps around to the end of the buffer.
+.TP 4
+7.
+An address followed by a plus sign `+' or a minus sign `\-' followed by a decimal number specifies that address plus (resp. minus) the indicated number of lines.
+The plus sign may be omitted.
+.TP 4
+8.
+If an address begins with `+' or `\-' the addition or subtraction is taken with respect to the current line; e.g. `\-5' is understood to mean `.\-5'.
+.TP 4
+9.
+If an address ends with `+' or `\-', then 1 is added (resp. subtracted).
+As a consequence of this rule and rule 8, the address `\-' refers to the line before the current line.
+Moreover, trailing `+' and `\-' characters have cumulative effect, so `\-\-' refers to the current line less 2.
+.TP 4
+10.
+To maintain compatibility with earlier versions of the editor, the character `^' in addresses is equivalent to `\-'.
+.PP
+Commands may require zero, one, or two addresses.
+Commands which require no addresses regard the presence of an address as an error.
+Commands which accept one or two addresses assume default addresses when insufficient are given.
+If more addresses are given than such a command requires, the last one or two (depending on what is accepted) are used.
+.PP
+Addresses are separated from each other typically by a comma `,'.
+They may also be separated by a semicolon `;'.
+In this case the current line `.' is set to the previous address before the next address is interpreted.
+This feature can be used to determine the starting line for forward and backward searches (`/', `?').
+The second address of any two-address sequence must correspond to a line following the line corresponding to the first address.
+.PP
+In the following list of
+.B ed
+commands, the default addresses are shown in parentheses.
+The parentheses are not part of the address, but are used to show that the given addresses are the default.
+.PP
+As mentioned, it is generally illegal for more than one command to appear on a line.
+However, most commands may be suffixed by `p' or by `l', in which case the current line is either printed or listed respectively in the way discussed below.
+.PP
+.nf
+(.)a
+<text>
+.fi
+.RS
+The append command reads the given text and appends it after the addressed line.
+`.' is left on the last line input, if there were any, otherwise at the addressed line.
+Address `0' is legal for this command; text is placed at the beginning of the buffer.
+.RE
+.PP
+.nf
+(.,.)c
+<text>
+.fi
+.RS
+The change command deletes the addressed lines, then accepts input text which replaces these lines.
+`.' is left at the last line input; if there were none, it is left at the line preceding the deleted lines.
+.RE
+.PP
+.nf
+(.,.)d
+.fi
+.RS
+The delete command deletes the addressed lines from the buffer.
+The line originally after the last line deleted becomes the current line; if the lines deleted were originally at the end, the new last line becomes the current line.
+.RE
+.PP
+.B e filename
+.RS
+The edit command causes the entire contents of the buffer to be deleted, and then the named file to be read in.
+`.' is set to the last line of the buffer.
+The number of characters read is typed.
+`filename' is remembered for possible use as a default file name in a subsequent
+.B r
+or
+.B w
+command.
+If `filename' is missing, the remembered name is used.
+.RE
+.PP
+.B E filename
+.RS
+This command is the same as
+.BR e ,
+except that no diagnostic results when no
+.B w
+has been given since the last buffer alteration.
+.RE
+.PP
+.B f filename
+.RS
+The filename command prints the currently remembered file name.
+If `filename' is given, the currently remembered file name is changed to `filename'.
+.RE
+.PP
+.nf
+(1,$)g/regular expression/command list
+.fi
+.RS
+In the global command, the first step is to mark every line which matches the given regular expression.
+Then for every such line, the given command list is executed with `.' initially set to that line.
+A single command or the first of multiple commands appears on the same line with the global command.
+All lines of a multi-line list except the last line must be ended with `\e'.
+.BR A ,
+.BR i ,
+and
+.B c
+commands and associated input are permitted; the `.' terminating input mode may be omitted if it would be on the last line of the command list.
+The commands
+.B g
+and
+.B v
+are not permitted in the command list.
+.RE
+.PP
+.nf
+(.)i
+<text>
+.fi
+.RS
+This command inserts the given text before the addressed line.
+`.' is left at the last line input, or, if there were none, at the line before the addressed line.
+This command differs from the
+.B a
+command only in the placement of the text.
+.RE
+.PP
+.nf
+(.,.+1)j
+.fi
+.RS
+This command joins the addressed lines into a single line; intermediate newlines simply disappear.
+`.' is left at the resulting line.
+.RE
+.PP
+.nf
+(.)kx
+.fi
+.RS
+The mark command marks the addressed line with name
+.IR x ,
+which must be a lower-case letter.
+The address form `x' then addresses this line.
+.RE
+.PP
+.nf
+(.,.)l
+.fi
+.RS
+The list command prints the addressed lines in an unambiguous way: non-graphic characters are printed in two-digit octal, and long lines are folded.
+The
+.B l
+command may be placed on the same line after any non-I/O command.
+.RE
+.PP
+.nf
+(.,.)ma
+.fi
+.RS
+The move command repositions the addressed lines after the line addressed by
+.IR a .
+The last of the moved lines becomes the current line.
+.RE
+.PP
+.nf
+(.,.)p
+.fi
+.RS
+The print command prints the addressed lines.
+`.' is left at the last line printed.
+The
+.B p
+command may be placed on the same line after any non-I/O command.
+.RE
+.PP
+.nf
+(.,.)P
+.fi
+.RS
+This command is a synonym for
+.BR p .
+.RE
+.PP
+.B q
+.RS
+The quit command causes
+.B ed
+to exit.
+No automatic write of a file is done.
+.RE
+.PP
+.B Q
+.RS
+This command is the same as
+.BR q ,
+except that no diagnostic results when no
+.B w
+has been given since the last buffer alteration.
+.RE
+.PP
+.nf
+($)r filename
+.fi
+.RS
+The read command reads in the given file after the addressed line.
+If no file name is given, the remembered file name, if any, is used (see
+.B e
+and
+.B f
+commands).
+The file name is remembered if there was no remembered file name already.
+Address `0' is legal for
+.B r
+and causes the file to be read at the beginning of the buffer.
+If the read is successful, the number of characters read is typed.
+`.' is left at the last line read in from the file.
+.RE
+.PP
+.nf
+(.,.)s/regular expression/replacement/
+or,
+(.,.)s/regular expression/replacement/g
+.fi
+.RS
+The substitute command searches each addressed line for an occurrence of the specified regular expression.
+On each line in which a match is found, all matched strings are replaced by the replacement specified, if the global replacement indicator `g' appears after the command.
+If the global indicator does not appear, only the first occurrence of the matched string is replaced.
+It is an error for the substitution to fail on all addressed lines.
+Any character other than space or new-line may be used instead of `/' to delimit the regular expression and the replacement.
+`.' is left at the last line substituted.
+.PP
+An ampersand `&' appearing in the replacement is replaced by the string matching the regular expression.
+The special meaning of `&' in this context may be suppressed by preceding it by `\e'.
+The characters `\e\fIn\fR' where
+.I n
+is a digit, are replaced by the text matched by the
+.IR n -th
+regular subexpression enclosed between `\e(' and `\e)'.
+When nested, parenthesized subexpressions are present,
+.I n
+is determined by counting occurrences of `\e(' starting from the left.
+.PP
+Lines may be split by substituting new-line characters into them.
+The new-line in the replacement string must be escaped by preceding it by `\e'.
+.RE
+.PP
+.nf
+(.,.)ta
+.fi
+.RS
+This command acts just like the
+.B m
+command, except that a copy of the addressed lines is placed after address
+.I a
+(which may be 0).
+`.' is left on the last line of the copy.
+.RE
+.PP
+.nf
+(.,.)u
+.fi
+.RS
+The undo command restores the preceding contents of the current line, which must be the last line in which a substitution was made.
+.RE
+.PP
+.nf
+(1,$)v/regular expression/command list
+.fi
+.RS
+This command is the same as the global command
+.B g
+except that the command list is executed with `.' initially set to every line
+.I except
+those matching the regular expression.
+.RE
+.PP
+.nf
+(1,$)w filename
+.fi
+.RS
+The write command writes the addressed lines onto the given file.
+If the file does not exist, it is created mode 666 (readable and writable by everyone).
+The file name is remembered if there was no remembered file name already.
+If no file name is given, the remembered file name, if any, is used (see
+.B e
+and
+.B f
+commands).
+`.' is unchanged.
+If the command is successful, the number of characters written is printed.
+.RE
+.PP
+.nf
+(1,$)W filename
+.fi
+.RS
+This command is the same as
+.BR w ,
+except that the addressed lines are appended to the file.
+.RE
+.PP
+.B x
+.RS
+A key string is demanded from the standard input.
+Later
+.BR r ,
+.B e
+and
+.B w
+commands will encrypt and decrypt the text with this key by the algorithm of
+.BR crypt (1).
+An explicitly empty key turns off encryption.
+.RE
+.PP
+.nf
+($)=
+.fi
+.RS
+The line number of the addressed line is typed.
+`.' is unchanged by this command.
+.RE
+.PP
+.nf
+!<shell command>
+.fi
+.RS
+The remainder of the line after the `!' is sent to
+.BR sh (1)
+to be interpreted as a command.
+`.' is unchanged.
+.RE
+.PP
+.nf
+(.+1)<newline>
+.fi
+.RS
+An address alone on a line causes the addressed line to be printed.
+A blank line alone is equivalent to `.+1p'; it is useful for stepping through text.
+.RE
+.PP
+If an interrupt signal (^C) is sent,
+.B ed
+prints a `?' and returns to its command level.
+.PP
+Some size limitations: 512 characters per line, 256 characters per global command list, 64 characters per file name, and 128K characters in the temporary file.
+The limit on the number of lines depends on the amount of core: each line takes 1 word.
+.PP
+When reading a file,
+.B ed
+discards ASCII NUL characters and all characters after the last newline.
+It refuses to read files containing non-ASCII characters.
+.SH FILES
+.TP 20
+.B /tmp/e*
+temporary files
+.TP
+.B ed.hup
+work is saved here if terminal hangs up
+.TP
+.B /usr/lib/makekey
+used for encryption
+.SH "SEE ALSO"
+McGilton & Morgan,
+.I "Introducing the UNIX System."
+1983
+``Advanced Editing'' in the
+.I "Document Processing Guide"
+.br
+ex(1), vi(1), sed(1), crypt(1)
+.SH DIAGNOSTICS
+`?name' for inaccessible file; `?' for errors in commands; `?TMP' for temporary file overflow.
+.PP
+To protect against throwing away valuable work, a
+.B q
+or
+.B e
+command is considered to be in error, unless a
+.B w
+has occurred since the last buffer change.
+A second
+.B q
+or
+.B e
+will be obeyed regardless.
+.SH BUGS
+The
+.B l
+command mishandles DEL.
+.br
+A
+.B !
+command cannot be subject to a
+.B g
+command.
+.br
+Because 0 is an illegal address for a
+.B w
+command, it is not possible to create an empty file with
+.BR ed .
+.sp

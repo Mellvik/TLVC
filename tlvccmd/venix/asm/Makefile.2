@@ -1,0 +1,107 @@
+#
+# Makefile for venix to tlvc tool conversion
+#
+BINDIR=./bin
+VBINDIR=./venixbin
+VLIBDIR=./venixlib
+DISASM=
+LIBC_PATH=../../libc/build-ml/elkslibc/medium/stdio/
+CRT0=$(TOPDIR)/libc/build-ml/elkslibc/crt0.o
+NOLIB_FLAGS=-melks-libc -mcmodel=small -nostdlib $(CRT0)
+LIB_FLAGS=-melks-libc -mcmodel=small
+BASEDIR=..
+
+include $(BASEDIR)/Makefile-rules
+
+###############################################################################
+
+
+PRGS = \
+	uuencode \
+	sync \
+	cat \
+	uux \
+	sum \
+#	dd \
+#	vi \
+	# EOL
+
+uuencode.o: uuencode.s
+	$(LD) -c uuencode.s -o uuencode.o
+
+uuencode: uuencode.o
+	$(LD) $(NOLIB_FLAGS) -o uuencode uuencode.o
+
+cc.o: cc.s
+	$(LD) -c cc.s -o cc.o
+
+cc: cc.o
+	$(LD) -melks-libc -mcmodel=small -o cc cc.o
+
+syscalltst.o: syscalltst.s
+	$(LD) -c syscalltst.s -o syscalltst.o
+
+syscalltst: syscalltst.o
+	$(LD) $(NOLIB_FLAGS) -o syscalltst syscalltst.o 
+
+nm.o: nm.s
+	$(LD) -c nm.s -o nm.o
+
+nm: nm.o
+	$(LD) $(NOLIB_FLAGS) -o nm nm.o 
+
+awk.o: awk.s
+	$(LD) -c awk.s -o awk.o
+
+awk: awk.o
+	$(LD) $(NOLIB_FLAGS) -o awk awk.o 
+
+uux.o: uux.s
+	$(LD) -c uux.s -o uux.o
+
+uux: uux.o
+	$(LD) -melks-libc -mcmodel=small -nostdlib -o uux $(CRT0) uux.o
+
+sum.o: sum.s
+	$(LD) -c sum.s -o sum.o
+
+sum: sum.o
+	$(LD) -melks-libc -mcmodel=small -nostdlib -o sum $(CRT0) sum.o
+
+ld.o: ld.s
+	$(LD) -c ld.s -o ld.o
+
+ld: ld.o
+	$(LD) $(NOLIB_FLAGS) -o ld ld.o
+
+as.o: as_tlvc.s
+	$(LD) -c as_tlvc.s -o as.o
+
+as: as.o
+	$(LD) -melks-libc -mcmodel=small -nostdlib -o as $(CRT0) as.o
+
+dd.o: dd.s
+	$(LD) -c dd.s -o dd.o
+
+dd: dd.o
+	$(LD) -melks-libc -mcmodel=small -nostdlib -o dd $(CRT0) dd.o
+
+cat.o: cat.s
+	$(LD) -c cat.s -o cat.o
+
+cat: cat.o
+	$(LD) -melks-libc -mcmodel=small -nostdlib -o cat $(CRT0) cat.o
+
+sync.o: sync.s
+	$(LD) -c sync.s -o sync.o
+
+sync: sync.o
+	$(LD) -melks-libc -mcmodel=small -nostdlib -o sync $(CRT0) sync.o
+
+all: $(PRGS)
+
+install: $(PRGS)
+	$(INSTALL) $(PRGS) $(DESTDIR)/bin
+
+clean:
+	rm -f *.o core $(PRGS)

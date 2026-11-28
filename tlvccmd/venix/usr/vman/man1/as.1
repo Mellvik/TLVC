@@ -1,0 +1,184 @@
+.TH AS 1 "RAINBOW/VENIX Only"
+.SH NAME
+as \- assembler
+.SH SYNOPSIS
+.B VENIX/11 and PRO/VENIX
+.br
+.B as
+[
+.B \-
+] [
+.B \-m
+] [
+.B \-o
+objfile ] file ...
+.PP
+.B RAINBOW/VENIX
+.br
+.B as
+file[.s]
+.SH DESCRIPTION
+.B as
+is the VENIX assembler.
+The primary purpose of this assembler is to
+be used by the C or Fortran compilers; it is not normally executed
+directly by the user.
+Assembler listing of C or Fortran may be generated
+by using the
+.B \-S
+flag with
+.B cc
+or
+.BR f77 .
+.TP
+.B \-
+All undefined symbols are treated as global.
+(VENIX/11 and PRO/VENIX only).
+.TP
+.B \-m
+``Code-mapping'' (memory overlaying) is to be used.
+This alters the assembly output format slightly.
+This flag may in fact be used at all times under VENIX,
+whether or not code-mapping is actually invoked at load-time.
+However, it will cause incompatibilities with other PDP-11 UNIX assemblers.
+(VENIX/11 and PRO/VENIX only).
+.TP
+.B \-o
+The object code output will be placed in the following file,
+instead of
+.BR a.out .
+(VENIX/11 and PRO/VENIX only).
+In RAINBOW/VENIX, the output file name is taken from the
+source file (only one allowed), with
+.B `.o'
+replacing the optional
+.B `.s'
+in the name.
+.PP
+.B NOTES FOR RAINBOW/VENIX
+.br
+Compiler additional assembler documentation is not provided for
+RAINBOW/VENIX.
+The following brief notes are provided for users
+who insist in writing assembly code; further details must be gleaned from
+assembler listings produced by the C compiler.
+.PP
+The basic RAINBOW/VENIX assembler syntax is:
+.PP
+.RS
+.RS
+label:  op[b] [dst/src][,src] | comments
+.RE
+.RE
+.PP
+where
+.I dst/src
+take the form:
+.PP
+.RS
+.nf
+.ta 1.2i
+reg:	ax,bx,cx,dx,bp,si,di,sp and also h,l for x
+constant:	* for byte or # for word with normal C constants
+memory:	label
+index:	* number (reg) or # number (reg)
+indirect:	(reg) except no (bp)
+.fi
+.RE
+.PP
+Several relevant pseudo ops:
+.PP
+.RS
+.nf
+.ta 1.2i 2.8i
+\&.text		|text or code space
+\&.data		|data space
+\&.comm	name, size	|BSS space
+\&.globl	name
+\&.word	constant [, ...]
+\&.byte	constant [, ...]
+.fi
+.RE
+.PP
+The input and output instructions are:
+.RS
+.TP 1.8i
+IN
+reads a byte from port address specified in
+DX register into AL register.
+.TP
+IN port address
+reads a byte from specified port address into
+AL register.
+.TP
+OUT
+writes a byte from the AL register to the
+port address specified into the DX register.
+.TP
+OUT port address
+writes a byte from the specified port address
+into the DX register.
+.RE
+.SH FILES
+.nf
+.ta 1.2i
+file.s	assembler source file
+file.o	object (RAINBOW/VENIX)
+a.out	object (VENIX/11 and PRO/VENIX)
+.fi
+.SH "SEE ALSO"
+cc(1), ld(1), nm(1), adb(1), a.out(4)
+.br
+``VENIX Assembler Reference Manual'' in the
+.I "Programming Guide"
+.SH "EXAMPLES (RAINBOW/VENIX only)"
+An example of a RAINBOW/VENIX assembler subroutine callable from C.
+.PP
+.RS
+.nf
+.ta .8i 2.4i
+|
+| add (a,b)	/* return a + b */
+|
+\&.text
+\&.globl _add
+_add:	push bp	|save old frame pointer
+	mov bp,sp	|get new pointer
+	mov ax,*4(bp)	|get first argument
+	add ax,*6(bp)	|add second to it
+	pop bp	|restore old frame pointer
+	ret	|return value in ax
+.fi
+.RE
+.SH "DIAGNOSTICS (VENIX/11 and PRO/VENIX only)"
+When an input file cannot be read, its name followed by a question mark
+is typed and assembly ceases.
+When syntactic or semantic errors occur, a
+single-character diagnostic is typed out together with the line number and
+the file name in which it occurred.
+Errors in pass 1 cause cancellation of pass 2.
+The possible errors are:
+.PP
+.nf
+.ta .5i
+)	Parentheses error
+]	Parentheses error
+<	String not terminated properly
+*	Indirection used illegally
+\&.	Illegal assignment to `.'
+a	Error in address
+b	Branch instruction is odd or too remote
+e	Error in expression
+f	Error in local (`f' or `b') type symbol
+g	Garbage (unknown) character
+i	End of file inside an if
+m	Multiply defined symbol as label
+o	Word quantity assembled at odd address
+p	`.' different in pass 1 and 2
+r	Relocation error
+u	Undefined symbol
+x	Syntax error
+.fi
+.SH BUGS
+The RAINBOW/VENIX assembler does not conform to the Intel assembler specification.
+.sp

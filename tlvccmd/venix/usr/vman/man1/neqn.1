@@ -1,0 +1,325 @@
+.TH NEQN 1
+.SH NAME
+neqn, checkeq \- typeset mathematics
+.SH SYNOPSIS
+.B neqn
+[
+.BR \-d xy
+] [
+.BR \-s n
+] [
+.BR \-f n
+] [ file ] ...
+.br
+.B checkeq
+[ file ] ...
+.SH DESCRIPTION
+.B neqn
+is an
+.BR nroff (1)
+preprocessor.
+(For a tutorial on
+.BR neqn ,
+see
+``Mathematics Typesetting Program'' in the
+.IR "Document Processing Guide" .)
+Usage is almost always
+.IP
+neqn file ... | nroff
+.PP
+If no files are specified,
+.B neqn
+reads from the standard input.
+A line
+beginning with `.EQ' marks the start of an equation; the end of an equation
+is marked by a line beginning with `.EN'.
+Neither of these lines is
+altered, so they may be defined in macro packages to get centering,
+numbering, etc.
+It is also possible to set two characters as `delimiters';
+subsequent text between delimiters is also treated as
+.B neqn
+input.
+Delimiters may be set to characters
+.I x
+and
+.I y
+with the command-line argument
+.BI \-d xy
+or (more commonly) with `delim
+.IR xy '
+between .EQ and .EN.
+The
+left and right delimiters may be identical.
+Delimiters are turned off by
+`delim off'.
+All text that is neither between delimiters nor between .EQ
+and .EN is passed through untouched.
+.PP
+The program
+.B checkeq
+reports missing or unbalanced delimiters and
+\&.EQ/.EN pairs.
+.PP
+Tokens within
+.B neqn
+are separated by spaces, tabs, newlines, braces, double
+quotes, tildes or circumflexes.
+Braces {} are used for grouping; generally
+speaking, anywhere a single character like
+.I x
+could appear, a complicated
+construction enclosed in braces may be used instead.
+Tilde ~
+represents a full space in the output, circumflex ^ half as much.
+.PP
+Subscripts and superscripts are produced with the keywords
+.B sub
+and
+.BR sup .
+Thus
+.I x
+.B sub
+.I i
+makes x_i, 
+.I a
+.B sub
+.I i
+.B sup
+.I 2
+produces a_i^2, and
+.I e
+.B sup
+.RI { x
+.B sup
+.I 2
++
+.I y
+.B sup
+gives e^(x^2+y^2).
+.PP
+Fractions are made with
+.BR over :
+.I a
+.B over
+.I b
+yields a/b.
+.PP
+.B sqrt
+makes square roots:
+.I 1
+.B "over sqrt"
+.RI { "ax " "\fBsup\fP" " 2 +bx+c" }
+results in 1/sqrt(ax^2+bx+c).
+.PP
+The keywords
+.B from
+and
+.B to
+introduce lower and upper limits on arbitrary
+things: lim(n->inf) sum(0..n) x_i is made with
+\fBlim from {\fIn\fB\-> \fIinf\fB } sum from \fI0\fB to \fIn x\fR
+\fBsub \fIi\fR.
+.PP
+Left and right brackets, braces, etc., of the right height are made with
+.B left
+and
+.BR right :
+\fBleft [ \fIx \fBsup \fI2 \fB+ \fIy \fBsup \fI2 \fBover \fIalpha \fBright ]\fR ~=~\fI1\fR
+produces [x^2 + y^2/alpha] = 1.
+The
+.B right
+clause is optional.
+Legal characters after
+.B left
+and
+.B right
+are braces, brackets, bars,
+.B c
+and
+.B f
+for ceiling and floor, and ""
+for nothing at all (useful for a right-side-only bracket).
+.PP
+Vertical piles of things are made with
+.BR pile ,
+.BR lpile ,
+.BR cpile ,
+and
+.BR rpile :
+\fBpile {\fIa \fBabove \fIb \fBabove \fIc\fB}\fR
+produces a pile of
+.IR a ,
+.IR b ,
+.IR c .
+There can be an arbitrary number of elements
+in a pile.
+.B lpile
+left-justifies,
+.B pile
+and
+.B cpile
+center, with different
+vertical spacing, and
+.B rpile
+right justifies.
+.PP
+Matrices are made with
+.BR matrix :
+\fBmatrix { lcol { \fIx \fBsub \fIi \fBabove \fIy \fBsub \fI2 \fB}
+ccol { \fI1 \fBabove \fI2 \fB} }\fR
+produces a matrix with x_i and y_2 in the first column
+and 1 and 2 in the second.
+In addition, there is
+.B rcol
+for a
+right-justified column.
+.PP
+Diacritical marks are made with
+.BR dot ,
+.BR dotdot ,
+.BR hat ,
+.BR tilde ,
+.BR bar ,
+.BR vec ,
+.BR dyad ,
+and
+.BR under :
+\fIx \fBdot \fR= \fIf(t) \fBbar\fR is x-dot = f(t)-bar,
+\fIy \fBdotdot bar \fR~=~ \fIn \fBunder\fR is
+y-dotdot-bar = n-under,
+and \fIx \fBvec \fR~=~ \fIy \fBdyad\fR is x-vec = y-dyad.
+.PP
+Fonts can be changed with
+.BR roman ,
+.BR italic ,
+.BR bold ,
+and
+.B font
+.IR n .
+Fonts can be
+changed globally in a document by
+.B gfont
+.IR n ,
+or by the command-line
+arguments
+.BI \-s n
+and
+.BI \-f n.
+Note that
+.B nroff
+will try to underline anything
+in italic fonts, and send bold-on/bold-off codes (if appropriate) to get
+typewriter hardware to do bold font.
+.PP
+Successive display arguments can be lined up.
+Place
+.B mark
+before the
+desired lineup point in the first equation; place
+.B lineup
+at the place that is
+to line up vertically in subsequent equations.
+.PP
+Shorthands may be defined, or existing keywords redefined, with
+.BR define :
+.B define
+.I thing
+%
+.I replacement
+% defines a new token called
+.I thing
+which
+will be replaced by
+.I replacement
+whenever it appears thereafter.
+The %
+may be any character that does not occur in
+.IR replacement .
+.PP
+Keywords like
+.B sum
+(sigma)
+.B int
+(integral)
+.B inf
+(infinity) and shorthands like >= (greater or equal) and
+!= (not equal) are recognized.
+Greek letters are spelled out in the desired case,
+as in
+.B alpha
+or
+.BR GAMMA .
+Mathematical words like sin, cos, log are made
+Roman automatically.
+.BR nroff (1)
+four-character escapes like \e(dd (double dagger) can
+be used anywhere.
+Strings enclosed in double quotes "..." are passed
+through untouched; this permits keywords to be entered as text, and can
+be used to communicate with
+.B nroff
+when all else fails.
+.SH EXAMPLE
+To process equations inside the file
+.IR report ,
+and print out the result:
+.IP
+neqn report | nroff \-T450 | lpr
+.PP
+Note that
+.B nroff
+must be used with the
+.B \-T
+option.
+.SH "SEE ALSO"
+nroff(1), tbl(1)
+.br
+``Mathematics Typesetting Program'' and the ``Nroff User's Manual'' in
+the
+.IR "Document Processing Guide" .
+.SH BUGS
+.B neqn
+does its best, but depending on the hardware, certain constructions
+may not be entirely aesthetically pleasing.
+.PP
+To embolden digits, parens, etc., it is necessary to quote them, as in
+`bold "12.3"'.
+.SH "SPECIAL CHARACTER DEFINITIONS"
+The following
+.B nroff
+character definitions, found in file
+.BR /usr/pub/eqnchar ,
+are for constructing characters that are not available
+on printers.
+These definitions are primarily intended for use with
+.BR neqn .
+The command usage is
+.IP
+\fBneqn /usr/pub/eqnchar\fR [ files ] | \fBnroff\fR [ options ]
+.PP
+.B eqnchar
+contains definitions for the following characters:
+.PP
+.RS
+.nf
+.ta 1.4i 2.8i
+\fIciplus\fR	\fI||\fR	\fIsquare\fR
+\fIcitimes\fR	\fIlangle\fR	\fIcircle\fR
+\fIwig\fR	\fIrangle\fR	\fIblot\fR
+\fI\-wig\fR	\fIhbar\fR	\fIbullet\fR
+\fI>wig\fR	\fIppd\fR	\fIprop\fR
+\fI<wig\fR	\fI<\->\fR	\fIempty\fR
+\fI=wig\fR	\fI<=>\fR	\fImember\fR
+\fIstar\fR	\fI|<\fR	\fInomem\fR
+\fIbigstar\fR	\fI|>\fR	\fIcup\fR
+\fI=dot\fR	\fIang\fR	\fIcap\fR
+\fIorsign\fR	\fIrang\fR	\fIincl\fR
+\fIandsign\fR	\fI3dot\fR	\fIsubset\fR
+\fI=del\fR	\fIthf\fR	\fIsupset\fR
+\fIoppA\fR	\fIquarter\fR	\fI!subset\fR
+\fIoppE\fR	\fI3quarter\fR	\fI!supset\fR
+\fIangstrom\fR	\fIdegree\fR
+.fi
+.RE
+.sp

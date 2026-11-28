@@ -1,0 +1,50 @@
+.TH SUSPEND 2
+.SH NAME
+suspend \- suspend/resume a process
+.SH SYNOPSIS
+.B "suspend(pid, flag)"
+.SH DESCRIPTION
+.B suspend
+suspends a process specified by
+.I pid
+if
+.I flag
+is non-zero, or
+resumes a process specified by
+.I pid
+if
+.I flag
+is zero.
+The sending and receiving
+process must have the same effective user ID; otherwise this call is
+restricted to the super-user.
+.PP
+While a process is suspended, it can only be terminated by a kill signal.
+One of any other signal sent the process will be caught and acted upon
+when the process is resumed; more than one of a particular signal sent a
+suspended process will be ignored.
+.SH "SEE ALSO"
+suspend(1), kill(2)
+.SH DIAGNOSTICS
+A \-1 is returned if the process does not exist or if the process does not
+have the same effective user ID and the user is not the super-user.
+.SH NOTES
+Process suspension is a feature of VENIX which is not portable to standard
+UNIX.
+.SH ASSEMBLER
+(suspend = 50.)
+.TP
+PDP-11:
+.nf
+R0 = pid
+sys suspend; flag
+.fi
+.TP
+8086:
+.nf
+BX = 50
+AX = pid
+DX = flag
+int 0Xf1
+.fi
+.sp

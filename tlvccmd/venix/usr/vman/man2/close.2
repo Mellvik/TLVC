@@ -1,0 +1,49 @@
+.TH CLOSE 2
+.SH NAME
+close \- close a file
+.SH SYNOPSIS
+.B close(fildes)
+.SH DESCRIPTION
+Given a file descriptor such as returned from an
+.BR open ,
+.BR creat ,
+.BR dup ,
+or
+.BR pipe (2)
+call,
+.B close
+closes the associated file.
+A close of all files is
+automatic on
+.BR exit ,
+but since there is a limit on the number of open files
+per process,
+.B close
+is necessary for programs which deal with many files.
+.PP
+Files are closed upon termination of a process, and certain file descriptors
+may be closed by
+.BR exec (2)
+(see
+.BR ioctl (2)).
+.SH "SEE ALSO"
+creat(2), dup(2), open(2), pipe(2), exec(2), ioctl(2)
+.SH DIAGNOSTICS
+Zero is returned if a file is closed; \-1 is returned for an unknown file
+descriptor.
+.SH ASSEMBLER
+(close = 6.)
+.TP
+PDP-11:
+.nf
+R0 = fildes
+sys close
+.fi
+.TP
+8086:
+.nf
+BX = 6
+AX = fildes
+int 0Xf1
+.fi
+.sp

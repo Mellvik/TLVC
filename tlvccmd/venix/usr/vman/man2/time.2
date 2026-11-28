@@ -1,0 +1,84 @@
+.TH TIME 2
+.SH NAME
+time, ftime \- get date and time
+.SH SYNOPSIS
+.nf
+.B "long time(0)"
+.sp
+.B "long time(tloc)"
+.B "long *tloc;"
+.sp
+.B "#include <sys/types.h>"
+.B "#include <sys/timeb.h>"
+.B "ftime(tp)"
+.B "struct timeb *tp;"
+.fi
+.SH DESCRIPTION
+.B time
+returns the time since 00:00:00 GMT, Jan. 1, 1970, measured in
+seconds.
+.PP
+If
+.I tloc
+is nonnull, the return value is also stored in the place to which
+.I tloc
+points.
+.PP
+The
+.B ftime
+entry fills in a structure pointed to by its argument, as defined
+by
+.BR <sys/timeb.h> :
+.PP
+.RS
+.nf
+.ta .7i
+/*
+ * Structure returned by ftime system call
+ */
+struct timeb {
+	long time;
+	unsigned int millitm;
+	int timezone;
+	int dstflag;
+};
+.fi
+.RE
+.PP
+The structure contains the time since the epoch in seconds, up to 1000
+milliseconds of more-precise interval, the local timezone (measured in
+minutes of time westward from Greenwich), and a flag that, if nonzero,
+indicates that daylight saving time applies locally during the appropriate
+part of the year.
+.SH "SEE ALSO"
+date(1), stime(2), ctime(3)
+.SH ASSEMBLER
+(ftime = 35.)
+.TP
+PDP-11:
+.nf
+sys ftime; bufptr
+.fi
+.TP
+8086:
+.nf
+BX = 35
+AX = bufptr
+int 0Xf1
+.fi
+.PP
+(time = 13.; obsolete call)
+.TP
+PDP-11:
+.nf
+sys time
+R0, R1 = time since 1970
+.fi
+.TP
+8086:
+.nf
+BX = 13
+int 0Xf1
+AX, DX = time since 1970
+.fi
+.sp

@@ -1,0 +1,249 @@
+.TH EXEC 2
+.SH NAME
+execl, execv, execle, execve, execlp, execvp, exec, exece, environ \- execute a file
+.SH SYNOPSIS
+.nf
+.B "execl(name, arg0, arg1, ..., argn, 0)"
+.B "char *name, *arg0, *arg1, ..., *argn;"
+.sp
+.B "execv(name, argv)"
+.B "char *name, *argv[ ];"
+.sp
+.B "execle(name, arg0, arg1, ..., argn, 0, envp)"
+.B "char *name, *arg0, *arg1, ..., *argn, *envp[ ];"
+.sp
+.B "execve(name, argv, envp);"
+.B "char *name, *argv[ ], *envp[ ];"
+.sp
+.B "extern char **environ;"
+.fi
+.SH DESCRIPTION
+.B exec
+in all its forms overlays the calling process with the named file, then
+transfers to the entry point of the core image of the file.
+There can be
+no return from a successful exec; the calling core image is lost.
+.PP
+Files remain open across
+.BR exec ;
+see
+.BR ioctl (2).
+Ignored signals remain
+ignored across these calls, but signals that are caught (see
+.BR signal (2))
+are
+reset to their default values.
+.PP
+Each user has a
+.I real
+user ID and group ID and an
+.I effective
+user ID and
+group ID.
+The real ID identifies the person using the system; the
+effective ID determines his access privileges.
+.B exec
+changes the effective
+user and group ID to the owner of the executed file if the file has the
+`set-user-ID' or `set-group-ID' modes.
+The real user ID is not affected.
+.PP
+The
+.I name
+argument is a pointer to the name of the file to be executed.
+The pointers
+.IR arg0 ,
+.IR arg1 ,
+\&...
+.I argn
+address null-terminated strings.
+Conventionally
+.I arg0
+is the name of the file.
+.PP
+From C, two interfaces are available.
+.B execl
+is useful when a known file
+with known arguments is being called; the arguments to
+.B execl
+are the
+character strings constituting the file and the arguments; the first argument
+is conventionally the same as the file name (or its last component).
+A 0 argument must end the argument list.
+.PP
+The
+.B execv
+version is useful when the number of arguments is unknown in
+advance; the arguments to
+.B execv
+are the name of the file to be executed
+and a vector of strings containing the arguments.
+The last argument
+string must be followed by a 0 pointer.
+.PP
+When a C program is executed, it is called as follows:
+.PP
+.RS
+.nf
+main(argc, argv, envp)
+int argc;
+char **argv, **envp;
+.fi
+.RE
+.PP
+where
+.I argc
+is the argument count and
+.I argv
+is an array of character
+pointers to the arguments themselves.
+As indicated,
+.I argc
+is conventionally
+at least one and the first member of the array points to a string containing
+the name of the file.
+.PP
+.I argv
+is directly usable in another
+.B execv
+because
+.IR argv [ argc ]
+is 0.
+.PP
+.I envp
+is a pointer to an array of strings that constitute the
+.I environment
+of
+the process.
+Each string conventionally consists of a name, an `=', and
+a null-terminated value.
+The array of pointers is terminated by a null
+pointer.
+The shells
+.BR sh (1)
+and
+.BR csh (1)
+pass an environment entry for each
+global shell variable defined when the program is called.
+The C run-time
+start-off routine places a copy of
+.I envp
+in the global cell
+.IR environ ,
+which is
+used by
+.B execv
+and
+.B execl
+to pass the environment to any subprograms executed
+by the current program.
+The
+.B exec
+routines use lower-level routines
+as follows to pass an environment explicitly:
+.RS
+.nf
+execle(file, arg0, arg1, . . . , argn, 0, environ);
+execve(file, argv, environ);
+.fi
+.RE
+.PP
+.B execlp
+and
+.B execvp
+are called with the same arguments as
+.B execl
+and
+.BR execv ,
+but duplicate the shell's actions in searching for an executable file in a
+list of directories.
+The directory list is obtained from the environment.
+.SH FILES
+/bin/sh shell, invoked if command file found by
+.B execlp
+or
+.B execvp
+.SH "SEE ALSO"
+fork(2), ioctl(2), signal(2), ``VENIX Programming'' in the
+.IR "Programming Guide" .
+.SH DIAGNOSTICS
+If the file cannot be found, if it is not executable, if it does not start with
+a valid magic number (see
+.BR a.out (4)),
+if maximum memory is exceeded, or
+if the arguments require too much space, a return constitutes the diagnostic;
+the return value is \-1.
+Even for the super-user, at least one of
+the execute-permission bits must be set for a file to be executed.
+.SH BUGS
+If
+.B execvp
+is called to execute a file that turns out to be a shell command
+file, and if it is impossible to execute the shell, the values of
+.B argv[0]
+and
+.B argv[\-1]
+will be modified before return.
+.SH ASSEMBLER
+(exec = 11.)
+.TP
+PDP-11:
+.nf
+sys exec; name; argv
+.fi
+.TP
+8086:
+.nf
+BX = 11
+AX = name
+DX = argv
+int 0Xf1
+.fi
+.PP
+(exece = 59.)
+.TP
+PDP-11:
+.nf
+sys exece; name; argv; envp
+.fi
+.TP
+8086:
+.nf
+BX = 59
+AX = name
+DX = argv
+CX = envp
+int 0Xf1
+.fi
+.PP
+Plain
+.B exec
+is obsoleted by
+.BR exece ,
+but remains for historical reasons.
+.PP
+When the called file starts execution, the stack pointer points to a word
+containing the number of arguments.
+Just above this number is a list of
+pointers to the argument strings, followed by a null pointer, followed by
+the pointers to the environment strings and then another null pointer.
+The strings themselves follow; a 0 word is left at the very top.
+.PP
+.nf
+.ta .7i
+sp\(->	nargs
+	arg0
+	...
+	argn
+	0
+	env0
+	...
+	envm
+	0
+.sp
+arg0:	<arg0\e0>
+	...
+env0:	<env0\e0>
+	0
+.fi
+.sp

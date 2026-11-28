@@ -1,0 +1,31 @@
+.TH CMAP 2 "PDP-11 Only"
+.SH NAME
+cmap \- remap the code segment of a program
+.SH DESCRIPTION
+.B cmap
+is used to remap a different portion of code into a process' address
+space.
+This call is used by a process which is too big to fit into 64kb of
+address space.
+.SH "SEE ALSO"
+``Code-Mapping Under VENIX'' in the
+.I "Programming Guide"
+.br
+ld(1), sdata(2)
+.SH NOTES
+Code-mapping is not portable to standard UNIX.
+This call should not
+be used directly by the user; the loader is set up to deal with code-mapping
+when given the
+.B \-m
+flag.
+.SH ASSEMBLER
+(cmap = 62.)
+.TP
+PDP-11:
+.nf
+R0 = offset
+sys cmap
+R0 = \-1 if error, 0 if okay
+.fi
+.sp

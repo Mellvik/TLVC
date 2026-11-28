@@ -1,0 +1,235 @@
+.TH EX 1
+.SH NAME
+ex \- text editor
+.SH SYNOPSIS
+.B ex
+[
+.B \-
+] [
+.B \-v
+] [
+.B \-t
+tag ] [
+.B \-r
+] [
+.BI + command
+] [
+.B \-l
+] name ...
+.SH DESCRIPTION
+.B ex
+is a line editor contained within
+.BR vi (1).
+.B ex
+is a superset of another
+VENIX editor
+.BR ed (1).
+Most users start off with
+.BR vi ,
+and then use
+.B ex
+at
+their convenience.
+Or, you can start editing in
+.BR ex ,
+and then go into
+.B vi
+by
+typing ``\fB:vi\fR''.
+.PP
+See ``\fIAn Introduction to Display Editing with Vi\fR'' in the
+.I "User Guide"
+for
+more information about the display editor
+.BR vi .
+.SH FILES
+.nf
+.ta 2.2i
+/usr/lib/ex*strings	error messages
+/etc/termcap	describes capabilities of terminals
+/tmp/Ex\fInnnnn\fR	editor temporary
+/tmp/Rx\fInnnnn\fR	named buffer temporary
+/usr/preserve	preservation directory
+.fi
+.SH "SEE ALSO"
+awk(1), ed(1), grep(1), sed(1), vi(1), termcap(5), environ(5)
+.SH BUGS
+The
+.B undo
+command causes all marks to be lost on lines changed and
+then restored if the marked lines were changed.
+.PP
+.B undo
+never clears the buffer modified condition.
+.PP
+The
+.B z
+command prints a number of logical rather than physical lines.
+More than a screen full of output may result if long lines are present.
+.PP
+File input/output errors don't print a name if the command line `\-'
+option is used.
+.PP
+There is no easy way to do a single scan ignoring case.
+.PP
+The editor does not warn if text is placed in named buffers and not used
+before exiting the editor.
+.PP
+Null characters are discarded in input files, and cannot appear in resultant
+files.
+.sp 2
+.ce
+.B "Entering/leaving ex"
+.PP
+.nf
+.ta 2i
+% \fBex\fI name\fR	edit \fIname\fR, start at end
+% \fBex +\fIn name\fR	... at line \fIn\fR
+% \fBex \-t\fI tag\fR	start at \fItag\fR
+% \fBex\fI name ...\fR	edit first; rest via \fB:n\fR
+% \fBex \-R\fI name\fR	read only mode
+\fB: x\fR	exit, saving changes
+\fB: q!\fR	exit, discarding changes
+.fi
+.sp
+.ce
+.B "Ex states"
+.TP 1.4i
+Command
+Normal and initial state.
+Input
+prompted for by
+.BR : .
+Your kill character
+cancels partial command.
+.TP
+Insert
+Entered by
+.B "a i"
+and
+.BR c .
+Arbitrary text
+then terminates with line having only
+.B .
+character on it or abnormally with interrupt.
+.TP
+Open/visual
+Entered by
+.B open
+or
+.BR vi ,
+terminates with
+.B Q
+or ^\e.
+.sp
+.ce
+.B "Ex commands"
+.PP
+.nf
+.ta .9i 1.4i 2.4i 2.9i 3.9i
+abbrev	\fBab\fR	next	\fBn\fR	unabbrev	\fBuna\fR
+append	\fBa\fR	number	\fBnu\fR	undo	\fBu\fR
+args	\fBar\fR	open	\fBo\fR	unmap	\fBunm\fR
+change	\fBc\fR	preserve	\fBpre\fR	version	\fBve\fR
+copy	\fBco\fR	print	\fBp\fR	visual	\fBvi\fR
+delete	\fBd\fR	put	\fBpu\fR	write	\fBw\fR
+edit	\fBe\fR	quit	\fBq\fR	xit	\fBx\fR
+file	\fBf\fR	read	\fBre\fR	yank	\fBya\fR
+global	\fBg\fR	recover	\fBrec\fR	\fIwindow\fR	\fBz\fR
+insert	\fBi\fR	rewind	\fBrew\fR	\fIescape\fR	\fB!\fR
+join	\fBj\fR	set	\fBse\fR	\fIlshift\fR	\fB<\fR
+list	\fBl\fR	shell	\fBsh\fR	\fIprint next\fR	CR
+map		source	\fBso\fR	\fIresubst\fR	\fB&\fR
+mark	\fBma\fR	stop	\fBst\fR	\fIrshift\fR	\fB>\fR
+move	\fBm\fR	substitute	\fBs\fR	\fIscroll\fR	\fB^D\fR
+.fi
+.sp
+.ce
+.B "Ex command addresses"
+.PP
+.nf
+.ta .6i 1.6i 2.2i
+\fIn\fR	line \fIn\fR	/\fIpat\fR	next with \fIpat\fR
+\&\fB.\fR	current	?\fIpat\fR	previous with \fIpat\fR
+\fB$\fR	last	\fIx\-n\fR	\fIn\fR before \fIx\fR
++	next	\fIx,y\fR	\fIx\fR through \fIy\fR
+\-	previous	\'\fIx\fR	marked with \fIx\fR
++\fIn\fR	\fIn\fR forward	\'\'	previous context
+%	1,$
+.fi
+.sp
+.ce
+.B "Specifying terminal type"
+.PP
+.nf
+.ta 2.4i
+\fB% setenv TERM\fI type\fR	\fIcsh\fR
+\fB$ TERM=\fItype\fB; export TERM\fR	\fIsh\fR
+.fi
+.sp
+.ce
+.B "Some terminal types"
+.PP
+.nf
+.ta .7i 1.4i 2.1i 2.8i
+2621	43	adm31	dw1	h19
+2645	733	adm3a	dw2	i100
+300s	745	c100	gt40	mime
+33	act4	dm1520	gt42	owl
+37	act5	dm2500	h1500	PC
+4014	adm3	dm3025	h1510	vt52
+.fi
+.sp
+.ce
+.B "Initializing options"
+.PP
+.nf
+.ta 1.4i
+\fBEXINIT\fR	place \fBset\fR's here in environment var.
+\fBset\fI x\fR	enable option
+\fBset no\fIx\fR	disable option
+\fBset\fI x\fB=\fIval\fR	give value \fIval\fR
+\fBset\fR	show changed options
+\fBset all\fR	show all options
+\fBset\fI x\fB?\fR	show value of option \fIx\fR
+.fi
+.sp
+.ce
+.B "Useful options"
+.PP
+.nf
+.ta 1.4i 2i
+\fBautoindent\fR	ai	supply indent
+\fBautowrite\fR	aw	write before changing files
+\fBignorecase\fR	ic	in scanning
+\fBlist\fR		print ^I for tab, $ at end
+\fBmagic\fR		\fB. [ *\fR special in patterns
+\fBnumber\fR	nu	number lines
+\fBparagraphs\fR	para	macro names which start ...
+\fBredraw\fR		simulate smart terminal
+\fBscroll\fR		command mode lines
+\fBsections\fR	sect	macro names ...
+\fBshiftwidth\fR	sw	for \fB< >\fR, and input \fB^D\fR
+\fBshowmatch\fR	sm	to ) and } as typed
+\fBslowopen\fR	slow	choke updates during insert
+\fBwindow\fR		visual mode lines
+\fBwrapscan\fR	ws	around end of buffer?
+\fBwrapmargin\fR	wm	automatic line splitting
+.fi
+.sp
+.ce
+.B "Scanning pattern formation"
+.PP
+.nf
+.ta 1.2i
+\fB^\fR	beginning of line
+\fB$\fR	end of line
+\&\fB.\fR	any character
+\fB\e<\fR	beginning of word
+\fB\e>\fR	end of word
+\fB[\fIstr\fB]\fR	any char in \fIstr\fR
+\fB[^\fIstr\fB]\fR	... not in \fIstr\fR
+\fB[\fIx\-y\fB]\fR	... between \fIx\fR and \fIy\fR
+\fB*\fR	any number of preceding
+.fi
+.sp

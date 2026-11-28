@@ -1,0 +1,22 @@
+.TH GETENV 3
+.SH NAME
+getenv \- value for environment name
+.SH SYNOPSIS
+.nf
+.B "char *getenv(name)"
+.B "char *name;"
+.fi
+.SH DESCRIPTION
+.B getenv
+searches the environment list (see
+.BR environ (5))
+for a string of the
+form
+.IR name = value
+and returns
+.I value
+if such a string is present, otherwise
+0 (NULL).
+.SH "SEE ALSO"
+environ(5), exec(2)
+.sp

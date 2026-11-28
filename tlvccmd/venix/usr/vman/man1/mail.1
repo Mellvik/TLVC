@@ -1,0 +1,156 @@
+.TH MAIL 1
+.SH NAME
+mail \- send or receive mail among users
+.SH SYNOPSIS
+.B mail
+person ...
+.br
+.B mail
+[
+.B \-r
+] [
+.B \-q
+] [
+.B \-p
+] [
+.B \-f
+file ]
+.SH DESCRIPTION
+.B mail
+with no argument prints a user's mail, message-by-message, in last-in,
+first-out order; the optional argument
+.B \-r
+causes first-in, first-out
+order.
+If the
+.B \-p
+flag is given, the mail is printed with no questions
+asked; otherwise, for each message,
+.B mail
+reads a line from the standard
+input to direct disposition of the message.
+.TP 8
+newline
+Go on to next message.
+.TP
+.B d
+Delete message and go on to the next.
+.TP
+.B p
+Print message again.
+.TP
+\-
+Go back to previous message.
+.TP
+\fBs\fR [ \fIfile\fR ] ...
+Save the message in the named
+.I files
+(`mbox' default).
+.TP
+\fBw\fR [ \fIfile\fR ] ...
+Save the message, without a header, in the named
+.I files
+(`mbox'
+default).
+.TP
+\fBm\fR [ \fIperson\fR ] ...
+Mail the message to the named
+.I persons
+(yourself is default).
+.TP
+\fBEOT\fR (control\-D)
+Put unexamined mail back in the mailbox and stop.
+.TP
+.B q
+Same as EOT.
+.TP
+.B x
+Exit, without changing the mailbox file.
+.TP
+.BI ! command
+Escape to the Shell to do
+.IR command .
+.TP
+.B ?
+Print a command summary.
+.PP
+An interrupt stops the printing of the current letter.
+The optional argument
+.B \-q
+causes
+.B mail
+to exit after interrupts without changing the mailbox.
+.PP
+When
+.I persons
+are named,
+.B mail
+takes the standard input up to an end-of-file
+(or a line with just `.') and adds it to each
+.IR person 's
+`mail' file.
+The message is preceded by the sender's name and a postmark.
+Lines
+that look like postmarks are prepended with `>'.
+A
+.I person
+is usually a
+user name recognized by
+.BR login (1).
+On installations with
+.B uucp
+communications
+software, a recipient on a remote system can be specified by
+prefixing
+.I person
+by the system name and exclamation mark (see
+.BR uucp (1)).
+.PP
+The
+.B \-f
+option causes the named file, e.g. `mbox', to be printed as if it
+were the mail file.
+.PP
+Each user owns his own mailbox, which is by default generally readable
+but not writable.
+The command does not delete an empty mailbox nor
+change its mode, so a user may make it unreadable if desired.
+.PP
+When a user logs in he is informed of the presence of mail.
+.SH FILES
+.nf
+.ta 1.4i
+/usr/spool/mail/*	mailboxes
+/etc/passwd	to identify sender and locate persons
+mbox	saved mail
+/tmp/ma*	temp file
+dead.letter	unmailable text
+.fi
+.SH EXAMPLES
+Mail the contents of file
+.I xletter
+to
+.I fred
+and
+.IR joe :
+.IP
+mail fred joe < xletter
+.PP
+Send a letter to
+.IR eve ;
+the letter's contents are read from the terminal:
+.PP
+.RS
+.nf
+mail eve
+Madam, I'm Adam.
+^D
+.fi
+.RE
+.SH "SEE ALSO"
+write(1)
+.SH BUGS
+There is a locking mechanism intended to prevent two senders from
+accessing the same mailbox, but it is not perfect and deadly embraces are
+possible.
+.sp

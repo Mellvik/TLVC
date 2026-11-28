@@ -1,0 +1,58 @@
+.TH GETS 3S
+.SH NAME
+gets, fgets \- get a string from a stream
+.SH SYNOPSIS
+.nf
+.B "#include <stdio.h>"
+.sp
+.B "char *gets(s)"
+.B "char *s;"
+.sp
+.B "char *fgets(s, n, stream)"
+.B "char *s;"
+.B "FILE *stream;"
+.fi
+.SH DESCRIPTION
+.B gets
+reads a string into
+.I s
+from the standard input stream
+.BR stdin .
+The
+string is terminated by a newline character, which is replaced in
+.I s
+by a
+null character.
+.B gets
+returns its argument.
+.PP
+.B fgets
+reads
+.IR n \-1
+characters, or up to a newline character, whichever
+comes first, from the
+.I stream
+into the string
+.IR s .
+The last character read
+into
+.I s
+is followed by a null character.
+.B fgets
+returns its first argument.
+.SH "SEE ALSO"
+puts(3), getc(3), scanf(3), fread(3), ferror(3)
+.SH DIAGNOSTICS
+.B gets
+and
+.B fgets
+return the constant pointer
+.B NULL
+upon end of file or
+error.
+.SH BUGS
+.B gets
+deletes a newline,
+.B fgets
+keeps it, all in the name of backward compatibility.
+.sp

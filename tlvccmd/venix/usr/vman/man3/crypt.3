@@ -1,0 +1,58 @@
+.TH CRYPT 3
+.SH NAME
+crypt, encrypt \- a one way hashing encryption algorithm
+.SH SYNOPSIS
+.nf
+.B "char *crypt(key, salt)"
+.B "char *key, *salt;"
+.sp
+.B "encrypt(block)"
+.B "char *block;"
+.fi
+.SH DESCRIPTION
+.B crypt
+is the password encryption routine.
+It is based on a one way hashing
+encryption algorithm with variations intended (among other things) to
+frustrate use of hardware implementations of a key search.
+.PP
+.I key
+is a user's typed password.
+.I salt
+is a two-character string chosen from
+the set [a\-zA\-Z0\-9./].
+The
+.I salt
+string is used to perturb the hashing
+algorithm in one of 4096 different ways, after which the password is used
+as the key to encrypt repeatedly a constant string.
+The returned value
+points to the encrypted password.
+The first two characters are the salt
+itself.
+.PP
+There is a character array of length 64 containing only the numerical
+value 0 and 1.
+When this string is divided into groups of 8, the low-order
+bit in each group is ignored; this gives a 56-bit key which is set into
+the machine by
+.BR crypt .
+.PP
+The
+.B encrypt
+entry provides (rather primitive) access to the actual hashing
+algorithm.
+The argument to the
+.B encrypt
+entry is a character array of
+length 64 containing only the characters with numerical value of 0 and 1.
+The argument array is modified in place to a similar array representing
+the bits of the argument after having been subjected to the hashing algorithm
+using the key set by
+.BR crypt .
+.SH "SEE ALSO"
+passwd(1), passwd(4), login(1), getpass(3)
+.SH BUGS
+The return value points to static data whose content is overwritten by
+each call.
+.sp

@@ -1,0 +1,41 @@
+.TH PUTS 3S
+.SH NAME
+puts, fputs \- put a string on a stream
+.SH SYNOPSIS
+.nf
+.B "#include <stdio.h>"
+.sp
+.B "puts(s)"
+.B "char *s;"
+.sp
+.B "fputs(s, stream)"
+.B "char *s;"
+.B "FILE *stream;"
+.fi
+.SH DESCRIPTION
+.B puts
+copies the null-terminated string
+.I s
+to the standard output stream
+.B stdout
+and appends a newline character.
+.PP
+.B fputs
+copies the null-terminated string
+.I s
+to the named output
+.IR stream .
+.PP
+Neither routine copies the terminal null character.
+.SH "SEE ALSO"
+fopen(3), gets(3), putc(3), printf(3), ferror(3)
+.br
+fread(3) for
+.B fwrite
+.SH BUGS
+.B puts
+appends a newline,
+.B fputs
+does not, all in the name of backward
+compatibility.
+.sp

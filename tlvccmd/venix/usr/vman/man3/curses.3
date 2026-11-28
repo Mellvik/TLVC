@@ -1,0 +1,217 @@
+.TH CURSES 3
+.SH NAME
+curses \- screen functions with `optimal' cursor motion
+.SH SYNOPSIS
+.B cc
+[ flags ] files
+.B "\-lcurses \-ltermlib"
+[ libraries ]
+.SH DESCRIPTION
+These routines give the user a method of updating screens with reasonable
+optimization.
+They keep an image of the current screen, and the
+user sets up an image of a new one.
+Then the
+.B refresh()
+tells the routines
+to make the current screen look like the new one.
+In order to initialize
+the routines, the routine
+.B initscr()
+must be called before any of the other
+routines that deal with windows and screens are used.
+.SH "SEE ALSO"
+termcap(5), stty(1)
+.SH FUNCTIONS
+.PD 0
+.TP 2i
+addch(ch)
+add a character to \fBstdscr\fR
+.TP 2i
+addstr(str)
+add a string to \fBstdscr\fR
+.TP 2i
+box(win,vert,hor)
+draw a box around a window
+.TP 2i
+clear()
+clear \fBstdscr\fR
+.TP 2i
+clearok(scr,boolf)
+set clear flag for \fBscr\fR
+.TP 2i
+clrtobot()
+clear to bottom on \fBstdscr\fR
+.TP 2i
+clrtoeol()
+clear to end of line on \fBstdscr\fR
+.TP 2i
+crmode()
+set terminal to cbreak mode
+.TP 2i
+delch()
+delete a character
+.TP 2i
+deleteln()
+delete a line
+.TP 2i
+delwin(win)
+delete \fBwin\fR
+.TP 2i
+echo()
+set echo mode
+.TP 2i
+endwin()
+finish up screens
+.TP 2i
+erase()
+erase \fBstdscr\fR
+.TP 2i
+getch()
+get a char through \fBstdscr\fR
+.TP 2i
+getstr(str)
+get a string through \fBstdscr\fR
+.TP 2i
+gettmode()
+get tty modes
+.TP 2i
+getyx(win,y,x)
+get (y,x) co-ordinates
+.TP 2i
+inch()
+get char at current (y,x) co-ordinates
+.TP 2i
+initscr()
+initialize screens
+.TP 2i
+insch()
+insert a character
+.TP 2i
+insertln()
+insert a line
+.TP 2i
+leaveok(win,boolf)
+set leave flag for \fBwin\fR
+.TP 2i
+longname(termbuf,name)
+get long name from \fBtermbuf\fR
+.TP 2i
+move(y,x)
+move to (y,x) on \fBstdscr\fR
+.TP 2i
+mvcur(lasty,lastx,newy,newx)
+actually move cursor
+.TP 2i
+mvscanw(y,x,win,fmt,arg1,arg2...)
+move, then do a scanf through the window
+.TP 2i
+mvwin(win,y,x)
+move position of the window
+.TP 2i
+newwin(lines,cols,begin_y,begin_x)
+create a new window
+.TP 2i
+nl()
+set newline mapping
+.TP 2i
+nocrmode()
+unset cbreak mode
+.TP 2i
+noecho()
+unset echo mode
+.TP 2i
+nonl()
+unset newline mapping
+.TP 2i
+noraw()
+unset raw mode
+.TP 2i
+overlay(win1,win2)
+overlay win1 on win2
+.TP 2i
+overwrite(win1,win2)
+overwrite win1 on top of win2
+.TP 2i
+printw(fmt,arg1,arg2,...)
+printf on \fBstdscr\fR
+.TP 2i
+raw()
+set raw mode
+.TP 2i
+refresh()
+make current screen look like \fBstdscr\fR
+.TP 2i
+resetty()
+reset tty flags to stored value
+.TP 2i
+savetty()
+stored current tty flags
+.TP 2i
+scanw(fmt,arg1,arg2,...)
+scanf from \fBstdscr\fR
+.TP 2i
+scroll(win)
+scroll \fBwin\fR one line
+.TP 2i
+scrollok(win,boolf)
+set scroll flag
+.TP 2i
+setterm(name)
+set term variables for name
+.TP 2i
+subwin(lines,cols,begin_y,begin_x)
+create a window within a window
+.TP 2i
+touchwin(win)
+refresh tag for overlapping windows
+.TP 2i
+unctrl(ch)
+printable version of \fBch\fR
+.TP 2i
+waddch(win,ch)
+add char to \fBwin\fR
+.TP 2i
+waddstr(win,str)
+add string to \fBwin\fR
+.TP 2i
+wclear(win)
+clear \fBwin\fR
+.TP 2i
+wclrtobot(win)
+clear to bottom of \fBwin\fR
+.TP 2i
+wclrtoeol(win)
+clear to end of line on \fBwin\fR
+.TP 2i
+werase(win)
+erase \fBwin\fR
+.TP 2i
+wgetch(win)
+get a char through \fBwin\fR
+.TP 2i
+wgetstr(win,str)
+get a string through \fBwin\fR
+.TP 2i
+winch(win)
+get char at current (y,x) from \fBwin\fR
+.TP 2i
+wmove(win,y,x)
+set current (y,x) co-ordinates on \fBwin\fR
+.TP 2i
+wprintw(win,fmt,arg1,arg2,...)
+printf on \fBwin\fR
+.TP 2i
+wrefresh(win)
+make screen look like \fBwin\fR
+.TP 2i
+wscanw(win,fmt,arg1,arg2,...)
+scanf through \fBwin\fR
+.TP 2i
+wstandend(win)
+unset window in standout mode
+.TP 2i
+wstandout(win)
+put window in standout mode
+.PD
+.sp

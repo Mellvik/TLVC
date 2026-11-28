@@ -1,0 +1,316 @@
+.TH NROFF 1
+.SH NAME
+nroff \- text formatting
+.SH SYNOPSIS
+.B nroff
+[ option ] ...  [ file ] ...
+.SH DESCRIPTION
+.B nroff
+formats text in the named
+.I files
+for printing on typewriter-like devices.
+Its capabilities are described in the ``Nroff User's Manual,'' in the
+.IR "Document Processing Guide" .
+.PP
+If no
+.I file
+argument is present, the standard input is used.
+An argument
+consisting of a single minus (\-) is taken to be a file name corresponding
+to the standard input, and is often used to attach special macro files to a
+text file for processing.
+The options, which may appear in any order so
+long as they appear before the files, are:
+.TP 8
+.BI \-o list
+Print only pages whose page numbers appear in the comma-separated
+.I list
+of numbers and ranges.
+For example,
+.B \-o2,6
+prints only the second and sixth pages.
+A range
+.IR N \- M
+means
+pages
+.I N
+through
+.IR M ;
+an initial
+.RI \- N
+means from the beginning
+to page
+.IR N ;
+and a final
+.IR N \-
+means from
+.I N
+to the end.
+.TP
+.BI \-n N
+Number the first generated page
+.IR N .
+.TP
+.BI \-s N
+Stop every
+.I N
+pages.
+.B nroff
+will halt prior to every
+.I N
+pages
+(default
+.IR N =1)
+to allow paper loading or changing, and will
+resume upon receipt of a newline.
+.TP
+.BI \-m name
+Prepend the macro file
+.BI /usr/lib/tmac/tmac. name
+to the input
+.IR files .
+This is a convenient way to specify different page formatting
+macro's from the command line.
+.TP
+.BI \-r aN
+Set register
+.I a
+(one-character) to
+.IR N .
+.TP
+.B \-i
+Read standard input after the input files are exhausted.
+.TP
+.B \-q
+Invoke the simultaneous input-output mode of the
+.B rd
+request,
+as described in the ``Nroff User's Manual.''
+.TP
+.BI \-T name
+Prepare output for specified terminal.
+Known
+.I names
+are
+.B 37
+for the (default) Teletype Corporation Model 37 terminal,
+.B tn300
+for the GE TermiNet 300 (or any terminal without
+half-line capability), and
+.B 450
+for the DASI-450 (Diablo
+Hyterm).
+.TP
+.B \-e
+Produce equally-spaced words in adjusted lines, using full terminal
+resolution.
+.TP
+.B \-h
+Use output tabs during horizontal spacing to speed output and
+reduce output character count.
+Tab settings are assumed to
+be every 8 nominal character widths.
+.SH EXAMPLES
+Run off document ``doc.1'' with \-ms macros, formatted for Diablo
+Hyterm and send it to the terminal screen:
+.IP
+nroff \-T450 \-ms doc.1
+.PP
+Run off document
+.IR proposal ,
+with macro set
+.I myron
+and send it to the
+printer spooler with a no-header flag:
+.IP
+nroff \-mmyron \-T450 proposal | lpr \-c
+.SH FILES
+.nf
+/usr/lib/suftab      suffix hyphenation tables
+/tmp/ta*             temporary file
+/usr/lib/tmac/tmac.* standard macro files
+/usr/lib/term/*      terminal driving tables
+.fi
+.SH "SEE ALSO"
+.I "Document Processing Guide"
+.br
+neqn(1), tbl(1)
+.br
+col(1)
+.SH "MS MACRO SET"
+This package of
+.B nroff
+macro definitions provides a canned formatting
+facility for technical papers in various formats.
+When producing 2-column
+output on a terminal, filter the output through
+.BR col (1).
+.PP
+To use this set, the
+.B \-ms
+flag must be given on the
+.B nroff
+command line.
+See ``Using the \-ms Macros'' in the
+.I "Document Processing Guide"
+for
+details.
+.PP
+The macro requests are defined below.
+Many
+.B nroff
+requests are unsafe
+in conjunction with this package, however these requests may be used
+with impunity after the first .PP:
+.PP
+.RS
+.nf
+.ta .8i
+\&.bp	begin new page
+\&.br	break output line here
+\&.sp n	insert n spacing lines
+\&.ls n	(line spacing) n=1 single, n=2 double space
+\&.na	no alignment of right margin
+.fi
+.RE
+.PP
+Output of the
+.B neqn
+and
+.BR tbl (1)
+preprocessors for equations and tables is
+acceptable as input.
+.PP
+The following requests are available:
+.PP
+.nf
+.ta 1i 1.7i 2.4i
+REQUEST	INITIAL	CAUSE	EXPLANATION
+	VALUE	BREAK
+\&.1C	yes	yes	One column format on a new page.
+\&.2C	no	yes	Two column format.
+\&.AB	no	yes	Begin abstract.
+\&.AE	-	yes	End abstract.
+\&.AI	no	yes	Author's institution follows.
+			Suppressed in TM.
+\&.AT	no	yes	Print `Attached' and turn off line
+			filling.
+\&.AU \fIx y\fR	no	yes	Author's name follows. \fIx\fR is
+			location and \fIy\fR is extension,
+			ignored except in TM.
+\&.B \fIx\fR	no	no	Print \fIx\fR in boldface; if no argument
+			switch to boldface.
+\&.B1	no	yes	Begin text to be enclosed in a box.
+\&.B2	no	yes	End text to be boxed & print it.
+\&.BT	date	no	Bottom title, automatically invoked
+			at foot of page. May be redefined.
+\&.BX \fIx\fR	no	no	Print \fIx\fR in a box.
+\&.CS \fIx...\fR	-	yes	Cover sheet info if TM format,
+			suppressed otherwise. Arguments are
+			number of text pages, other pages,
+			total pages, figures, tables,
+			references.
+\&.CT	no	yes	Print `Copies to' and enter no-fill
+			mode.
+\&.DA \fIx\fR	nroff	no	`Date line' at bottom of page is \fIx\fR.
+			Default is today.
+\&.DE	-	yes	End displayed text. Implies .KE.
+\&.DS \fIx\fR	no	yes	Start of displayed text, to appear
+			verbatim line-by-line. \fIx\fR =I for
+			indented display (default), =L for
+			left-justified on the page, =C for
+			centered, =B for make
+			left-justified block, then center
+			whole block. Implies .KS.
+\&.EG	no	-	Print document in BTL format for
+			`Engineer's Notes.' Must be first.
+\&.EN	-	yes	Space after equation produced by
+			\fBneqn\fR.
+\&.EQ \fIx y\fR	-	yes	Precede equation; break out and add
+			space. Equation number is \fIy\fR. The
+			optional argument \fIx\fR may be \fII\fR to
+			indent equation (default), \fIL\fR to
+			left-adjust the equation, or \fIC\fR to
+			center the equation.
+\&.FE	-	yes	End footnote.
+\&.FS	no	no	Start footnote. The note will be
+			moved to the bottom of the page.
+\&.I \fIx\fR	no	no	Italicize (underline) \fIx\fR; if \fIx\fR
+			missing, italic text follows.
+\&.IM	no	no	Print document in BTL format for an
+			internal memorandum. Must be first.
+\&.IP \fIx y\fR	no	yes	Start indented paragraph, with
+			hanging tag \fIx\fR. Indentation is \fIy\fR ens
+			(default 5).
+\&.KE	-	yes	End keep. Put kept text on next
+			page if not enough room.
+\&.KF	no	yes	Start floating keep. If the kept
+			text must be moved to the next
+			page, float later text back to this
+			page.
+\&.KS	no	yes	Start keeping following text.
+\&.LG	no	no	Make letters larger.
+\&.LP	yes	yes	Start left-blocked paragraph.
+\&.MF	-	-	Print document in BTL format for
+			`Memorandum for File.' Must be
+			first.
+\&.MR	-	-	Print document in BTL format for
+			`Memorandum for Record.' Must be
+			first.
+\&.ND	date	no	Use date supplied (if any) only in
+			special BTL format positions; omit
+			from page footer.
+\&.NH \fBn\fR	-	yes	Same as .SH, with section number
+			supplied automatically. Numbers are
+			multilevel, like 1.2.3, where \fIn\fR
+			tells what level is wanted (default
+			is 1).
+\&.NL	yes	no	Make letters normal size.
+\&.OK	-	yes	`Other keywords' for TM cover sheet
+			follow.
+\&.PP	no	yes	Begin paragraph. First line
+			indented.
+\&.PT	pg #	-	Page title, automatically invoked
+			at top of page. May be redefined.
+\&.QE	-	yes	End quoted (indented and shorter)
+			material.
+\&.QP	-	yes	Begin single paragraph which is
+			indented and shorter.
+\&.QS	-	yes	Begin quoted (indented and shorter)
+			material.
+\&.R	yes	no	Roman text follows.
+\&.RE	-	yes	End relative indent level.
+\&.RP	no	-	Cover sheet and first page for
+			released paper. Must precede other
+			requests.
+\&.RS	-	yes	Start level of relative
+			indentation. Following .IP's are
+			measured from current indentation.
+\&.SG \fIx\fR	no	yes	Insert signature(s) of author(s),
+			ignored except in TM. \fIx\fR is the
+			reference line (initials of author
+			and typist).
+\&.SH	-	yes	Section head follows, font
+			automatically bold.
+\&.SM	no	no	Make letters smaller.
+\&.TA \fIx\fR...	5...	no	Set tabs in ens. Default is 5 10 15
+			...
+\&.TE	-	yes	End table.
+\&.TH	-	yes	End heading section of table.
+\&.TL	no	yes	Title follows.
+\&.TM \fIx\fR...	no	-	Print document in BTL technical
+			memorandum format. Arguments are TM
+			number, (quoted list of) case
+			number(s), and file number. Must
+			precede other requests.
+\&.TR \fIx\fR	-	-	Print in BTL technical report
+			format; report number is \fIx\fR. Must be
+			first.
+\&.TS \fIx\fR	-	yes	Begin table; if \fIx\fR is \fIH\fR table has
+			repeated heading.
+\&.UL \fIx\fR	-	no	Underline argument.
+\&.UX	-	no	`UNIX'; first time used, adds
+			footnote `UNIX is a trademark of
+			Bell Laboratories.'
+.fi
+.sp

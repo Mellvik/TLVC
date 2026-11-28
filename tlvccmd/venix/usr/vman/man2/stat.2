@@ -1,0 +1,182 @@
+.TH STAT 2
+.SH NAME
+stat, fstat \- get file status
+.SH SYNOPSIS
+.nf
+.B "#include <sys/types.h>"
+.B "#include <sys/stat.h>"
+.sp
+.B "stat(name, buf)"
+.B "char *name;"
+.B "struct stat *buf;"
+.sp
+.B "fstat(fildes, buf)"
+.B "struct stat *buf;"
+.fi
+.SH DESCRIPTION
+.B stat
+obtains detailed information about a named file.
+.B fstat
+obtains the
+same information about an open file known by the file descriptor from a
+successful
+.BR open ,
+.BR creat ,
+.BR dup ,
+or
+.BR pipe (2)
+call.
+.PP
+.I name
+points to a null-terminated string naming a file;
+.I buf
+is the address
+of a buffer into which information is placed concerning the file.
+It is
+unnecessary to have any permissions at all with respect to the file, but all
+directories leading to the file must be searchable.
+The layout of the structure
+pointed to by
+.I buf
+as defined in
+.B <sys/stat.h>
+is given below.
+.B st_mode
+is encoded according to the ``#define'' statements.
+.PP
+.nf
+.ta .7i 1.5i 2.3i
+struct	stat
+{
+	dev_t	st_dev;
+	ino_t	st_ino;
+	unsigned short	st_mode;
+	short	st_nlink;
+	short	st_uid;
+	short	st_gid;
+	dev_t	st_rdev;
+	off_t	st_size;
+	time_t	st_atime;
+	time_t	st_mtime;
+	time_t	st_ctime;
+};
+.fi
+.PP
+The meaning of each element is:
+.PD 0
+.TP 1.2i
+.B st_dev
+major/minor number of device this file is on
+.TP
+.B st_ino
+inode number of this file
+.TP
+.B st_mode
+file mode (see encoding below)
+.TP
+.B st_uid
+owner ID number
+.TP
+.B st_gid
+group ID number
+.TP
+.B st_rdev
+if this is a special file (device), major/minor number of
+device it points to
+.TP
+.B st_size
+length in bytes
+.TP
+.B st_atime
+last accessed time (for reasons of efficiency, this is not set
+when a directory is searched, although this would be
+more logical)
+.TP
+.B st_mtime
+last modified time
+.TP
+.B st_ctime
+currently the same as
+.B st_mtime
+.PD
+.PP
+The bit encoding of
+.B st_mode
+is
+.PP
+.nf
+.ta .8i 1.8i 2.7i
+#define	S_IFMT	0160000	/* type of file */
+#define	S_IFDIR	0140000	/* directory */
+#define	S_IFCHR	0120000	/* character special */
+#define	S_IFBLK	0160000	/* block special */
+#define	S_IFREG	0100000	/* regular */
+#define	S_ILRG	0010000	/* large file */
+#define	S_ISUID	0004000	/* set user id on execution */
+#define	S_ISGID	0002000	/* set group id on execution */
+#define	S_ISVTX	0001000	/* save shared even after use */
+#define	S_IREAD	0000400	/* read permission, owner */
+#define	S_IWRITE	0000200	/* write permission, owner */
+#define	S_IEXEC	0000100	/* execute/search permission */
+.fi
+.PP
+The mode bits 0000070 and 0000007 encode group and others permissions
+(see
+.BR chmod (2)).
+.PP
+The defined types,
+.BR ino_t ,
+.BR off_t ,
+.BR time_t ,
+name various width integer
+values;
+.B dev_t
+encodes major and minor device numbers; their exact
+definitions are in the include file <sys/types.h> (see
+.BR types (5)).
+.PP
+When
+.I fildes
+is associated with a pipe,
+.B fstat
+reports an ordinary file with
+restricted permissions.
+The size is the number of bytes queued in the
+pipe.
+.PP
+Note that the stat buffer format differs from the disk inode format.
+.SH "SEE ALSO"
+ls(1), filsys(4)
+.SH DIAGNOSTICS
+Zero is returned if a status is available; \-1 if the file cannot be found.
+.SH ASSEMBLER
+(stat = 18.)
+.TP
+PDP-11:
+.nf
+sys stat; name; buf
+.fi
+.TP
+8086:
+.nf
+BX = 18
+AX = name
+DX = buf
+int 0Xf1
+.fi
+.PP
+(fstat = 28.)
+.TP
+PDP-11:
+.nf
+R0 = file descriptor
+sys fstat; buf
+.fi
+.TP
+8086:
+.nf
+BX = 28
+AX = buf
+int 0Xf1
+.fi
+.sp

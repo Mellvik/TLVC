@@ -1,0 +1,41 @@
+.TH ASSERT 3X
+.SH NAME
+assert \- program verification
+.SH SYNOPSIS
+.nf
+.B "#include <assert.h>"
+.sp
+.B "assert (expression)"
+.fi
+.SH DESCRIPTION
+.B assert
+is a macro that indicates
+.I expression
+is expected to be true at this
+point in the program.
+It causes an
+.BR exit (2)
+with a diagnostic comment on
+the standard output when
+.I expression
+is false (=0).
+Compiling with the
+.BR cc (1)
+option
+.B \-DNDEBUG
+effectively deletes
+.B assert
+from the program.
+.SH DIAGNOSTICS
+`Assertion failed: file
+.I f
+line
+.IR n .'
+.I f
+is the source file and
+.I n
+the source line
+number of the
+.B assert
+statement.
+.sp

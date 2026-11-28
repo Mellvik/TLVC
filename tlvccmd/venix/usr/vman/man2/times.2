@@ -1,0 +1,46 @@
+.TH TIMES 2
+.SH NAME
+times \- get process times
+.SH SYNOPSIS
+.nf
+.B "times(buffer)"
+.B "struct tbuffer *buffer;"
+.fi
+.SH DESCRIPTION
+.B times
+returns time-accounting information for the current process and for
+the terminated child processes of the current process.
+All times are in
+1/Hz seconds, where Hz=60.
+.PP
+After the call, the buffer will appear as follows:
+.PP
+.nf
+.ta .5i 1i
+struct tbuffer {
+	long	proc_user_time;
+	long	proc_system_time;
+	long	child_user_time;
+	long	child_system_time;
+};
+.fi
+.PP
+The children times are the sum of the children's process times and their
+children's times.
+.SH "SEE ALSO"
+time(1), time(2)
+.SH ASSEMBLER
+(times = 43.)
+.TP
+PDP-11:
+.nf
+sys times; buffer
+.fi
+.TP
+8086:
+.nf
+BX = 43
+AX = buffer
+int 0Xf1
+.fi
+.sp

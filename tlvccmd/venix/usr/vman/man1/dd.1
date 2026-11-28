@@ -1,0 +1,148 @@
+.TH DD 1
+.SH NAME
+dd \- convert and copy a file
+.SH SYNOPSIS
+.B "dd [ option=value ] ..."
+.SH DESCRIPTION
+.B dd
+copies the specified input file to the specified output with possible conversions.
+The standard input and output are used by default.
+The input and output block size may be specified to take advantage of raw physical I/O, that is, to specify that transfers be done in chunks greater than the default 512 bytes.
+.PP
+.TP 12
+.I option
+.I values
+.TP
+.BI if=
+input file name.
+Standard input is default so you can also use
+.B <
+redirection
+.TP
+.BI of=
+output file name
+.I which must already exist.
+Standard output is default; you can also use
+.B >
+redirection.
+If
+.B >
+redirection is used, the output file is created if it does not exist, and if it does exist,
+.I it is cleared.
+.TP
+.BI ibs= n
+input block size
+.I n
+bytes (default 512)
+.TP
+.BI obs= n
+output block size (default 512)
+.TP
+.BI bs= n
+set both input and output block size, superseding
+.B ibs
+and
+.BR obs ;
+also, if no conversion is specified, it is particularly efficient since no copy need be done
+.TP
+.BI cbs= n
+conversion buffer size
+.TP
+.BI skip= n
+skip
+.I n
+input records before starting copy
+.TP
+.BI files= n
+copy
+.I n
+files from (tape) input
+.TP
+.BI seek= n
+seek
+.I n
+records from beginning of output file before copying
+.TP
+.BI count= n
+copy only
+.I n
+input records
+.TP
+.BI conv= ascii
+convert EBCDIC to ASCII
+.TP
+.B ebcdic
+convert ASCII to EBCDIC
+.TP
+.B ibm
+slightly different map of ASCII to EBCDIC
+.TP
+.B lcase
+map alphabetics to lower case
+.TP
+.B ucase
+map alphabetics to upper case
+.TP
+.B swab
+swap every pair of bytes
+.TP
+.B noerror
+do not stop processing on an error
+.TP
+.B sync
+pad every input record to
+.BR ibs
+.TP
+.B ... , ...
+several comma-separated conversions
+.PP
+The record size (used for the
+.BR skip ,
+.B seek
+and
+.B count
+options) is the same as the ``block'' size.
+.PP
+Where sizes are specified, a number of bytes is expected.
+A number may end with
+.BR k ,
+.B b
+or
+.B w
+to specify multiplication by 1024, 512, or 2 respectively; a pair of numbers may be separated by
+.B x
+to indicate a product.
+All numbers are specified in decimal.
+.PP
+.B cbs
+is used only if
+.B ascii
+or
+.B ebcdic
+conversion is specified.
+In the former case
+.B cbs
+characters are placed into the conversion buffer, converted to ASCII, and trailing blanks trimmed and new-line added before sending the line to the output.
+In the latter case ASCII characters are read into the conversion buffer, converted to EBCDIC, and blanks added to make up an output record of size
+.BR cbs .
+.PP
+After completion,
+.B dd
+reports the number of whole and partial input and output blocks.
+.SH EXAMPLES
+Copy 640 blocks from floppy unit 0 to unit 1; use transfer size of 10 blocks:
+.RS
+.nf
+dd if=/dev/f0 of=/dev/f1 bs=10b count=64
+.fi
+.RE
+.SH "SEE ALSO"
+cp(1), tr(1)
+.SH DIAGNOSTICS
+f+p records in(out): numbers of full and partial records read(written)
+.SH BUGS
+The ASCII/EBCDIC conversion tables are taken from the 256 character standard in the CACM Nov, 1968.
+.PP
+Newlines are inserted only on conversion to ASCII; padding is done only on conversion to EBCDIC.
+These should be separate options.
+.sp

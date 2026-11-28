@@ -1,0 +1,63 @@
+.TH SLEEP 3
+.SH NAME
+sleep \- suspend execution for interval
+.SH SYNOPSIS
+.B sleep(time)
+.SH DESCRIPTION
+If
+.I time
+is greater than or equal to zero, the current process is suspended
+from execution for the number of seconds specified by the argument, up
+to 32767 seconds.
+.PP
+If
+.I time
+is less than zero, the current process is suspended for the number
+of clock-ticks (1/60ths of a second) equal in magnitude to
+.IR time ,
+up to
+32768 ticks.
+The actual suspension time may be up to 1 clock-tick less
+than that requested, because scheduled wakeups occur at fixed 1-clock-tick
+intervals.
+.PP
+Because of scheduling delays due to other system activity, resumption of
+execution for sleep calls may be delayed an arbitrary amount.
+.PP
+The routine is implemented by setting an alarm clock signal (see
+.BR alarm (2))
+and pausing
+.RB ( pause (2))
+until it occurs.
+.PP
+The following things will happen if a previous alarm was set in seconds:
+.RS
+.PP
+If the alarm was set to come due after the sleep would finish,
+then it will occur as scheduled after the sleep.
+.PP
+If the previous alarm was set to come due during the sleep, then
+the sleep will terminate (prematurely) when the alarm occurs,
+and the alarm will be sent a second later.
+.RE
+.PP
+Sleeps should
+.I not
+be mixed with clock-tick alarms.
+.PP
+If other signals are being caught, and one occurs during a sleep, then the
+signal-catching routine may itself be interrupted by the alarm ending the
+sleep; if this happens, then execution resumes normally at the point after
+the sleep call.
+In these circumstances the signal-catching routine will never
+get a chance to finish.
+To prevent this from happening, signal-catching
+routines can immediately call
+.B signal
+to ignore alarms.
+.SH "SEE ALSO"
+alarm(2), pause(2)
+.SH NOTES
+Clock-tick sleeps are not portable to standard UNIX, and VENIX limits
+regular sleeps to 32767 seconds.
+.sp

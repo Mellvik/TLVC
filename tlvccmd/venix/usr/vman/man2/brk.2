@@ -1,0 +1,58 @@
+.TH BRK 2
+.SH NAME
+brk, sbrk, break \- change core allocation
+.SH SYNOPSIS
+.B "char *brk(addr)"
+.PP
+.B "char *sbrk(incr)"
+.SH DESCRIPTION
+.B brk
+sets the system's idea of the lowest location not used by the program
+(called the break) to
+.IR addr .
+Locations not less than
+.I addr
+and below the
+stack pointer are not in the address space and will thus cause a memory
+violation if accessed.
+.PP
+In the alternate function
+.BR sbrk ,
+.I incr
+more bytes are added to the
+program's data space and a pointer to the start of the new area is
+returned.
+.PP
+When a program begins execution via
+.BR exec (2)
+the break is set at the
+highest location defined by the program and data storage areas.
+Ordinarily,
+therefore, only programs with growing data areas need to use
+these calls.
+.SH "SEE ALSO"
+exec(2), malloc(3), end(3)
+.SH DIAGNOSTICS
+Zero is returned if the break could be set; \-1 if the program requests
+more memory than the system limit.
+.SH ASSEMBLER
+(break = 17.)
+.TP
+PDP-11:
+.nf
+sys break; addr
+.fi
+.TP
+8086:
+.nf
+BX = 17
+AX = addr
+int 0Xf1
+.fi
+.PP
+.B break
+performs the function of
+.BR brk .
+The name of the routine differs
+from that in C for historical reasons.
+.sp

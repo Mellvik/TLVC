@@ -1,0 +1,391 @@
+.TH PLOT 3G
+.SH NAME
+openpl \fIet al.\fR \- graphics interface
+.SH SYNOPSIS
+Standard Unix subroutines
+.PP
+.nf
+.ta 2.2i
+\fBopenpl( )\fR
+\fBerase( )\fR
+\fBspace(x0, y0, x1, y1)\fR	int x0, y0, x1, y1;
+\fBlabel(string)\fR	char string[ ];
+\fBline(x0, y0, x1, y1)\fR	int x0, y0, x1, y1;
+\fBcircle(x, y, rad)\fR	int x, y, rad;
+\fBarc(x, y, x0, y0, x1, y1)\fR	int x, y, x0, y0, x1, y1;
+\fBmove(x, y)\fR	int x, y;
+\fBcont(x, y)\fR	int x, y;
+\fBpoint(x, y)\fR	int x, y;
+\fBlinemod(style)\fR	char style[ ];
+\fBclosepl( )\fR
+.fi
+.PP
+Special VENIX Enhancements
+.PP
+.nf
+.ta 2.2i
+\fBlinepat(pat)\fR	int pat;
+\fBlinewid(width)\fR	int width;
+\fBwindow(x0, y0, x1, y1)\fR	int x0, y0, x1, y1;
+\fBbox(x0, y0, x1, y1)\fR	int x0, y0, x1, y1;
+\fBrfill(x0, y0, x1, y1)\fR	int x0, y0, x1, y1;
+\fBfill(x, y)\fR	int x, y;
+\fBdot(x, y, rad)\fR	int x, y, rad;
+\fBcolor(col)\fR	int col;
+\fBcolndx(col, pat)\fR	int col, pat;
+\fBwritemod(s)\fR	char s[ ];
+.fi
+.SH DESCRIPTION
+These subroutines generate graphic output in a relatively device-independent
+manner.
+.B openpl()
+must be used before any of the others to
+open the device for graphics.
+.B closepl()
+flushes the output and closes the
+device.
+.PP
+String arguments to
+.BR label() ,
+.BR linemod() ,
+and
+.B writemod()
+are null-terminated,
+and do not contain newlines.
+.PP
+All coordinate points used in the routines are user-coordinates, defined
+by the
+.B space()
+subroutine.
+.B space()
+must be called to set up this coordinate
+system, or you may get strange results!
+.PP
+The last designated point in a call to
+.BR line() ,
+.BR move() ,
+.BR cont() ,
+or
+.BR point() ,
+becomes the `current point' for the next plotting instruction.
+.PP
+Standard Unix subroutines
+.RS
+.TP
+.B openpl( )
+Initialize graphics output device for writing.
+The routine
+will return a zero value upon a successful initialization.
+If an error is encountered, the routine will return a value
+of \-1.
+.TP
+.B erase( )
+Erase the graphics screen.
+.TP
+\fBspace(\fIx0, y0, x1, y1\fB)\fR
+Set up plotting area.
+The coordinate points (x0,y0) and
+(x1,y1) specify respectively the lower-left and upper-right
+corners of the user-coordinate system to be defined.
+The
+user-coordinate system is scaled to fit the largest possible
+square region allowable on the graphics device screen.
+All plotting instructions are produced with respect to the
+user-coordinate system.
+.br
+The upper limits defined are just outside the plotting
+area.
+.br
+Video screens which are not square will display a blank
+portion outside the plotting area.
+You may plot beyond
+the space settings in order to take advantage of this area.
+.TP
+\fBlabel(\fIs\fB)\fR
+Write out the ASCII text string so that its first character
+falls on the current point.
+.TP
+\fBline(\fIx0, y0, x1, y1\fB)\fR
+Draw a line from (x0,y0) to (x1,y1).
+(x1,y1) becomes the
+new current point.
+.TP
+\fBcircle(\fIx, y, r\fB)\fR
+Draw a circle with center at (x,y) having radius r.
+.TP
+\fBarc(\fIx, y, x0, y0, x1, y1\fB)\fR
+Draw an arc with center at (x,y).
+The next two points
+determine the starting and ending octants (inclusive and
+exclusive) for a counter-clockwise arc.
+The point (x0,y0)
+is referenced for arc radius.
+.TP
+\fBmove(\fIx, y\fB)\fR
+Move the current point to (x,y).
+.TP
+\fBcont(\fIx, y\fB)\fR
+Draw from current point to (x,y).
+(x,y) becomes the new
+current point.
+.TP
+\fBpoint(\fIx, y\fB)\fR
+Draw a point at (x,y).
+(x,y) becomes the new current
+point.
+.TP
+\fBlinemod(\fIs\fB)\fR
+Change line-style attribute for subsequent lines.
+Styles
+available are: `solid', `dotted', `longdashed', `shortdashed',
+`dotdashed'.
+.TP
+.B closepl( )
+Close graphics output device for writing.
+.RE
+.PP
+Special VENIX Enhancements
+.RS
+.TP
+\fBlinepat(\fIpattern\fB)\fR
+Specify a 16-bit integer bit pattern, of user's choice, to
+be used in place of one of the available line styles.
+Bits
+set to `1' are visible; bits set to `0' are invisible.
+.br
+EX: The integer
+.I 0146314
+in octal represents
+.I `1100110011001100'
+which is a dashed line.
+.TP
+\fBlinewid(\fIwidth\fB)\fR
+Specify line width in user coordinates.
+.TP
+\fBwindow(\fIx0, y0, x1, y1\fB)\fR
+The points (x0,y0) and (x1,y1) specify respectively the
+lower-left and upper-right corners of a clipping window
+in user coordinates.
+Only portions of lines inside the
+window will be displayed, and all erasures will be
+confined to the window area only.
+.TP
+\fBbox(\fIx0, y0, x1, y1\fB)\fR
+Draw a box frame bounded by the lower-left and upper-right
+points (x0,y0) and (x1,y1).
+.TP
+\fBrfill(\fIx0, y0, x1, y1\fB)\fR
+Draw a filled rectangle bounded by the user coordinates
+(x0,y0) and (x1,y1).
+The fill pattern is determined by the
+current line-style pattern (see
+.BR linepat() ).
+.TP
+\fBfill(\fIx, y\fB)\fR
+Fill a convex closed boundary of arbitrary shape.
+The
+point (x,y) is the seed point (starting point) and must be
+inside the boundary.
+The fill pattern is determined by the
+current line-style pattern (see
+.BR linepat() ).
+.TP
+\fBdot(\fIx, y, r\fB)\fR
+Draw a filled circle with center at (x,y), having a radius
+r.
+The fill pattern is determined by the current line-style
+pattern (see
+.BR linepat() ).
+.TP
+\fBcolor(\fIc\fB)\fR
+Choose a color from the present color palette.
+All graphics
+following will be displayed in that color.
+The color
+palette is preset as follows:
+.sp
+.nf
+.ta .8i 1.8i
+	color	shade
+.sp
+	0	black (background)
+	1	blue
+	2	green
+	3	cyan
+	4	red
+	5	magenta
+	6	yellow
+	7	white
+.fi
+.sp
+The
+.B colndx()
+routine below explains how to change the
+color palette.
+On a monochrome monitor, the colors
+will show up as gray scales.
+Be cautious, as this routine
+.I "should not"
+be called unless an extended bit map board
+(color board) is present in the machine.
+.TP
+\fBcolndx(\fIc, pat\fB)\fR
+Set a color from the palette to a desired shade.
+In the
+DEC PRO color graphics, the colors available are numbered
+0 thru 7, 0 being the background color.
+The pattern
+argument is a 16-bit integer to be set by the user.
+.sp
+.nf
+.ta .5i 2.4i
+	15\-\-8	7\-\-0
+.sp
+	0 ... 0	r r r g g g b b
+.fi
+.sp
+The high 8 bits are ignored and should be set to zero.
+The low 8 bits specify the individual intensity of the
+three primary colors: red, green, and blue.
+Intensities for
+red and green may range from 0 to 7, and blue from 0 to
+3.
+For example, a pattern of
+.I `034'
+in octal represents
+.I "`00000000 000 111 00'"
+in binary, which is a full-intensity
+green.
+.sp
+Be cautious, as a change in the color palette will instantly change
+that color on the screen.
+It is advised that this routine be called
+before any plotting to eliminate color flashing.
+This may be useful,
+however, for creating special effects for demo purposes.
+.I "Do not"
+use this routine unless an extended bit map board (color
+board) is present in the machine.
+.TP
+\fBwritemod(\fIs\fB)\fR
+Choose from one of the five available writing modes:
+.RS
+.TP 1i
+.B xor
+.I Exclusive-or
+mode allows one to overlay
+several images onto the same screen, and
+remove them arbitrarily while retaining the
+underlying image.
+.br
+[exclusive `OR' data to screen: memory ^= data]
+.TP
+.B mov
+.I Absolute-move
+mode overwrites anything on
+the screen and is good for clearing off previous
+images.
+.br
+[move data to screen: memory = data]
+.TP
+.B mvc
+.I Move-complement
+mode overwrites the
+screen with a reverse image, creating reverse-video
+effects.
+.br
+[move complement of data to screen:
+memory = ~data]
+.TP
+.B bis
+.I Bit-set
+mode writes only the set (turned-on)
+bits onto the screen.
+The current image is
+not destroyed, and thus this mode is useful
+for creating composite images.
+.br
+[`OR' data to screen: memory |= data]
+.TP
+.B bic
+.I Bit-clear
+mode writes only the clear (turned-off)
+bits onto the screen.
+.br
+[`AND' complement of data to screen:
+memory &= ~data]
+.RE
+.sp
+All plotting instructions operate in the chosen writing mode.
+.br
+.I Bit-set
+mode is the default.
+.RE
+.PP
+Various flavors of these functions exist for different output devices.
+They
+are obtained by the following
+.BR ld (1)
+options (normally placed at the end
+of the line in the
+.B cc
+command):
+.TP 8
+.B \-lplot
+device-independent graphics stream on standard output for
+.BR plot (1g)
+filters
+.PP
+The following options bypass the plot filters and write directly to the device:
+.TP 8
+.B \-ltpro
+DEC PRO monochrome and color graphics screens
+.br
+Color is distinguished from monochrome by a first subroutine
+call to
+.BR color() .
+If you want monochrome output, do
+not make any calls to either
+.B color()
+or
+.BR colndx() .
+Color will
+work only if an extended bit map board (color board) is
+present in the machine.
+If your machine has a monochrome
+monitor
+.I and
+a color board, use of the color subroutines will
+produce gray scales.
+.TP
+.B \-lt4014
+Tektronix 4014 terminal
+.SH EXAMPLES
+To make a program using the device independent plot library:
+.IP
+cc \-o program program.c \-lplot
+.PP
+To run the program on the DEC PRO graphics screen:
+.IP
+program < data | plot \-Tpro
+.PP
+To run the program on a Tektronix terminal:
+.IP
+program < data | plot \-T4014 > /dev/tek
+.PP
+To bypass the plot filters and write directly to the DEC PRO:
+.IP
+.nf
+cc \-o program program.c \-ltpro
+program < data
+.fi
+.SH "SEE ALSO"
+plot(1g), plot(5), setscreen(1g)
+.SH NOTES
+The
+.B fill()
+routine operates a boundary-fill operation and requires an
+unbroken boundary in order to fill properly.
+Please be cautious when
+using it.
+.sp

@@ -1,0 +1,23 @@
+.TH PASSWD 4
+.SH NAME
+passwd \- password file
+.SH DESCRIPTION
+\fBpasswd\fR contains for each user the following information:
+.nf
+name (login name, contains no upper case)
+encrypted password
+numerical user ID (0-255)
+numerical group ID (0-255)
+GCOS job number, box number, optional GCOS user-id
+initial working directory
+program to use as Shell
+.fi
+.PP
+This is an ASCII file. Each field within each user's entry is separated from the next by a colon. The GCOS field is used only when communicating with that system, and in other installations can contain any desired information. Each user is separated from the next by a new-line. If the password field is null, no password is demanded; if the Shell field is null, the Shell itself is used.
+.PP
+This file resides in directory \fB/etc\fR. Because of the encrypted passwords, it can and does have general read permission and can be used, for example, to map numerical user ID's to names.
+.SH FILES
+/etc/passwd
+.SH "SEE ALSO"
+getpwent(3), login(1), crypt(3), passwd(1), group(4)
+.sp

@@ -1,0 +1,333 @@
+.TH LD 1
+.SH NAME
+ld \- loader
+.SH SYNOPSIS
+.B ld
+[ option ] file ...
+.SH DESCRIPTION
+.B ld
+combines several object programs into one, resolves external references,
+and searches libraries.
+In most cases, it is recommended that the
+user not call
+.B ld
+directly, but instead from
+.B cc
+or
+.BR f77 (1),
+since they handle
+the proper loading sequences and will automatically pass appropriate
+flags to the loader.
+.PP
+In the simplest case several object
+.I files
+are given, and
+.B ld
+combines them,
+producing an object module which can be either executed or become the
+input for a further
+.B ld
+run.
+(In the latter case, the
+.B \-r
+option must be
+given to preserve the relocation bits.)
+The output of
+.B ld
+is left on
+.BR a.out .
+This file is made executable only if no errors occurred during the load.
+.PP
+The argument routines are concatenated in the order specified.
+The entry
+point of the output is the beginning of the first routine.
+.PP
+If any argument is a library, it is searched exactly once at the point it is
+encountered in the argument list.
+Only those routines defining an
+unresolved external reference are loaded.
+If a routine from a library
+references another routine in the library, and the library has not been
+processed by
+.BR ranlib (1),
+the referenced routine must appear after the
+referencing routine in the library.
+Thus the order of programs within
+libraries may be important.
+If the first member of a library is named
+`__.SYMDEF', then it is understood to be a dictionary for the library
+such as produced by
+.BR ranlib ;
+the dictionary is searched iteratively to
+satisfy as many references as possible.
+.PP
+The symbols `_etext', `_edata' and `_end' (`etext', `edata' and `end' in C)
+are reserved, and if referred to, are set to the first location above the program,
+the first location above initialized data, and the first location above
+all data respectively.
+It is erroneous to define these symbols.
+.PP
+.B ld
+understands several options.
+Except for
+.BR \-l ,
+they should appear
+before the file names.
+.TP
+.B \-s
+`Strip' the output, that is, remove the symbol table and relocation
+bits to save space (but impair the usefulness of the
+debugger).
+This information can also be removed by
+.BR strip (1).
+.TP
+.B \-u
+Take the following argument as a symbol and enter it as
+undefined in the symbol table.
+This is useful for loading wholly
+from a library, since initially the symbol table is empty and an
+unresolved reference is needed to force the loading of the first
+routine.
+.TP
+.BI \-l x
+This option is an abbreviation for the library name
+.BI /lib/lib x .a,
+where
+.I x
+is a string.
+If that does not exist,
+.B ld
+tries
+.BI /usr/lib/lib x .a.
+A library is searched when its name is encountered,
+so the placement of a
+.B \-l
+is significant.
+To correctly
+resolve all external references, a library must generally be loaded
+after the object file which makes the references.
+.TP
+.B \-x
+Do not preserve local (non-.globl) symbols in the output symbol
+table; only enter external symbols.
+This option saves some space
+in the output file.
+.TP
+.B \-X
+Save local symbols except for those whose names begin with `L'.
+This option is used by
+.BR cc (1)
+to discard internally generated labels
+while retaining symbols local to routines.
+.TP
+.B \-r
+Generate relocation bits in the output file so that it can be the
+subject of another
+.B ld
+run.
+This flag also prevents final definitions
+from being given to common symbols, and suppresses the
+`undefined symbol' diagnostics.
+.TP
+.B \-d
+Force definition of common storage even if the
+.B \-r
+flag is present.
+.TP
+.B \-z#
+When the output file is executed, the stack will be placed below
+the data space.
+If no # is specified, then the stack will be 8kb
+(8192) in size; otherwise, the stack will be the
+.B #
+specified.
+This allows a more compact data segment, as normally a full 64kb is
+used.
+(RAINBOW/VENIX only).
+.TP
+.B \-n
+Arrange that when the output file is executed, the text portion
+will be read-only and shared among all users executing the file.
+This involves moving the data areas up to the first possible 4K
+word boundary following the end of the text.
+(VENIX/11 and PRO/VENIX only).
+.TP
+.B \-i
+When the output file is executed, the program code and data
+areas will be placed in separate address spaces and the code will
+be shared among all users executing the file.
+On VENIX/11 and
+PRO/VENIX, this option can be used only on those processors
+with physically separate instruction and data space, such as the
+11/44, or J-11.
+The only difference between this option and
+.B \-n
+is that here the data starts at location 0.
+.TP
+.B \-o
+The
+.I name
+argument after
+.B \-o
+is used as the name of the
+.B ld
+output file, instead of
+.BR a.out .
+.TP
+.B \-m
+Program is to be ``code-mapped,'' or overlayed in memory.
+This is only necessary for unusually large programs.
+The
+.B \-md
+option causes the code-mapping table to be placed in the data
+rather than code segment of the program.
+See ``Code-mapping Under VENIX'' in the
+.IR "Programming Guide" .
+(VENIX/11 and PRO/VENIX only).
+.TP
+.B \-e
+The following argument is taken to be the name of the entry
+point of the loaded program; location 0 is the default, unless the
+.B \-z
+flag is specified.
+.TP
+.B \-T
+The following argument specifies the hex base address for the
+text region.
+(RAINBOW/VENIX only).
+.TP
+.B \-D
+The following argument specifies the hex base address for the
+data region.
+(RAINBOW/VENIX only).
+.TP
+.B \-B
+The following argument specifies the hex base address for the bss
+region.
+(RAINBOW/VENIX only).
+.SH FILES
+.nf
+.ta 1.4i
+/lib/lib*.a	libraries
+/usr/lib/lib*.a	more libraries
+a.out	output file
+.fi
+.SH "SEE ALSO"
+ar(1), as(1), cc(1), nm(1)
+.br
+ranlib(1), size(1), strip(1), lorder(1)
+.SH DIAGNOSTICS
+Diagnostics are intended to be self-explanatory.
+The following diagnostic
+messages may be produced by the loader.
+Explanations are given where
+deemed necessary.
+.TP 1.4i
+.B "Bad `use' or `entry'"
+Missing argument following
+.B \-u
+or
+.B \-e
+flag
+.TP
+.B "bad flag"
+.TP
+.B "Bad format"
+Loader expects object modules or archives of object modules.
+This error can be produced if source files
+given to
+.B cc
+don't end in `.c', as
+.B cc
+assumes they are
+object modules and passes them to the loader.
+.TP
+.B "Bad output file"
+.TP
+.B "cannot create output"
+.TP
+.B "cannot create temp"
+.TP
+.B "cannot open"
+.TP
+.B "Entry point not in text"
+Start-off point not located in text space
+.TP
+.B "fast load buffer too small"
+Not enough buffer space to load
+.BR ranlib 'ed
+library.
+Solution is to un-ranlib library by removing
+.B __.SYMDEF
+table-of-contents modules.
+.TP
+.B "internal error: symbol not found"
+.TP
+.B "Local symbol botch"
+Internal error.
+May be caused by use of older version
+of assembler with newer version of loader.
+Try recompiling sources and reloading.
+.TP
+.B "Local symbol overflow"
+Internal error
+.TP
+.B "`\-m' means relocation info is lost."
+.TP
+.B "Mapping array size too big."
+Not enough room for code-mapping jump table of
+indicated size; decrease size specified with
+.B \-m
+flag.
+.TP
+.B "Mapping array too small."
+Not enough room in jump table for all entries; increase
+size with
+.B \-m
+flag.
+.TP
+.B "Multiply defined"
+One symbol defined more than once.
+.TP
+.B "No pages"
+Internal buffer overrun.
+.TP
+.B "No relocation bits"
+Relocation information for module has been stripped
+away, so can't relocate code.
+.TP
+.B "No `cmstart'"
+Code-mapping start-off routine not present.
+.TP
+.B "out of date (warning)"
+Last modification date of library is later than when
+.BR ranlib (1)
+was last run on it (this will occur even if the
+library is copied after
+.BR ranlib 'ed).
+Run
+.B ranlib
+on library again.
+.TP
+.B "output error"
+.TP
+.B premeof
+Premature end-of-file.
+Object file chopped off?
+.TP
+.B "Relocation error"
+Internal error
+.TP
+.B "Symbol table overflow"
+Too many symbols.
+.TP
+.B "Text module too big."
+Code-mapped segment greater than 8kb.
+.TP
+.B "text overflow"
+Program too large (> 64kb); reduce code size, or code-map.
+.TP
+.B "\-v: arg missing"
+Argument must follow directly after
+.B \-v
+.sp

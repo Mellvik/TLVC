@@ -1,0 +1,14 @@
+.TH MTAB 4
+.SH NAME
+mtab \- mounted file system table
+.SH DESCRIPTION
+\fBmtab\fR resides in directory \fB/etc\fR and contains a table of devices mounted by the \fBmount\fR command. \fBumount\fR removes entries.
+.PP
+Each entry is 64 bytes long; the first 32 are the null-padded name of the place where the special file is mounted; the second 32 are the null-padded name of the special file. The special file has all its directories stripped away; that is, everything through the last '/' is thrown away.
+.PP
+This table is present only so people can look at it. It does not matter to \fBmount\fR if there are duplicated entries nor to \fBumount\fR if a name cannot be found.
+.SH FILES
+/etc/mtab
+.SH "SEE ALSO"
+mount(1)
+.sp

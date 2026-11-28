@@ -1,0 +1,80 @@
+.TH GETPWENT 3
+.SH NAME
+getpwent, getpwuid, getpwnam, setpwent, endpwent \- get password file entry
+.SH SYNOPSIS
+.nf
+.B "#include <pwd.h>"
+.sp
+.B "struct passwd *getpwent();"
+.sp
+.B "struct passwd *getpwuid(uid) int uid;"
+.sp
+.B "struct passwd *getpwnam(name) char *name;"
+.sp
+.B "int setpwent();"
+.sp
+.B "int endpwent();"
+.fi
+.SH DESCRIPTION
+.BR getpwent ,
+.BR getpwuid ,
+and
+.B getpwnam
+each return a pointer to an object
+with the following structure containing the broken-out fields of a line in
+the password file.
+.PP
+.RS
+.nf
+.ta .5i 1.1i
+struct passwd {
+	char	*pw_name;
+	char	*pw_passwd;
+	int	pw_uid;
+	int	pw_gid;
+	int	pw_quota;
+	char	*pw_comment;
+	char	*pw_gecos;
+	char	*pw_dir;
+	char	*pw_shell;
+};
+.fi
+.RE
+.PP
+The fields
+.I pw_quota
+and
+.I pw_comment
+are unused; the others have meanings
+described in
+.BR passwd (4).
+.PP
+.B getpwent
+reads the next line (opening the file if necessary);
+.B setpwent
+rewinds the file;
+.B endpwent
+closes it.
+.PP
+.B getpwuid
+and
+.B getpwnam
+search from the beginning until a matching
+.I uid
+or
+.I name
+is found (or until
+.B EOF
+is encountered).
+.SH FILES
+/etc/passwd
+.SH "SEE ALSO"
+getlogin(3), getgrent(3), passwd(4)
+.SH DIAGNOSTICS
+Null pointer (0) returned on
+.B EOF
+or error.
+.SH BUGS
+All information is contained in a static area so it must be copied if it is
+to be saved.
+.sp

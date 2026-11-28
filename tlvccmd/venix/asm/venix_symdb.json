@@ -1,0 +1,5035 @@
+{
+  "_Acuopn": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_Def_ter": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_My_term": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_Panic": {
+    "library": "syslib",
+    "member": "prf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_Printf": {
+    "library": "syslib",
+    "member": "prf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_Printn": {
+    "library": "syslib",
+    "member": "prf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_SubChDi": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_SubDir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_SubFile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "__asr": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__cleanu": {
+    "library": "libc",
+    "member": "fakcu.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__ctype_": {
+    "library": "libc",
+    "member": "ctype_.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__doprnt": {
+    "library": "libc",
+    "member": "doprnt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__doscan": {
+    "library": "libc",
+    "member": "doscan.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__echoit": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__endwin": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__exit": {
+    "library": "libc",
+    "member": "exit.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__filbuf": {
+    "library": "libc",
+    "member": "filbuf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__flsbuf": {
+    "library": "libc",
+    "member": "flsbuf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__getccl": {
+    "library": "libc",
+    "member": "doscan.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__innum": {
+    "library": "libc",
+    "member": "doscan.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__instr": {
+    "library": "libc",
+    "member": "doscan.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__iob": {
+    "library": "libc",
+    "member": "data.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__lastbu": {
+    "library": "libc",
+    "member": "data.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__neg": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__putcha": {
+    "library": "libcurses",
+    "member": "cr_put.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__rawmod": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__sctab": {
+    "library": "libc",
+    "member": "doscan.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__shl": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__shr": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__sprint": {
+    "library": "libcurses",
+    "member": "printw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__sscans": {
+    "library": "libcurses",
+    "member": "scanw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__strout": {
+    "library": "libc",
+    "member": "strout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "__tty_ch": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__unctrl": {
+    "library": "libcurses",
+    "member": "unctrl.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "__win": {
+    "library": "libcurses",
+    "member": "refresh.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_abort": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_abs": {
+    "library": "libc",
+    "member": "abs.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_access": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "_access",
+    "tlvc_note": "direct"
+  },
+  "_acos": {
+    "library": "libm",
+    "member": "asin.o",
+    "seg": "T",
+    "tlvc_name": "_acos",
+    "tlvc_note": "direct"
+  },
+  "_add_ac": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_aiowait": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific: remove/stub"
+  },
+  "_alarm": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_alarm",
+    "tlvc_note": "direct"
+  },
+  "_alarmtr": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_alloc": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_allocs": {
+    "library": "libc",
+    "member": "malloc.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_anlwrk": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_anyread": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_aphysio": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_aretu": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_argok": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_arrived": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_asctime": {
+    "library": "libc",
+    "member": "ctime.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_asin": {
+    "library": "libm",
+    "member": "asin.o",
+    "seg": "T",
+    "tlvc_name": "_asin",
+    "tlvc_note": "direct"
+  },
+  "_assert": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_atan": {
+    "library": "libm",
+    "member": "atan.o",
+    "seg": "T",
+    "tlvc_name": "_atan",
+    "tlvc_note": "direct"
+  },
+  "_atan2": {
+    "library": "libm",
+    "member": "atan.o",
+    "seg": "T",
+    "tlvc_name": "_atan2",
+    "tlvc_note": "direct"
+  },
+  "_atof": {
+    "library": "libc",
+    "member": "atof.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_atoi": {
+    "library": "libc",
+    "member": "atoi.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_atol": {
+    "library": "libc",
+    "member": "atol.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_badbloc": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_bawrite": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_bcopy": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_bdwrite": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_bflush": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_binit": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_bld_par": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_bldflst": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_blptcl": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_bmap": {
+    "library": "syslib",
+    "member": "subr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_box": {
+    "library": "libcurses",
+    "member": "box.o",
+    "seg": "T",
+    "tlvc_name": "_box",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_bread": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_breada": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_brelse": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_brk": {
+    "library": "libc",
+    "member": "brk.o",
+    "seg": "T",
+    "tlvc_name": "_brk",
+    "tlvc_note": "direct"
+  },
+  "_bump": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_bwrite": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_cabs": {
+    "library": "libm",
+    "member": "hypot.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_callbac": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_calloc": {
+    "library": "libc",
+    "member": "calloc.o",
+    "seg": "T",
+    "tlvc_name": "_calloc",
+    "tlvc_note": "direct"
+  },
+  "_callok": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_cdirec": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ceil": {
+    "library": "libm",
+    "member": "floor.o",
+    "seg": "T",
+    "tlvc_name": "_ceil",
+    "tlvc_note": "direct"
+  },
+  "_cfgets": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_cfree": {
+    "library": "libc",
+    "member": "calloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_cgalarm": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_chdir": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_chdir",
+    "tlvc_note": "direct"
+  },
+  "_chkdebu": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_chkperm": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_chkpre": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_chkpth": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_chksum": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_chmod": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_chmod",
+    "tlvc_note": "direct"
+  },
+  "_chown": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_chown",
+    "tlvc_note": "direct"
+  },
+  "_chroot": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_chroot",
+    "tlvc_note": "direct"
+  },
+  "_chsys": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_cinit": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ckexpf": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_cleanup": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_clearer": {
+    "library": "libc",
+    "member": "clrerr.o",
+    "seg": "T",
+    "tlvc_name": "_clearerr",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_clearse": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_clkdiff": {
+    "library": "syslib",
+    "member": "clock.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_clock": {
+    "library": "syslib",
+    "member": "clock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_close": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_close",
+    "tlvc_note": "direct"
+  },
+  "_closedi": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_closef": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_clrbuf": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_clsacu": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_clscfil": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_cmtseq": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_cntrl": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_conn": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_copy": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_copyiin": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_copyin": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_copyiout": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_copyout": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_copyseg": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_core": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_cos": {
+    "library": "libm",
+    "member": "sin.o",
+    "seg": "T",
+    "tlvc_name": "_cos",
+    "tlvc_note": "direct"
+  },
+  "_cosh": {
+    "library": "libm",
+    "member": "sinh.o",
+    "seg": "T",
+    "tlvc_name": "_cosh",
+    "tlvc_note": "direct"
+  },
+  "_cpanic": {
+    "library": "syslib",
+    "member": "prf2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_cpass": {
+    "library": "syslib",
+    "member": "subr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_creat": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_creat",
+    "tlvc_note": "direct"
+  },
+  "_crypt": {
+    "library": "libc",
+    "member": "crypt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ctime": {
+    "library": "libc",
+    "member": "ctime.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_curscr": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_deadloc": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_decode": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_delock": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_delwin": {
+    "library": "libcurses",
+    "member": "delwin.o",
+    "seg": "T",
+    "tlvc_name": "_delwin",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_deverro": {
+    "library": "syslib",
+    "member": "prf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_dircls": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_diropn": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_disksor": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_div_ac": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_dpadd": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_dpcmp": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_dummy": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_dup": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "_dup",
+    "tlvc_note": "direct"
+  },
+  "_dup2": {
+    "library": "libc",
+    "member": "dup2.o",
+    "seg": "T",
+    "tlvc_name": "_dup2",
+    "tlvc_note": "direct"
+  },
+  "_dysize": {
+    "library": "libc",
+    "member": "ctime.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_echo": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ecvt": {
+    "library": "libc",
+    "member": "ecvt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_emt": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_encode": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_encrypt": {
+    "library": "libc",
+    "member": "crypt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_endgren": {
+    "library": "libc",
+    "member": "getgrent.o",
+    "seg": "T",
+    "tlvc_name": "_endgrent",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_endic": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_endpwen": {
+    "library": "libc",
+    "member": "getpwent.o",
+    "seg": "T",
+    "tlvc_name": "_endpwent",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_endwin": {
+    "library": "libcurses",
+    "member": "endwin.o",
+    "seg": "T",
+    "tlvc_name": "_endwin",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_entflst": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_exec": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "_execv",
+    "tlvc_note": "rename: exec->execv"
+  },
+  "_exece": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "_execve",
+    "tlvc_note": "rename: exece->execve"
+  },
+  "_execl": {
+    "library": "libc",
+    "member": "execl.o",
+    "seg": "T",
+    "tlvc_name": "_execl",
+    "tlvc_note": "direct"
+  },
+  "_execle": {
+    "library": "libc",
+    "member": "execle.o",
+    "seg": "T",
+    "tlvc_name": "_execle",
+    "tlvc_note": "direct"
+  },
+  "_execlp": {
+    "library": "libc",
+    "member": "execvp.o",
+    "seg": "T",
+    "tlvc_name": "_execlp",
+    "tlvc_note": "direct"
+  },
+  "_execv": {
+    "library": "libc",
+    "member": "execv.o",
+    "seg": "T",
+    "tlvc_name": "_execv",
+    "tlvc_note": "direct"
+  },
+  "_execve": {
+    "library": "libc",
+    "member": "execve.o",
+    "seg": "T",
+    "tlvc_name": "_execve",
+    "tlvc_note": "direct"
+  },
+  "_execvp": {
+    "library": "libc",
+    "member": "execvp.o",
+    "seg": "T",
+    "tlvc_name": "_execvp",
+    "tlvc_note": "direct"
+  },
+  "_exit": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_exp": {
+    "library": "libm",
+    "member": "exp.o",
+    "seg": "T",
+    "tlvc_name": "_exp",
+    "tlvc_note": "direct"
+  },
+  "_expand": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_expect": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_expfile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_exphone": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_f_add": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_f_div": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_f_mult": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_f_sub": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fabs": {
+    "library": "libm",
+    "member": "fabs.o",
+    "seg": "T",
+    "tlvc_name": "_fabs",
+    "tlvc_note": "direct"
+  },
+  "_falarm": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_falloc": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fatal": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_fclose": {
+    "library": "libc",
+    "member": "flsbuf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fcopy": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fcvt": {
+    "library": "libc",
+    "member": "ecvt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fdig": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_fdopen": {
+    "library": "libc",
+    "member": "fdopen.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ferror": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fflush": {
+    "library": "libc",
+    "member": "flsbuf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fgetc": {
+    "library": "libc",
+    "member": "fgetc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fgets": {
+    "library": "libc",
+    "member": "fgets.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fgoto": {
+    "library": "libcurses",
+    "member": "cr_put.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_finds": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_fixline": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_fixmode": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_floadon": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_floadze": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_floor": {
+    "library": "libm",
+    "member": "floor.o",
+    "seg": "T",
+    "tlvc_name": "_floor",
+    "tlvc_note": "direct"
+  },
+  "_flushtt": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fmin": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_fmout": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_fopen": {
+    "library": "libc",
+    "member": "fopen.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fork": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "_fork",
+    "tlvc_note": "direct"
+  },
+  "_fprintf": {
+    "library": "libc",
+    "member": "fprintf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fpsim": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fptcl": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_fputc": {
+    "library": "libc",
+    "member": "fputc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fputs": {
+    "library": "libc",
+    "member": "fputs.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fr": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_frcopy": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fread": {
+    "library": "libc",
+    "member": "rdwr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_free": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "_free",
+    "tlvc_note": "direct"
+  },
+  "_freopen": {
+    "library": "libc",
+    "member": "freopen.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_frexp": {
+    "library": "libc",
+    "member": "frexp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fscanf": {
+    "library": "libc",
+    "member": "scanf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fseek": {
+    "library": "libc",
+    "member": "fseek.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fsetcw": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fsig": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fstat": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "_fstat",
+    "tlvc_note": "struct stat may differ"
+  },
+  "_ftell": {
+    "library": "libc",
+    "member": "ftell.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ftime": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "_ftime",
+    "tlvc_note": "obsolete: use gettimeofday"
+  },
+  "_ftimede": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ftoi": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ftol": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fubyte": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fuibyte": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fuiword": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fuword": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_fwrite": {
+    "library": "libc",
+    "member": "rdwr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_gcd": {
+    "library": "libmp",
+    "member": "gcd.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_gcvt": {
+    "library": "libc",
+    "member": "gcvt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_gename": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_genbrk": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_getargs": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_getblk": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getc": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getchar": {
+    "library": "libc",
+    "member": "getchar.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getegid": {
+    "library": "libc",
+    "member": "getegid.o",
+    "seg": "T",
+    "tlvc_name": "_getegid",
+    "tlvc_note": "direct"
+  },
+  "_getenv": {
+    "library": "libc",
+    "member": "getenv.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_geterro": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getesb": {
+    "library": "libc",
+    "member": "xes.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getesw": {
+    "library": "libc",
+    "member": "xes.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_geteuid": {
+    "library": "libc",
+    "member": "geteuid.o",
+    "seg": "T",
+    "tlvc_name": "_geteuid",
+    "tlvc_note": "direct"
+  },
+  "_getf": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getfnam": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_getfs": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getgid": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_getgid",
+    "tlvc_note": "direct"
+  },
+  "_getgren": {
+    "library": "libc",
+    "member": "getgrent.o",
+    "seg": "T",
+    "tlvc_name": "_getgrent",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_getgrgi": {
+    "library": "libc",
+    "member": "getgrgid.o",
+    "seg": "T",
+    "tlvc_name": "_getgrgid",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_getgrna": {
+    "library": "libc",
+    "member": "getgrnam.o",
+    "seg": "T",
+    "tlvc_name": "_getgrnam",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_getlogi": {
+    "library": "libc",
+    "member": "getlogin.o",
+    "seg": "T",
+    "tlvc_name": "_getlogin",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_getmdev": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getnext": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_getpass": {
+    "library": "libc",
+    "member": "getpass.o",
+    "seg": "T",
+    "tlvc_name": "_getpass",
+    "tlvc_note": "direct"
+  },
+  "_getpid": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_getpid",
+    "tlvc_note": "direct"
+  },
+  "_getprm": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_getpw": {
+    "library": "libc",
+    "member": "getpw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getpwen": {
+    "library": "libc",
+    "member": "getpwent.o",
+    "seg": "T",
+    "tlvc_name": "_getpwent",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_getpwna": {
+    "library": "libc",
+    "member": "getpwnam.o",
+    "seg": "T",
+    "tlvc_name": "_getpwnam",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_getpwui": {
+    "library": "libc",
+    "member": "getpwuid.o",
+    "seg": "T",
+    "tlvc_name": "_getpwuid",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_gets": {
+    "library": "libc",
+    "member": "gets.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_getstst": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gettmod": {
+    "library": "libcurses",
+    "member": "cr_tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_getto": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_getuid": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_getuid",
+    "tlvc_note": "direct"
+  },
+  "_getw": {
+    "library": "libc",
+    "member": "getw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_gmtime": {
+    "library": "libc",
+    "member": "ctime.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_gnamef": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gninfo": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gnsys": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gnxseq": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gotfile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_grdblk": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_grddata": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_grdmsg": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_grow": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_gtcfile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gtime": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_gtty": {
+    "library": "libc",
+    "member": "stty.o",
+    "seg": "T",
+    "tlvc_name": "_ioctl",
+    "tlvc_note": "replace with ioctl(TCGETS)"
+  },
+  "_gturnof": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gturnon": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gtwrkf": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gtwvec": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gtxfile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_guinfo": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gwd": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gwrblk": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gwrdata": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_gwrmsg": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_hypot": {
+    "library": "libm",
+    "member": "hypot.o",
+    "seg": "T",
+    "tlvc_name": "_hypot",
+    "tlvc_note": "direct"
+  },
+  "_hyscls": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_hysopn": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ialloc": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_icode": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_idecode": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ifadate": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ifdate": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ifree": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iget": {
+    "library": "syslib",
+    "member": "iget.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iinit": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_imsg": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_incore": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_incupc": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_index": {
+    "library": "libc",
+    "member": "index.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_initscr": {
+    "library": "libcurses",
+    "member": "initscr.o",
+    "seg": "T",
+    "tlvc_name": "_initscr",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_intrEXI": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_invert": {
+    "library": "libmp",
+    "member": "gcd.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_ioctl": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "_ioctl",
+    "tlvc_note": "request codes differ"
+  },
+  "_iodone": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iomove": {
+    "library": "syslib",
+    "member": "rdwri.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iowait": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iput": {
+    "library": "syslib",
+    "member": "iget.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_isalock": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_isatty": {
+    "library": "libc",
+    "member": "isatty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_isdir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_issig": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iswrk": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_itof": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_itom": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_itrunc": {
+    "library": "syslib",
+    "member": "iget.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_iupdat": {
+    "library": "syslib",
+    "member": "iget.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_j0": {
+    "library": "libm",
+    "member": "j0.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_j1": {
+    "library": "libm",
+    "member": "j1.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_jn": {
+    "library": "libm",
+    "member": "jn.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_kill": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_kill",
+    "tlvc_note": "direct"
+  },
+  "_killchk": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_l3tol": {
+    "library": "libc",
+    "member": "l3.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_lastc": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_lastpar": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ldexp": {
+    "library": "libc",
+    "member": "ldexp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_link": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_link",
+    "tlvc_note": "direct"
+  },
+  "_lnotify": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_load": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_loadd": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_localti": {
+    "library": "libc",
+    "member": "ctime.o",
+    "seg": "T",
+    "tlvc_name": "_localtime",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_lock": {
+    "library": "libc",
+    "member": "lock.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific: remove/stub"
+  },
+  "_lockadd": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_lockall": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_locked": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_lockedz": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_lockfre": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_locking": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific: remove/stub"
+  },
+  "_log": {
+    "library": "libm",
+    "member": "log.o",
+    "seg": "T",
+    "tlvc_name": "_log",
+    "tlvc_note": "direct"
+  },
+  "_log10": {
+    "library": "libm",
+    "member": "log.o",
+    "seg": "T",
+    "tlvc_name": "_log10",
+    "tlvc_note": "direct"
+  },
+  "_logcls": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_logent": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_login": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_longjmp": {
+    "library": "libc",
+    "member": "setjmp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_longnam": {
+    "library": "libcurses",
+    "member": "longname.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_lseek": {
+    "library": "libc",
+    "member": "lseek.o",
+    "seg": "T",
+    "tlvc_name": "_lseek",
+    "tlvc_note": "direct"
+  },
+  "_lshift": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ltof": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ltol3": {
+    "library": "libc",
+    "member": "l3.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_m_add": {
+    "library": "libmp",
+    "member": "madd.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_div": {
+    "library": "libmp",
+    "member": "mdiv.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_dsb": {
+    "library": "libmp",
+    "member": "mdiv.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_in": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_mult": {
+    "library": "libmp",
+    "member": "mult.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_out": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_sub": {
+    "library": "libmp",
+    "member": "madd.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_m_trq": {
+    "library": "libmp",
+    "member": "mdiv.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_madd": {
+    "library": "libmp",
+    "member": "madd.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mailst": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_main": {
+    "library": "syslib",
+    "member": "main.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_maknode": {
+    "library": "syslib",
+    "member": "iget.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_malloc": {
+    "library": "syslib",
+    "member": "malloc.o",
+    "seg": "T",
+    "tlvc_name": "_malloc",
+    "tlvc_note": "direct"
+  },
+  "_mcan": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mcmp": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mdiv": {
+    "library": "libmp",
+    "member": "mdiv.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mfree": {
+    "library": "syslib",
+    "member": "malloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_min": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mkdir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_mkdirs": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_mknod": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_mknod",
+    "tlvc_note": "direct"
+  },
+  "_mktemp": {
+    "library": "libc",
+    "member": "mktemp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_mlock": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_mlogent": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_modf": {
+    "library": "libc",
+    "member": "modf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_monitor": {
+    "library": "libc",
+    "member": "mon.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_mount": {
+    "library": "libc",
+    "member": "mount.o",
+    "seg": "T",
+    "tlvc_name": "_mount",
+    "tlvc_note": "args differ"
+  },
+  "_mout": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_move": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "_move",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_msqrt": {
+    "library": "libmp",
+    "member": "msqrt.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_msub": {
+    "library": "libmp",
+    "member": "madd.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mult": {
+    "library": "libmp",
+    "member": "mult.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mult_ac": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_mvcur": {
+    "library": "libcurses",
+    "member": "cr_put.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mvprint": {
+    "library": "libcurses",
+    "member": "mvprintw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mvscanw": {
+    "library": "libcurses",
+    "member": "mvscanw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mvwin": {
+    "library": "libcurses",
+    "member": "mvwin.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mvwprin": {
+    "library": "libcurses",
+    "member": "mvprintw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mvwscan": {
+    "library": "libcurses",
+    "member": "mvscanw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_mvxfile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_namei": {
+    "library": "syslib",
+    "member": "nami.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_newproc": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_newspoo": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_newwin": {
+    "library": "libcurses",
+    "member": "newwin.o",
+    "seg": "T",
+    "tlvc_name": "_newwin",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_nice": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_nice",
+    "tlvc_note": "direct"
+  },
+  "_nlist": {
+    "library": "libc",
+    "member": "nlist.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_nmi": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_nodev": {
+    "library": "syslib",
+    "member": "subr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_normali": {
+    "library": "syslib",
+    "member": "fpsim.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_nosys": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_notavai": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_notfyus": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_notify": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_notin": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_nulldev": {
+    "library": "syslib",
+    "member": "subr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_nullsys": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_omin": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_omout": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_omsg": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_onelock": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_onintr": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_oops": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_open": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_open",
+    "tlvc_note": "direct"
+  },
+  "_open1": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_opendir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_openi": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ospeed": {
+    "library": "libcurses",
+    "member": "cr_tty.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_outdec": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_outu": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_overlay": {
+    "library": "libcurses",
+    "member": "overlay.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_overwri": {
+    "library": "libcurses",
+    "member": "overwrite.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_owner": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_p_chwri": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_panic": {
+    "library": "syslib",
+    "member": "panic.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_passc": {
+    "library": "syslib",
+    "member": "subr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_pause": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_pause",
+    "tlvc_note": "direct"
+  },
+  "_pclose": {
+    "library": "libc",
+    "member": "popen.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_pcompar": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_perror": {
+    "library": "libc",
+    "member": "perror.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_phys": {
+    "library": "libc",
+    "member": "phys.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific: remove/stub"
+  },
+  "_pipe": {
+    "library": "syslib",
+    "member": "pipe.o",
+    "seg": "T",
+    "tlvc_name": "_pipe",
+    "tlvc_note": "direct"
+  },
+  "_pkaccep": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkcget": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkclose": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkcntl": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkdata": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkfail": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkgetpa": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkline": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkmove": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkoff": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkon": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkopen": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkoutpu": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkread": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkreset": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkrstar": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pksack": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pksize": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkwrite": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkxstar": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_pkzero": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_plock": {
+    "library": "syslib",
+    "member": "pipe.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_plod": {
+    "library": "libcurses",
+    "member": "cr_put.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_plodput": {
+    "library": "libcurses",
+    "member": "cr_put.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_popen": {
+    "library": "libc",
+    "member": "popen.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_pow": {
+    "library": "libmp",
+    "member": "pow.o",
+    "seg": "T",
+    "tlvc_name": "_pow",
+    "tlvc_note": "direct"
+  },
+  "_ppanic": {
+    "library": "syslib",
+    "member": "prf2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_prdev": {
+    "library": "syslib",
+    "member": "prf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_prefix": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_prele": {
+    "library": "syslib",
+    "member": "pipe.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_prf": {
+    "library": "syslib",
+    "member": "prf2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_printf": {
+    "library": "syslib",
+    "member": "prf2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_printn": {
+    "library": "syslib",
+    "member": "prf2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_printw": {
+    "library": "libcurses",
+    "member": "printw.o",
+    "seg": "T",
+    "tlvc_name": "_printw",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_procxmt": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_profil": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_profil",
+    "tlvc_note": "direct"
+  },
+  "_psig": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_psignal": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ptrace": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "_ptrace",
+    "tlvc_note": "direct"
+  },
+  "_putc": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_putchar": {
+    "library": "libc",
+    "member": "putchar.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_putesb": {
+    "library": "libc",
+    "member": "xes.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_putesw": {
+    "library": "libc",
+    "member": "xes.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_putinpu": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_putpad": {
+    "library": "libcurses",
+    "member": "cr_put.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_puts": {
+    "library": "libc",
+    "member": "puts.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_putw": {
+    "library": "libc",
+    "member": "putw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_qexit": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_qsort": {
+    "library": "libc",
+    "member": "qsort.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rand": {
+    "library": "libc",
+    "member": "rand.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rddev": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rdpth": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rdwr": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_read": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_read",
+    "tlvc_note": "direct"
+  },
+  "_readdir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_readi": {
+    "library": "syslib",
+    "member": "rdwri.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_readp": {
+    "library": "syslib",
+    "member": "pipe.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_realloc": {
+    "library": "libc",
+    "member": "malloc.o",
+    "seg": "T",
+    "tlvc_name": "_realloc",
+    "tlvc_note": "direct"
+  },
+  "_regloc": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_retosnd": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_retu": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rewind": {
+    "library": "libc",
+    "member": "rew.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rexit": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rindex": {
+    "library": "libc",
+    "member": "rindex.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rmesg": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rmlock": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rmstat": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rmxfile": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_round": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_rpclose": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rpopen": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_rpow": {
+    "library": "libmp",
+    "member": "pow.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_s_div": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_saccess": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_savfp": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_savu": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sbreak": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sbrk": {
+    "library": "libc",
+    "member": "brk.o",
+    "seg": "T",
+    "tlvc_name": "_sbrk",
+    "tlvc_note": "direct"
+  },
+  "_scandir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_scanf": {
+    "library": "libc",
+    "member": "scanf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_scanw": {
+    "library": "libcurses",
+    "member": "scanw.o",
+    "seg": "T",
+    "tlvc_name": "_scanw",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_schar": {
+    "library": "syslib",
+    "member": "nami.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sched": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_scroll": {
+    "library": "libcurses",
+    "member": "scroll.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_sdata": {
+    "library": "libc",
+    "member": "sdata.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific: remove/stub"
+  },
+  "_sdiv": {
+    "library": "libmp",
+    "member": "mout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_sdmail": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_seek": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_seekdir": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_semclea": {
+    "library": "libc",
+    "member": "semclear.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific semaphore: remove/stub"
+  },
+  "_semset": {
+    "library": "libc",
+    "member": "semset.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific semaphore: remove/stub"
+  },
+  "_semtest": {
+    "library": "libc",
+    "member": "semtest.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific semaphore: remove/stub"
+  },
+  "_semtset": {
+    "library": "libc",
+    "member": "semtset.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific semaphore: remove/stub"
+  },
+  "_sendthe": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_setbuf": {
+    "library": "libc",
+    "member": "setbuf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_setdebu": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_setgid": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_setgid",
+    "tlvc_note": "direct"
+  },
+  "_setgren": {
+    "library": "libc",
+    "member": "getgrent.o",
+    "seg": "T",
+    "tlvc_name": "_setgrent",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_setiva": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_setjmp": {
+    "library": "libc",
+    "member": "setjmp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_setline": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_setpri": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_setpwen": {
+    "library": "libc",
+    "member": "getpwent.o",
+    "seg": "T",
+    "tlvc_name": "_setpwent",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_setrun": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_setterm": {
+    "library": "libcurses",
+    "member": "cr_tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_setuid": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_setuid",
+    "tlvc_note": "direct"
+  },
+  "_setustk": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_shio": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_signal": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "_signal",
+    "tlvc_note": "handler return differs: iret->trampoline"
+  },
+  "_sin": {
+    "library": "libm",
+    "member": "sin.o",
+    "seg": "T",
+    "tlvc_name": "_sin",
+    "tlvc_note": "direct"
+  },
+  "_sinh": {
+    "library": "libm",
+    "member": "sinh.o",
+    "seg": "T",
+    "tlvc_name": "_sinh",
+    "tlvc_note": "direct"
+  },
+  "_sleep": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_slowrit": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_smount": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_snccmp": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_split": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_sprintf": {
+    "library": "libc",
+    "member": "sprintf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sqrt": {
+    "library": "libm",
+    "member": "sqrt.o",
+    "seg": "T",
+    "tlvc_name": "_sqrt",
+    "tlvc_note": "direct"
+  },
+  "_srand": {
+    "library": "libc",
+    "member": "rand.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_srchst": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_sscanf": {
+    "library": "libc",
+    "member": "scanf.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ssig": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sstack": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_startup": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_stat": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "_stat",
+    "tlvc_note": "struct stat may differ"
+  },
+  "_stat1": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_stdscr": {
+    "library": "libcurses",
+    "member": "curses.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_stime": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_stlock": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_stop": {
+    "library": "syslib",
+    "member": "sig.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_store": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_stored": {
+    "library": "syslib",
+    "member": "f8087.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_stpre": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_stptcl": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_strcat": {
+    "library": "libc",
+    "member": "strcat.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_strcatn": {
+    "library": "libc",
+    "member": "strcatn.o",
+    "seg": "T",
+    "tlvc_name": "_strncat",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_strcmp": {
+    "library": "libc",
+    "member": "strcmp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_strcmpn": {
+    "library": "libc",
+    "member": "strcmpn.o",
+    "seg": "T",
+    "tlvc_name": "_strncmp",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_strcpy": {
+    "library": "libc",
+    "member": "strcpy.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_strcpyn": {
+    "library": "libc",
+    "member": "strcpyn.o",
+    "seg": "T",
+    "tlvc_name": "_strncpy",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_strlen": {
+    "library": "libc",
+    "member": "strlen.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_strncat": {
+    "library": "libc",
+    "member": "strncat.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_strncmp": {
+    "library": "libc",
+    "member": "strncmp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_strncpy": {
+    "library": "libc",
+    "member": "strncpy.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_stty": {
+    "library": "libc",
+    "member": "stty.o",
+    "seg": "T",
+    "tlvc_name": "_ioctl",
+    "tlvc_note": "replace with ioctl(TCSETS)"
+  },
+  "_sub_ac": {
+    "library": "syslib",
+    "member": "fpmch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_subwin": {
+    "library": "libcurses",
+    "member": "newwin.o",
+    "seg": "T",
+    "tlvc_name": "_subwin",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_subyte": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_suibyte": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_suiword": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sumount": {
+    "library": "syslib",
+    "member": "sys3.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sureg": {
+    "library": "syslib",
+    "member": "main.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_suser": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_suspend": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "Venix-specific: remove/stub"
+  },
+  "_suword": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_swab": {
+    "library": "libc",
+    "member": "swab.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_swaio": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_swap": {
+    "library": "syslib",
+    "member": "bio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_swapin": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_swtch": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sync": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_sync",
+    "tlvc_note": "direct"
+  },
+  "_sys": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sys_err": {
+    "library": "libc",
+    "member": "errlst.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sys_ner": {
+    "library": "libc",
+    "member": "errlst.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sysacct": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_sysdata": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_sysent": {
+    "library": "syslib",
+    "member": "sysent.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_syslock": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_syslog": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_sysphys": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_syssema": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_systat": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_system": {
+    "library": "libc",
+    "member": "system.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_tan": {
+    "library": "libm",
+    "member": "tan.o",
+    "seg": "T",
+    "tlvc_name": "_tan",
+    "tlvc_note": "direct"
+  },
+  "_tanh": {
+    "library": "libm",
+    "member": "tanh.o",
+    "seg": "T",
+    "tlvc_name": "_tanh",
+    "tlvc_note": "direct"
+  },
+  "_tell": {
+    "library": "libc",
+    "member": "tell.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_tgetent": {
+    "library": "libtermlib",
+    "member": "termcap.o",
+    "seg": "T",
+    "tlvc_name": "_tgetent",
+    "tlvc_note": "direct"
+  },
+  "_tgetfla": {
+    "library": "libtermlib",
+    "member": "termcap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_tgetnum": {
+    "library": "libtermlib",
+    "member": "termcap.o",
+    "seg": "T",
+    "tlvc_name": "_tgetnum",
+    "tlvc_note": "direct"
+  },
+  "_tgetstr": {
+    "library": "libtermlib",
+    "member": "termcap.o",
+    "seg": "T",
+    "tlvc_name": "_tgetstr",
+    "tlvc_note": "direct"
+  },
+  "_tgoto": {
+    "library": "libtermlib",
+    "member": "tgoto.o",
+    "seg": "T",
+    "tlvc_name": "_tgoto",
+    "tlvc_note": "direct"
+  },
+  "_time": {
+    "library": "libc",
+    "member": "time.o",
+    "seg": "T",
+    "tlvc_name": "_time",
+    "tlvc_note": "direct"
+  },
+  "_timecan": {
+    "library": "syslib",
+    "member": "clock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_timeout": {
+    "library": "syslib",
+    "member": "clock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_times": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_times",
+    "tlvc_note": "struct tms may differ"
+  },
+  "_timezon": {
+    "library": "libc",
+    "member": "timezone.o",
+    "seg": "T",
+    "tlvc_name": "_timezone",
+    "tlvc_note": "rename (truncated)"
+  },
+  "_tnamatc": {
+    "library": "libtermlib",
+    "member": "termcap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_tnchktc": {
+    "library": "libtermlib",
+    "member": "termcap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_touchwi": {
+    "library": "libcurses",
+    "member": "touchwin.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_tputs": {
+    "library": "libtermlib",
+    "member": "tputs.o",
+    "seg": "T",
+    "tlvc_name": "_tputs",
+    "tlvc_note": "direct"
+  },
+  "_tradd": {
+    "library": "libmp",
+    "member": "mult.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_trap1": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_tsignal": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttioctl": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttopen": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttrap": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttread": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttwrite": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttybloc": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyinpu": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyioct": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyname": {
+    "library": "libc",
+    "member": "ttyname.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyopen": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyoutp": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyread": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttyslot": {
+    "library": "libc",
+    "member": "ttyslot.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ttywrit": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_uchar": {
+    "library": "syslib",
+    "member": "nami.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ufalloc": {
+    "library": "syslib",
+    "member": "fio.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ufopen": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_uintr": {
+    "library": "syslib",
+    "member": "trap.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_ulkseq": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ulockf": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ultouch": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_umask": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_umask",
+    "tlvc_note": "direct"
+  },
+  "_umount": {
+    "library": "libc",
+    "member": "umount.o",
+    "seg": "T",
+    "tlvc_name": "_umount",
+    "tlvc_note": "direct"
+  },
+  "_ungetc": {
+    "library": "libc",
+    "member": "ungetc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_unlink": {
+    "library": "syslib",
+    "member": "sys4.o",
+    "seg": "T",
+    "tlvc_name": "_unlink",
+    "tlvc_note": "direct"
+  },
+  "_unlinkd": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_unlock": {
+    "library": "syslib",
+    "member": "rlock.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_unputc": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_update": {
+    "library": "syslib",
+    "member": "alloc.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_utime": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_utime",
+    "tlvc_note": "direct"
+  },
+  "_uucpnam": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ventcls": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_ventopn": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_versys": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_waddch": {
+    "library": "libcurses",
+    "member": "addch.o",
+    "seg": "T",
+    "tlvc_name": "_waddch",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_waddstr": {
+    "library": "libcurses",
+    "member": "addstr.o",
+    "seg": "T",
+    "tlvc_name": "_waddstr",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_wait": {
+    "library": "syslib",
+    "member": "sys1.o",
+    "seg": "T",
+    "tlvc_name": "_wait",
+    "tlvc_note": "direct"
+  },
+  "_wakeup": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_wclear": {
+    "library": "libcurses",
+    "member": "clear.o",
+    "seg": "T",
+    "tlvc_name": "_wclear",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_wclrtob": {
+    "library": "libcurses",
+    "member": "clrtobot.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wclrtoe": {
+    "library": "libcurses",
+    "member": "clrtoeol.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wdelch": {
+    "library": "libcurses",
+    "member": "delch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wdelete": {
+    "library": "libcurses",
+    "member": "deleteln.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wdir": {
+    "library": "syslib",
+    "member": "iget.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_werase": {
+    "library": "libcurses",
+    "member": "erase.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wflusht": {
+    "library": "syslib",
+    "member": "tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_wgetch": {
+    "library": "libcurses",
+    "member": "getch.o",
+    "seg": "T",
+    "tlvc_name": "_wgetch",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_wgetstr": {
+    "library": "libcurses",
+    "member": "getstr.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_winsch": {
+    "library": "libcurses",
+    "member": "insch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_winsert": {
+    "library": "libcurses",
+    "member": "insertln.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wmesg": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_wmove": {
+    "library": "libcurses",
+    "member": "move.o",
+    "seg": "T",
+    "tlvc_name": "_wmove",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_wprefix": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_wprintw": {
+    "library": "libcurses",
+    "member": "printw.o",
+    "seg": "T",
+    "tlvc_name": "_wprintw",
+    "tlvc_note": "direct (ncurses)"
+  },
+  "_wrefres": {
+    "library": "libcurses",
+    "member": "refresh.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_write": {
+    "library": "syslib",
+    "member": "sys2.o",
+    "seg": "T",
+    "tlvc_name": "_write",
+    "tlvc_note": "direct"
+  },
+  "_writei": {
+    "library": "syslib",
+    "member": "rdwri.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_writep": {
+    "library": "syslib",
+    "member": "pipe.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_wscanw": {
+    "library": "libcurses",
+    "member": "scanw.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wstande": {
+    "library": "libcurses",
+    "member": "standout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_wstando": {
+    "library": "libcurses",
+    "member": "standout.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_xalloc": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_xccdec": {
+    "library": "syslib",
+    "member": "text.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_xcp": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_xfree": {
+    "library": "libmp",
+    "member": "util.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_xlock": {
+    "library": "syslib",
+    "member": "text.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_xmfree": {
+    "library": "syslib",
+    "member": "text.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_xmv": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_xswap": {
+    "library": "syslib",
+    "member": "text.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_xswapin": {
+    "library": "syslib",
+    "member": "slp.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_xunlock": {
+    "library": "syslib",
+    "member": "text.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_xuucico": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_xuucp": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_xuux": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_xuuxqt": {
+    "library": "uucp",
+    "member": "uucp",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "uucp internal - port as-is"
+  },
+  "_xxmfree": {
+    "library": "syslib",
+    "member": "text.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "_y0": {
+    "library": "libm",
+    "member": "j0.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_y1": {
+    "library": "libm",
+    "member": "j1.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_yn": {
+    "library": "libm",
+    "member": "jn.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "_zap": {
+    "library": "libcurses",
+    "member": "cr_tty.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct - verify"
+  },
+  "a_com": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": null,
+    "tlvc_note": "arith calling convention adapter - remove"
+  },
+  "aldiv": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__divsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "almul": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__mulsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "alrem": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__modsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "auldiv": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__udivsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "aulmul": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__mulsi3",
+    "tlvc_note": "ia16 compiler runtime (unsigned)"
+  },
+  "aulrem": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__umodsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "dsoff": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "fpp": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "D",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "ip_call": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "ip_ret": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "ldiv": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__divsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "lmul": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__mulsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "lrem": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__modsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "mcount": {
+    "library": "libc",
+    "member": "mcount.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "start": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "?",
+    "tlvc_note": "check ia16 runtime"
+  },
+  "trap": {
+    "library": "syslib",
+    "member": "mch.o",
+    "seg": "T",
+    "tlvc_name": "same",
+    "tlvc_note": "likely direct"
+  },
+  "uldiv": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__udivsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "ulmul": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__umulsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  },
+  "ulrem": {
+    "library": "arith",
+    "member": "arith.o",
+    "seg": "T",
+    "tlvc_name": "__umodsi3",
+    "tlvc_note": "ia16 compiler runtime"
+  }
+}

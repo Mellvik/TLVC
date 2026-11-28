@@ -1,0 +1,55 @@
+.TH DEROFF 1
+.SH NAME
+deroff \- remove nroff, tbl and neqn constructs
+.SH SYNOPSIS
+.B deroff
+[
+.B \-w
+] file ...
+.SH DESCRIPTION
+.B deroff
+reads each file in sequence and removes all
+.B nroff
+command lines,
+backslash constructions, macro definitions,
+.B neqn
+constructs (between
+`.EQ' and `.EN' lines or between delimiters), and table descriptions and
+writes the remainder on the standard output.
+.B deroff
+follows chains of
+included files (`.so' and `.nx' commands); if a file has already been
+included, a `.so' is ignored and a `.nx' terminates execution.
+If no input
+file is given,
+.B deroff
+reads from the standard input file.
+.PP
+If the
+.B \-w
+flag is given, the output is a word list, one `word' (string of
+letters, digits, and apostrophes, beginning with a letter; apostrophes are
+removed) per line, and all other characters ignored.
+Otherwise, the output
+follows the original, with the deletions mentioned above.
+.SH EXAMPLES
+Strip nroff constructions from file
+.I paper
+and type on terminal:
+.IP
+deroff paper
+.PP
+Strip nroff constructions and save output in file
+.IR paper.strip :
+.IP
+deroff paper > paper.strip
+.SH "SEE ALSO"
+nroff(1), neqn(1), tbl(1)
+.SH BUGS
+.B deroff
+is not a complete
+.B nroff
+interpreter, so it can be confused by subtle
+constructs.
+Most errors result in too much rather than too little output.
+.sp

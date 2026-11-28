@@ -1,0 +1,69 @@
+.TH NICE 2
+.SH NAME
+nice \- set program priority
+.SH SYNOPSIS
+.B nice(incr)
+.SH DESCRIPTION
+The scheduling priority of the process is augmented by
+.IR incr .
+Positive
+priorities get less service than normal.
+Priority 10 is recommended to
+users who wish to execute long-running programs without flak from the
+administration.
+.PP
+Negative increments are ignored except on behalf of the super-user or
+users with group ID's of zero.
+The priority is limited to the range \-20
+(most urgent) to 20 (least).
+.PP
+The priority of a process is passed to a child process by
+.BR fork (2).
+For a
+privileged process to return to normal priority from an unknown state,
+.B nice
+should be called successively with arguments \-40 (goes to priority
+\-20 because of truncation), 20 (to get to 0), then 0 (to maintain compatibility
+with previous versions of this call).
+.PP
+If the increment is \-100 or less and the user is a super-user, then the
+process gains ``real-time'' (``pre-emptive'') priority.
+This means that all
+CPU time and disk queuing resources are made exclusively available to
+this process.
+`Normal' processes will not run unless the `real-time' process
+.BR sleep s(3)
+for some interval, does synchronous I/O (e.g. terminal
+input or a lot of disk I/O),
+.BR exits ,
+or turns off `real-time' by re-calling
+.B nice
+with a positive increment.
+`Real-time' processes can be swapped,
+thus the process probably should also
+.BR lock (2)
+itself into memory.
+Simultaneous
+`real-time' processes are scheduled round-robin on a one clock-tick
+interval.
+`Real-time' characteristics are not inherited by children.
+.SH "SEE ALSO"
+nice(1)
+.SH NOTES
+`Real-time' priorities are not portable to standard UNIX.
+.SH ASSEMBLER
+(nice = 34.)
+.TP
+PDP-11:
+.nf
+R0 = priority
+sys nice
+.fi
+.TP
+8086:
+.nf
+BX = 34
+AX = priority
+int 0Xf1
+.fi
+.sp

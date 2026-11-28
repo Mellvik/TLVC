@@ -1,0 +1,155 @@
+.TH RESTOR 1M
+.SH NAME
+restor \- incremental file system restore
+.SH SYNOPSIS
+.B restor
+key [ arguments ]
+.SH DESCRIPTION
+.B restor
+is used exclusively to read any medium dumped with the
+.B dump
+command, and restore it to a file system on disk.
+The default device
+read from is floppy drive 0
+.RB ( /dev/f0 )
+on PRO/VENIX,
+RAINBOW/VENIX, and VENIX/11 on Micro PDP-11 systems; it is
+magtape drive 0
+.RB ( /dev/mt0 )
+on other VENIX/11 systems.
+This default
+may be overridden with the
+.B f
+modifier (see below).
+.PP
+The
+.I key
+specifies what is to be done.
+.I key
+is one or more of the following
+characters:
+.TP 6
+.B t
+The date that the medium was made and the date that was
+specified in the
+.B dump
+command are printed.
+A list of all the i-numbers
+on the medium is also given.
+.TP
+.B r
+The medium is read and loaded into the file system specified in
+.IR arguments .
+This should not be done lightly (see below).
+.TP
+.B x
+Each file on the medium is individually extracted into a file
+whose name is the file's i-number.
+If there are
+.IR arguments ,
+they
+are interpreted as i-numbers and only they are extracted.
+.TP
+.B c
+If the medium overflows, increment the last character of its name
+and continue on that drive.
+(Normally it asks you to change
+media).
+.TP
+.B f
+Read the dump from the next argument file instead of the default
+.RB ( /dev/f0
+for PRO/VENIX and RAINBOW/VENIX;
+.B /dev/mt0
+for VENIX/11).
+.TP
+.B i
+All read and checksum errors are reported, but will not cause
+termination.
+.TP
+.B w
+In conjunction with the
+.B x
+option, before each file is extracted, its
+i-number is typed out.
+To extract this file, you must respond
+with a
+.BR y .
+.PP
+The
+.B x
+option is used to retrieve individual files.
+If the i-number of the
+desired file is not known, it can be discovered by following the file system
+directory search algorithm.
+First retrieve the
+.I root
+directory whose i-number
+is 1.
+List this file with
+.BR "ls \-fi 1" .
+This will give names and i-numbers
+of sub-directories.
+Iterating, any file may be retrieved.
+.PP
+The
+.B r
+option should only be used to restore a complete dump medium
+onto a clear file system or to restore an incremental dump medium onto
+this.
+.RB ( restor
+will ask you for confirmation before writing over the file system;
+hit CR to continue).
+.PP
+A
+.B dump
+followed by a
+.B mkfs
+and a
+.B restor
+can be used to save files,
+increase the size of a file system, and restore the files.
+The file system
+.BR restor ed
+should be the same size or larger than the original file system.
+.SH EXAMPLES
+Make new file system on
+.IR /dev/w0.usr ,
+and restore from the default
+device:
+.PP
+.RS
+.nf
+/etc/mkfs /dev/w0.usr 13740
+restor r /dev/w0.usr
+.fi
+.RE
+.PP
+Another
+.B restor
+can be done to get an incremental dump in on top of this.
+.SH FILES
+.nf
+.ta 1i
+/dev/f0	(PRO/VENIX and RAINBOW/VENIX default)
+/dev/mt0	(VENIX/11 default)
+.fi
+.SH "SEE ALSO"
+dump(1m), mkfs(1m)
+.SH DIAGNOSTICS
+There are various diagnostics involved with reading the media and writing
+the disk.
+There are also diagnostics if the i-list or the free list of the
+file system is not large enough to hold the dump.
+.PP
+If the dump extends over more than one medium, it may ask you to
+change media.
+Reply with a newline when the next medium has been
+mounted.
+.SH BUGS
+There is redundant information on the medium that could be used in case
+of reading problems.
+Unfortunately,
+.B restor
+doesn't use it.
+.sp

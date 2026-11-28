@@ -1,0 +1,446 @@
+.TH TAR 1
+.SH NAME
+tar \- tape archiver
+.SH SYNOPSIS
+.B tar
+[ key ] [ name ... ]
+.SH DESCRIPTION
+.B tar
+saves and restores directories and files on floppy diskettes, magtape or
+other media.
+Each directory name given is dumped with all files and
+(recursively ) subdirectories in it.
+.PP
+.BR tar 's
+actions are controlled by the
+.I key
+argument.
+The
+.I key
+is a string of
+characters containing at most one function letter and possibly one or
+more function modifiers.
+Other arguments to the command are file or
+directory names specifying which files are to be saved or restored.
+.PP
+.B tar
+will prompt the user to change the volume (disk or tape) when it is
+filled up, allowing for the saved files to be spread across multiple
+volumes.
+The
+.B s
+option can be used to specify the number of blocks on
+the volume.
+.B tar
+will not prompt the user to change media when extracting
+files from a previous back-up, so the user must either run the
+.B tar
+command once for each volume, or select the volume which contains the
+needed file.
+.PP
+The default output device is floppy drive 0
+.RB ( /dev/f0 )
+on PRO/VENIX,
+RAINBOW/VENIX, and VENIX/11 on Micro PDP-11 systems; it is
+magtape drive 0
+.RB ( /dev/mt0 )
+on other VENIX/11 systems.
+This default
+may be overridden with the
+.B f
+modifier (see below).
+.PP
+The function portion of the key is specified by one of the following
+letters:
+.TP 8
+.B c
+Create (initialize) a new diskette;
+.B c
+clears the diskette of all files,
+and writes at the beginning of the diskette.
+This command
+implies
+.BR r .
+.TP
+.B r
+The named files are written on the end of the diskette or tape.
+The
+.B c
+function implies this, and the medium must have been
+previously initialized with a
+.BR c .
+If the output is longer than one
+volume, subsequent volumes are written on from the beginning;
+that is, they are automatically initialized, and previous information
+on them is overwritten.
+.TP
+.B x
+The named files are extracted from the diskette.
+If the named
+file matches a directory whose contents had been written onto
+the diskette, this directory is (recursively) extracted.
+The owner,
+modification time, and mode are restored (if possible).
+If no file
+argument is given, the entire content of the medium is
+extracted.
+Note that if multiple entries specifying the same file
+are on the diskette, the last one (most recently saved) overwrites
+all earlier.
+.TP
+.B t
+The names of the specified files are listed each time they occur
+on the diskette.
+If no file argument is given, all of the names
+on the diskette are listed.
+.TP
+.B u
+The named files are added to the diskette if either they are not
+already there or have been modified since last put on the
+diskette.
+This option can not be used to update previous
+.BR tar 's
+which have spread across multiple media; only the currently
+loaded diskette is looked at when deciding what files need
+updating.
+(However, the files written out may spread over
+several volumes as normal).
+.PP
+The following characters may be used in addition to the letter which
+selects the function desired.
+.TP 1i
+.B v
+Normally
+.B tar
+does its work silently.
+The
+.B v
+(verbose) option
+causes it to type the name of each file it treats preceded by
+the function letter.
+With the
+.B t
+function,
+.B v
+gives more information
+about the diskette entries than just the name.
+When
+used with the
+.BR c ,
+.BR r ,
+or
+.B t
+options, it also causes
+.B tar
+to list the
+total number of blocks used on the volume, giving the user a
+rough idea of what room is left on the volume for more files.
+.TP
+.B s
+The next argument gives the size of the output device in
+blocks.
+.TP
+.B d
+Only save or restore files modified within the last number of
+days specified by the next argument.
+.B tar
+will calculate and
+print the effective date.
+When using this flag to selectively
+restore files from tape or disk, the date compared against for
+each file is the last-modified date of the file when it was
+.BR tar 'ed
+out, not the date that
+.B tar
+occurred.
+.TP
+.B w
+causes
+.B tar
+to print the action to be taken followed by file
+name, then wait for user confirmation.
+If a word beginning
+with `y' is given, the action is performed.
+Any other input
+means don't do it.
+.TP
+.B f
+causes
+.B tar
+to use the next argument as the name of the output
+device instead of the default name.
+If the name of the file is
+`\-', tar writes to standard output or reads from standard
+input, whichever is appropriate.
+Thus,
+.B tar
+can be used as the
+head or tail of a filter chain.
+.B tar
+can also be used to move
+hierarchies with the command
+.br
+.ti +.5i
+cd fromdir; tar cf \- . | (cd todir; tar xf \-)
+.TP
+.B b
+causes
+.B tar
+to use the next argument as the blocking factor for
+diskette (or tape) records.
+The default is 1, the maximum is
+20.
+The block size is determined automatically when reading
+disks (key letters `x' and `t').
+On magtape, if block size is
+other than 1, a
+.B f
+key (above) should be used to specify the
+raw version of the device.
+On devices other than magtape,
+block size is not normally important.
+.TP
+.B l
+tells
+.B tar
+to complain if it cannot resolve all of the links to the
+files dumped.
+If this is not specified, no error messages are
+printed.
+.TP
+.B m
+tells
+.B tar
+to not restore the modification times.
+The mod time
+will be the time of extraction.
+.TP
+.B 0,...,7
+A digit 0 through 7 as a modifier selects the unit number to
+use on the floppy or tape drive (see notes on
+.B f
+key to determine
+your default).
+Thus on systems whose default device is
+floppy drive 0
+.RB ( /dev/f0 ),
+files may be saved on floppy drive 1
+by typing
+.B "tar c1..."
+\&.
+This is equivalent to typing
+.B "tar cf /dev/f1..."
+\&.
+.PP
+The number of blocks used by
+.B tar
+when writing a volume can be calculated
+by adding the number of blocks in all files, plus one additional
+header block per file, plus 2 blocks for the volume trailer.
+.PP
+.B tar
+will not understand `*', `?' or other wildcard notation when extracting
+files.
+.PP
+.B tar
+will not work with mountable diskettes; using
+.B tar
+to write on a
+mountable diskette will destroy it, and attempting to extract files from a
+mountable disk using
+.B tar
+will cause error messages.
+Similarly, attempts
+to mount a
+.B tar
+format diskette are ill-fated.
+.SH FILES
+.nf
+/dev/f?
+/tmp/tar*
+awk, sort, pwd, mkdir(1)
+.fi
+.SH DIAGNOSTICS
+Complains about bad key characters and diskette read/write errors.
+.br
+Complains if enough memory is not available to hold the link tables.
+.SH EXAMPLES
+To store the directories
+.I nile
+and
+.I cairo
+on the default device (floppy or
+tape):
+.IP
+tar c nile cairo
+.PP
+To add the file
+.I pyramids
+in the directory
+.IR cairo :
+.IP
+tar r cairo/pyramids
+.PP
+To add another file
+.I sphinx
+to the end of the last file on floppy unit 1:
+.IP
+tar rvf /dev/f1 sphinx
+.PP
+.BR tar ,
+when used with the
+.B v
+flag, will also tell you how many blocks have
+been used on the medium.
+.PP
+To create a new diskette in drive 1 holding only those files in
+.I cairo
+modified in the last seven days:
+.IP
+tar cdf 7 /dev/f1 cairo
+.PP
+To view the files on the default
+.B tar
+device, simply type:
+.IP
+tar tv
+.PP
+To extract all files:
+.IP
+tar xv
+.PP
+To extract a specific file in a directory, for example, file
+.I pyramids
+in the
+directory
+.IR cairo :
+.IP
+tar xv cairo/pyramids
+.PP
+.B tar
+always restores files using the same pathnames given when the files
+were saved.
+This means that full pathnames (that is, names beginning
+with a `/') should be avoided.
+For example, suppose that user Dennis
+has a home directory
+.IP
+/usr/dennis
+.PP
+and a directory beneath that:
+.IP
+/usr/dennis/letters
+.PP
+If directory
+.I letters
+is saved using the command
+.IP
+tar c /usr/dennis/letters
+.PP
+a subsequent extraction, with
+.IP
+tar x
+.PP
+will always bring back the old files to
+.IR /usr/dennis/letters ,
+overwriting
+any files of the same name in that directory.
+For this reason, it is desirable
+to save files according to a ``relative'' name, for example from
+Dennis' home directory
+.RI ( /usr/dennis ):
+.PP
+.RS
+.nf
+.ta 2.2i
+cd	(change directory to /usr/dennis)
+tar c letters
+.fi
+.RE
+.PP
+Now the command
+.IP
+tar x
+.PP
+will extract the saved files into whatever directory Dennis is in when he
+issues the command.
+So to restore the saved files to a temporary directory,
+the following commands could be used:
+.PP
+.RS
+.nf
+cd
+mkdir temp
+cd temp
+tar x
+.fi
+.RE
+.PP
+Now the extracted files are placed in
+.IP
+/usr/dennis/temp/letters
+.PP
+while the directory
+.IP
+/usr/dennis/letters
+.PP
+is untouched.
+Of course, if Dennis really wishes to extract his files into
+.IR /usr/dennis/letters ,
+and overwrite any copies of the same files on disk,
+he can always use the commands
+.PP
+.RS
+.nf
+cd
+tar x
+.fi
+.RE
+.PP
+and this will happen.
+.SH NOTES
+Unlike some other versions of
+.BR tar ,
+VENIX
+.B tar
+saves directory and device
+node entries as well as ordinary files.
+This feature does not affect compatibility
+with other versions of
+.BR tar ,
+except that device nodes saved by
+VENIX
+.B tar
+may be turned into zero-length ordinary files when extracted
+by other versions of
+.BR tar ,
+and directory mode and owner information may
+be lost.
+Extraneous error messages may also be produced.
+.SH BUGS
+There is no way to ask for the
+.IR n -th
+occurrence of a file.
+.PP
+The
+.B u
+option can be slow.
+.PP
+The
+.B b
+option should not be used with archives that are going to be
+updated.
+If the archive is on a disk file the
+.B b
+option should not be used
+at all, as updating an archive stored in this manner can destroy it.
+.PP
+The current limit on file name length is 100 characters.
+.PP
+The modification times of non-empty directories extracted by
+.B tar
+will
+always be the time of extraction, not the time saved, since the
+modification time becomes updated when the first file is created inside the
+directory.
+.sp

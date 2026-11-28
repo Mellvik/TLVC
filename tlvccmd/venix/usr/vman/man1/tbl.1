@@ -1,0 +1,84 @@
+.TH TBL 1
+.SH NAME
+tbl \- format tables for nroff
+.SH SYNOPSIS
+.B tbl
+[ files ] ...
+.SH DESCRIPTION
+.B tbl
+is a preprocessor for formatting tables for
+.BR nroff (1).
+The input files
+are copied to the standard output, except for lines between .TS and .TE
+command lines, which are assumed to describe tables and reformatted.
+Details are given in the reference manual.
+The
+.B col
+filter is often used in
+conjunction with
+.B tbl
+to provide line backspacing.
+.PP
+As an example, letting \et represent a tab (which should be typed as a
+genuine tab) the input
+.PP
+.RS
+.nf
+\&.TS
+c s s
+c c s
+c c c
+l n n.
+Household Population
+Town\etHouseholds
+\etNumber\etSize
+Bedminster\et789\et3.26
+Bernards Twp.\et3087\et3.74
+Bernardsville\et2018\et3.30
+Bound Brook\et3425\et3.04
+Branchburg\et1644\et3.49
+Bridgewater\et7897\et3.81
+Far Hills\et240\et3.19
+\&.TE
+.fi
+.RE
+.PP
+yields
+.PP
+.RS
+.nf
+.ta 1.6i 2.3i
+    Household Population
+    Town	Households
+	Number	Size
+Bedminster	789	3.26
+Bernards Twp.	3087	3.74
+Bernardsville	2018	3.30
+Bound Brook	3425	3.04
+Branchburg	1644	3.49
+Bridgewater	7897	3.81
+Far Hills	240	3.19
+.fi
+.RE
+.PP
+If this table is in a file called ``newjersey'', which also has text, the command
+line to print the file will be:
+.IP
+tbl newjersey | nroff | col | lpr \-n
+.PP
+If no arguments are given,
+.B tbl
+reads the standard input, so it may be used
+as a filter.
+When it is used with
+.B neqn
+the
+.B tbl
+command should be first, to
+minimize the volume of data passed through pipes.
+.SH "SEE ALSO"
+nroff(1), neqn(1)
+.br
+``Table Formatting Program'' in the
+.I "Document Processing Guide"
+.sp

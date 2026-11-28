@@ -1,0 +1,25 @@
+.TH SINH 3M
+.SH NAME
+sinh, cosh, tanh \- hyperbolic functions
+.SH SYNOPSIS
+.nf
+.B "#include <math.h>"
+.sp
+.B "double sinh(x)"
+.B "double x;"
+.sp
+.B "double cosh(x)"
+.B "double x;"
+.sp
+.B "double tanh(x)"
+.B "double x;"
+.fi
+.SH DESCRIPTION
+These functions compute the designated hyperbolic functions for real arguments.
+.SH DIAGNOSTICS
+.B sinh
+and
+.B cosh
+return a huge value of appropriate sign when the correct
+value would overflow.
+.sp

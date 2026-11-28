@@ -1,0 +1,17 @@
+.TH CHECKLIST 4
+.SH NAME
+checklist \- default file system checklist file
+.SH DESCRIPTION
+\fB/etc/checklist\fR is used as a default checklist by a number of disk checking and reporting programs. The file is in the format:
+.nf
+        filsys0:comment0:
+        filsys1:comment1:
+        filsys2:comment2:
+        \&.
+        \&.
+        \&.
+.fi
+where filsys0, filsys1 ... are the names of the default devices, and comment0, comment1 ... are comment fields briefly summarizing their use. The two fields are separated by a colon, and a colon/newline occurs at the end of each entry.
+.SH "SEE ALSO"
+fsck(1), ncheck(1), df(1), quot(1)
+.sp

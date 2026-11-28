@@ -1,0 +1,78 @@
+.TH CHMOD 2
+.SH NAME
+chmod \- change mode of file
+.SH SYNOPSIS
+.nf
+.B "chmod(name, mode)"
+.B "char *name;"
+.fi
+.SH DESCRIPTION
+The file whose name is given as the null-terminated string pointed to by
+.I name
+has its mode changed to
+.IR mode .
+Modes are constructed by OR'ing
+together some combination of the following:
+.PP
+.RS
+.nf
+04000 set user ID on execution
+02000 set group ID on execution
+01000 save text image after execution
+00400 read by owner
+00200 write by owner
+00100 execute (search on directory) by owner
+00070 read, write, execute (search) by group
+00007 read, write, execute (search) by others
+.fi
+.RE
+.PP
+If an executable file is set up for sharing
+.RB ( \-n
+or
+.B \-i
+option of
+.BR ld (1))
+then
+mode 1000 prevents the system from abandoning the swap-space image
+of the program-text portion of the file when its last user terminates.
+Thus when the next user of the file executes it, the text need not be read
+from the file system but can simply be swapped in, saving time.
+Ability
+to set this bit is restricted to the super-user since swap space is consumed
+by the images; it is only worthwhile for heavily used commands.
+This is
+only in effect for files residing on the root file system.
+A program with
+this bit set should not be removed or replaced if it has been executed at
+all since the last system boot-up (as an unreferenced i-node results).
+The
+correct procedure is to remove/replace the file before it has been executed
+following a boot-up.
+.PP
+Only the owner of a file (or the super-user) may change the mode.
+Only
+the super-user can set the 1000 mode.
+.SH "SEE ALSO"
+chmod(1)
+.SH DIAGNOSTIC
+Zero is returned if the mode is changed; \-1 is returned if
+.I name
+cannot
+be found or if current user is neither the owner of the file nor the super-user.
+.SH ASSEMBLER
+(chmod = 15.)
+.TP
+PDP-11:
+.nf
+sys chmod; name; mode
+.fi
+.TP
+8086:
+.nf
+BX = 15
+AX = name
+DX = mode
+int 0Xf1
+.fi
+.sp

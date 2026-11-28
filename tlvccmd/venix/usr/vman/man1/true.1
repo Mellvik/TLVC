@@ -1,0 +1,35 @@
+.TH TRUE 1
+.SH NAME
+true, false \- provide truth values
+.SH SYNOPSIS
+.B true
+.PP
+.B false
+.SH DESCRIPTION
+.B true
+does nothing, successfully.
+.B false
+does nothing, unsuccessfully.
+They are typically used in input to the Bourne shell,
+.BR sh (1),
+such as:
+.RS
+.nf
+while true
+do
+	command
+done
+.fi
+.RE
+.PP
+(Note that
+.B true
+can be done more efficiently simply with the null command `:').
+.SH "SEE ALSO"
+sh(1)
+.SH DIAGNOSTICS
+.B true
+has exit status zero,
+.B false
+nonzero.
+.sp

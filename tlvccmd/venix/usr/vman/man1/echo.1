@@ -1,0 +1,45 @@
+.TH ECHO 1
+.SH NAME
+echo \- echo arguments
+.SH SYNOPSIS
+.B "echo [ \-n ] [ arg ] ..."
+.SH DESCRIPTION
+.B echo
+writes its arguments separated by blanks and terminated by a newline on the standard output.
+If the flag
+.B \-n
+is used, no newline is added to the output.
+.PP
+.B echo
+is useful for producing diagnostics in shell programs and for writing constant data on pipes.
+To send diagnostics to the standard error file, do
+`echo ... 1>&2'.
+.PP
+.B echo
+exists as a built-in command when running the C shell
+.RB ( csh ),
+and has slightly different options.
+See
+.BR csh (1)
+for details.
+.SH EXAMPLES
+Echo the word ``\fItree\fR'' into the file
+.IR list :
+.RS
+.nf
+echo tree >list
+.fi
+.RE
+Print the names of the files in the current directory:
+.RS
+.nf
+echo *
+.fi
+.RE
+Print the name of the home directory:
+.RS
+.nf
+echo $HOME
+.fi
+.RE
+.sp

@@ -1,0 +1,52 @@
+.TH TTYS 4
+.SH NAME
+ttys \- terminal initialization data
+.SH DESCRIPTION
+The \fBttys\fR file is read by the \fBinit\fR program and specifies which terminal special files are to have a process created for them which will allow people to log in. It contains one line per special file.
+.PP
+The first character of a line is either '0' or '1'; the former causes the line to be ignored, the latter causes it to be effective. The second character is used as an argument to \fBgetty\fR, (see section 8, \fIInstallation and System Manager's Guide\fR) which performs such tasks as baud-rate recognition, reading the login name, and calling \fBlogin\fR. The remainder of the line is the terminal's entry in the device directory, \fB/dev\fR.
+.PP
+For normal lines, the second character on the line (passed to \fBgetty\fR) is '0'; other characters can be used, for example, with hard-wired terminals where speed recognition is unnecessary. The following is a complete list:
+.TP 4
+.B 0
+Cycles through 300\-1200\-150\-110 baud. Useful as a default for dialup lines accessed by a variety of terminals. (An interface with software-controllable baud rates is required for this to be effective).
+.TP
+.B \-
+Intended for the console terminal.
+.TP
+.B 1
+Intended for on-line CRT terminals (9600 baud).
+.TP
+.B 2
+Intended for on-line VT52 and VT100 terminals (9600 baud). Like 1 (above), but screen is cleared with ESC\-H ESC\-J sequence when login prompt is issued.
+.TP
+.B 3
+Starts at 1200 baud, cycles to 300 baud and back. Useful with 212 datasets where most terminals run at 1200 baud.
+.TP
+.B 4
+Useful for on-line DECwriter(LA36).
+.TP
+.B 5
+Same as '3' but starts at 300.
+.TP
+.B 6
+Cycles through 300\-1200\-9600 baud, starting at 300 baud.
+.TP
+.B 7
+Same as '6', but starts at 1200.
+.TP
+.B 8
+Same as '6', but starts at 9600.
+.TP
+.B A
+2400 baud line.
+.TP
+.B B
+4800 baud line.
+.PP
+Only as many user ports as licensed will become active; attempts to set additional ports active will be ignored. It is entirely permissible to specify less than the licensed number of active ports.
+.SH FILES
+/etc/ttys
+.SH "SEE ALSO"
+login(1), getty(8)
+.sp

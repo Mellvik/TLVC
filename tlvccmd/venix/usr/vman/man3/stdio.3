@@ -1,0 +1,109 @@
+.TH STDIO 3S
+.SH NAME
+stdio \- standard buffered input/output package
+.SH SYNOPSIS
+.nf
+.B "#include <stdio.h>"
+.sp
+.B "FILE *stdin;"
+.B "FILE *stdout;"
+.B "FILE *stderr;"
+.fi
+.SH DESCRIPTION
+The functions described in Sections 3S constitute an efficient user-level
+buffering scheme.
+The in-line macros
+.B getc
+and
+.BR putc (3)
+handle characters
+quickly.
+The higher level routines
+.BR gets ,
+.BR fgets ,
+.BR scanf ,
+.BR fscanf ,
+.BR fread ,
+.BR puts ,
+.BR fputs ,
+.BR printf ,
+.BR fprintf ,
+and
+.B fwrite
+all use
+.B getc
+and
+.BR putc ;
+they can be freely
+intermixed.
+.PP
+A file with associated buffering is called a
+.IR stream ,
+and is declared to be a
+pointer to a defined type
+.BR FILE .
+.BR fopen (3)
+creates certain descriptive data
+for a stream and returns a pointer to designate the stream in all further
+transactions.
+There are three normally open streams with constant
+pointers declared in the include file and associated with the standard open
+files:
+.PD 0
+.TP 1i
+.B stdin
+standard input file
+.TP
+.B stdout
+standard output file
+.TP
+.B stderr
+standard error file
+.PD
+.PP
+A constant `pointer'
+.B NULL
+(0) designates no stream at all.
+.PP
+An integer constant
+.B EOF
+(\-1) is returned upon end of file or error by
+integer functions that deal with streams.
+.PP
+Any routine that uses the standard input/output package must include
+the header file
+.B <stdio.h>
+of pertinent macro definitions.
+The functions
+and constants mentioned in sections labeled 3S are declared in the include
+file and need no further declaration.
+The constants, and the following
+`functions' are implemented as macros; redeclaration of these
+names is perilous:
+.BR getc ,
+.BR getchar ,
+.BR putc ,
+.BR putchar ,
+.BR feof ,
+.BR ferror ,
+.BR fileno .
+.SH "SEE ALSO"
+open(2), close(2), read(2), write(2)
+.SH DIAGNOSTICS
+The value
+.B EOF
+is returned uniformly to indicate that a
+.B FILE
+pointer has
+not been initialized with
+.BR fopen ,
+input (output) has been attempted on an
+output (input) stream, or a
+.B FILE
+pointer designates corrupt or otherwise
+unintelligible
+.B FILE
+data.
+.SH BUGS
+Standard I/O is not usable in raw mode.
+.sp

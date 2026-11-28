@@ -1,0 +1,84 @@
+.TH ALARM 2
+.SH NAME
+alarm \- schedule signal after specified time
+.SH SYNOPSIS
+.B alarm(time)
+.SH DESCRIPTION
+.B alarm
+causes signal SIGALRM (see
+.BR signal (2))
+to be sent to the invoking
+process in a specified time given by the argument.
+Unless caught or
+ignored, the signal terminates the process.
+.PP
+If
+.I time
+is greater than zero, the alarm will be measured in seconds.
+Successive
+calls of positive alarm values will not be stacked; an alarm will be
+sent only at the time indicated by the most recent call.
+The return value
+will be the amount of time previously remaining on the clock.
+A call
+with value zero will cancel the last positive-valued alarm.
+The longest
+specifiable positive
+.I time
+value is 32767.
+.PP
+If
+.I time
+is a negative value the alarm will be measured in clock-ticks, i.e.
+1/60th of a second, and equal to the absolute value of
+.IR time .
+(Note: not
+all machines have a clock running precisely 60Hz, thus the alarm
+scheduling granularity may be larger than 1/60th of a second.)
+Successive
+calls of negative alarm values will not be stacked; the alarm will be sent
+at the time indicated by the most recent call.
+Unlike positive alarms, this
+type of alarm can not be cancelled, and the return value for this type of
+call is always zero.
+The longest specifiable alarm in clock-ticks is 32768.
+.PP
+Note that
+.B alarm
+calls given in seconds (positive or zero
+.IR time )
+and those
+given in clock-ticks (negative
+.IR time )
+are handled totally apart, and can
+almost be considered separate system calls.
+.PP
+Because of the resolution of the respective clocks, alarms given in
+seconds may be up to one second early, and alarms given in clock-ticks
+may be up to one clock-tick early.
+Because of scheduling delays,
+resumption of execution when the signal is caught may be delayed an
+arbitrary amount.
+.SH "SEE ALSO"
+pause(2), signal(2), sleep(3)
+.SH NOTES
+Clock-tick alarms are not portable to standard UNIX, and VENIX does
+not support regular alarms for longer than 32767 seconds.
+.SH ASSEMBLER
+(alarm = 27.)
+.TP
+PDP-11:
+.nf
+R0 = time
+sys alarm
+R0 = previous amount or zero
+.fi
+.TP
+8086:
+.nf
+BX = 27
+AX = time
+int 0Xf1
+AX = previous amount or zero
+.fi
+.sp

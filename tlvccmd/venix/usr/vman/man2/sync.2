@@ -1,0 +1,37 @@
+.TH SYNC 2
+.SH NAME
+sync \- update super-block
+.SH SYNOPSIS
+.B "sync( )"
+.SH DESCRIPTION
+.B sync
+causes all information in core memory that should be on disk to be
+written out.
+This includes modified super blocks, modified i-nodes, and
+delayed block I/O.
+.PP
+It should be used by programs which examine a file system, for example
+.BR fsck (1),
+.BR df (1),
+etc.
+A
+.B sync
+is done automatically when a program exits.
+.SH BUGS
+The writing, although scheduled, is not necessarily complete upon return
+from
+.BR sync .
+.SH ASSEMBLER
+(sync = 36.)
+.TP
+PDP-11:
+.nf
+sys sync
+.fi
+.TP
+8086:
+.nf
+BX = 36
+int 0Xf1
+.fi
+.sp

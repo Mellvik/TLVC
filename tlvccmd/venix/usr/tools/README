@@ -1,0 +1,14 @@
+#
+# NOV26/HS
+#
+A few useful test programs for the Venix subsystem on TLVC.
+The tiny* and small* programs are copies of the syscall_test.c binary using
+the memory model/stack location indicated by the name. The high stack variants
+have 2k stack, the low stack variants have 8k stacks (the linker default).
+
+The syscalltst program is primariy useful for testing heap availability, but tests
+a lot of other things too. Most useful if run with a filename as argument, 
+like /linux. Also, even more useful if /etc/motd exists.
+
+The crfeatefile.s program used to have a .c 'master' which was accidentally lost. 
+The program simply prints binary 0 through 255 to the terminal/console (stdout).

@@ -1,0 +1,178 @@
+.TH DUMP 1M
+.SH NAME
+dump \- incremental file system dump
+.SH SYNOPSIS
+.B dump
+[ keys [ arguments ] ] filesystem
+.SH DESCRIPTION
+.B dump
+makes an incremental file system dump, on tape or disk, of all files
+changed after a certain date.
+It is somewhat faster than
+.BR tar (1),
+but as it
+works on entire file systems at once,
+.B dump
+does not match
+.BR tar 's
+ease
+of use in selectively extracting or saving individual files or directories.
+Unlike
+.BR tar ,
+.B dump
+does not provide compatibility or portability to other
+versions of UNIX.
+.PP
+The default output device is floppy drive 0
+.RB ( /dev/f0 )
+on PRO/VENIX,
+RAINBOW/VENIX, and VENIX/11 on Micro PDP-11 systems; it is
+magtape drive 0
+.RB ( /dev/mt0 )
+on other VENIX/11 systems.
+This default
+may be overridden with the
+.B f
+modifier (see below).
+.PP
+The
+.I key
+argument specifies the date and other options about the dump.
+.I key
+consists of one or more characters from the following set:
+.TP 6
+.B a
+Normally files larger than 1000 blocks are not incrementally
+dumped; this flag forces them to be dumped.
+.TP
+.B b
+The next argument is taken to be the maximum size of the dump
+medium in blocks.
+If the
+.B b
+key is not used, a default size is
+assumed.
+On PRO/VENIX and RAINBOW/VENIX, the
+default is the size of a standard diskette (790 and 640 blocks,
+respectively); on VENIX/11, it is 24200 blocks (the approximate
+size of a 2200 foot, 800 bpi tape \- see
+.B s
+key).
+.TP
+.B c
+If the medium overflows, increment the last character of its name
+and continue on that drive.
+(Normally it asks you to change
+media).
+.TP
+.B f
+Place the dump on the next argument file instead of the default
+device.
+.TP
+.B i
+The dump date is taken from the entry in the file
+.B /etc/dtab
+corresponding to the last time the file system was dumped with
+the
+.B u
+option.
+.TP
+.B 0
+The dump date is taken as the epoch (beginning of time).
+Thus
+this option causes an entire file system to be taken.
+.TP
+.B h
+The dump date is some number of hours before the current date.
+The number of hours is taken from the next argument in
+.IR arguments .
+.TP
+.B d
+The dump date is some number of days before the current date.
+The number of days is taken from the next argument in
+.IR arguments .
+.TP
+.B u
+The file
+.B /etc/dtab
+is updated to indicate when this dump was
+made, to allow subsequent dumps on the same file system to save
+only files changed since this date.
+.TP
+.B s
+The size of the dump magtape is specified in feet (useful for
+VENIX/11 only).
+The number of feet is taken from the next
+argument in
+.IR arguments .
+It is assumed that there are 11 VENIX
+blocks (512 bytes/block) per foot.
+.PP
+When the specified size is reached on the output media,
+.B dump
+will
+prompt for it to be changed.
+The
+.BR restor (1)
+command is used to restore
+dump media.
+.SH EXAMPLES
+Full dumps should be taken on quiet file systems as follows:
+.PP
+.RS
+.nf
+dump 0u /dev/w0.usr
+ncheck /dev/w0.usr > nch
+.fi
+.RE
+.PP
+The
+.BR ncheck (1)
+will come in handy in case it is necessary to restore individual
+files from this dump.
+Incremental dumps should be taken when
+desired by:
+.IP
+dump
+.PP
+When the incremental dumps get cumbersome, a new complete dump
+should be taken.
+In this way, a restore requires loading of the complete
+dump medium and only the latest incremental medium.
+.PP
+To dump the entire file system on
+.BR /dev/w0.sys :
+.IP
+dump 0 /dev/w0.sys
+.PP
+To dump the files on
+.B /dev/w0.usr
+modified in the last 7 days to floppies
+of length 320 blocks on unit
+.IR /dev/f1 :
+.IP
+dump dfb 7 /dev/f1 320 /dev/w0.usr
+.PP
+Note that the arguments for the keys `dfb' are given in order, following
+the keys themselves.
+.SH FILES
+.nf
+.ta 1.2i
+/dev/f0	default output device (PRO/VENIX
+	  and RAINBOW/VENIX)
+/dev/mt0	default output device (VENIX/11)
+/etc/dtab	dump record
+.fi
+.SH "SEE ALSO"
+restor(1), tar(1), ``VENIX Maintenance'' in the
+.IR "Installation and System Manager's Guide" .
+.SH DIAGNOSTICS
+If the dump requires more than one medium, it will ask you to change
+media.
+Reply with a newline when this has been done.
+If the first block
+on the new medium is not writable, e.g because you forgot the write tab,
+you get a chance to fix it.
+Generally, however, read or write failures are
+fatal.
+.sp

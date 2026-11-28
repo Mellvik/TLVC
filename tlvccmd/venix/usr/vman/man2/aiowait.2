@@ -1,0 +1,42 @@
+.TH AIOWAIT 2
+.SH NAME
+aiowait \- wait on asynchronous I/O
+.SH SYNOPSIS
+.B "aiowait(fd, level)"
+.SH DESCRIPTION
+.B aiowait
+causes the calling process to go to sleep until the outstanding I/O
+requests by the process to the device referred to by the file descriptor
+.I fd
+are less then or equal to
+.IR level .
+The number of outstanding requests is
+returned.
+If
+.I level
+is negative, then only the number of outstanding
+requests is returned.
+.PP
+.I fd
+is the file descriptor returned by a previous
+.B open
+of the asynchronous
+version of a DMA device, such as a disk or A/D device.
+.PP
+Since asynchronous I/O is serviced in the order requested, the user can
+know when a given request has been completed.
+.PP
+.B aiowait
+is implemented by a call to
+.BR ioctl (2)
+with the
+.B aiocwait
+command.
+.SH "SEE ALSO"
+ioctl(2), async(7)
+.SH DIAGNOSTICS
+A \-1 is returned if the file descriptor is unknown or not a special character
+file opened for asynchronous I/O.
+.SH NOTES
+Asynchronous I/O is non-portable to standard UNIX.
+.sp

@@ -1,0 +1,86 @@
+.TH SEMSET 2
+.SH NAME
+semset, semclear, semtest, semtset \- manipulate local/global binary semaphores
+.SH SYNOPSIS
+.nf
+.B "semset(sem, pri)"
+.B "semclear(sem)"
+.B "semtest(sem)"
+.B "semtset(sem, pri)"
+.fi
+.SH DESCRIPTION
+Semaphores allow cooperating processes to ``lock out'' each other during
+the execution of ``critical code'' regions, such as during updates to
+shared data segments or any common data base.
+.PP
+.B semset
+sets the semaphore
+.I sem
+if it was clear and returns to the caller;
+otherwise it queues the calling process at priority
+.I pri
+with all other
+processes waiting on
+.I sem
+and goes to sleep.
+The values of
+.I pri
+may range
+between 0, the highest priority, and 15, the lowest priority.
+.PP
+.B semclear
+clears the semaphore previously set and wakes up the highest
+priority process waiting on
+.IR sem .
+.PP
+.B semtest
+tests the semaphore and returns a zero if clear, a one if set.
+If
+clear, this does not guarantee that a subsequent
+.B semset
+will not have to
+wait, since another process can do a
+.B semset
+in the intervening time.
+.PP
+.B semtset
+tests the semaphore and returns a 1 if set.
+If clear, then the semaphore
+is set and a 0 is returned.
+.PP
+Semaphores can range in value between \-16 and 15.
+The negative
+values (\-16 to \-1) are global and the same for processes on the system,
+while the positive values (0 to 15) are local and shared by all processes in
+the same process group.
+.PP
+When a process forks, only the parent maintains the semaphore.
+Semaphores
+are maintained beyond the life of any program using them; they
+are not cleared when a program exits.
+.SH DIAGNOSTICS
+A semaphore out of range or attempted setting if already set by the caller
+is considered an error and a \-1 is returned.
+.SH BUGS
+If a process is swapped out while waiting on a semaphore, its priority is
+ineffective for waking up.
+.SH NOTES
+Semaphores are not portable to standard UNIX.
+.SH ASSEMBLER
+(sema = 45.)
+.TP
+PDP-11:
+.nf
+R0 = 0 (set), 1 (clear), 2 (test), or 3 (test & set)
+sys sema; semaphore; priority
+.fi
+.TP
+8086:
+.nf
+BX = 45
+AX = 0 (set), 1 (clear), 2 (test), or 3 (test & set)
+DX = semaphore
+CX = priority
+int 0Xf1
+.fi
+.sp

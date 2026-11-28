@@ -1,0 +1,190 @@
+.TH PTRACE 2
+.SH NAME
+ptrace \- process trace
+.SH SYNOPSIS
+.nf
+#include <signal.h>
+.sp
+.B "ptrace(request, pid, addr, data)"
+.B "int *addr;"
+.fi
+.SH DESCRIPTION
+.B ptrace
+provides a means by which a parent process may control the execution
+of a child process, and examine and change its core image.
+Its
+primary use is for the implementation of breakpoint debugging.
+There
+are four arguments whose interpretation depends on a
+.I request
+argument.
+Generally,
+.I pid
+is the process ID of the traced process, which must be a
+child (no more distant descendant) of the tracing process.
+A process
+being traced behaves normally until it encounters some signal whether
+internally generated like `illegal instruction' or externally generated like
+`interrupt.'
+See
+.BR signal (2)
+for the list.
+Then the traced process enters a
+stopped state and its parent is notified via
+.BR wait (2).
+When the child is in
+the stopped state, its core image can be examined and modified using
+.BR ptrace .
+If desired, another
+.B ptrace
+request can then cause the child either
+to terminate or to continue, possibly ignoring the signal.
+.PP
+The value of the
+.I request
+argument determines the precise action of the
+call:
+.TP 5
+.B 0
+This request is the only one used by the child process; it declares
+that the process is to be traced by its parent.
+All the other arguments
+are ignored.
+Peculiar results will ensue if the parent does not
+expect to trace the child.
+.TP
+.B 1,2
+The word in the child process' address space at
+.I addr
+is returned.
+If
+I and D space are separated, request 1 indicates I space, 2 D space.
+On the PDP-11,
+.I addr
+must be even.
+The child must be stopped.
+The input
+.I data
+is ignored.
+.TP
+.B 3
+The word of the system's per-process data area corresponding to
+.I addr
+is returned.
+.I addr
+must be even and less than 512 (PDP-11) or
+1024 (8086).
+This space contains the registers and other information
+about the process; its layout corresponds to the
+.I user
+structure in the
+system.
+.TP
+.B 4,5
+The given
+.I data
+is written at the word in the process' address space
+corresponding to
+.IR addr ,
+which must be even.
+No useful value is
+returned.
+If I and D space are separated, request 4 indicates I space,
+5 D space.
+On the PDP-11 only, attempts to write in a pure procedure
+fail if another process is executing the same file.
+.TP
+.B 6
+The process' system data is written, as it is read with request 3.
+Only a few locations can be written in this way: the general registers,
+the floating point status and registers, and certain bits of the processor
+status word.
+.TP
+.B 7
+The
+.I data
+argument is taken as a signal number and the child's execution
+continues at location
+.I addr
+as if it had incurred that signal.
+Normally the signal number will be either 0 to indicate that the signal
+that caused the stop should be ignored, or that value fetched out
+of the process' image indicating which signal caused the stop.
+If
+.I addr
+is (int *)1 then execution continues from where it stopped.
+.TP
+.B 8
+The traced process terminates.
+.TP
+.B 9
+Execution continues as in request 7; however, as soon as possible
+after execution of at least one instruction, execution stops again.
+The signal number from the stop is SIGTRAP.
+On the PDP-11, the
+T-bit is used and just one instruction is executed.
+This is part of the
+mechanism for implementing breakpoints.
+.PP
+As indicated, these calls (except for request 0) can be used only when the
+subject process has stopped.
+The
+.B wait
+call is used to determine when a
+process stops; in such a case the `termination' status returned by
+.B wait
+has
+the value 0177 to indicate stoppage rather than genuine termination.
+.PP
+To forestall possible fraud,
+.B ptrace
+inhibits the set-user-id facility on subsequent
+.BR exec (2)
+calls.
+If a traced process calls
+.BR exec ,
+it will stop before
+executing the first instruction of the new image showing signal
+SIGTRAP.
+.SH "SEE ALSO"
+wait(2), signal(2), adb(1)
+.SH DIAGNOSTICS
+The value \-1 is returned if
+.I request
+is invalid,
+.I pid
+is not a traceable process,
+.I addr
+is out of bounds, or
+.I data
+specifies an illegal signal number.
+.SH BUGS
+The error indication, \-1, is a legitimate function value;
+.BR errno ,
+see
+.BR intro (2),
+can be used to disambiguate.
+.PP
+It should be possible to stop a process on occurrence of a system call; in
+this way a completely controlled environment could be provided.
+.SH ASSEMBLER
+(ptrace = 26.)
+.TP
+PDP-11:
+.nf
+R0 = data
+sys ptrace; pid; addr; request
+R0 = value
+.fi
+.TP
+8086:
+.nf
+BX = 26
+AX = data
+DX = pid
+CX = addr
+SI = request
+int 0Xf1
+AX = value
+.fi
+.sp

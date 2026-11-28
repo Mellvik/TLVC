@@ -1,0 +1,143 @@
+.TH STTY 1
+.SH NAME
+stty \- set terminal options
+.SH SYNOPSIS
+.B "stty [ option ... ]"
+.br
+.B "STTY [ option ... ]"
+.SH DESCRIPTION
+.B stty
+sets certain I/O options on the current output terminal.
+With no argument, it reports the current settings of the options.
+.PP
+.B STTY
+is identical to
+.BR stty ,
+but given an upper-case name so that upper-case-only terminals can also set the terminal modes.
+.PP
+.B stty
+can be used to set the terminal modes on any device merely by redirecting the standard output to that device through the shell `>' construction.
+.PP
+If your terminal has been placed into certain non-standard modes, you will have to use line-feeds (^J) instead of carriage returns at the end of lines.
+.PP
+The option strings are selected from the following set:
+.TP 10
+.B scroll
+stop every 20 lines of screen output until a ^Q or any other character is typed; useful for keeping text from scrolling off CRT screens
+.TP
+.BR \- scroll
+disable
+.B scroll
+option
+.TP
+.B crt
+make `delete' echo as a backspace-space-backspace to erase a character from a CRT screen
+.TP
+.BR \- crt
+make `delete' echo a `<' to indicate a deleted character, appropriate for hard-copy terminals
+.TP
+.B raw
+raw mode input (no erase, kill, interrupt, quit, EOT; parity bit passed back)
+.TP
+.BR \- raw
+negate raw mode
+.TP
+.B cooked
+same as
+.BR \- raw
+.TP
+.B cbreak
+make each character available to
+.BR read (2)
+as received; no erase and kill
+.TP
+.BR \- cbreak
+make characters available to
+.B read
+only when newline is received
+.TP
+.BR \- nl
+allow carriage return for newline, and output CR\-LF for carriage return or newline
+.TP
+.B nl
+accept only newline to end lines
+.TP
+.B echo
+echo back every character typed
+.TP
+.BR \- echo
+do not echo characters
+.TP
+.B lcase
+map upper case to lower case
+.TP
+.BR \- lcase
+do not map case
+.TP
+.BR \- tabs
+replace tabs by spaces when printing
+.TP
+.B tabs
+preserve tabs
+.TP
+.B ek
+reset erase and kill characters back to normal (``DELETE key'' and ``^U'', respectively)
+.TP
+.BI erase " c"
+set erase character to
+.IR c .
+.I c
+can be of the form ``X'' which is interpreted as a `control\-X'.
+.TP
+.BI kill " c"
+set kill character to
+.IR c .
+``X'' works here also.
+.TP
+.B even
+allow even parity
+.TP
+.BR \- even
+disallow even parity
+.TP
+.B odd
+allow odd parity
+.TP
+.BR \- odd
+disallow odd parity
+.IP
+(parity checking is not supported on all interfaces)
+.TP
+.B hup
+hang up dataphone on last close.
+.TP
+.BR \- hup
+do not hang up dataphone on last close.
+.IP
+(this option is not supported on all interfaces)
+.TP
+.B 0
+hang up phone line immediately
+.TP
+.B "50 75 110 134 150 200 300 600 1200 1800 2400 4800 9600 exta extb"
+Set terminal baud rate to the number given, if possible.
+.SH EXAMPLES
+Set current terminal modes appropriate to normal CRT usage, with the terminal output stopping every 20 lines waiting for a ^Q.
+.RS
+.nf
+stty cooked echo crt \-nl scroll
+.fi
+.RE
+Set terminal
+.I tty02
+to
+.I 300
+baud:
+.RS
+.nf
+stty 300 > /dev/tty02
+.fi
+.RE
+.SH "SEE ALSO"
+ioctl(2)
+.sp

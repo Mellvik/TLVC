@@ -1,0 +1,87 @@
+.TH FILSYS 4
+.SH NAME
+filsys, flblk, ino \- format of file system volume
+.SH SYNOPSIS
+.nf
+.B "#include <sys/types.h>"
+.B "#include <sys/flblk.h>"
+.B "#include <sys/filsys.h>"
+.B "#include <sys/ino.h>"
+.fi
+.SH DESCRIPTION
+Every file system storage volume (e.g. RM disk, RK disk, RL disk, RX diskette), has a common format for certain vital information. Every such volume is divided into a certain number of 512-byte blocks. Block 0 is unused and is available to contain a bootstrap program, pack label, or other information.
+.PP
+Block 1 is the 'super block'. The layout of the super block as defined by the include file <sys/filsys.h> is:
+.nf
+struct filsys {
+        unsigned int    s_isize;        /* size in blocks of I list */
+        unsigned int    s_fsize;        /* size of entire volume */
+        int             s_nfree;        /* number of in-core free */
+        unsigned int    s_free[100];    /* in-core free blocks */
+        int             s_ninode;       /* number in-core I nodes */
+        unsigned int    s_inode[100];   /* in core free I nodes */
+        char            s_flock;        /* lock free list */
+        char            s_ilock;        /* lock I list */
+        char            s_fmod;         /* super block modified */
+        char            s_ronly;        /* mounted read-only flag */
+        long            s_time;         /* date of last update */
+        int             pad[48];
+};
+.fi
+.PP
+\fIs_isize\fR is the number of blocks in the i-list, which starts just after the super-block, in block 2. \fIs_fsize\fR is the address of the first block not potentially available for allocation to a file. These numbers are used by the system to check for bad block addresses; if an 'impossible' block address is allocated from the free list or is freed, a diagnostic is written on the on-line console. Moreover, the free array is cleared, so as to prevent further allocation from a presumably corrupted free list.
+.PP
+The free list for each volume is maintained as follows. The \fIs_free\fR array contains, in \fIs_free[1]\fR, ... , \fIs_free[s_nfree-1]\fR, up to 99 free block numbers. \fIs_free[0]\fR is the block number of the head of a chain of blocks constituting the free list. The first word in each free-chain is the number (up to 100) of free-block numbers listed in the next 100 words of this chain member. The first of these 100 blocks is the link to the next member of the chain. To allocate a block: decrement \fIs_nfree\fR, and the new block number is \fIs_free[s_nfree]\fR. If the new block number is 0, there are no blocks left, so give an error. If \fIs_nfree\fR became 0, read in the block numbers in the next 100 words into the \fIs_free\fR array. To free a block, check if \fIs_nfree\fR is 100; if so, copy \fIs_nfree\fR and the \fIs_free\fR array into it, write it out, and set \fIs_nfree\fR to 0. In any event set \fIs_free[s_nfree]\fR to the freed block's number and increment \fIs_nfree\fR.
+.PP
+\fIs_ninode\fR is the number of free i-numbers in the \fIs_inode\fR array. To allocate an i-node: if \fIs_ninode\fR is greater than 0, decrement it and return \fIs_inode[s_ninode]\fR. If it was 0, read the i-list and place the numbers of all free inodes (up to 100) into the \fIs_inode\fR array, then try again. To free an i-node, provided \fIs_ninode\fR is less than 100, place its number into \fIs_inode[s_ninode]\fR and increment \fIs_ninode\fR. If \fIs_ninode\fR is already 100, don't bother to enter the freed i-node into any table. This list of i-nodes is only to speed up the allocation process; the information as to whether the inode is really free or not is maintained in the inode itself.
+.PP
+\fIs_flock\fR, \fIs_ilock\fR, and \fIs_ronly\fR are flags maintained in the core copy of the file system while it is mounted and their values on disk are immaterial. The value of \fIs_fmod\fR on disk is likewise immaterial; it is used as a flag to indicate that the super-block has changed and should be copied to the disk during the next periodic update of file system information. \fIs_time\fR is the last time the super-block of the file systems was changed, and is a double-precision representation of the number of seconds that have elapsed since 00:00:00 Jan. 1, 1970 (GMT). During a reboot, the \fIs_time\fR of the super-block for the root file system is used to set the system's idea of the time.
+.PP
+I-numbers begin at 1, and the storage for i-nodes begins in block 2. Also, i-nodes are 32 bytes long, so 16 of them fit into a block. Therefore, i-node \fIi\fR is located in block ( \fIi\fR + 31) / 16, and begins 32 * (( \fIi\fR +31) (mod 16)) from its start. I-node 1 is reserved for the root directory of the file system, but no other i-number has a built-in meaning. Each i-node represents one file. The format of an inode is as follows:
+.nf
+struct inode {
+        int             i_mode;
+        char            i_nlinks;
+        unsigned char   i_uid;
+        unsigned char   i_gid;
+        unsigned char   i_size0;
+        unsigned int    i_size1;
+        unsigned int    i_addr[8];
+        long            i_atime;
+        long            i_mtime;
+};
+.fi
+.PP
+The mode bits are as follows:
+.nf
+IALLOC    0100000   i-node is allocated
+IFMT      060000    2-bit file type mask:
+IFDIR     040000    directory
+IFCHR     020000    character type special file
+IFREG     000000    regular file
+IFBLK     060000    block-type special file
+ILARG     010000    large file
+ISUID     04000     set user-ID on execution
+ISGID     02000     set group-ID on execution
+ISVTX     01000     save shared segment after use
+IREAD     0400      read (owner)
+IWRITE    0200      write (owner)
+IEXEC     0100      execute (owner)
+          0070      read, write, execute (group)
+          0007      read, write, execute (other)
+.fi
+.PP
+\fIi_mode\fR tells the kind of file; it is encoded identically to the \fIst_mode\fR field of \fBstat\fR(2). \fIi_nlink\fR is the number of directory entries (links) that refer to this i-node. \fIi_uid\fR and \fIi_gid\fR are the owner's user and group IDs. \fIi_size0\fR and \fIi_size1\fR are the 24-bit number of bytes in the file. \fIi_atime\fR and \fIi_mtime\fR are the times of last access and modification of the file contents (read, write or create). See \fBtimes\fR(2).
+.PP
+Special files are recognized by their modes and not by i-number. A block-type special file is one which can potentially be mounted as a file system; a character-type special file cannot, though it is not necessarily character-oriented. For special files, the \fIi_addr\fR field is occupied by the device code (see \fBtypes\fR(5)). The device codes of block and character special files overlap.
+.PP
+The address words of ordinary files and directories contain the numbers of the blocks in the file (if it is small) or the numbers of indirect blocks (if the file is large). Byte number \fIn\fR of a file is accessed as follows. \fIN\fR is divided by 512 to find its logical block number (say \fIb\fR) in the file. If the file is small (flag 010000 is 0), then \fIb\fR must be less than 8, and the physical block number is \fIaddr[b]\fR.
+.PP
+If the file is large, \fIb\fR is divided by 256 to yield \fIi\fR. If \fIi\fR is less than 7, then \fIaddr[i]\fR is the address of a first indirect block which contains the number of the block for the sought-for byte.
+.PP
+If \fIi\fR is equal to 7, then the file has become extra-large (huge), and \fIaddr[7]\fR is the address of a first indirect block. Each word in this block is the number of a second-level indirect block; each word in the second-level indirect block points to a data block. Notice that extra-large files are not marked by any mode bit, but only by having \fIaddr[7]\fR non-zero; and that although this scheme allows for more than 256x256x512 = 33,554,432 bytes per file, the length of files is stored in 24 bits so in practice a file can be at most 16,777,216 bytes long.
+.PP
+For block \fIb\fR in a file to exist, it is not necessary that all blocks less than \fIb\fR exist. A zero block number either in the address words of the i-node or in an indirect block indicates that the corresponding block has never been allocated. Such a missing block reads as if it contained all zero words.
+.SH "SEE ALSO"
+fsck(1), dir(4), mount(1), stat(2)
+.sp

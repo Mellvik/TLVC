@@ -1,0 +1,35 @@
+.TH SPLIT 1
+.SH NAME
+split \- split a file into pieces
+.SH SYNOPSIS
+.B "split [ \-n ] [ file [ name ] ]"
+.SH DESCRIPTION
+.B split
+reads
+.I file
+and writes it in
+.I n
+line pieces (default 1000), as many as necessary, onto a set of output files.
+The name of the first output file is
+.I name
+with
+.B aa
+appended, and so on lexicographically.
+If no output name is given,
+.B x
+is default.
+.PP
+If no input file is given, or if `\-' is given in its stead, then the standard input file is used.
+.SH EXAMPLES
+To split files
+.I lnames
+into segments of 17 lines calling each one
+.IR partialaa ,
+.IR partialab ,
+etc.
+.RS
+.nf
+split \-17 lnames partial
+.fi
+.RE
+.sp

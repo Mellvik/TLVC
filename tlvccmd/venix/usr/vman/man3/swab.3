@@ -1,0 +1,23 @@
+.TH SWAB 3
+.SH NAME
+swab \- swap bytes
+.SH SYNOPSIS
+.nf
+.B "swab(from, to, nbytes)"
+.B "char *from, *to;"
+.fi
+.SH DESCRIPTION
+.B swab
+copies
+.I nbytes
+bytes pointed to by
+.I from
+to the position pointed to by
+.IR to ,
+exchanging adjacent even and odd bytes.
+It is useful for carrying
+binary data between PDP-11's and other machines.
+.I nbytes
+should be
+even.
+.sp

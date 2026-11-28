@@ -1,0 +1,86 @@
+.TH PLOT 5
+.SH NAME
+plot \- graphics interface
+.SH DESCRIPTION
+Files of this format are produced by routines described in
+.BR plot (3g),
+and are interpreted for various devices by
+.BR plot (1g).
+A graphics file is a stream of plotting instructions. Each instruction consists of an ASCII letter usually followed by bytes of binary information. The instructions are executed in order. A point is designated by four bytes representing the x and y values; each value is a signed integer.
+.PP
+There are no instructions for openpl() or closepl(), as they are automatically invoked by the filter driver when the
+.BR plot (1g)
+command is given.
+.PP
+Each of the following descriptions begins with the name of the corresponding routine in
+.BR plot (3g).
+See
+.BR plot (3g)
+for a more detailed description of these routines.
+.PP
+Standard Unix routines
+.TP 4
+.B e
+erase: Erase the graphics screen. No bytes follow.
+.TP
+.B s
+space: The next two coordinate pairs (four bytes each) give the lower-left and upper-right corners of the user-coordinate system to be defined.
+.TP
+.B t
+label: Place the following ASCII string, ending with a newline, so that its first character falls on the current point.
+.TP
+.B l
+line: The next two coordinate pairs (four bytes each) specify the start and end points of the line to be drawn.
+.TP
+.B c
+circle: The next coordinate pair (four bytes) specify the center and the following two bytes specify the radius of a complete circle.
+.TP
+.B a
+arc: The next three coordinate pairs (four bytes each) give the center point, and starting and ending octants of a counter-clockwise circular arc.
+.TP
+.B m
+move: The next four bytes give a new current point.
+.TP
+.B n
+cont: Draw a line from the old current point to the new current point given by the next four bytes.
+.TP
+.B p
+point: Plot a point at the new current point, given by the next four bytes.
+.TP
+.B f
+linemod: The following ASCII string, ending with a newline, chooses one of the line-styles available in the graphics filter.
+.PP
+Special VENIX enhancements
+.TP
+.B g
+linepat: The next two bytes specify a 16-bit integer pattern, of the user's choice, to be used as a special line pattern.
+.TP
+.B h
+linewid: The next two bytes set desired width, in user coordinates, of all lines following.
+.TP
+.B w
+window: The next two coordinate pairs (four bytes each) specify bottom-left and upper-right corners of a clipping window in user coordinates.
+.TP
+.B b
+box: The next two coordinate pairs (four bytes each) specify the bottom-left and upper-right corners of a rectangular box.
+.TP
+.B r
+rfill: The next two coordinate pairs (four bytes each) specify the lower-left and upper-right corners of a filled rectangular box.
+.TP
+.B u
+fill: The next four bytes specify the coordinates of a seed point for a general convex boundary fill.
+.TP
+.B d
+dot: The next coordinate pair (four bytes) specify the center location and the following two bytes specify the radius of a filled circle.
+.TP
+.B o
+color: The next two bytes specify a choice from the color palette. All graphics following will be drawn in the specified color.
+.TP
+.B i
+colndx: The first two bytes specify the palette color to be modified, and the next two bytes specify the new color.
+.TP
+.B j
+writemod: The following ASCII string, ending with a newline, chooses one of the writing modes available in the graphics filter.
+.SH "SEE ALSO"
+plot(1g), plot(3g)
+.sp

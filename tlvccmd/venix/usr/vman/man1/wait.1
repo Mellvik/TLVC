@@ -1,0 +1,23 @@
+.TH WAIT 1
+.SH NAME
+wait \- await completion of process
+.SH SYNOPSIS
+.B wait
+.SH DESCRIPTION
+Wait until all processes started with
+.B &
+have completed, and report on
+abnormal terminations.
+.PP
+Because the
+.BR wait (2)
+system call must be executed in the parent process,
+the shell itself executes
+.BR wait ,
+without creating a new process.
+.SH "SEE ALSO"
+sh(1)
+.SH BUGS
+Not all the processes of a 3- or more-stage pipeline are children of the
+shell, and thus can't be waited for.
+.sp

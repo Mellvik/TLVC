@@ -1,0 +1,55 @@
+.TH WRITE 2
+.SH NAME
+write \- write on a file
+.SH SYNOPSIS
+.nf
+.B "write(fildes, buffer, nbytes)"
+.B "char *buffer;"
+.fi
+.SH DESCRIPTION
+The file descriptor
+.I fildes
+is an integer returned from a successful
+.BR open ,
+.BR creat ,
+.BR dup ,
+or
+.BR pipe (2)
+call.
+.PP
+.I buffer
+is the address of
+.I nbytes
+contiguous bytes which are written on the
+output file.
+The number of characters actually written is returned.
+It
+should be regarded as an error if this is not the same as requested.
+.PP
+Writes which are multiples of 512 characters long and begin on a 512-byte
+boundary in the file are more efficient than any others.
+.SH "SEE ALSO"
+creat(2), dup(2), open(2), pipe(2)
+.SH DIAGNOSTICS
+Returns \-1 on error: bad descriptor, buffer address, or count; physical
+I/O errors.
+.SH ASSEMBLER
+(write = 4.)
+.TP
+PDP-11:
+.nf
+R0 = fildes
+sys write; buffer; nbytes
+R0 = byte count
+.fi
+.TP
+8086:
+.nf
+BX = 4
+AX = fildes
+DX = buffer
+CX = nbytes
+int 0Xf1
+AX = byte count
+.fi
+.sp

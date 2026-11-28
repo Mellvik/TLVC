@@ -109,6 +109,9 @@ hd32-minix:
 	echo CONFIG_IMG_MINIX=y		>> Config
 	echo CONFIG_IMG_DEV=y		>> Config
 	echo CONFIG_IMG_BOOT=y		>> Config
+ifdef CONFIG_COMPAT_V7
+	echo CONFIG_COMPAT_V7=y		>> Config
+endif
 	sed -n -e '/CONFIG_TIME_/p'	>> Config < $(TOPDIR)/.config
 	$(MAKE) -f Make.image "CONFIG=$(TOPDIR)/image/Config" NAME=hd32-minix
 	rm Config
@@ -123,6 +126,9 @@ hd64-minix:
 	echo CONFIG_IMG_MINIX=y		>> Config
 	echo CONFIG_IMG_DEV=y		>> Config
 	echo CONFIG_IMG_BOOT=y		>> Config
+ifdef CONFIG_COMPAT_V7
+	echo CONFIG_COMPAT_V7=y		>> Config
+endif
 	sed -n -e '/CONFIG_TIME_/p'	>> Config < $(TOPDIR)/.config
 	$(MAKE) -f Make.image "CONFIG=$(TOPDIR)/image/Config" NAME=hd64-minix
 	rm Config
@@ -210,4 +216,4 @@ hd32mbr-fat: hd32-fat.img
 
 clean:
 	-rm -rf $(DESTDIR)
-	-rm -f *.img *.bin
+	-rm -f *minix.img *fat.img *.bin

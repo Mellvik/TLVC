@@ -1,0 +1,191 @@
+.TH GREP 1
+.SH NAME
+grep, egrep, fgrep \- search a file for a pattern
+.SH SYNOPSIS
+.B grep
+[ option ] ... expression [ file ] ...
+.PP
+.B egrep
+[ option ] ... [ expression ] [ file ] ...
+.PP
+.B fgrep
+[ option ] ... [ strings ] [ file ]
+.SH DESCRIPTION
+Commands of the
+.B grep
+family search the input
+.I files
+(standard input default) for lines matching a pattern.
+Normally, each line found is copied to the standard output; unless the
+.B \-h
+flag is used, the file name is shown if there is more than one input file.
+.PP
+.B grep
+patterns are limited regular expressions in the style of
+.BR ed (1);
+it uses a compact nondeterministic algorithm.
+.B egrep
+patterns are full regular expressions; it uses a fast deterministic algorithm that sometimes needs exponential space.
+.B fgrep
+patterns are fixed strings; it is fast and compact.
+To determine which variation to use, match the complexity of the search expression and the speed in which it can be done.
+.PP
+The following options are recognized.
+.TP 8
+.B \-v
+All lines but those matching are printed.
+.TP
+.B \-c
+Only a count of matching lines is printed.
+.TP
+.B \-l
+The names of files with matching lines are listed (once) separated by newlines.
+.TP
+.B \-n
+Each line is preceded by its line number in the file.
+.TP
+.B \-b
+Each line is preceded by the block number on which it was found.
+This is sometimes useful in locating disk block numbers by context.
+.TP
+.B \-s
+No output is produced, only status.
+.TP
+.B \-h
+Do not print filename headers with output lines.
+.TP
+.B \-y
+Lower case letters in the pattern will also match upper case letters in the input
+.RB ( grep
+only).
+.TP
+.BI \-e " expression"
+Same as a simple
+.I expression
+argument, but useful when the
+.I expression
+begins with a
+.BR \- .
+.TP
+.BI \-f " file"
+The regular expression
+.RB ( egrep )
+or string list
+.RB ( fgrep )
+is taken from the
+.IR file .
+This does not work for
+.BR grep .
+.TP
+.B \-x
+(Exact) only lines matched in their entirety are printed
+.RB ( fgrep
+only).
+Single quotes should be used for multiple word expressions.
+.PP
+Care should be taken when using the characters
+\fB$ * [ ^ | ? ' " ( )\fR
+and
+.B \e
+in the
+.I expression
+as they are also meaningful to the Shell.
+It is safest to enclose the entire
+.I expression
+argument in single quotes `' '.
+For example:
+.RS
+.nf
+grep \-n '/*' *.c
+.fi
+.RE
+prints out all comment lines in all C source files in the current directory.
+.PP
+.B fgrep
+searches for lines that contain one of the (newline-separated)
+.IR strings .
+.PP
+.B egrep
+accepts extended regular expressions.
+In the following description `character' excludes newline:
+.RS
+.PP
+A
+.B \e
+followed by a single character matches that character.
+.PP
+The character
+.B ^
+.RB ( $ )
+matches the beginning (end) of a line.
+.PP
+A
+.B .
+matches any character.
+.PP
+A single character not otherwise endowed with special meaning matches that character.
+.PP
+A string enclosed in brackets
+.B [ ]
+matches any single character from the string.
+Ranges of ASCII character codes may be abbreviated as in `a\-z0\-9'.
+A
+.B ]
+may occur only as the first character of the string.
+A literal
+.B \-
+must be placed where it can't be mistaken as a range indicator.
+.PP
+A regular expression followed by
+.B *
+.RB ( + ,
+.BR ? )
+matches a sequence of 0 or more (1 or more, 0 or 1) matches of the regular expression.
+.PP
+Two regular expressions concatenated match a match of the first followed by a match of the second.
+.PP
+Two regular expressions separated by
+.B |
+or newline match either a match for the first or a match for the second.
+.PP
+A regular expression enclosed in parentheses matches a match for the regular expression.
+.RE
+.PP
+The order of precedence of operators at the same parenthesis level is
+.B [ ]
+then
+.B "* + ?"
+then concatenation then
+.B |
+and newline.
+.SH EXAMPLES
+Search for all occurrences of the string ``xyz'' in file
+.I prog.c
+.RS
+.nf
+grep xyz prog.c
+.fi
+.RE
+Search the file
+.I history.text
+for the words given in file
+.IR spellerrs .
+.RS
+.nf
+fgrep \-f spellerrs history.text
+.fi
+.RE
+Count the number of lines with the words ``parrot'' or ``Parrot'':
+.RS
+.nf
+grep \-c '[Pp]arrot' prog.c
+.fi
+.RE
+(note the use of single quotes to prevent the shell from interpreting the left and right brackets).
+.SH "SEE ALSO"
+ed(1), sed(1), sh(1)
+.SH DIAGNOSTICS
+Exit status is 0 if any matches are found, 1 if none, 2 for syntax errors or inaccessible files.
+.SH BUGS
+Lines are limited to 256 characters; longer lines are truncated.
+.sp

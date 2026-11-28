@@ -1,0 +1,4658 @@
+/* syscalltst.s — Venix/86 -> TLVC/ia16-elf
+ * Rewritten by vrewrite.py v4
+ * Assemble: ia16-elf-as -march=8087 syscalltst.s -o syscalltst.o
+ * Syscalls used:
+ *   1:exit            2:fork            3:read            4:write           5:open            6:close
+ *   7:wait            8:creat           13:time           17:brk            18:stat           19:lseek
+ *   35:ftime          41:dup            42:pipe           48:signal         54:ioctl          59:exece
+ * INT instructions: $0xf1  $0xf4
+ */
+
+	.code16
+	.include "venix_syscalls.inc"
+	.text
+	/* crt0 provided by TLVC crt0.o */
+
+// Venix/86 a.out: syscalltst  [object file]
+//   Magic:    0x0107  OMAGIC (object/impure)
+//   a_stack:  0x0000  (0 bytes)
+//   a_text:   0x0000206a  (8298 bytes)
+//   a_data:   0x000006ea  (1770 bytes)
+//   Load:  cs:0x0000 (text)   ds:0x206a (data/bss)
+	/* start: elided (provided by crt0 or vrewrite synthesis) */
+
+	.global	main
+	.type	main,@function
+main:
+	push   %bp
+	mov    %sp,%bp
+	/* vrewrite: initialize _environ from envp (TLVC crt0 3rd arg) */
+	mov	0x8(%bp),%ax
+	mov	%ax,D_06ea
+	push   %si
+	push   %di
+	sub    $0x43e,%sp
+	/* TODO: data ref: movw   $0x206e,-0x43c(%bp) */
+	movw   $D_0004,-0x43c(%bp)
+	lea    -0x436(%bp),%ax
+	push   %ax
+	call   time
+	pop    %cx
+	mov    %ax,-0x43a(%bp)
+	mov    %dx,-0x438(%bp)
+	lea    -0x436(%bp),%ax
+	push   %ax
+	call   ctime
+	pop    %cx
+	push   %ax
+	lea    -0x43a(%bp),%ax
+	push   %ax
+	call   ctime
+	pop    %cx
+	push   %ax
+	pushw  -0x434(%bp)
+	pushw  -0x436(%bp)
+	pushw  -0x438(%bp)
+	pushw  -0x43a(%bp)
+	/* TODO: data ref: mov    $0x2078,%ax */
+	mov    $D_000e,%ax
+	push   %ax
+	call   printf
+	add    $0xe,%sp
+	cmpw   $0x1,0x4(%bp)
+	jg   L_008d
+	jmp   L_0223
+L_008d:
+	mov    0x6(%bp),%bx
+	mov    0x2(%bx),%bx
+	cmpb   $0x2f,(%bx)
+	je   L_009b
+	jmp   L_020b
+L_009b:
+	mov    $0x2,%ax
+	push   %ax
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	call   open
+	add    $0x4,%sp
+	mov    %ax,-0x40c(%bp)
+	cmpw   $0x0,-0x40c(%bp)
+	jge   L_00c0
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	call   err
+	pop    %cx
+L_00c0:
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	/* TODO: data ref: mov    $0x2097,%ax */
+	mov    $D_002d,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	lea    -0x432(%bp),%ax
+	push   %ax
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	call   stat
+	add    $0x4,%sp
+	or     %ax,%ax
+	jge   L_00ef
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	call   err
+	pop    %cx
+L_00ef:
+	pushw  -0x430(%bp)
+	pushw  -0x422(%bp)
+	pushw  -0x424(%bp)
+	pushw  -0x42e(%bp)
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	/* TODO: data ref: mov    $0x20a3,%ax */
+	mov    $D_0039,%ax
+	push   %ax
+	call   printf
+	add    $0xc,%sp
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	mov    $0x400,%ax
+	push   %ax
+	lea    -0x404(%bp),%ax
+	push   %ax
+	pushw  -0x40c(%bp)
+	call   read
+	add    $0x6,%sp
+	mov    %ax,-0x410(%bp)
+	push   %ax
+	/* TODO: data ref: mov    $0x20c2,%ax */
+	mov    $D_0058,%ax
+	push   %ax
+	call   printf
+	add    $0x6,%sp
+	mov    $0x0,%ax
+	push   %ax
+	mov    $0x1170,%ax
+	mov    $0x1,%dx
+	push   %dx
+	push   %ax
+	pushw  -0x40c(%bp)
+	call   lseek
+	add    $0x8,%sp
+	mov    %ax,-0x440(%bp)
+	mov    %dx,-0x43e(%bp)
+	pushw  -0x43e(%bp)
+	pushw  -0x440(%bp)
+	/* TODO: data ref: mov    $0x20d9,%ax */
+	mov    $D_006f,%ax
+	push   %ax
+	call   printf
+	add    $0x6,%sp
+	mov    $0x1b4,%ax
+	push   %ax
+	pushw  -0x43c(%bp)
+	call   creat
+	add    $0x4,%sp
+	mov    %ax,-0x40e(%bp)
+	or     %ax,%ax
+	jge   L_0185
+	pushw  -0x43c(%bp)
+	call   err
+	pop    %cx
+L_0185:
+	pushw  -0x43c(%bp)
+	/* TODO: data ref: mov    $0x20fa,%ax */
+	mov    $D_0090,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	pushw  -0x410(%bp)
+	lea    -0x404(%bp),%ax
+	push   %ax
+	pushw  -0x40e(%bp)
+	call   write
+	add    $0x6,%sp
+	mov    %ax,-0x412(%bp)
+	or     %ax,%ax
+	jge   L_01b6
+	pushw  -0x43c(%bp)
+	call   err
+	pop    %cx
+L_01b6:
+	pushw  -0x43c(%bp)
+	pushw  -0x412(%bp)
+	/* TODO: data ref: mov    $0x2106,%ax */
+	mov    $D_009c,%ax
+	push   %ax
+	call   printf
+	add    $0x6,%sp
+	pushw  -0x40e(%bp)
+	call   close
+	pop    %cx
+	lea    -0x432(%bp),%ax
+	push   %ax
+	pushw  -0x43c(%bp)
+	call   stat
+	add    $0x4,%sp
+	or     %ax,%ax
+	jge   L_01eb
+	/* TODO: data ref: mov    $0x211c,%ax */
+	mov    $D_00b2,%ax
+	push   %ax
+	call   err
+	pop    %cx
+L_01eb:
+	pushw  -0x422(%bp)
+	pushw  -0x424(%bp)
+	pushw  -0x43c(%bp)
+	/* TODO: data ref: mov    $0x2123,%ax */
+	mov    $D_00b9,%ax
+	push   %ax
+	call   printf
+	add    $0x8,%sp
+	pushw  -0x40c(%bp)
+	call   close
+	pop    %cx
+	jmp   L_0223
+L_020b:
+	mov    0x6(%bp),%bx
+	pushw  0x2(%bx)
+	/* TODO: data ref: mov    $0x2139,%ax */
+	mov    $D_00cf,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	mov    $0x2,%ax
+	push   %ax
+	call   _exit
+	pop    %cx
+L_0223:
+	/* TODO: data ref: mov    $0x2158,%ax */
+	mov    $D_00ee,%ax
+	push   %ax
+	/* TODO: data ref: mov    $0x214b,%ax */
+	mov    $D_00e1,%ax
+	push   %ax
+	call   fopen
+	add    $0x4,%sp
+	mov    %ax,-0x442(%bp)
+	pushw  -0x442(%bp)
+	/* TODO: data ref: mov    $0x215a,%ax */
+	mov    $D_00f0,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	cmpw   $0x0,-0x442(%bp)
+	je   L_025a
+	/* TODO: data ref: mov    $0x217a,%ax */
+	mov    $D_0110,%ax
+	push   %ax
+	pushw  -0x442(%bp)
+	call   fprintf
+	add    $0x4,%sp
+	jmp   L_0262
+L_025a:
+	/* TODO: data ref: mov    $0x219c,%ax */
+	mov    $D_0132,%ax
+	push   %ax
+	call   perror
+	pop    %cx
+L_0262:
+	pushw  -0x442(%bp)
+	call   fclose
+	pop    %cx
+	/* TODO: data ref: mov    $0x21a6,%ax */
+	mov    $D_013c,%ax
+	push   %ax
+	/* TODO: data ref: mov    $0x21a2,%ax */
+	mov    $D_0138,%ax
+	push   %ax
+	call   popen
+	add    $0x4,%sp
+	mov    %ax,-0x442(%bp)
+	pushw  -0x442(%bp)
+	/* TODO: data ref: mov    $0x21a8,%ax */
+	mov    $D_013e,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	cmpw   $0x0,-0x442(%bp)
+	jne   L_029b
+	/* TODO: data ref: mov    $0x21bb,%ax */
+	mov    $D_0151,%ax
+	push   %ax
+	call   perror
+	pop    %cx
+	jmp   L_02a9
+L_029b:
+	/* TODO: data ref: mov    $0x21ca,%ax */
+	mov    $D_0160,%ax
+	push   %ax
+	pushw  -0x442(%bp)
+	call   fprintf
+	add    $0x4,%sp
+L_02a9:
+	pushw  -0x442(%bp)
+	call   pclose
+	pop    %cx
+	mov    $0x0,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	mov    %ax,-0x40a(%bp)
+	push   %ax
+	/* TODO: data ref: mov    $0x21ec,%ax */
+	mov    $D_0182,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	mov    -0x40a(%bp),%ax
+	add    $0x400,%ax
+	push   %ax
+	call   brk
+	pop    %cx
+	mov    -0x40a(%bp),%ax
+	mov    %ax,-0x406(%bp)
+	mov    $0x0,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	mov    %ax,-0x40a(%bp)
+	push   %ax
+	/* TODO: data ref: mov    $0x21f8,%ax */
+	mov    $D_018e,%ax
+	push   %ax
+	call   printf
+	add    $0x4,%sp
+	mov    $0x80,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	mov    %ax,-0x408(%bp)
+	mov    $0x0,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	sub    -0x406(%bp),%ax
+	mov    %ax,-0x414(%bp)
+	mov    $0x0,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	push   %ax
+	pushw  -0x408(%bp)
+	/* TODO: data ref: mov    $0x2208,%ax */
+	mov    $D_019e,%ax
+	push   %ax
+	call   printf
+	add    $0x6,%sp
+L_0326:
+	mov    $0x800,%ax
+	push   %ax
+	call   malloc
+	pop    %cx
+	mov    %ax,-0x408(%bp)
+	or     %ax,%ax
+	je   L_036b
+	mov    $0x0,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	mov    %ax,-0x406(%bp)
+	mov    -0x406(%bp),%ax
+	sub    -0x408(%bp),%ax
+	push   %ax
+	pushw  -0x408(%bp)
+	pushw  -0x406(%bp)
+	/* TODO: data ref: mov    $0x2220,%ax */
+	mov    $D_01b6,%ax
+	push   %ax
+	call   printf
+	add    $0x8,%sp
+	mov    -0x406(%bp),%ax
+	sub    -0x408(%bp),%ax
+	add    %ax,-0x414(%bp)
+	jmp   L_0326
+L_036b:
+	mov    -0x408(%bp),%ax
+	add    $0x400,%ax
+	sub    -0x40a(%bp),%ax
+	push   %ax
+	pushw  -0x414(%bp)
+	pushw  -0x408(%bp)
+	/* TODO: data ref: mov    $0x2241,%ax */
+	mov    $D_01d7,%ax
+	push   %ax
+	call   printf
+	add    $0x8,%sp
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+err:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x0,%sp
+	pushw  0x4(%bp)
+	call   perror
+	pop    %cx
+	mov    $0x2,%ax
+	push   %ax
+	call   _exit
+	pop    %cx
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+ctime:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	pushw  0x4(%bp)
+	call   localtime
+	pop    %cx
+	push   %ax
+	call   asctime
+	pop    %cx
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+localtime:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x16,%sp
+	lea    -0x16(%bp),%ax
+	push   %ax
+	call   ftime
+	pop    %cx
+	mov    $0x3c,%ax
+	xor    %dx,%dx
+	push   %dx
+	push   %ax
+	mov    -0x10(%bp),%ax
+	cwtd
+	push   %dx
+	push   %ax
+	call   ulmul
+	add    $0x8,%sp
+	mov    %ax,-0x1a(%bp)
+	mov    %dx,-0x18(%bp)
+	mov    0x4(%bp),%bx
+	mov    (%bx),%ax
+	mov    0x2(%bx),%dx
+	sub    -0x1a(%bp),%ax
+	sbb    -0x18(%bp),%dx
+	mov    %ax,-0xc(%bp)
+	mov    %dx,-0xa(%bp)
+	lea    -0xc(%bp),%ax
+	push   %ax
+	call   gmtime
+	pop    %cx
+	mov    %ax,%si
+	mov    0xe(%si),%di
+	movw   $0x77,-0x6(%bp)
+	movw   $0x12f,-0x8(%bp)
+	cmpw   $0x4a,0xa(%si)
+	je   L_0425
+	cmpw   $0x4b,0xa(%si)
+	jne   L_044d
+L_0425:
+	mov    0xa(%si),%ax
+	sub    $0x4a,%ax
+	mov    %ax,%bx
+	mov    $0x2,%cx
+	shl    %cl,%bx
+	/* TODO: data ref: mov    0x2298(%bx),%ax */
+	mov    D_022e(%bx),%ax
+	mov    %ax,-0x6(%bp)
+	mov    0xa(%si),%ax
+	sub    $0x4a,%ax
+	mov    %ax,%bx
+	mov    $0x2,%cx
+	shl    %cl,%bx
+	/* TODO: data ref: mov    0x229a(%bx),%ax */
+	mov    D_0230(%bx),%ax
+	mov    %ax,-0x8(%bp)
+L_044d:
+	pushw  -0x6(%bp)
+	push   %si
+	call   sunday
+	add    $0x4,%sp
+	mov    %ax,-0x6(%bp)
+	pushw  -0x8(%bp)
+	push   %si
+	call   sunday
+	add    $0x4,%sp
+	mov    %ax,-0x8(%bp)
+	cmpw   $0x0,-0xe(%bp)
+	je   L_04a3
+	cmp    -0x6(%bp),%di
+	jg   L_047d
+	cmp    -0x6(%bp),%di
+	jne   L_04a3
+	cmpw   $0x2,0x4(%si)
+	jl   L_04a3
+L_047d:
+	cmp    -0x8(%bp),%di
+	jl   L_048d
+	cmp    -0x8(%bp),%di
+	jne   L_04a3
+	cmpw   $0x1,0x4(%si)
+	jge   L_04a3
+L_048d:
+	addw   $0xe10,-0xc(%bp)
+	adcw   $0x0,-0xa(%bp)
+	lea    -0xc(%bp),%ax
+	push   %ax
+	call   gmtime
+	pop    %cx
+	mov    %ax,%si
+	incw   0x10(%si)
+L_04a3:
+	mov    %si,%ax
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+sunday:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%di
+	mov    0x6(%bp),%si
+	cmp    $0x3a,%si
+	jl   L_04ca
+	pushw  0xa(%di)
+	call   dysize
+	pop    %cx
+	sub    $0x16d,%ax
+	add    %ax,%si
+L_04ca:
+	mov    %si,%ax
+	sub    0xe(%di),%ax
+	add    0xc(%di),%ax
+	add    $0x2bc,%ax
+	cwtd
+	mov    $0x7,%cx
+	idiv   %cx
+	mov    %si,%ax
+	sub    %dx,%ax
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+gmtime:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0xc,%sp
+	mov    $0x5180,%ax
+	mov    $0x1,%dx
+	push   %dx
+	push   %ax
+	mov    0x4(%bp),%bx
+	pushw  0x2(%bx)
+	pushw  (%bx)
+	call   lrem
+	add    $0x8,%sp
+	mov    %ax,-0xc(%bp)
+	mov    %dx,-0xa(%bp)
+	mov    $0x5180,%ax
+	mov    $0x1,%dx
+	push   %dx
+	push   %ax
+	mov    0x4(%bp),%bx
+	pushw  0x2(%bx)
+	pushw  (%bx)
+	call   ldiv
+	add    $0x8,%sp
+	mov    %ax,-0x10(%bp)
+	mov    %dx,-0xe(%bp)
+	cmpw   $0x0,-0xa(%bp)
+	jg   L_0542
+	jl   L_0531
+	cmpw   $0x0,-0xc(%bp)
+	jae   L_0542
+L_0531:
+	addw   $0x5180,-0xc(%bp)
+	adcw   $0x1,-0xa(%bp)
+	subw   $0x1,-0x10(%bp)
+	sbbw   $0x0,-0xe(%bp)
+L_0542:
+	/* TODO: data ref: mov    $0x22a0,%di */
+	mov    $D_0236,%di
+	mov    $0x3c,%ax
+	xor    %dx,%dx
+	push   %dx
+	push   %ax
+	pushw  -0xa(%bp)
+	pushw  -0xc(%bp)
+	call   lrem
+	add    $0x8,%sp
+	mov    %di,%bx
+	inc    %di
+	inc    %di
+	mov    %ax,(%bx)
+	mov    $0x3c,%ax
+	xor    %dx,%dx
+	push   %dx
+	push   %ax
+	pushw  -0xa(%bp)
+	pushw  -0xc(%bp)
+	call   ldiv
+	add    $0x8,%sp
+	mov    %ax,-0x8(%bp)
+	cwtd
+	mov    $0x3c,%cx
+	idiv   %cx
+	mov    %di,%bx
+	inc    %di
+	inc    %di
+	mov    %dx,(%bx)
+	mov    -0x8(%bp),%ax
+	cwtd
+	mov    $0x3c,%cx
+	idiv   %cx
+	mov    %ax,-0x8(%bp)
+	mov    %di,%bx
+	inc    %di
+	inc    %di
+	mov    -0x8(%bp),%ax
+	mov    %ax,(%bx)
+	mov    $0x7,%ax
+	xor    %dx,%dx
+	push   %dx
+	push   %ax
+	mov    -0x10(%bp),%ax
+	mov    -0xe(%bp),%dx
+	add    $0x4,%ax
+	adc    $0x70,%dx
+	push   %dx
+	push   %ax
+	call   lrem
+	add    $0x8,%sp
+	/* TODO: data ref: mov    %ax,0x22ac */
+	mov    %ax,D_0242
+	cmpw   $0x0,-0xe(%bp)
+	jl   L_05ed
+	jg   L_05c1
+	cmpw   $0x0,-0x10(%bp)
+	jb   L_05ed
+L_05c1:
+	movw   $0x46,-0x8(%bp)
+L_05c6:
+	pushw  -0x8(%bp)
+	call   dysize
+	pop    %cx
+	cwtd
+	cmp    %dx,-0xe(%bp)
+	jl   L_0615
+	jg   L_05da
+	cmp    %ax,-0x10(%bp)
+	jb   L_0615
+L_05da:
+	pushw  -0x8(%bp)
+	call   dysize
+	pop    %cx
+	cwtd
+	sub    %ax,-0x10(%bp)
+	sbb    %dx,-0xe(%bp)
+	incw   -0x8(%bp)
+	jmp   L_05c6
+L_05ed:
+	movw   $0x46,-0x8(%bp)
+L_05f2:
+	cmpw   $0x0,-0xe(%bp)
+	jg   L_0615
+	jl   L_0600
+	cmpw   $0x0,-0x10(%bp)
+	jae   L_0615
+L_0600:
+	mov    -0x8(%bp),%ax
+	dec    %ax
+	push   %ax
+	call   dysize
+	pop    %cx
+	cwtd
+	add    %ax,-0x10(%bp)
+	adc    %dx,-0xe(%bp)
+	decw   -0x8(%bp)
+	jmp   L_05f2
+L_0615:
+	mov    -0x8(%bp),%ax
+	/* TODO: data ref: mov    %ax,0x22aa */
+	mov    %ax,D_0240
+	mov    -0x10(%bp),%ax
+	mov    %ax,-0x6(%bp)
+	/* TODO: data ref: mov    %ax,0x22ae */
+	mov    %ax,D_0244
+	pushw  -0x8(%bp)
+	call   dysize
+	pop    %cx
+	cmp    $0x16e,%ax
+	jne   L_0636
+	/* TODO: data ref: movw   $0x1d,0x2282 */
+	movw   $0x1d,D_0218
+L_0636:
+	movw   $0x0,-0x8(%bp)
+L_063b:
+	mov    -0x8(%bp),%bx
+	shl    %bx
+	mov    -0x6(%bp),%ax
+	/* TODO: data ref: cmp    0x2280(%bx),%ax */
+	cmp    D_0216(%bx),%ax
+	jl   L_065a
+	mov    -0x8(%bp),%bx
+	shl    %bx
+	/* TODO: data ref: mov    0x2280(%bx),%ax */
+	mov    D_0216(%bx),%ax
+	sub    %ax,-0x6(%bp)
+	incw   -0x8(%bp)
+	jmp   L_063b
+L_065a:
+	/* TODO: data ref: movw   $0x1c,0x2282 */
+	movw   $0x1c,D_0218
+	mov    -0x6(%bp),%ax
+	inc    %ax
+	mov    %di,%bx
+	inc    %di
+	inc    %di
+	mov    %ax,(%bx)
+	mov    %di,%bx
+	inc    %di
+	inc    %di
+	mov    -0x8(%bp),%ax
+	mov    %ax,(%bx)
+	/* TODO: data ref: movw   $0x0,0x22b0 */
+	movw   $0x0,D_0246
+	/* TODO: data ref: mov    $0x22a0,%ax */
+	mov    $D_0236,%ax
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+asctime:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	push   %cx
+	/* TODO: data ref: mov    $0x2266,%di */
+	mov    $D_01fc,%di
+	/* TODO: data ref: mov    $0x22b2,%si */
+	mov    $D_0248,%si
+L_068f:
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	or     %cl,%cl
+	jne   L_068f
+	mov    0x4(%bp),%bx
+	mov    0xc(%bx),%ax
+	mov    $0x3,%dx
+	imul   %dx
+	/* TODO: data ref: add    $0x22cc,%ax */
+	add    $D_0262,%ax
+	mov    %ax,%si
+	/* TODO: data ref: mov    $0x2266,%di */
+	mov    $D_01fc,%di
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	inc    %di
+	mov    0x4(%bp),%ax
+	add    $0x8,%ax
+	mov    %ax,-0x6(%bp)
+	mov    %ax,%bx
+	mov    (%bx),%ax
+	mov    $0x3,%dx
+	imul   %dx
+	/* TODO: data ref: add    $0x22e2,%ax */
+	add    $D_0278,%ax
+	mov    %ax,%si
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %si,%bx
+	inc    %si
+	mov    (%bx),%al
+	cbtw
+	mov    %di,%bx
+	inc    %di
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	subw   $0x2,-0x6(%bp)
+	mov    -0x6(%bp),%bx
+	pushw  (%bx)
+	push   %di
+	call   ct_numb
+	add    $0x4,%sp
+	mov    %ax,%di
+	subw   $0x2,-0x6(%bp)
+	mov    -0x6(%bp),%bx
+	mov    (%bx),%ax
+	add    $0x64,%ax
+	push   %ax
+	push   %di
+	call   ct_numb
+	add    $0x4,%sp
+	mov    %ax,%di
+	subw   $0x2,-0x6(%bp)
+	mov    -0x6(%bp),%bx
+	mov    (%bx),%ax
+	add    $0x64,%ax
+	push   %ax
+	push   %di
+	call   ct_numb
+	add    $0x4,%sp
+	mov    %ax,%di
+	subw   $0x2,-0x6(%bp)
+	mov    -0x6(%bp),%bx
+	mov    (%bx),%ax
+	add    $0x64,%ax
+	push   %ax
+	push   %di
+	call   ct_numb
+	add    $0x4,%sp
+	mov    %ax,%di
+	mov    0x4(%bp),%bx
+	cmpw   $0x64,0xa(%bx)
+	jl   L_077e
+	movb   $0x32,0x1(%di)
+	movb   $0x30,0x2(%di)
+L_077e:
+	inc    %di
+	inc    %di
+	mov    0x4(%bp),%bx
+	mov    0xa(%bx),%ax
+	add    $0x64,%ax
+	push   %ax
+	push   %di
+	call   ct_numb
+	add    $0x4,%sp
+	mov    %ax,%di
+	/* TODO: data ref: mov    $0x2266,%ax */
+	mov    $D_01fc,%ax
+	pop    %cx
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+dysize:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%ax
+	cwtd
+	mov    $0x4,%cx
+	idiv   %cx
+	or     %dx,%dx
+	jne   L_07b2
+	mov    $0x16e,%ax
+	jmp   L_07b5
+L_07b2:
+	mov    $0x16d,%ax
+L_07b5:
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+ct_numb:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%di
+	inc    %di
+	cmpw   $0xa,0x6(%bp)
+	jl   L_07e4
+	mov    0x6(%bp),%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	add    $0x30,%dx
+	mov    %di,%bx
+	inc    %di
+	mov    %dx,%cx
+	mov    %cl,(%bx)
+	jmp   L_07ea
+L_07e4:
+	mov    %di,%bx
+	inc    %di
+	movb   $0x20,(%bx)
+L_07ea:
+	mov    0x6(%bp),%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	add    $0x30,%dx
+	mov    %di,%bx
+	inc    %di
+	mov    %dx,%cx
+	mov    %cl,(%bx)
+	mov    %di,%ax
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+ftime:
+	push   %bp
+	mov    %sp,%bp
+	mov	$35,%bx	/* sc: ftime */
+	mov    0x4(%bp),%ax
+	/* v7: 35:ftime */
+	int	$0xf1
+	jcxz   L_0815
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0815:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+fprintf:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	pushw  0x4(%bp)
+	lea    0x8(%bp),%ax
+	push   %ax
+	pushw  0x6(%bp)
+	call   __doprnt
+	add    $0x6,%sp
+	mov    0x4(%bp),%bx
+	mov    0x6(%bx),%al
+	cbtw
+	test   $0x20,%ax
+	je   L_083e
+	mov    $0xffff,%ax
+	jmp   L_0840
+L_083e:
+	xor    %ax,%ax
+L_0840:
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+fopen:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x8,%sp
+	mov    0x6(%bp),%di
+	/* TODO: data ref: cmpb   $0x0,0x2308 */
+	cmpb   $0x0,D_029e
+	jne   L_0881
+	/* TODO: data ref: movw   $0x26c2,-0x8(%bp) */
+	movw   $D_0658,-0x8(%bp)
+	/* TODO: data ref: movw   $0x274a,0x274a */
+	/* dual-reloc split: movw $D_06e0,D_06e0 */
+	mov	$D_06e0,%ax
+	mov	%ax,D_06e0
+	movw   $0x88,-0xa(%bp)
+L_0867:
+	mov    -0xa(%bp),%ax
+	decw   -0xa(%bp)
+	or     %ax,%ax
+	je   L_087c
+	mov    -0x8(%bp),%bx
+	movb   $0x0,(%bx)
+	incw   -0x8(%bp)
+	jmp   L_0867
+L_087c:
+	/* TODO: data ref: movb   $0x1,0x2308 */
+	movb   $0x1,D_029e
+L_0881:
+	/* TODO: data ref: movw   $0x26aa,-0x6(%bp) */
+	movw   $D_0640,-0x6(%bp)
+L_0886:
+	mov    -0x6(%bp),%bx
+	mov    0x6(%bx),%al
+	cbtw
+	test   $0x3,%ax
+	je   L_08a5
+	mov    -0x6(%bp),%ax
+	/* TODO: data ref: cmp    0x274a,%ax */
+	cmp    D_06e0,%ax
+	jb   L_089f
+	xor    %ax,%ax
+	jmp   L_0910
+L_089f:
+	addw   $0x8,-0x6(%bp)
+	jmp   L_0886
+L_08a5:
+	cmpb   $0x77,(%di)
+	jne   L_08bb
+	mov    $0x1b6,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   creat
+	add    $0x4,%sp
+	mov    %ax,%si
+	jmp   L_08fa
+L_08bb:
+	cmpb   $0x61,(%di)
+	jne   L_08fc
+	mov    $0x1,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   open
+	add    $0x4,%sp
+	mov    %ax,%si
+	or     %ax,%ax
+	jge   L_08e9
+	/* TODO: data ref: cmpw   $0x2,0x2756 */
+	cmpw   $0x2,D_06ec
+	jne   L_08e9
+	mov    $0x1b6,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   creat
+	add    $0x4,%sp
+	mov    %ax,%si
+L_08e9:
+	mov    $0x2,%ax
+	push   %ax
+	xor    %ax,%ax
+	mov    %ax,%dx
+	push   %dx
+	push   %ax
+	push   %si
+	call   lseek
+	add    $0x8,%sp
+L_08fa:
+	jmp   L_090a
+L_08fc:
+	xor    %ax,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   open
+	add    $0x4,%sp
+	mov    %ax,%si
+L_090a:
+	or     %si,%si
+	jge   L_0912
+	xor    %ax,%ax
+L_0910:
+	jmp   L_093a
+L_0912:
+	mov    -0x6(%bp),%bx
+	movw   $0x0,0x2(%bx)
+	mov    -0x6(%bp),%bx
+	mov    %si,%cx
+	mov    %cl,0x7(%bx)
+	cmpb   $0x72,(%di)
+	je   L_0930
+	mov    -0x6(%bp),%bx
+	orb    $0x2,0x6(%bx)
+	jmp   L_0937
+L_0930:
+	mov    -0x6(%bp),%bx
+	orb    $0x1,0x6(%bx)
+L_0937:
+	mov    -0x6(%bp),%ax
+L_093a:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+creat:
+	push   %bp
+	mov    %sp,%bp
+	mov	$8,%bx	/* sc: creat */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	/* v7: 8:creat */
+	int	$0xf1
+	jcxz   L_0956
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0956:
+	pop    %bp
+	ret
+
+
+perror:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	/* TODO: data ref: mov    $0x230a,%di */
+	mov    $D_02a0,%di
+	/* TODO: data ref: mov    0x2756,%ax */
+	mov    D_06ec,%ax
+	/* TODO: data ref: cmp    0x2364,%ax */
+	cmp    D_02fa,%ax
+	jge   L_0973
+	/* TODO: data ref: mov    0x2756,%bx */
+	mov    D_06ec,%bx
+	shl    %bx
+	/* TODO: data ref: mov    0x231e(%bx),%di */
+	mov    D_02b4(%bx),%di
+L_0973:
+	pushw  0x4(%bp)
+	call   strlen
+	pop    %cx
+	mov    %ax,%si
+	or     %si,%si
+	je   L_09a0
+	push   %si
+	pushw  0x4(%bp)
+	mov    $0x2,%ax
+	push   %ax
+	call   write
+	add    $0x6,%sp
+	mov    $0x2,%ax
+	push   %ax
+	/* TODO: data ref: mov    $0x2318,%ax */
+	mov    $D_02ae,%ax
+	push   %ax
+	mov    $0x2,%ax
+	push   %ax
+	call   write
+	add    $0x6,%sp
+L_09a0:
+	push   %di
+	call   strlen
+	pop    %cx
+	push   %ax
+	push   %di
+	mov    $0x2,%ax
+	push   %ax
+	call   write
+	add    $0x6,%sp
+	mov    $0x1,%ax
+	push   %ax
+	/* TODO: data ref: mov    $0x231b,%ax */
+	mov    $D_02b1,%ax
+	push   %ax
+	mov    $0x2,%ax
+	push   %ax
+	call   write
+	add    $0x6,%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+popen:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x6,%sp
+	lea    -0x8(%bp),%ax
+	push   %ax
+	call   pipe
+	pop    %cx
+	or     %ax,%ax
+	jge   L_09e0
+	xor    %ax,%ax
+	jmp   L_0a57
+L_09e0:
+	mov    0x6(%bp),%bx
+	cmpb   $0x72,(%bx)
+	jne   L_09ed
+	mov    -0x8(%bp),%ax
+	jmp   L_09f0
+L_09ed:
+	mov    -0x6(%bp),%ax
+L_09f0:
+	mov    %ax,%di
+	mov    0x6(%bp),%bx
+	cmpb   $0x72,(%bx)
+	jne   L_09ff
+	mov    -0x6(%bp),%ax
+	jmp   L_0a02
+L_09ff:
+	mov    -0x8(%bp),%ax
+L_0a02:
+	mov    %ax,%si
+	//push	%si	/////////////////////////
+	call   fork
+	//pop	%si	//////////////////////////
+	mov    %ax,-0xa(%bp)
+	or     %ax,%ax
+	jne   L_0a4f
+	push   %di
+	call   close
+	pop    %cx
+	mov    0x6(%bp),%bx
+	cmpb   $0x72,(%bx)
+	jne   L_0a20
+	mov    $0x1,%ax
+	jmp   L_0a22
+L_0a20:
+	xor    %ax,%ax
+L_0a22:
+	push   %ax
+	//inc	%si	//////////////////////////
+	push   %si
+	call   dup2
+	add    $0x4,%sp
+	push   %si
+	call   close
+	pop    %cx
+	xor    %ax,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	/* TODO: data ref: mov    $0x25e7,%ax */
+	mov    $D_057d,%ax
+	push   %ax
+	/* TODO: data ref: mov    $0x25e4,%ax */
+	mov    $D_057a,%ax
+	push   %ax
+	/* TODO: data ref: mov    $0x25dc,%ax */
+	mov    $D_0572,%ax
+	push   %ax
+	call   execl
+	add    $0xa,%sp
+	mov    $0x1,%ax
+	push   %ax
+	call   exit_raw
+	pop    %cx
+L_0a4f:
+	cmpw   $0xffff,-0xa(%bp)
+	jne   L_0a59
+	xor    %ax,%ax
+L_0a57:
+	jmp   L_0a73
+L_0a59:
+	mov    %di,%bx
+	shl    %bx
+	mov    -0xa(%bp),%ax
+	/* TODO: data ref: mov    %ax,0x25b4(%bx) */
+	mov    %ax,D_054a(%bx)
+	push   %si
+	call   close
+	pop    %cx
+	pushw  0x6(%bp)
+	push   %di
+	call   fdopen
+	add    $0x4,%sp
+L_0a73:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+pclose:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x8,%sp
+	mov    0x4(%bp),%bx
+	mov    0x7(%bx),%al
+	cbtw
+	mov    %ax,%di
+	pushw  0x4(%bp)
+	call   fclose
+	pop    %cx
+	mov    $0x1,%ax
+	push   %ax
+	mov    $0x2,%ax
+	push   %ax
+	call   signal
+	add    $0x4,%sp
+	mov    %ax,-0x8(%bp)
+	mov    $0x1,%ax
+	push   %ax
+	mov    $0x3,%ax
+	push   %ax
+	call   signal
+	add    $0x4,%sp
+	mov    %ax,-0xa(%bp)
+	mov    $0x1,%ax
+	push   %ax
+	mov    $0x1,%ax
+	push   %ax
+	call   signal
+	add    $0x4,%sp
+	mov    %ax,-0x6(%bp)
+L_0ac5:
+	lea    -0xc(%bp),%ax
+	push   %ax
+	call   wait
+	pop    %cx
+	mov    %ax,%si
+	mov    %di,%bx
+	shl    %bx
+	/* TODO: data ref: cmp    0x25b4(%bx),%ax */
+	cmp    D_054a(%bx),%ax
+	je   L_0ade
+	cmp    $0xffff,%si
+	jne   L_0ac5
+L_0ade:
+	cmp    $0xffff,%si
+	jne   L_0ae8
+	movw   $0xffff,-0xc(%bp)
+L_0ae8:
+	pushw  -0x8(%bp)
+	mov    $0x2,%ax
+	push   %ax
+	call   signal
+	add    $0x4,%sp
+	pushw  -0xa(%bp)
+	mov    $0x3,%ax
+	push   %ax
+	call   signal
+	add    $0x4,%sp
+	pushw  -0x6(%bp)
+	mov    $0x1,%ax
+	push   %ax
+	call   signal
+	add    $0x4,%sp
+	mov    -0xc(%bp),%ax
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+dup2:
+	push   %bp
+	mov    %sp,%bp
+	mov	$41,%bx	/* sc: dup */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	or     $0x40,%ax
+	/* v7: 41:dup */
+	int	$0xf1
+	jcxz   L_0b31
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0b31:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+fdopen:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x6(%bp),%di
+	/* TODO: data ref: mov    $0x26aa,%si */
+	mov    $D_0640,%si
+L_0b40:
+	mov    0x6(%si),%al
+	cbtw
+	test   $0x3,%ax
+	je   L_0b58
+	/* TODO: data ref: cmp    0x274a,%si */
+	cmp    D_06e0,%si
+	jb   L_0b53
+	xor    %ax,%ax
+	jmp   L_0b8e
+L_0b53:
+	add    $0x8,%si
+	jmp   L_0b40
+L_0b58:
+	movw   $0x0,0x2(%si)
+	mov    0x4(%bp),%ax
+	mov    %ax,%cx
+	mov    %cl,0x7(%si)
+	cmpb   $0x72,(%di)
+	je   L_0b88
+	orb    $0x2,0x6(%si)
+	cmpb   $0x61,(%di)
+	jne   L_0b8c
+	mov    $0x2,%ax
+	push   %ax
+	xor    %ax,%ax
+	mov    %ax,%dx
+	push   %dx
+	push   %ax
+	pushw  0x4(%bp)
+	call   lseek
+	add    $0x8,%sp
+	jmp   L_0b8c
+L_0b88:
+	orb    $0x1,0x6(%si)
+L_0b8c:
+	mov    %si,%ax
+L_0b8e:
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+pipe:
+	push   %bp
+	mov    %sp,%bp
+	mov	$42,%bx	/* sc: pipe */
+	/* v7: 42:pipe */
+	int	$0xf1
+	jcxz   L_0ba2
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0ba0:
+	pop    %bp
+	ret
+L_0ba2:
+	//push	%ax
+	//mov	$p_num,%cx
+	//push	%cx
+	//call	printf
+	//pop	%cx
+	//pop	%ax
+	//push	%ax
+	//push	%dx
+	//push	%cx
+	//call	printf
+	//add	$4,%sp
+	//pop	%ax
+	mov    0x4(%bp),%cx
+	mov    %cx,%bp
+	mov    %ax,-0x70(%bp)
+	mov    %dx,0x2(%bp)
+	mov    $0x0,%ax
+	jmp   L_0ba0
+	/* .byte 0 (alignment) */
+
+
+printf:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	/* TODO: data ref: mov    $0x26b2,%ax */
+	mov    $D_0648,%ax
+	push   %ax
+	lea    0x6(%bp),%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   __doprnt
+	add    $0x6,%sp
+	/* TODO: data ref: mov    0x26b8,%al */
+	mov    D_064e,%al
+	cbtw
+	test   $0x20,%ax
+	je   L_0bd8
+	mov    $0xffff,%ax
+	jmp   L_0bda
+L_0bd8:
+	xor    %ax,%ax
+L_0bda:
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+strlen:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%di
+	xor    %si,%si
+L_0be9:
+	mov    %di,%bx
+	inc    %di
+	cmpb   $0x0,(%bx)
+	je   L_0bf4
+	inc    %si
+	jmp   L_0be9
+L_0bf4:
+	mov    %si,%ax
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+execl:
+	push   %bp
+	mov    %sp,%bp
+	mov	$59,%bx	/* sc: exece */
+	mov    0x4(%bp),%ax
+	/* TODO: data ref: mov    0x2754,%cx */
+	mov    D_06ea,%cx
+	mov    %bp,%dx
+	add    $0x6,%dx
+	/* v7: 59:exece */
+	int	$0xf1
+	jcxz   L_0c15
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0c15:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+exit_raw:
+	push   %bp
+	mov    %sp,%bp
+	mov	$1,%bx	/* sc: exit */
+	mov    0x4(%bp),%ax
+	/* v7: 1:exit */
+	int	$0xf1
+	jcxz   L_0c29
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0c29:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+fork:
+	push   %bp
+	mov    %sp,%bp
+	mov	$2,%bx	/* sc: fork */
+	/* v7: 2:fork */
+	int	$0xf1
+	jcxz   L_0c3a
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0c3a:
+	pop    %bp
+	ret
+
+
+signal:
+	push   %bp
+	mov    %sp,%bp
+	mov    $0x16,%cx
+	mov    0x4(%bp),%ax
+	or     %ax,%ax
+	jle   L_0c7f
+	cmp    $0x20,%ax
+	jg   L_0c7f
+	mov    %ax,%cx
+	shl    %ax
+	/* TODO: data ref: add    $0x275c,%ax */
+	add    $D_06f2,%ax
+	mov    %ax,%bx
+	pushw  (%bx)
+	mov    0x6(%bp),%ax
+	mov    %ax,(%bx)
+	cmp    $0x2,%ax
+	jl   L_0c6b
+	mov    $0x6,%ax
+	mul    %cx
+	add    $0xc82,%ax
+L_0c6b:
+	mov    %ax,%dx
+	mov    %cx,%ax
+	mov	$48,%bx	/* sc: signal */
+	/* v7: 48:signal */
+	int	$0xf1
+	cmp    $0x2,%ax
+	jl   L_0c7c
+	pop    %ax
+	jmp   L_0c7d
+L_0c7c:
+	pop    %bx
+L_0c7d:
+	jcxz   L_0c86
+L_0c7f:
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+	mov    $0xffff,%ax
+L_0c86:
+	pop    %bp
+	ret
+	push   %ax
+	/* TODO: data ref: mov    $0x275e,%ax */
+	mov    $D_06f4,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2760,%ax */
+	mov    $D_06f6,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2762,%ax */
+	mov    $D_06f8,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2764,%ax */
+	mov    $D_06fa,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2766,%ax */
+	mov    $D_06fc,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2768,%ax */
+	mov    $D_06fe,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x276a,%ax */
+	mov    $D_0700,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x276c,%ax */
+	mov    $D_0702,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x276e,%ax */
+	mov    $D_0704,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2770,%ax */
+	mov    $D_0706,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2772,%ax */
+	mov    $D_0708,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2774,%ax */
+	mov    $D_070a,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2776,%ax */
+	mov    $D_070c,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x2778,%ax */
+	mov    $D_070e,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x277a,%ax */
+	mov    $D_0710,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x277c,%ax */
+	mov    $D_0712,%ax
+	jmp   L_0cec
+	push   %ax
+	/* TODO: data ref: mov    $0x277e,%ax */
+	mov    $D_0714,%ax
+L_0cec:
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2780,%ax */
+	mov    $D_0716,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2782,%ax */
+	mov    $D_0718,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2784,%ax */
+	mov    $D_071a,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2786,%ax */
+	mov    $D_071c,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2788,%ax */
+	mov    $D_071e,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x278a,%ax */
+	mov    $D_0720,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x278c,%ax */
+	mov    $D_0722,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x278e,%ax */
+	mov    $D_0724,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2790,%ax */
+	mov    $D_0726,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2792,%ax */
+	mov    $D_0728,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2794,%ax */
+	mov    $D_072a,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2796,%ax */
+	mov    $D_072c,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x2798,%ax */
+	mov    $D_072e,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x279a,%ax */
+	mov    $D_0730,%ax
+	jmp   L_0d46
+	push   %ax
+	/* TODO: data ref: mov    $0x279c,%ax */
+	mov    $D_0732,%ax
+L_0d46:
+	push   %bx
+	push   %cx
+	push   %dx
+	mov    %ax,%bx
+	/* TODO: data ref: sub    $0x275c,%ax */
+	sub    $D_06f2,%ax
+	shr    %ax
+	push   %ax
+	mov    (%bx),%ax
+	/* TODO: indirect call - verify */
+	call   *%ax
+	pop    %bx
+	pop    %dx
+	pop    %cx
+	pop    %bx
+	pop    %ax
+	popf
+	ret
+
+
+lseek:
+	push   %bp
+	push   %si
+	mov    %sp,%bp
+	mov	$19,%bx	/* sc: lseek */
+	mov    0x6(%bp),%ax
+	mov    0x8(%bp),%dx
+	mov    0xa(%bp),%cx
+	mov    0xc(%bp),%si
+	/* v7: 19:lseek */
+	int	$0xf1
+	jcxz   L_0d77
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_0d77:
+	pop    %si
+	pop    %bp
+	ret
+
+
+time:
+	push   %bp
+	mov    %sp,%bp
+	mov	$13,%bx	/* sc: time */
+	/* v7: 13:time */
+	int	$0xf1
+	jcxz   L_0d8a
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+	jmp   L_0d96
+L_0d8a:
+	mov    0x4(%bp),%bx
+	or     %bx,%bx
+	je   L_0d96
+	mov    %ax,(%bx)
+	mov    %dx,0x2(%bx)
+L_0d96:
+	pop    %bp
+	ret
+
+
+__doprnt:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0xaa,%sp
+	mov    0x4(%bp),%di
+	mov    0x6(%bp),%si
+	lea    -0x9a(%bp),%ax
+	mov    %ax,-0x8(%bp)
+L_0db0:
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    %ax,%cx
+	mov    %cl,-0x5(%bp)
+	or     %cl,%cl
+	jne   L_0dc2
+	jmp   L_135f
+L_0dc2:
+	cmpb   $0x25,-0x5(%bp)
+	je   L_0dd5
+	mov    -0x8(%bp),%bx
+	mov    -0x5(%bp),%al
+	mov    %al,(%bx)
+	incw   -0x8(%bp)
+L_0dd3:
+	jmp   L_0db0
+L_0dd5:
+	lea    -0x9a(%bp),%ax
+	cmp    %ax,-0x8(%bp)
+	je   L_0e00
+	pushw  0x8(%bp)
+	xor    %ax,%ax
+	push   %ax
+	lea    -0x9a(%bp),%ax
+	mov    -0x8(%bp),%dx
+	sub    %ax,%dx
+	push   %dx
+	lea    -0x9a(%bp),%ax
+	push   %ax
+	call   __strout
+	add    $0x8,%sp
+	lea    -0x9a(%bp),%ax
+	mov    %ax,-0x8(%bp)
+L_0e00:
+	movb   $0x0,-0xa6(%bp)
+	movw   $0x0,-0x10(%bp)
+	movb   $0x20,-0xa5(%bp)
+	cmpb   $0x2d,(%di)
+	jne   L_0e19
+	incb   -0xa6(%bp)
+	inc    %di
+L_0e19:
+	cmpb   $0x30,(%di)
+	jne   L_0e24
+	movb   $0x30,-0xa5(%bp)
+	inc    %di
+L_0e24:
+	cmpb   $0x2a,(%di)
+	je   L_0e54
+	movw   $0x0,-0xe(%bp)
+L_0e2e:
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	sub    $0x30,%ax
+	mov    %ax,-0xc(%bp)
+	or     %ax,%ax
+	jl   L_0e6a
+	cmpw   $0x9,-0xc(%bp)
+	jg   L_0e6a
+	mov    -0xe(%bp),%ax
+	mov    $0xa,%dx
+	imul   %dx
+	add    -0xc(%bp),%ax
+	mov    %ax,-0xe(%bp)
+	jmp   L_0e2e
+L_0e54:
+	inc    %di
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	sub    $0x30,%ax
+	mov    %ax,-0xc(%bp)
+	mov    %si,%bx
+	inc    %si
+	inc    %si
+	mov    (%bx),%ax
+	mov    %ax,-0xe(%bp)
+L_0e6a:
+	movb   $0x0,-0xa7(%bp)
+	addw   $0x30,-0xc(%bp)
+	cmpw   $0x2e,-0xc(%bp)
+	jne   L_0eb1
+	cmpb   $0x2a,(%di)
+	je   L_0eb3
+	movw   $0x0,-0x10(%bp)
+L_0e83:
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	sub    $0x30,%ax
+	mov    %ax,-0xc(%bp)
+	or     %ax,%ax
+	jl   L_0ead
+	cmpw   $0x9,-0xc(%bp)
+	jg   L_0ead
+	incb   -0xa7(%bp)
+	mov    -0x10(%bp),%ax
+	mov    $0xa,%dx
+	imul   %dx
+	add    -0xc(%bp),%ax
+	mov    %ax,-0x10(%bp)
+	jmp   L_0e83
+L_0ead:
+	addw   $0x30,-0xc(%bp)
+L_0eb1:
+	jmp   L_0eca
+L_0eb3:
+	inc    %di
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    %ax,-0xc(%bp)
+	incb   -0xa7(%bp)
+	mov    %si,%bx
+	inc    %si
+	inc    %si
+	mov    (%bx),%ax
+	mov    %ax,-0x10(%bp)
+L_0eca:
+	movw   $0xa,-0x12(%bp)
+	mov    -0xc(%bp),%ax
+	jmp   L_12d4
+L_0ed5:
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	jmp   L_0ee6
+L_0edd:
+	dec    %di
+	cmpb   $0x4c,-0x1(%di)
+	jne   L_0f16
+	jmp   L_0f0f
+L_0ee6:
+	cmp    $0x64,%ax
+	je   L_0f18
+	cmp    $0x6f,%ax
+	je   L_0efc
+	cmp    $0x75,%ax
+	je   L_0f0f
+	cmp    $0x78,%ax
+	je   L_0f0a
+	jmp   L_0edd
+L_0efc:
+	movw   $0x8,-0x12(%bp)
+	jmp   L_0f0f
+L_0f03:
+	movw   $0x8,-0x12(%bp)
+	jmp   L_0f16
+L_0f0a:
+	movw   $0x10,-0x12(%bp)
+L_0f0f:
+	jmp   L_0f61
+L_0f11:
+	movw   $0x10,-0x12(%bp)
+L_0f16:
+	jmp   L_0f71
+L_0f18:
+	mov    (%si),%ax
+	mov    0x2(%si),%dx
+	mov    %ax,-0x16(%bp)
+	mov    %dx,-0x14(%bp)
+	add    $0x4,%si
+	jmp   L_0f35
+L_0f28:
+	mov    %si,%bx
+	inc    %si
+	inc    %si
+	mov    (%bx),%ax
+	cwtd
+	mov    %ax,-0x16(%bp)
+	mov    %dx,-0x14(%bp)
+L_0f35:
+	cmpw   $0x0,-0x14(%bp)
+	jg   L_0f7f
+	jl   L_0f43
+	cmpw   $0x0,-0x16(%bp)
+	jae   L_0f7f
+L_0f43:
+	mov    -0x16(%bp),%ax
+	mov    -0x14(%bp),%dx
+	neg    %dx
+	neg    %ax
+	sbb    $0x0,%dx
+	mov    %ax,-0x16(%bp)
+	mov    %dx,-0x14(%bp)
+	mov    -0x8(%bp),%bx
+	movb   $0x2d,(%bx)
+	incw   -0x8(%bp)
+	jmp   L_0f7f
+L_0f61:
+	mov    (%si),%ax
+	mov    0x2(%si),%dx
+	mov    %ax,-0x16(%bp)
+	mov    %dx,-0x14(%bp)
+	add    $0x4,%si
+	jmp   L_0f7f
+L_0f71:
+	mov    %si,%bx
+	inc    %si
+	inc    %si
+	mov    (%bx),%ax
+	xor    %dx,%dx
+	mov    %ax,-0x16(%bp)
+	mov    %dx,-0x14(%bp)
+L_0f7f:
+	cmpw   $0x0,-0x14(%bp)
+	jne   L_0f89
+	cmpw   $0x0,-0x16(%bp)
+L_0f89:
+	jne   L_0f9a
+	cmpw   $0x0,-0x10(%bp)
+	jne   L_0f9a
+	mov    -0x8(%bp),%bx
+	movb   $0x30,(%bx)
+	incw   -0x8(%bp)
+L_0f9a:
+	lea    -0xa4(%bp),%ax
+	mov    %ax,-0xa(%bp)
+L_0fa1:
+	cmpw   $0x0,-0x14(%bp)
+	jne   L_0fab
+	cmpw   $0x0,-0x16(%bp)
+L_0fab:
+	je   L_0ff6
+	mov    -0x12(%bp),%ax
+	cwtd
+	push   %dx
+	push   %ax
+	pushw  -0x14(%bp)
+	pushw  -0x16(%bp)
+	call   ulrem
+	add    $0x8,%sp
+	mov    %ax,-0xc(%bp)
+	cmp    $0xa,%ax
+	jge   L_0fcc
+	mov    $0x30,%ax
+	jmp   L_0fcf
+L_0fcc:
+	mov    $0x57,%ax
+L_0fcf:
+	add    -0xc(%bp),%ax
+	mov    -0xa(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0xa(%bp)
+	mov    -0x12(%bp),%ax
+	cwtd
+	push   %dx
+	push   %ax
+	pushw  -0x14(%bp)
+	pushw  -0x16(%bp)
+	call   uldiv
+	add    $0x8,%sp
+	mov    %ax,-0x16(%bp)
+	mov    %dx,-0x14(%bp)
+	jmp   L_0fa1
+L_0ff6:
+	lea    -0xa4(%bp),%ax
+	cmp    %ax,-0xa(%bp)
+	jbe   L_1045
+	decw   -0xa(%bp)
+	mov    -0xa(%bp),%bx
+	mov    (%bx),%al
+	cbtw
+	mov    -0x8(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0x8(%bp)
+	jmp   L_0ff6
+L_1014:
+	mov    %si,%ax
+	inc    %si
+	inc    %si
+	mov    %ax,-0xa(%bp)
+	movw   $0x0,-0xc(%bp)
+L_1020:
+	cmpw   $0x2,-0xc(%bp)
+	jge   L_1045
+	mov    -0xa(%bp),%bx
+	incw   -0xa(%bp)
+	mov    (%bx),%al
+	cbtw
+	mov    -0x8(%bp),%bx
+	incw   -0x8(%bp)
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	or     %cl,%cl
+	jne   L_1040
+	decw   -0x8(%bp)
+L_1040:
+	incw   -0xc(%bp)
+	jmp   L_1020
+L_1045:
+	lea    -0x9a(%bp),%ax
+	mov    %ax,-0xa(%bp)
+L_104c:
+	mov    -0x8(%bp),%ax
+	sub    -0xa(%bp),%ax
+	mov    -0xe(%bp),%dx
+	sub    %ax,%dx
+	mov    %dx,-0xc(%bp)
+	or     %dx,%dx
+	jge   L_1063
+	movw   $0x0,-0xc(%bp)
+L_1063:
+	cmpb   $0x0,-0xa6(%bp)
+	jne   L_1072
+	mov    -0xc(%bp),%ax
+	neg    %ax
+	mov    %ax,-0xc(%bp)
+L_1072:
+	mov    -0xa5(%bp),%al
+	cbtw
+	push   %ax
+	pushw  0x8(%bp)
+	pushw  -0xc(%bp)
+	mov    -0x8(%bp),%ax
+	sub    -0xa(%bp),%ax
+	push   %ax
+	pushw  -0xa(%bp)
+	call   __strout
+	add    $0xa,%sp
+	lea    -0x9a(%bp),%ax
+	mov    %ax,-0x8(%bp)
+L_1095:
+	jmp   L_0dd3
+L_1098:
+	mov    %si,%bx
+	inc    %si
+	inc    %si
+	mov    (%bx),%ax
+	mov    %ax,-0xa(%bp)
+	or     %ax,%ax
+	jne   L_10aa
+	/* TODO: data ref: movw   $0x25ea,-0xa(%bp) */
+	movw   $D_0580,-0xa(%bp)
+L_10aa:
+	mov    -0x10(%bp),%ax
+	mov    %ax,-0xc(%bp)
+	or     %ax,%ax
+	jne   L_10b9
+	movw   $0x7fff,-0xc(%bp)
+L_10b9:
+	mov    -0xa(%bp),%ax
+	mov    %ax,-0x8(%bp)
+L_10bf:
+	mov    -0x8(%bp),%bx
+	cmpb   $0x0,(%bx)
+	je   L_104c
+	decw   -0xc(%bp)
+	jl   L_104c
+	incw   -0x8(%bp)
+	jmp   L_10bf
+L_10d1:
+	mov    (%si),%si
+	mov    %si,%bx
+	inc    %si
+	inc    %si
+	mov    (%bx),%di
+L_10d9:
+	jmp   L_1095
+L_10db:
+	cmpb   $0x0,-0xa7(%bp)
+	jne   L_10e7
+	movw   $0x6,-0x10(%bp)
+L_10e7:
+	lea    -0x18(%bp),%ax
+	push   %ax
+	lea    -0x1a(%bp),%ax
+	push   %ax
+	pushw  -0x10(%bp)
+	int    $0xf4
+	fldl   (%si)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   fcvt
+	add    $0xe,%sp
+	mov    %ax,-0xa(%bp)
+	add    $0x8,%si
+	cmpw   $0x0,-0x18(%bp)
+	je   L_111c
+	mov    -0x8(%bp),%bx
+	movb   $0x2d,(%bx)
+	incw   -0x8(%bp)
+L_111c:
+	mov    -0x1a(%bp),%ax
+	mov    %ax,-0xc(%bp)
+	or     %ax,%ax
+	jg   L_1131
+	mov    -0x8(%bp),%bx
+	movb   $0x30,(%bx)
+	incw   -0x8(%bp)
+	jmp   L_1149
+L_1131:
+	mov    -0xa(%bp),%bx
+	mov    (%bx),%al
+	cbtw
+	mov    -0x8(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0xa(%bp)
+	incw   -0x8(%bp)
+	decw   -0xc(%bp)
+	jg   L_1131
+L_1149:
+	mov    -0x10(%bp),%ax
+	mov    %ax,-0xc(%bp)
+	or     %ax,%ax
+	je   L_115c
+	mov    -0x8(%bp),%bx
+	movb   $0x2e,(%bx)
+	incw   -0x8(%bp)
+L_115c:
+	mov    -0x1a(%bp),%ax
+	neg    %ax
+	mov    %ax,-0x1a(%bp)
+	or     %ax,%ax
+	jle   L_117b
+L_1168:
+	decw   -0xc(%bp)
+	jl   L_117b
+	mov    -0x8(%bp),%bx
+	movb   $0x30,(%bx)
+	incw   -0x8(%bp)
+	decw   -0x1a(%bp)
+	jg   L_1168
+L_117b:
+	cmpw   $0x0,-0xc(%bp)
+	jg   L_1184
+	jmp   L_1045
+L_1184:
+	decw   -0xc(%bp)
+	jge   L_118c
+	jmp   L_1045
+L_118c:
+	mov    -0xa(%bp),%bx
+	mov    (%bx),%al
+	cbtw
+	mov    -0x8(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0xa(%bp)
+	incw   -0x8(%bp)
+	jmp   L_1184
+L_11a1:
+	cmpb   $0x0,-0xa7(%bp)
+	jne   L_11af
+	movw   $0x6,-0x10(%bp)
+	jmp   L_11b2
+L_11af:
+	incw   -0x10(%bp)
+L_11b2:
+	lea    -0x18(%bp),%ax
+	push   %ax
+	lea    -0x1a(%bp),%ax
+	push   %ax
+	pushw  -0x10(%bp)
+	int    $0xf4
+	fldl   (%si)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   ecvt
+	add    $0xe,%sp
+	mov    %ax,-0xa(%bp)
+	add    $0x8,%si
+	cmpw   $0x0,-0x18(%bp)
+	je   L_11e7
+	mov    -0x8(%bp),%bx
+	movb   $0x2d,(%bx)
+	incw   -0x8(%bp)
+L_11e7:
+	mov    -0xa(%bp),%bx
+	cmpb   $0x30,(%bx)
+	jne   L_11f2
+	incw   -0x1a(%bp)
+L_11f2:
+	mov    -0xa(%bp),%bx
+	mov    (%bx),%al
+	cbtw
+	mov    -0x8(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0xa(%bp)
+	incw   -0x8(%bp)
+	mov    -0x8(%bp),%bx
+	movb   $0x2e,(%bx)
+	incw   -0x8(%bp)
+	mov    -0x10(%bp),%ax
+	mov    %ax,-0xc(%bp)
+L_1214:
+	decw   -0xc(%bp)
+	jle   L_122e
+	mov    -0xa(%bp),%bx
+	mov    (%bx),%al
+	cbtw
+	mov    -0x8(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0xa(%bp)
+	incw   -0x8(%bp)
+	jmp   L_1214
+L_122e:
+	mov    -0x8(%bp),%bx
+	movb   $0x65,(%bx)
+	incw   -0x8(%bp)
+	decw   -0x1a(%bp)
+	cmpw   $0x0,-0x1a(%bp)
+	jl   L_124b
+	mov    -0x8(%bp),%bx
+	movb   $0x2b,(%bx)
+	incw   -0x8(%bp)
+	jmp   L_125c
+L_124b:
+	mov    -0x8(%bp),%bx
+	movb   $0x2d,(%bx)
+	incw   -0x8(%bp)
+	mov    -0x1a(%bp),%ax
+	neg    %ax
+	mov    %ax,-0x1a(%bp)
+L_125c:
+	mov    -0x1a(%bp),%ax
+	xor    %dx,%dx
+	mov    $0xa,%cx
+	div    %cx
+	add    $0x30,%ax
+	mov    -0x8(%bp),%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0x8(%bp)
+	mov    -0x1a(%bp),%ax
+	xor    %dx,%dx
+	mov    $0xa,%cx
+	div    %cx
+	add    $0x30,%dx
+	mov    -0x8(%bp),%bx
+	mov    %dx,%cx
+	mov    %cl,(%bx)
+	incw   -0x8(%bp)
+	jmp   L_1045
+L_128d:
+	cmpb   $0x0,-0xa7(%bp)
+	jne   L_1299
+	movw   $0x6,-0x10(%bp)
+L_1299:
+	pushw  -0x8(%bp)
+	pushw  -0x10(%bp)
+	int    $0xf4
+	fldl   (%si)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   gcvt
+	add    $0xc,%sp
+	add    $0x8,%si
+L_12b7:
+	mov    -0x8(%bp),%bx
+	incw   -0x8(%bp)
+	cmpb   $0x0,(%bx)
+	jne   L_12b7
+	decw   -0x8(%bp)
+	jmp   L_1045
+L_12c8:
+	mov    -0x8(%bp),%bx
+	movb   $0x25,(%bx)
+	incw   -0x8(%bp)
+L_12d1:
+	jmp   L_10d9
+L_12d4:
+	cmp    $0x65,%ax
+	jne   L_12dc
+	jmp   L_11a1
+L_12dc:
+	jg   L_131d
+	cmp    $0x4f,%ax
+	jne   L_12e6
+	jmp   L_0efc
+L_12e6:
+	jg   L_12fd
+	cmp    $0x25,%ax
+	je   L_12c8
+	cmp    $0x44,%ax
+	jne   L_12f5
+	jmp   L_0f18
+L_12f5:
+	cmp    $0x4c,%ax
+L_12f8:
+	jne   L_12fd
+	jmp   L_0ed5
+L_12fd:
+	cmp    $0x55,%ax
+	jne   L_1305
+	jmp   L_0f61
+L_1305:
+	cmp    $0x58,%ax
+	jne   L_130d
+	jmp   L_0f0a
+L_130d:
+	cmp    $0x63,%ax
+	jne   L_1315
+	jmp   L_1014
+L_1315:
+	cmp    $0x64,%ax
+	jne   L_131d
+	jmp   L_0f28
+L_131d:
+	cmp    $0x6f,%ax
+	jne   L_1325
+	jmp   L_0f03
+L_1325:
+	jg   L_133c
+	cmp    $0x66,%ax
+	jne   L_132f
+	jmp   L_10db
+L_132f:
+	cmp    $0x67,%ax
+	jne   L_1337
+	jmp   L_128d
+L_1337:
+	cmp    $0x6c,%ax
+	je   L_12f8
+L_133c:
+	cmp    $0x72,%ax
+	jne   L_1344
+	jmp   L_10d1
+L_1344:
+	cmp    $0x73,%ax
+	jne   L_134c
+	jmp   L_1098
+L_134c:
+	cmp    $0x75,%ax
+	jne   L_1354
+	jmp   L_0f71
+L_1354:
+	cmp    $0x78,%ax
+	jne   L_135c
+	jmp   L_0f11
+L_135c:
+	jmp   L_12d1
+L_135f:
+	lea    -0x9a(%bp),%ax
+	cmp    %ax,-0x8(%bp)
+	je   L_1383
+	pushw  0x8(%bp)
+	xor    %ax,%ax
+	push   %ax
+	lea    -0x9a(%bp),%ax
+	mov    -0x8(%bp),%dx
+	sub    %ax,%dx
+	push   %dx
+	lea    -0x9a(%bp),%ax
+	push   %ax
+	call   __strout
+	add    $0x8,%sp
+L_1383:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+	/* almul: elided (provided by crt0 or vrewrite synthesis) */
+
+ulmul:
+	mov    %sp,%bx
+	mov    0x2(%bx),%ax
+	mulw   0x6(%bx)
+	push   %dx
+	push   %ax
+	mov    0x2(%bx),%ax
+	mulw   0x8(%bx)
+	push   %ax
+	mov    0x4(%bx),%ax
+	mulw   0x6(%bx)
+	add    -0x2(%bx),%ax
+	mov    %ax,%dx
+	mov    -0x4(%bx),%ax
+	add    -0x6(%bx),%dx
+	add    $0x6,%sp
+	ret
+
+	/* auldiv: elided (provided by crt0 or vrewrite synthesis) */
+
+uldiv:
+	mov    %sp,%bx
+	mov    0x8(%bx),%ax
+	cmp    $0x0,%ax
+	jne   L_13d4
+	mov    0x4(%bx),%ax
+	mov    $0x0,%dx
+	divw   0x6(%bx)
+	mov    %ax,%cx
+	mov    0x2(%bx),%ax
+	divw   0x6(%bx)
+	mov    %cx,%dx
+	ret
+L_13d4:
+	mov    $0x0,%cx
+	mov    0x6(%bx),%ax
+	mov    0x8(%bx),%dx
+L_13dd:
+	shr    %dx
+	rcr    %ax
+	inc    %cx
+	or     %dx,%dx
+	jne   L_13dd
+	push   %ax
+	mov    0x2(%bx),%ax
+	mov    0x4(%bx),%dx
+L_13ed:
+	shr    %dx
+	rcr    %ax
+	dec    %cx
+	or     %cx,%cx
+	jne   L_13ed
+	divw   -0x2(%bx)
+	add    $0x2,%sp
+	push   %ax
+	push   %bx
+	mov    $0x0,%dx
+	push   %dx
+	push   %ax
+	pushw  0x8(%bx)
+	pushw  0x6(%bx)
+	call   ulmul
+	add    $0x8,%sp
+	pop    %bx
+	sub    0x2(%bx),%ax
+	sbb    0x4(%bx),%dx
+	cmp    $0x0,%dx
+	jl   L_142e
+	jne   L_1423
+	or     $0x0,%ax
+	je   L_142e
+L_1423:
+	pop    %ax
+	mov    $0x0,%dx
+	sub    $0x1,%ax
+	sbb    $0x0,%dx
+	ret
+L_142e:
+	pop    %ax
+	mov    $0x0,%dx
+	ret
+
+	/* aldiv: elided (provided by crt0 or vrewrite synthesis) */
+
+ldiv:
+	mov    %sp,%bx
+	mov    $0x0,%cx
+	push   %bx
+	push   %cx
+	mov    0x6(%bx),%ax
+	mov    0x8(%bx),%dx
+	cmp    $0x0,%dx
+	jge   L_1452
+	incw   -0x4(%bx)
+	neg    %dx
+	neg    %ax
+	sbb    $0x0,%dx
+L_1452:
+	push   %dx
+	push   %ax
+	mov    0x2(%bx),%ax
+	mov    0x4(%bx),%dx
+	cmp    $0x0,%dx
+	jge   L_1469
+	incw   -0x4(%bx)
+	neg    %dx
+	neg    %ax
+	sbb    $0x0,%dx
+L_1469:
+	push   %dx
+	push   %ax
+	call   uldiv
+	add    $0x8,%sp
+	pop    %cx
+	pop    %bx
+	and    $0x1,%cx
+	je   L_1483
+	not    %ax
+	not    %dx
+	add    $0x1,%ax
+	adc    $0x0,%dx
+L_1483:
+	ret
+
+	/* alrem: elided (provided by crt0 or vrewrite synthesis) */
+
+lrem:
+	mov    %sp,%bx
+	push   %bx
+	pushw  0x8(%bx)
+	pushw  0x6(%bx)
+	pushw  0x4(%bx)
+	pushw  0x2(%bx)
+	call   ldiv
+	add    $0x8,%sp
+	pop    %bx
+	push   %bx
+	push   %dx
+	push   %ax
+	pushw  0x8(%bx)
+	pushw  0x6(%bx)
+	call   ulmul
+	add    $0x8,%sp
+	pop    %bx
+	sub    0x2(%bx),%ax
+	sbb    0x4(%bx),%dx
+	neg    %dx
+	neg    %ax
+	sbb    $0x0,%dx
+	ret
+
+	/* aulrem: elided (provided by crt0 or vrewrite synthesis) */
+
+ulrem:
+	mov    %sp,%bx
+	push   %bx
+	pushw  0x8(%bx)
+	pushw  0x6(%bx)
+	pushw  0x4(%bx)
+	pushw  0x2(%bx)
+	call   uldiv
+	add    $0x8,%sp
+	pop    %bx
+	push   %bx
+	push   %dx
+	push   %ax
+	pushw  0x8(%bx)
+	pushw  0x6(%bx)
+	call   ulmul
+	add    $0x8,%sp
+	pop    %bx
+	sub    0x2(%bx),%ax
+	sbb    0x4(%bx),%dx
+	neg    %dx
+	neg    %ax
+	sbb    $0x0,%dx
+	ret
+
+
+a_com:
+	pop    %ax
+	mov    %sp,%bx
+	pushw  0x6(%bx)
+	pushw  0x4(%bx)
+	mov    0x2(%bx),%bx
+	pushw  0x2(%bx)
+	pushw  (%bx)
+	/* TODO: indirect call - verify */
+	call   *%ax
+	add    $0x8,%sp
+	mov    %sp,%bx
+	mov    0x2(%bx),%bx
+	mov    %dx,0x2(%bx)
+	mov    %ax,(%bx)
+	ret
+	/* .byte 0 (alignment) */
+
+
+gcvt:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x6,%sp
+	lea    -0x6(%bp),%ax
+	push   %ax
+	lea    -0x8(%bp),%ax
+	push   %ax
+	pushw  0xc(%bp)
+	int    $0xf4
+	fldl   0x4(%bp)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   ecvt
+	add    $0xe,%sp
+	mov    %ax,%di
+	mov    0xe(%bp),%si
+	cmpw   $0x0,-0x6(%bp)
+	je   L_154e
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2d,(%bx)
+L_154e:
+	mov    0xc(%bp),%ax
+	dec    %ax
+	mov    %ax,-0xa(%bp)
+L_1555:
+	cmpw   $0x0,-0xa(%bp)
+	jle   L_156f
+	mov    %di,%ax
+	add    -0xa(%bp),%ax
+	mov    %ax,%bx
+	cmpb   $0x30,(%bx)
+	jne   L_156f
+	decw   0xc(%bp)
+	decw   -0xa(%bp)
+	jmp   L_1555
+L_156f:
+	cmpw   $0x0,-0x8(%bp)
+	jl   L_1580
+	mov    -0x8(%bp),%ax
+	sub    0xc(%bp),%ax
+	cmp    $0x4,%ax
+	jg   L_158c
+L_1580:
+	cmpw   $0x0,-0x8(%bp)
+	jge   L_158a
+	cmpw   $0xfffd,-0x8(%bp)
+L_158a:
+	jge   L_160b
+L_158c:
+	decw   -0x8(%bp)
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    %si,%bx
+	inc    %si
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2e,(%bx)
+	movw   $0x1,-0xa(%bp)
+L_15a7:
+	mov    -0xa(%bp),%ax
+	cmp    0xc(%bp),%ax
+	jge   L_15c1
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    %si,%bx
+	inc    %si
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	incw   -0xa(%bp)
+	jmp   L_15a7
+L_15c1:
+	mov    %si,%bx
+	inc    %si
+	movb   $0x65,(%bx)
+	cmpw   $0x0,-0x8(%bp)
+	jge   L_15dd
+	mov    -0x8(%bp),%ax
+	neg    %ax
+	mov    %ax,-0x8(%bp)
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2d,(%bx)
+	jmp   L_15e3
+L_15dd:
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2b,(%bx)
+L_15e3:
+	mov    -0x8(%bp),%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	add    $0x30,%ax
+	mov    %si,%bx
+	inc    %si
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    -0x8(%bp),%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	add    $0x30,%dx
+	mov    %si,%bx
+	inc    %si
+	mov    %dx,%cx
+	mov    %cl,(%bx)
+	jmp   L_167b
+L_160b:
+	cmpw   $0x0,-0x8(%bp)
+	jg   L_162d
+	cmpb   $0x30,(%di)
+	je   L_161c
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2e,(%bx)
+L_161c:
+	cmpw   $0x0,-0x8(%bp)
+	jge   L_162d
+	incw   -0x8(%bp)
+	mov    %si,%bx
+	inc    %si
+	movb   $0x30,(%bx)
+	jmp   L_161c
+L_162d:
+	movw   $0x1,-0xa(%bp)
+L_1632:
+	mov    -0xa(%bp),%ax
+	cmp    0xc(%bp),%ax
+	jg   L_165a
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    %si,%bx
+	inc    %si
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    -0xa(%bp),%ax
+	cmp    -0x8(%bp),%ax
+	jne   L_1655
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2e,(%bx)
+L_1655:
+	incw   -0xa(%bp)
+	jmp   L_1632
+L_165a:
+	mov    0xc(%bp),%ax
+	cmp    -0x8(%bp),%ax
+	jge   L_167b
+L_1662:
+	mov    0xc(%bp),%ax
+	incw   0xc(%bp)
+	cmp    -0x8(%bp),%ax
+	jge   L_1675
+	mov    %si,%bx
+	inc    %si
+	movb   $0x30,(%bx)
+	jmp   L_1662
+L_1675:
+	mov    %si,%bx
+	inc    %si
+	movb   $0x2e,(%bx)
+L_167b:
+	cmpb   $0x2e,-0x1(%si)
+	jne   L_1682
+	dec    %si
+L_1682:
+	movb   $0x0,(%si)
+	mov    0xe(%bp),%ax
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+ecvt:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    $0x1,%ax
+	push   %ax
+	pushw  0x10(%bp)
+	pushw  0xe(%bp)
+	pushw  0xc(%bp)
+	int    $0xf4
+	fldl   0x4(%bp)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   cvt
+	add    $0x10,%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+fcvt:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	xor    %ax,%ax
+	push   %ax
+	pushw  0x10(%bp)
+	pushw  0xe(%bp)
+	pushw  0xc(%bp)
+	int    $0xf4
+	fldl   0x4(%bp)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   cvt
+	add    $0x10,%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+cvt:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x5c,%sp
+	cmpw   $0x0,0xc(%bp)
+	jge   L_16fa
+	movw   $0x0,0xc(%bp)
+L_16fa:
+	cmpw   $0x4f,0xc(%bp)
+	jl   L_1705
+	movw   $0x4e,0xc(%bp)
+L_1705:
+	xor    %di,%di
+	mov    0x10(%bp),%bx
+	movw   $0x0,(%bx)
+	/* TODO: data ref: mov    $0x25f2,%si */
+	mov    $D_0588,%si
+	int    $0xf4
+	fldl   0x4(%bp)
+	/* TODO: data ref: fcompl 0x2642 */
+	fcompl D_05d8
+	fstsw  -0x40(%bp)
+	fwait
+	mov    -0x3f(%bp),%ah
+	sahf
+	jae   L_173f
+	mov    0x10(%bp),%bx
+	movw   $0x1,(%bx)
+	int    $0xf4
+	fldl   0x4(%bp)
+	fchs
+	fstl   -0x46(%bp)
+	fstpl  0x4(%bp)
+L_173f:
+	lea    -0xc(%bp),%ax
+	push   %ax
+	int    $0xf4
+	fldl   0x4(%bp)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   modf
+	int    $0xf4
+	fstpl  -0x46(%bp)
+	add    $0xa,%sp
+	int    $0xf4
+	fldl   -0x46(%bp)
+	fstpl  0x4(%bp)
+	fldl   -0xc(%bp)
+	/* TODO: data ref: fcompl 0x264a */
+	fcompl D_05e0
+	fstsw  -0x40(%bp)
+	fwait
+	mov    -0x3f(%bp),%ah
+	sahf
+	jne   L_1780
+	jmp   L_1856
+L_1780:
+	/* TODO: data ref: mov    $0x25f2,%si */
+	mov    $D_0588,%si
+L_1783:
+	int    $0xf4
+	fldl   -0xc(%bp)
+	/* TODO: data ref: fcompl 0x2652 */
+	fcompl D_05e8
+	fstsw  -0x40(%bp)
+	fwait
+	mov    -0x3f(%bp),%ah
+	sahf
+	jb   L_180f
+	lea    -0xc(%bp),%ax
+	push   %ax
+	int    $0xf4
+	fldl   -0xc(%bp)
+	/* TODO: data ref: fmull  0x265a */
+	fmull  D_05f0
+	fstl   -0x46(%bp)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   modf
+	int    $0xf4
+	fstpl  -0x4e(%bp)
+	add    $0xa,%sp
+	int    $0xf4
+	fldl   -0x4e(%bp)
+	/* TODO: data ref: fmull  0x2662 */
+	fmull  D_05f8
+	/* TODO: data ref: faddl  0x266a */
+	faddl  D_0600
+	fistps -0x60(%bp)
+	fwait
+	mov    -0x60(%bp),%ax
+	lea    -0x3e(%bp),%dx
+	mov    %di,%bx
+	inc    %di
+	shl    %bx
+	add    %bx,%dx
+	mov    %dx,%bx
+	mov    %ax,(%bx)
+	/* TODO: data ref: cmp    $0x2710,%ax */
+	cmp    $D_06a6,%ax
+	jne   L_1783
+	int    $0xf4
+	fldl   -0xc(%bp)
+	/* TODO: data ref: faddl  0x2672 */
+	faddl  D_0608
+	fstpl  -0xc(%bp)
+	lea    -0x3e(%bp),%ax
+	lea    -0x1(%di),%dx
+	shl    %dx
+	add    %dx,%ax
+	mov    %ax,%bx
+	movw   $0x0,(%bx)
+	jmp   L_1783
+L_180f:
+	mov    $0x1,%ax
+	push   %ax
+	push   %si
+	int    $0xf4
+	fldl   -0xc(%bp)
+	fistps -0x40(%bp)
+	fwait
+	pushw  -0x40(%bp)
+	call   itoa
+	add    $0x6,%sp
+	mov    %ax,%si
+L_182a:
+	mov    %di,%ax
+	dec    %di
+	or     %ax,%ax
+	je   L_184c
+	xor    %ax,%ax
+	push   %ax
+	push   %si
+	lea    -0x3e(%bp),%ax
+	mov    %di,%dx
+	shl    %dx
+	add    %dx,%ax
+	mov    %ax,%bx
+	pushw  (%bx)
+	call   itoa
+	add    $0x6,%sp
+	mov    %ax,%si
+	jmp   L_182a
+L_184c:
+	mov    %si,%ax
+	/* TODO: data ref: sub    $0x25f2,%ax */
+	sub    $D_0588,%ax
+	mov    %ax,%di
+	jmp   L_18d6
+L_1856:
+	int    $0xf4
+	fldl   0x4(%bp)
+	/* TODO: data ref: fcompl 0x267a */
+	fcompl D_0610
+	fstsw  -0x40(%bp)
+	fwait
+	mov    -0x3f(%bp),%ah
+	sahf
+	jbe   L_18d6
+L_186c:
+	int    $0xf4
+	fldl   0x4(%bp)
+	/* TODO: data ref: fmull  0x2682 */
+	fmull  D_0618
+	fstl   -0x46(%bp)
+	fstl   -0x14(%bp)
+	fstl   -0x4e(%bp)
+	/* TODO: data ref: fcompl 0x268a */
+	fcompl D_0620
+	fstsw  -0x50(%bp)
+	fwait
+	mov    -0x4f(%bp),%ah
+	sahf
+	jae   L_18a2
+	int    $0xf4
+	fldl   -0x14(%bp)
+	fstpl  0x4(%bp)
+	sub    $0x3,%di
+	jmp   L_186c
+L_18a2:
+	int    $0xf4
+	fldl   0x4(%bp)
+	/* TODO: data ref: fmull  0x2692 */
+	fmull  D_0628
+	fstl   -0x46(%bp)
+	fstl   -0x14(%bp)
+	fstl   -0x4e(%bp)
+	/* TODO: data ref: fcompl 0x269a */
+	fcompl D_0630
+	fstsw  -0x50(%bp)
+	fwait
+	mov    -0x4f(%bp),%ah
+	sahf
+	jae   L_18d6
+	int    $0xf4
+	fldl   -0x14(%bp)
+	fstpl  0x4(%bp)
+	dec    %di
+	jmp   L_18a2
+L_18d6:
+	mov    0xc(%bp),%ax
+	/* TODO: data ref: add    $0x25f2,%ax */
+	add    $D_0588,%ax
+	mov    %ax,-0x16(%bp)
+	cmpw   $0x0,0x12(%bp)
+	jne   L_18e8
+	add    %di,-0x16(%bp)
+L_18e8:
+	mov    0xe(%bp),%bx
+	mov    %di,(%bx)
+	/* TODO: data ref: cmpw   $0x25f2,-0x16(%bp) */
+	cmpw   $D_0588,-0x16(%bp)
+	jae   L_18fe
+	/* TODO: data ref: movb   $0x0,0x25f2 */
+	movb   $0x0,D_0588
+	/* TODO: data ref: mov    $0x25f2,%ax */
+	mov    $D_0588,%ax
+	jmp   L_1967
+L_18fe:
+	cmp    -0x16(%bp),%si
+	ja   L_1958
+	/* TODO: data ref: cmp    $0x2642,%si */
+	cmp    $D_05d8,%si
+	jae   L_1958
+	lea    -0x14(%bp),%ax
+	push   %ax
+	int    $0xf4
+	fldl   0x4(%bp)
+	/* TODO: data ref: fmull  0x26a2 */
+	fmull  D_0638
+	fstl   -0x46(%bp)
+	sub    $0x8,%sp
+	mov    %sp,%bx
+	int    $0xf4
+	fstpl  (%bx)
+	call   modf
+	int    $0xf4
+	fstpl  -0x4e(%bp)
+	add    $0xa,%sp
+	int    $0xf4
+	fldl   -0x4e(%bp)
+	fstpl  0x4(%bp)
+	xor    %ax,%ax
+	push   %ax
+	push   %si
+	int    $0xf4
+	fldl   -0x14(%bp)
+	fistps -0x40(%bp)
+	fwait
+	pushw  -0x40(%bp)
+	call   itoa
+	add    $0x6,%sp
+	mov    %ax,%si
+	jmp   L_18fe
+L_1958:
+	/* TODO: data ref: cmpw   $0x2642,-0x16(%bp) */
+	cmpw   $D_05d8,-0x16(%bp)
+	jb   L_1969
+	/* TODO: data ref: movb   $0x0,0x2641 */
+	movb   $0x0,D_05d7
+	/* TODO: data ref: mov    $0x25f2,%ax */
+	mov    $D_0588,%ax
+L_1967:
+	jmp   L_19b3
+L_1969:
+	mov    -0x16(%bp),%si
+	mov    %si,%bx
+	addb   $0x5,(%bx)
+L_1971:
+	mov    -0x16(%bp),%bx
+	cmpb   $0x39,(%bx)
+	jle   L_19ad
+	mov    -0x16(%bp),%bx
+	movb   $0x30,(%bx)
+	/* TODO: data ref: cmpw   $0x25f2,-0x16(%bp) */
+	cmpw   $D_0588,-0x16(%bp)
+	jbe   L_1990
+	decw   -0x16(%bp)
+	mov    -0x16(%bp),%bx
+	incb   (%bx)
+	jmp   L_1971
+L_1990:
+	mov    -0x16(%bp),%bx
+	movb   $0x31,(%bx)
+	mov    0xe(%bp),%bx
+	incw   (%bx)
+	cmpw   $0x0,0x12(%bp)
+	jne   L_1971
+	/* TODO: data ref: cmp    $0x25f2,%si */
+	cmp    $D_0588,%si
+	jbe   L_19aa
+	movb   $0x30,(%si)
+L_19aa:
+	inc    %si
+	jmp   L_1971
+L_19ad:
+	movb   $0x0,(%si)
+	/* TODO: data ref: mov    $0x25f2,%ax */
+	mov    $D_0588,%ax
+L_19b3:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+itoa:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	push   %cx
+	mov    0x4(%bp),%si
+	xor    %di,%di
+L_19c5:
+	or     %si,%si
+	je   L_19d6
+	mov    %si,%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	mov    %ax,%si
+	inc    %di
+	jmp   L_19c5
+L_19d6:
+	cmpw   $0x0,0x8(%bp)
+	jne   L_19ef
+	mov    %di,%si
+L_19de:
+	cmp    $0x4,%si
+	jge   L_19ef
+	mov    0x6(%bp),%bx
+	movb   $0x30,(%bx)
+	incw   0x6(%bp)
+	inc    %si
+	jmp   L_19de
+L_19ef:
+	mov    0x6(%bp),%ax
+	add    %di,%ax
+	mov    %ax,-0x6(%bp)
+	mov    %ax,%bx
+	movb   $0x0,(%bx)
+	mov    0x4(%bp),%si
+L_19ff:
+	mov    %di,%ax
+	dec    %di
+	or     %ax,%ax
+	je   L_1a28
+	mov    %si,%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	add    $0x30,%dx
+	mov    0x6(%bp),%ax
+	add    %di,%ax
+	mov    %ax,%bx
+	mov    %dx,%cx
+	mov    %cl,(%bx)
+	mov    %si,%ax
+	cwtd
+	mov    $0xa,%cx
+	idiv   %cx
+	mov    %ax,%si
+	jmp   L_19ff
+L_1a28:
+	mov    -0x6(%bp),%ax
+	pop    %cx
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+__strout:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%di
+	mov    0x6(%bp),%si
+L_1a3d:
+	cmpw   $0x0,0x8(%bp)
+	jl   L_1a46
+	jmp   L_1ad4
+L_1a46:
+	cmpb   $0x2d,(%di)
+	jne   L_1a83
+	cmpw   $0x30,0xc(%bp)
+	jne   L_1a83
+	mov    0xa(%bp),%bx
+	decw   0x2(%bx)
+	jl   L_1a72
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    0xa(%bp),%bx
+	incw   (%bx)
+	mov    (%bx),%dx
+	dec    %dx
+	mov    %dx,%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %cl,%al
+	cbtw
+	jmp   L_1a82
+L_1a72:
+	pushw  0xa(%bp)
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	push   %ax
+	call   __flsbuf
+	add    $0x4,%sp
+L_1a82:
+	dec    %si
+L_1a83:
+	mov    0xa(%bp),%bx
+	decw   0x2(%bx)
+	jl   L_1aa1
+	mov    0xa(%bp),%bx
+	incw   (%bx)
+	mov    (%bx),%ax
+	dec    %ax
+	mov    %ax,%bx
+	mov    0xc(%bp),%ax
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %cl,%al
+	cbtw
+	jmp   L_1aad
+L_1aa1:
+	pushw  0xa(%bp)
+	pushw  0xc(%bp)
+	call   __flsbuf
+	add    $0x4,%sp
+L_1aad:
+	incw   0x8(%bp)
+	jmp   L_1a3d
+L_1ab2:
+	dec    %si
+	jl   L_1ae8
+	mov    0xa(%bp),%bx
+	decw   0x2(%bx)
+	jl   L_1ad6
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	mov    0xa(%bp),%bx
+	incw   (%bx)
+	mov    (%bx),%dx
+	dec    %dx
+	mov    %dx,%bx
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %cl,%al
+	cbtw
+L_1ad4:
+	jmp   L_1ab2
+L_1ad6:
+	pushw  0xa(%bp)
+	mov    %di,%bx
+	inc    %di
+	mov    (%bx),%al
+	cbtw
+	push   %ax
+	call   __flsbuf
+	add    $0x4,%sp
+	jmp   L_1ab2
+L_1ae8:
+	cmpw   $0x0,0x8(%bp)
+	je   L_1b1d
+	mov    0xa(%bp),%bx
+	decw   0x2(%bx)
+	jl   L_1b0c
+	mov    0xa(%bp),%bx
+	incw   (%bx)
+	mov    (%bx),%ax
+	dec    %ax
+	mov    %ax,%bx
+	mov    0xc(%bp),%ax
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %cl,%al
+	cbtw
+	jmp   L_1b18
+L_1b0c:
+	pushw  0xa(%bp)
+	pushw  0xc(%bp)
+	call   __flsbuf
+	add    $0x4,%sp
+L_1b18:
+	decw   0x8(%bp)
+	jmp   L_1ae8
+L_1b1d:
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+__flsbuf:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x6,%sp
+	mov    0x6(%bp),%di
+	mov    0x6(%di),%al
+	cbtw
+	test   $0x2,%ax
+	jne   L_1b3d
+	mov    $0xffff,%ax
+	jmp   L_1c04
+L_1b3d:
+	mov    0x6(%di),%al
+	cbtw
+	test   $0x4,%ax
+	je   L_1b70
+	mov    0x4(%bp),%ax
+	mov    %ax,%cx
+	mov    %cl,-0x9(%bp)
+	movw   $0x1,-0x8(%bp)
+	pushw  -0x8(%bp)
+	lea    -0x9(%bp),%ax
+	push   %ax
+	mov    0x7(%di),%al
+	cbtw
+	push   %ax
+	call   write
+	add    $0x6,%sp
+	mov    %ax,-0x6(%bp)
+	movw   $0x0,0x2(%di)
+	jmp   L_1bf5
+L_1b70:
+	mov    0x4(%di),%si
+	or     %si,%si
+	jne   L_1bc2
+	/* TODO: data ref: cmp    $0x26b2,%di */
+	cmp    $D_0648,%di
+	jne   L_1b9b
+	/* TODO: data ref: mov    0x26b9,%al */
+	mov    D_064f,%al
+	cbtw
+	push   %ax
+	call   isatty
+	pop    %cx
+	or     %ax,%ax
+	je   L_1b90
+	orb    $0x4,0x6(%di)
+	jmp   L_1b3d
+L_1b90:
+	/* TODO: data ref: movw   $0x27a4,0x4(%di) */
+	movw   $D_073a,0x4(%di)
+	/* TODO: data ref: movw   $0x27a4,(%di) */
+	movw   $D_073a,(%di)
+	jmp   L_1b3d
+L_1b9b:
+	mov    $0x200,%ax
+	push   %ax
+	call   malloc
+	pop    %cx
+	mov    %ax,%si
+	mov    %ax,0x4(%di)
+	or     %ax,%ax
+	jne   L_1bb2
+	orb    $0x4,0x6(%di)
+	jmp   L_1b3d
+L_1bb2:
+	orb    $0x8,0x6(%di)
+	movw   $0x0,-0x6(%bp)
+	movw   $0x0,-0x8(%bp)
+	jmp   L_1be4
+L_1bc2:
+	mov    (%di),%ax
+	sub    %si,%ax
+	mov    %ax,-0x6(%bp)
+	mov    %ax,-0x8(%bp)
+	or     %ax,%ax
+	jle   L_1be4
+	mov    %si,(%di)
+	pushw  -0x6(%bp)
+	push   %si
+	mov    0x7(%di),%al
+	cbtw
+	push   %ax
+	call   write
+	add    $0x6,%sp
+	mov    %ax,-0x6(%bp)
+L_1be4:
+	movw   $0x1ff,0x2(%di)
+	mov    %si,%bx
+	inc    %si
+	mov    0x4(%bp),%ax
+	mov    %ax,%cx
+	mov    %cl,(%bx)
+	mov    %si,(%di)
+L_1bf5:
+	mov    -0x8(%bp),%ax
+	cmp    -0x6(%bp),%ax
+	je   L_1c06
+	orb    $0x20,0x6(%di)
+	mov    $0xffff,%ax
+L_1c04:
+	jmp   L_1c09
+L_1c06:
+	mov    0x4(%bp),%ax
+L_1c09:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+fflush:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	push   %cx
+	mov    0x4(%bp),%di
+	mov    0x6(%di),%al
+	cbtw
+	and    $0x6,%ax
+	cmp    $0x2,%ax
+	jne   L_1c5c
+	mov    0x4(%di),%si
+	or     %si,%si
+	je   L_1c5c
+	mov    (%di),%ax
+	sub    %si,%ax
+	mov    %ax,-0x6(%bp)
+	or     %ax,%ax
+	jle   L_1c5c
+	mov    %si,(%di)
+	movw   $0x200,0x2(%di)
+	pushw  -0x6(%bp)
+	push   %si
+	mov    0x7(%di),%al
+	cbtw
+	push   %ax
+	call   write
+	add    $0x6,%sp
+	cmp    -0x6(%bp),%ax
+	je   L_1c5c
+	orb    $0x20,0x6(%di)
+	mov    $0xffff,%ax
+	jmp   L_1c5e
+L_1c5c:
+	xor    %ax,%ax
+L_1c5e:
+	pop    %cx
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+__cleanu:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	/* TODO: data ref: mov    $0x26aa,%di */
+	mov    $D_0640,%di
+L_1c6b:
+	/* TODO: data ref: cmp    0x274a,%di */
+	cmp    D_06e0,%di
+	jae   L_1c7b
+	push   %di
+	call   fclose
+	pop    %cx
+	add    $0x8,%di
+	jmp   L_1c6b
+L_1c7b:
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+fclose:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%di
+	mov    $0xffff,%si
+	mov    0x6(%di),%al
+	cbtw
+	test   $0x3,%ax
+	je   L_1cd2
+	mov    0x6(%di),%al
+	cbtw
+	test   $0x40,%ax
+	jne   L_1cd2
+	push   %di
+	call   fflush
+	pop    %cx
+	mov    %ax,%si
+	mov    0x7(%di),%al
+	cbtw
+	push   %ax
+	call   close
+	pop    %cx
+	or     %ax,%ax
+	jge   L_1cb4
+	mov    $0xffff,%si
+L_1cb4:
+	mov    0x6(%di),%al
+	cbtw
+	test   $0x8,%ax
+	je   L_1cc4
+	pushw  0x4(%di)
+	call   free
+	pop    %cx
+L_1cc4:
+	mov    0x6(%di),%al
+	cbtw
+	test   $0xc,%ax
+	je   L_1cd2
+	movw   $0x0,0x4(%di)
+L_1cd2:
+	andb   $0x80,0x6(%di)
+	movw   $0x0,0x2(%di)
+	mov    %si,%ax
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+	.global	_exit
+_exit:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	call   __cleanu
+	pushw  0x4(%bp)
+	call   exit_raw
+	pop    %cx
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+malloc:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	push   %cx
+	/* TODO: data ref: cmpw   $0x0,0x274c */
+	cmpw   $0x0,D_06e2
+	jne   L_1d21
+	/* TODO: data ref: mov    $0x274e,%ax */
+	mov    $D_06e4,%ax
+	or     $0x1,%ax
+	/* TODO: data ref: mov    %ax,0x274c */
+	mov    %ax,D_06e2
+	/* TODO: data ref: mov    $0x274c,%ax */
+	mov    $D_06e2,%ax
+	or     $0x1,%ax
+	/* TODO: data ref: mov    %ax,0x274e */
+	mov    %ax,D_06e4
+	/* TODO: data ref: movw   $0x274e,0x2ba6 */
+	/* dual-reloc split: movw $D_06e4,D_0b3c */
+	mov	$D_06e4,%ax
+	mov	%ax,D_0b3c
+	/* TODO: data ref: movw   $0x274c,0x2ba4 */
+	/* dual-reloc split: movw $D_06e2,D_0b3a */
+	mov	$D_06e2,%ax
+	mov	%ax,D_0b3a
+L_1d21:
+	mov    0x4(%bp),%ax
+	add    $0x3,%ax
+	xor    %dx,%dx
+	mov    $0x2,%cx
+	div    %cx
+	mov    %ax,-0x6(%bp)
+	/* TODO: data ref: mov    0x2ba4,%di */
+	mov    D_0b3a,%di
+L_1d35:
+	/* TODO: data ref: movw   $0x0,0x2750 */
+	movw   $0x0,D_06e6
+L_1d3b:
+	mov    (%di),%ax
+	test   $0x1,%ax
+	jne   L_1d6a
+L_1d42:
+	mov    (%di),%si
+	mov    (%si),%ax
+	test   $0x1,%ax
+	jne   L_1d51
+	mov    (%si),%ax
+	mov    %ax,(%di)
+	jmp   L_1d42
+L_1d51:
+	mov    -0x6(%bp),%ax
+	shl    %ax
+	add    %di,%ax
+	cmp    %ax,%si
+	jb   L_1d6a
+	mov    -0x6(%bp),%ax
+	shl    %ax
+	add    %di,%ax
+	cmp    %di,%ax
+	jb   L_1d6a
+	jmp   L_1e11
+L_1d6a:
+	mov    %di,%si
+	mov    (%di),%ax
+	and    $0xfffe,%ax
+	mov    %ax,%di
+	cmp    %si,%di
+	ja   L_1d3b
+	/* TODO: data ref: cmp    0x2ba6,%si */
+	cmp    D_0b3c,%si
+	jne   L_1d83
+	/* TODO: data ref: cmp    $0x274c,%di */
+	cmp    $D_06e2,%di
+	je   L_1d87
+L_1d83:
+	xor    %ax,%ax
+	jmp   L_1dbf
+L_1d87:
+	/* TODO: data ref: incw   0x2750 */
+	incw   D_06e6
+	/* TODO: data ref: cmpw   $0x1,0x2750 */
+	cmpw   $0x1,D_06e6
+	jle   L_1d3b
+	mov    -0x6(%bp),%ax
+	add    $0x200,%ax
+	cwtd
+	mov    $0x200,%cx
+	idiv   %cx
+	mov    $0x9,%cx
+	shl    %cl,%ax
+	/* TODO: data ref: mov    %ax,0x2750 */
+	mov    %ax,D_06e6
+	xor    %ax,%ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	mov    %ax,%si
+	/* TODO: data ref: mov    0x2750,%ax */
+	mov    D_06e6,%ax
+	shl    %ax
+	add    %si,%ax
+	add    $0x400,%ax
+	cmp    %si,%ax
+	jae   L_1dc1
+	xor    %ax,%ax
+L_1dbf:
+	jmp   L_1dd4
+L_1dc1:
+	/* TODO: data ref: mov    0x2750,%ax */
+	mov    D_06e6,%ax
+	shl    %ax
+	push   %ax
+	call   sbrk
+	pop    %cx
+	mov    %ax,%si
+	cmp    $0xffff,%ax
+	jne   L_1dd6
+	xor    %ax,%ax
+L_1dd4:
+	jmp   L_1e3b
+L_1dd6:
+	/* TODO: data ref: mov    0x2ba6,%bx */
+	mov    D_0b3c,%bx
+	mov    %si,(%bx)
+	/* TODO: data ref: mov    0x2ba6,%ax */
+	mov    D_0b3c,%ax
+	inc    %ax
+	inc    %ax
+	cmp    %ax,%si
+	je   L_1df4
+	/* TODO: data ref: mov    0x2ba6,%bx */
+	mov    D_0b3c,%bx
+	mov    (%bx),%ax
+	or     $0x1,%ax
+	/* TODO: data ref: mov    0x2ba6,%bx */
+	mov    D_0b3c,%bx
+	mov    %ax,(%bx)
+L_1df4:
+	/* TODO: data ref: mov    0x2750,%ax */
+	mov    D_06e6,%ax
+	shl    %ax
+	add    %si,%ax
+	dec    %ax
+	dec    %ax
+	mov    %ax,(%si)
+	/* TODO: data ref: mov    %ax,0x2ba6 */
+	mov    %ax,D_0b3c
+	/* TODO: data ref: mov    $0x274c,%ax */
+	mov    $D_06e2,%ax
+	or     $0x1,%ax
+	/* TODO: data ref: mov    0x2ba6,%bx */
+	mov    D_0b3c,%bx
+	mov    %ax,(%bx)
+	jmp   L_1d35
+L_1e11:
+	mov    -0x6(%bp),%ax
+	shl    %ax
+	add    %di,%ax
+	/* TODO: data ref: mov    %ax,0x2ba4 */
+	mov    %ax,D_0b3a
+	cmp    %ax,%si
+	jbe   L_1e30
+	/* TODO: data ref: mov    0x2ba4,%bx */
+	mov    D_0b3a,%bx
+	mov    (%bx),%ax
+	/* TODO: data ref: mov    %ax,0x2ba8 */
+	mov    %ax,D_0b3e
+	/* TODO: data ref: mov    0x2ba4,%bx */
+	mov    D_0b3a,%bx
+	mov    (%di),%ax
+	mov    %ax,(%bx)
+L_1e30:
+	/* TODO: data ref: mov    0x2ba4,%ax */
+	mov    D_0b3a,%ax
+	or     $0x1,%ax
+	mov    %ax,(%di)
+	lea    0x2(%di),%ax
+L_1e3b:
+	pop    %cx
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+free:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	mov    0x4(%bp),%di
+	mov    %di,%si
+	dec    %si
+	dec    %si
+	/* TODO: data ref: mov    %si,0x2ba4 */
+	mov    %si,D_0b3a
+	mov    (%si),%ax
+	and    $0xfffe,%ax
+	mov    %ax,(%si)
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+realloc:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x8,%sp
+	mov    0x4(%bp),%di
+	mov    -0x2(%di),%ax
+	test   $0x1,%ax
+	je   L_1e75
+	push   %di
+	call   free
+	pop    %cx
+L_1e75:
+	mov    -0x2(%di),%ax
+	sub    %di,%ax
+	cwtd
+	mov    $0x2,%cx
+	idiv   %cx
+	mov    %ax,-0xc(%bp)
+	pushw  0x6(%bp)
+	call   malloc
+	pop    %cx
+	mov    %ax,%si
+	or     %si,%si
+	je   L_1e94
+	cmp    %di,%si
+	jne   L_1e98
+L_1e94:
+	mov    %si,%ax
+	jmp   L_1f00
+L_1e98:
+	mov    %di,-0x6(%bp)
+	mov    %si,-0x8(%bp)
+	mov    0x6(%bp),%ax
+	inc    %ax
+	xor    %dx,%dx
+	mov    $0x2,%cx
+	div    %cx
+	mov    %ax,-0xa(%bp)
+	cmp    -0xc(%bp),%ax
+	jae   L_1eb7
+	mov    -0xa(%bp),%ax
+	mov    %ax,-0xc(%bp)
+L_1eb7:
+	mov    -0xc(%bp),%ax
+	decw   -0xc(%bp)
+	or     %ax,%ax
+	je   L_1ed5
+	mov    -0x6(%bp),%bx
+	mov    (%bx),%ax
+	mov    -0x8(%bp),%bx
+	mov    %ax,(%bx)
+	addw   $0x2,-0x6(%bp)
+	addw   $0x2,-0x8(%bp)
+	jmp   L_1eb7
+L_1ed5:
+	cmp    %di,%si
+	jae   L_1efe
+	mov    -0xa(%bp),%ax
+	shl    %ax
+	add    %si,%ax
+	cmp    %di,%ax
+	jb   L_1efe
+	mov    -0xa(%bp),%ax
+	shl    %ax
+	add    %si,%ax
+	sub    %di,%ax
+	cwtd
+	mov    $0x2,%cx
+	idiv   %cx
+	shl    %ax
+	add    %si,%ax
+	mov    %ax,%bx
+	/* TODO: data ref: mov    0x2ba8,%ax */
+	mov    D_0b3e,%ax
+	mov    %ax,(%bx)
+L_1efe:
+	mov    %si,%ax
+L_1f00:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+brk:
+	push   %bp
+	mov    %sp,%bp
+	mov	$17,%bx	/* sc: brk */
+	mov    0x4(%bp),%ax
+	/* v7: 17:brk */
+	int	$0xf1
+	jcxz   L_1f1b
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+	jmp   L_1f22
+L_1f1b:
+	mov    0x4(%bp),%bx
+	/* TODO: data ref: mov    %bx,0x2752 */
+	mov    %bx,D_06e8
+L_1f22:
+	pop    %bp
+	ret
+
+
+sbrk:
+	push   %bp
+	mov    %sp,%bp
+	mov	$17,%bx	/* sc: brk */
+	mov    0x4(%bp),%ax
+	/* TODO: data ref: add    0x2752,%ax */
+	add    D_06e8,%ax
+	/* v7: 17:brk */
+	int	$0xf1
+	jcxz   L_1f3b
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+	jmp   L_1f48
+L_1f3b:
+	/* TODO: data ref: mov    0x2752,%bx */
+	mov    D_06e8,%bx
+	mov    %bx,%ax
+	add    0x4(%bp),%bx
+	/* TODO: data ref: mov    %bx,0x2752 */
+	mov    %bx,D_06e8
+L_1f48:
+	pop    %bp
+	ret
+
+
+close:
+	push   %bp
+	mov    %sp,%bp
+	mov	$6,%bx	/* sc: close */
+	mov    0x4(%bp),%ax
+	/* v7: 6:close */
+	int	$0xf1
+	jcxz   L_1f5b
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_1f5b:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+isatty:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	sub    $0x6,%sp
+	lea    -0xa(%bp),%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   gtty
+	add    $0x4,%sp
+	or     %ax,%ax
+	jge   L_1f7b
+	xor    %ax,%ax
+	jmp   L_1f7e
+L_1f7b:
+	mov    $0x1,%ax
+L_1f7e:
+	lea    -0x4(%bp),%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+open:
+	push   %bp
+	mov    %sp,%bp
+	mov	$5,%bx	/* sc: open */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	/* v7: 5:open */
+	int	$0xf1
+	jcxz   L_1f9a
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_1f9a:
+	pop    %bp
+	ret
+
+
+read:
+	push   %bp
+	mov    %sp,%bp
+	mov	$3,%bx	/* sc: read */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	mov    0x8(%bp),%cx
+	/* v7: 3:read */
+	int	$0xf1
+	jcxz   L_1fb3
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_1fb3:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+stat:
+	push   %bp
+	mov    %sp,%bp
+	mov	$18,%bx	/* sc: stat */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	/* v7: 18:stat */
+	int	$0xf1
+	jcxz   L_1fca
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_1fca:
+	pop    %bp
+	ret
+
+
+stty:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	pushw  0x6(%bp)
+	mov    $0x7409,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   ioctl
+	add    $0x6,%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+gtty:
+	push   %bp
+	mov    %sp,%bp
+	push   %si
+	push   %di
+	pushw  0x6(%bp)
+	mov    $0x7408,%ax
+	push   %ax
+	pushw  0x4(%bp)
+	call   ioctl
+	add    $0x6,%sp
+	pop    %di
+	pop    %si
+	pop    %bp
+	ret
+
+
+ioctl:
+	push   %bp
+	mov    %sp,%bp
+	mov	$54,%bx	/* sc: ioctl */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	mov    0x8(%bp),%cx
+	/* v7: 54:ioctl */
+	int	$0xf1
+	jcxz   L_2015
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_2015:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+wait:
+	push   %bp
+	mov    %sp,%bp
+	mov	$7,%bx	/* sc: wait */
+	/* v7: 7:wait */
+	int	$0xf1
+	jcxz   L_2028
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_2026:
+	pop    %bp
+	ret
+L_2028:
+	mov    0x4(%bp),%bx
+	cmp    $0x0,%bx
+	je   L_2026
+	mov    %dx,(%bx)
+	jmp   L_2026
+
+
+write:
+	push   %bp
+	mov    %sp,%bp
+	mov	$4,%bx	/* sc: write */
+	mov    0x4(%bp),%ax
+	mov    0x6(%bp),%dx
+	mov    0x8(%bp),%cx
+	/* v7: 4:write */
+	int	$0xf1
+	jcxz   L_204b
+	/* TODO: data ref: mov    %cx,0x2756 */
+	mov    %cx,D_06ec
+L_204b:
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+modf:
+	push   %bp
+	mov    %sp,%bp
+	mov    0xc(%bp),%bx
+	int    $0xf4
+	fldl   0x4(%bp)
+	frndint
+	fstl   (%bx)
+	fsubl  0x4(%bp)
+	fchs
+	pop    %bp
+	ret
+	/* .byte 0 (alignment) */
+
+
+	.data
+
+	.byte	0x00, 0x00	/* |..| */
+D_0002:
+	.byte	0xbf, 0x0f	/* |..| */
+D_0004:
+	.ascii	"/tmp/abcd\0"
+D_000e:
+	.ascii	"time: ret %lu, parm %lu, %s %s\0"
+D_002d:
+	.byte	0x6f, 0x70, 0x65, 0x6e, 0x20, 0x25, 0x73, 0x20	/* |open %s | */
+	.byte	0x6f, 0x6b, 0x0a, 0x00	/* |ok..| */
+D_0039:
+	.byte	0x25, 0x73, 0x3a, 0x20, 0x6d, 0x6f, 0x64, 0x65	/* |%s: mode| */
+	.byte	0x20, 0x25, 0x6f, 0x2c, 0x20, 0x73, 0x69, 0x7a	/* | %o, siz| */
+	.byte	0x65, 0x20, 0x25, 0x6c, 0x75, 0x2c, 0x20, 0x69	/* |e %lu, i| */
+	.byte	0x6e, 0x6f, 0x20, 0x25, 0x64, 0x0a, 0x00	/* |no %d..| */
+D_0058:
+	.byte	0x72, 0x65, 0x61, 0x64, 0x20, 0x25, 0x64, 0x20	/* |read %d | */
+	.byte	0x62, 0x79, 0x74, 0x65, 0x73, 0x20, 0x66, 0x72	/* |bytes fr| */
+	.byte	0x6f, 0x6d, 0x20, 0x25, 0x73, 0x0a, 0x00	/* |om %s..| */
+D_006f:
+	.byte	0x72, 0x65, 0x74, 0x75, 0x72, 0x6e, 0x20, 0x66	/* |return f| */
+	.byte	0x72, 0x6f, 0x6d, 0x20, 0x6c, 0x73, 0x65, 0x65	/* |rom lsee| */
+	.byte	0x6b, 0x20, 0x74, 0x6f, 0x20, 0x37, 0x30, 0x30	/* |k to 700| */
+	.byte	0x30, 0x30, 0x3a, 0x20, 0x25, 0x6c, 0x75, 0x0a	/* |00: %lu.| */
+	.byte	0x00	/* |.| */
+D_0090:
+	.byte	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x20	/* |Created | */
+	.byte	0x25, 0x73, 0x0a, 0x00	/* |%s..| */
+D_009c:
+	.byte	0x77, 0x72, 0x6f, 0x74, 0x65, 0x20, 0x25, 0x64	/* |wrote %d| */
+	.byte	0x20, 0x62, 0x79, 0x74, 0x65, 0x73, 0x20, 0x74	/* | bytes t| */
+	.byte	0x6f, 0x20, 0x25, 0x73, 0x0a, 0x00	/* |o %s..| */
+D_00b2:
+	.ascii	"stat-2\0"
+D_00b9:
+	.byte	0x25, 0x73, 0x20, 0x6e, 0x6f, 0x77, 0x20, 0x68	/* |%s now h| */
+	.byte	0x61, 0x73, 0x20, 0x25, 0x6c, 0x64, 0x20, 0x62	/* |as %ld b| */
+	.byte	0x79, 0x74, 0x65, 0x73, 0x0a, 0x00	/* |ytes..| */
+D_00cf:
+	.byte	0x77, 0x72, 0x6f, 0x6e, 0x67, 0x20, 0x6f, 0x70	/* |wrong op| */
+	.byte	0x74, 0x69, 0x6f, 0x6e, 0x3a, 0x20, 0x25, 0x73	/* |tion: %s| */
+	.byte	0x0a, 0x00	/* |..| */
+D_00e1:
+	.ascii	"/tmp/tmp/xxx\0"
+D_00ee:
+	.byte	0x61, 0x00	/* |a.| */
+D_00f0:
+	.byte	0x66, 0x6f, 0x70, 0x65, 0x6e, 0x20, 0x2f, 0x74	/* |fopen /t| */
+	.byte	0x6d, 0x70, 0x2f, 0x74, 0x6d, 0x70, 0x2f, 0x78	/* |mp/tmp/x| */
+	.byte	0x78, 0x78, 0x20, 0x72, 0x65, 0x74, 0x75, 0x72	/* |xx retur| */
+	.byte	0x6e, 0x65, 0x64, 0x20, 0x25, 0x78, 0x0a, 0x00	/* |ned %x..| */
+D_0110:
+	.byte	0x54, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20	/* |This is | */
+	.byte	0x63, 0x6f, 0x6d, 0x69, 0x6e, 0x67, 0x20, 0x74	/* |coming t| */
+	.byte	0x68, 0x72, 0x6f, 0x75, 0x67, 0x68, 0x20, 0x74	/* |hrough t| */
+	.byte	0x68, 0x65, 0x20, 0x70, 0x69, 0x70, 0x65, 0x21	/* |he pipe!| */
+	.byte	0x0a, 0x00	/* |..| */
+D_0132:
+	.ascii	"fopen\0"
+D_0138:
+	.byte	0x63, 0x61, 0x74, 0x00	/* |cat.| */
+D_013c:
+	.byte	0x77, 0x00	/* |w.| */
+D_013e:
+	.byte	0x70, 0x6f, 0x70, 0x65, 0x6e, 0x20, 0x72, 0x65	/* |popen re| */
+	.byte	0x74, 0x75, 0x72, 0x6e, 0x65, 0x64, 0x20, 0x25	/* |turned %| */
+	.byte	0x78, 0x0a, 0x00	/* |x..| */
+D_0151:
+	.ascii	"Popen failed: \0"
+D_0160:
+	.byte	0x54, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20	/* |This is | */
+	.byte	0x63, 0x6f, 0x6d, 0x69, 0x6e, 0x67, 0x20, 0x74	/* |coming t| */
+	.byte	0x68, 0x72, 0x6f, 0x75, 0x67, 0x68, 0x20, 0x74	/* |hrough t| */
+	.byte	0x68, 0x65, 0x20, 0x70, 0x69, 0x70, 0x65, 0x21	/* |he pipe!| */
+	.byte	0x0a, 0x00	/* |..| */
+D_0182:
+	.byte	0x63, 0x75, 0x72, 0x65, 0x6e, 0x64, 0x3a, 0x20	/* |curend: | */
+	.byte	0x25, 0x64, 0x0a, 0x00	/* |%d..| */
+D_018e:
+	.byte	0x6e, 0x65, 0x77, 0x20, 0x63, 0x75, 0x72, 0x65	/* |new cure| */
+	.byte	0x6e, 0x64, 0x3a, 0x20, 0x25, 0x64, 0x0a, 0x00	/* |nd: %d..| */
+D_019e:
+	.byte	0x70, 0x70, 0x20, 0x69, 0x73, 0x20, 0x61, 0x74	/* |pp is at| */
+	.byte	0x20, 0x25, 0x78, 0x2c, 0x20, 0x63, 0x75, 0x72	/* | %x, cur| */
+	.byte	0x65, 0x6e, 0x64, 0x20, 0x25, 0x64, 0x0a, 0x00	/* |end %d..| */
+D_01b6:
+	.byte	0x73, 0x62, 0x72, 0x6b, 0x3a, 0x20, 0x25, 0x78	/* |sbrk: %x| */
+	.byte	0x2c, 0x20, 0x6d, 0x61, 0x6c, 0x6c, 0x6f, 0x63	/* |, malloc| */
+	.byte	0x3a, 0x20, 0x25, 0x30, 0x34, 0x78, 0x2c, 0x20	/* |: %04x, | */
+	.byte	0x64, 0x69, 0x66, 0x66
+p_num:	.byte   0x20, 0x25, 0x64, 0x0a	/* |diff %d.| */
+	.byte	0x00	/* |.| */
+D_01d7:
+	.byte	0x6d, 0x61, 0x6c, 0x6c, 0x6f, 0x63, 0x20, 0x65	/* |malloc e| */
+	.byte	0x78, 0x69, 0x74, 0x20, 0x25, 0x64, 0x2c, 0x20	/* |xit %d, | */
+	.byte	0x74, 0x6f, 0x74, 0x61, 0x6c, 0x20, 0x61, 0x6c	/* |total al| */
+	.byte	0x6c, 0x6f, 0x63, 0x20, 0x25, 0x75, 0x20, 0x28	/* |loc %u (| */
+	.byte	0x25, 0x75, 0x29, 0x0a, 0x00	/* |%u)..| */
+D_01fc:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00	/* |..| */
+D_0216:
+	.byte	0x1f, 0x00	/* |..| */
+D_0218:
+	.byte	0x1c, 0x00, 0x1f, 0x00, 0x1e, 0x00, 0x1f, 0x00	/* |........| */
+	.byte	0x1e, 0x00, 0x1f, 0x00, 0x1f, 0x00, 0x1e, 0x00	/* |........| */
+	.byte	0x1f, 0x00, 0x1e, 0x00, 0x1f, 0x00	/* |......| */
+D_022e:
+	.byte	0x05, 0x00	/* |..| */
+D_0230:
+	.byte	0x4d, 0x01, 0x3a, 0x00, 0x2f, 0x01	/* |M.:./.| */
+D_0236:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00	/* |..| */
+D_0240:
+	.byte	0x00, 0x00	/* |..| */
+D_0242:
+	.byte	0x00, 0x00	/* |..| */
+D_0244:
+	.byte	0x00, 0x00	/* |..| */
+D_0246:
+	.byte	0x00, 0x00	/* |..| */
+D_0248:
+	.byte	0x44, 0x61, 0x79, 0x20, 0x4d, 0x6f, 0x6e, 0x20	/* |Day Mon | */
+	.byte	0x30, 0x30, 0x20, 0x30, 0x30, 0x3a, 0x30, 0x30	/* |00 00:00| */
+D_0258:
+	.byte	0x3a, 0x30, 0x30, 0x20, 0x31, 0x39, 0x30, 0x30	/* |:00 1900| */
+	.byte	0x0a, 0x00	/* |..| */
+D_0262:
+	.ascii	"SunMonTueWedThuFriSat\0"
+D_0278:
+	.ascii	"JanFebMarAprMayJunJulAugSepOctNovDec\0"
+	.byte	0x00	/* |.| */
+D_029e:
+	.byte	0x00, 0x00	/* |..| */
+D_02a0:
+	.ascii	"Unknown error\0"
+D_02ae:
+	.byte	0x3a, 0x20, 0x00	/* |: .| */
+D_02b1:
+	.byte	0x0a, 0x00, 0x00	/* |...| */
+D_02b4:
+	.word	D_02fc	/* ptr: 0x2366 */
+	.word	D_0304	/* ptr: 0x236e */
+	.word	D_030e	/* ptr: 0x2378 */
+	.word	D_0328	/* ptr: 0x2392 */
+	.word	D_0338	/* ptr: 0x23a2 */
+	.word	D_0350	/* ptr: 0x23ba */
+	.word	D_035a	/* ptr: 0x23c4 */
+	.word	D_0374	/* ptr: 0x23de */
+	.word	D_0386	/* ptr: 0x23f0 */
+	.word	D_0398	/* ptr: 0x2402 */
+	.word	D_03a8	/* ptr: 0x2412 */
+	.word	D_03b4	/* ptr: 0x241e */
+	.word	D_03c6	/* ptr: 0x2430 */
+	.word	D_03d6	/* ptr: 0x2440 */
+	.word	D_03e8	/* ptr: 0x2452 */
+	.word	D_03f4	/* ptr: 0x245e */
+	.word	D_040a	/* ptr: 0x2474 */
+	.word	D_041c	/* ptr: 0x2486 */
+	.word	D_0428	/* ptr: 0x2492 */
+	.word	D_043a	/* ptr: 0x24a4 */
+	.word	D_0449	/* ptr: 0x24b3 */
+	.word	D_0459	/* ptr: 0x24c3 */
+	.word	D_0468	/* ptr: 0x24d2 */
+	.word	D_0479	/* ptr: 0x24e3 */
+	.word	D_048d	/* ptr: 0x24f7 */
+	.word	D_04a1	/* ptr: 0x250b */
+	.word	D_04b2	/* ptr: 0x251c */
+	.word	D_04c1	/* ptr: 0x252b */
+	.word	D_04d0	/* ptr: 0x253a */
+	.word	D_04e8	/* ptr: 0x2552 */
+	.word	D_04f5	/* ptr: 0x255f */
+	.word	D_050b	/* ptr: 0x2575 */
+	.word	D_051a	/* ptr: 0x2584 */
+	.word	D_0526	/* ptr: 0x2590 */
+	.word	D_0539	/* ptr: 0x25a3 */
+D_02fa:
+	.byte	0x23, 0x00	/* |#.| */
+D_02fc:
+	.ascii	"Error 0\0"
+D_0304:
+	.ascii	"Not owner\0"
+D_030e:
+	.ascii	"No such file or directory\0"
+D_0328:
+	.ascii	"No such process\0"
+D_0338:
+	.ascii	"Interrupted system call\0"
+D_0350:
+	.ascii	"I/O error\0"
+D_035a:
+	.ascii	"No such device or address\0"
+D_0374:
+	.ascii	"Arg list too long\0"
+D_0386:
+	.ascii	"Exec format error\0"
+D_0398:
+	.ascii	"Bad file number\0"
+D_03a8:
+	.ascii	"No children\0"
+D_03b4:
+	.ascii	"No more processes\0"
+D_03c6:
+	.ascii	"Not enough core\0"
+D_03d6:
+	.ascii	"Permission denied\0"
+D_03e8:
+	.ascii	"Bad address\0"
+D_03f4:
+	.ascii	"Block device required\0"
+D_040a:
+	.ascii	"Mount device busy\0"
+D_041c:
+	.ascii	"File exists\0"
+D_0428:
+	.ascii	"Cross-device link\0"
+D_043a:
+	.ascii	"No such device\0"
+D_0449:
+	.ascii	"Not a directory\0"
+D_0459:
+	.ascii	"Is a directory\0"
+D_0468:
+	.ascii	"Invalid argument\0"
+D_0479:
+	.ascii	"File table overflow\0"
+D_048d:
+	.ascii	"Too many open files\0"
+D_04a1:
+	.ascii	"Not a typewriter\0"
+D_04b2:
+	.ascii	"Text file busy\0"
+D_04c1:
+	.ascii	"File too large\0"
+D_04d0:
+	.ascii	"No space left on device\0"
+D_04e8:
+	.ascii	"Illegal seek\0"
+D_04f5:
+	.ascii	"Read-only file system\0"
+D_050b:
+	.ascii	"Too many links\0"
+D_051a:
+	.ascii	"Broken pipe\0"
+D_0526:
+	.ascii	"Argument too large\0"
+D_0539:
+	.ascii	"Result too large\0"
+D_054a:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+D_0572:
+	.ascii	"/bin/sh\0"
+D_057a:
+	.byte	0x73, 0x68, 0x00	/* |sh.| */
+D_057d:
+	.byte	0x2d, 0x63, 0x00	/* |-c.| */
+D_0580:
+	.ascii	"(null)\0"
+	.byte	0x00	/* |.| */
+D_0588:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |.......| */
+D_05d7:
+	.byte	0x00	/* |.| */
+D_05d8:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+D_05e0:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+D_05e8:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xc3, 0x40	/* |.......@| */
+D_05f0:
+	.byte	0x2c, 0x43, 0x1c, 0xeb, 0xe2, 0x36, 0x1a, 0x3f	/* |,C...6.?| */
+D_05f8:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xc3, 0x40	/* |.......@| */
+D_0600:
+	.byte	0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0xb9, 0x3f	/* |.......?| */
+D_0608:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f	/* |.......?| */
+D_0610:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+D_0618:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x8f, 0x40	/* |.....@.@| */
+D_0620:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f	/* |.......?| */
+D_0628:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x40	/* |......$@| */
+D_0630:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f	/* |.......?| */
+D_0638:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xc3, 0x40	/* |.......@| */
+D_0640:
+	.word	D_093a	/* ptr: 0x29a4 */
+	.byte	0x00, 0x00	/* |..| */
+	.word	D_093a	/* ptr: 0x29a4 */
+	.byte	0x01, 0x00	/* |..| */
+D_0648:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |......| */
+D_064e:
+	.byte	0x02	/* |.| */
+D_064f:
+	.byte	0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06	/* |........| */
+	.byte	0x02	/* |.| */
+D_0658:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |......| */
+D_06a6:
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00	/* |........| */
+	.byte	0x00, 0x00	/* |..| */
+D_06e0:
+	.word	D_06e0	/* ptr: 0x274a */
+D_06e2:
+	.byte	0x00, 0x00	/* |..| */
+D_06e4:
+	.byte	0x00, 0x00	/* |..| */
+D_06e6:
+	.byte	0x00, 0x00	/* |..| */
+D_06e8:
+	.word	0x0b50	/* _curbrk: bss_end=0x0b40 rounded to paragraph */
+
+	.bss
+
+D_06ea:	.space	2	/* bss word @ 0x06ea */
+D_06ec:	.space	2	/* bss word @ 0x06ec */
+	.space	4
+D_06f2:	.space	2	/* bss word @ 0x06f2 */
+D_06f4:	.space	2	/* bss word @ 0x06f4 */
+D_06f6:	.space	2	/* bss word @ 0x06f6 */
+D_06f8:	.space	2	/* bss word @ 0x06f8 */
+D_06fa:	.space	2	/* bss word @ 0x06fa */
+D_06fc:	.space	2	/* bss word @ 0x06fc */
+D_06fe:	.space	2	/* bss word @ 0x06fe */
+D_0700:	.space	2	/* bss word @ 0x0700 */
+D_0702:	.space	2	/* bss word @ 0x0702 */
+D_0704:	.space	2	/* bss word @ 0x0704 */
+D_0706:	.space	2	/* bss word @ 0x0706 */
+D_0708:	.space	2	/* bss word @ 0x0708 */
+D_070a:	.space	2	/* bss word @ 0x070a */
+D_070c:	.space	2	/* bss word @ 0x070c */
+D_070e:	.space	2	/* bss word @ 0x070e */
+D_0710:	.space	2	/* bss word @ 0x0710 */
+D_0712:	.space	2	/* bss word @ 0x0712 */
+D_0714:	.space	2	/* bss word @ 0x0714 */
+D_0716:	.space	2	/* bss word @ 0x0716 */
+D_0718:	.space	2	/* bss word @ 0x0718 */
+D_071a:	.space	2	/* bss word @ 0x071a */
+D_071c:	.space	2	/* bss word @ 0x071c */
+D_071e:	.space	2	/* bss word @ 0x071e */
+D_0720:	.space	2	/* bss word @ 0x0720 */
+D_0722:	.space	2	/* bss word @ 0x0722 */
+D_0724:	.space	2	/* bss word @ 0x0724 */
+D_0726:	.space	2	/* bss word @ 0x0726 */
+D_0728:	.space	2	/* bss word @ 0x0728 */
+D_072a:	.space	2	/* bss word @ 0x072a */
+D_072c:	.space	2	/* bss word @ 0x072c */
+D_072e:	.space	2	/* bss word @ 0x072e */
+D_0730:	.space	2	/* bss word @ 0x0730 */
+D_0732:	.space	2	/* bss word @ 0x0732 */
+	.space	6
+D_073a:	.space	2	/* bss word @ 0x073a */
+	.space	510
+D_093a:	.space	2	/* bss word @ 0x093a */
+	.space	510
+D_0b3a:	.space	2	/* bss word @ 0x0b3a */
+D_0b3c:	.space	2	/* bss word @ 0x0b3c */
+D_0b3e:	.space	2	/* bss word @ 0x0b3e */
+
+/* end of file */

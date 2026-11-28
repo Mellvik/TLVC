@@ -1,0 +1,60 @@
+.TH CHDIR 2
+.SH NAME
+chdir, chroot \- change default directory
+.SH SYNOPSIS
+.nf
+.B "chdir(dirname)"
+.B "char *dirname;"
+.fi
+.PP
+.nf
+.B "chroot(dirname)"
+.B "char *dirname;"
+.fi
+.SH DESCRIPTION
+.I dirname
+is the address of the pathname of a directory, terminated by a
+null byte.
+.B chdir
+causes this directory to become the current working
+directory, the starting point for pathnames not beginning with `/'.
+.PP
+.B chroot
+sets the root directory, the starting point for pathnames beginning
+with `/'.
+(Note that this applies to the calling process alone, not to the
+complete system.)
+.SH "SEE ALSO"
+cd(1)
+.SH DIAGNOSTICS
+Zero is returned if the directory is changed; \-1 is returned if the given
+name is not that of a directory or is not searchable.
+.SH ASSEMBLER
+(chdir = 12.)
+.TP
+PDP-11:
+.nf
+sys chdir; dirname
+.fi
+.TP
+8086:
+.nf
+BX = 12
+AX = dirname
+int 0Xf1
+.fi
+.PP
+(chroot = 61.)
+.TP
+PDP-11:
+.nf
+sys chroot; dirname
+.fi
+.TP
+8086:
+.nf
+BX = 61
+AX = dirname
+int 0Xf1
+.fi
+.sp

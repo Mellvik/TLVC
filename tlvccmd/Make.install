@@ -15,6 +15,7 @@ LN=ln
 PACKAGE=$(TOPDIR)/tlvccmd/Applications
 # Install destination
 DESTDIR=$(TOPDIR)/target
+MANDIR=$(DESTDIR)/usr/man
 TAGS=
 # Old-style installation
 INSTDIRS=
@@ -149,6 +150,7 @@ ifdef CONFIG_APPS_1440K
 endif
 
 ifdef CONFIG_APPS_2880K
+    # CONFIG_APPS_2880 really means 'install everything'
     # below TAGS relies on :ash rule following :defsash rule in Applications
 	TAGS = :*|
 	CONFIG_APP_MAN_PAGES=y
@@ -214,25 +216,39 @@ endif
 ifdef CONFIG_APP_CGATEXT
 	$(MAKE) -C cgatext install
 endif
+# if CONFIG_APP_MAN_PAGES is set, it means we have a hard disk 
+# (2880 is not an option)
 ifdef CONFIG_APP_MAN_PAGES
-	mkdir -p $(DESTDIR)/lib/man1
-	cp -rp man/man1 $(DESTDIR)/lib
-	-compress -b 12 $(DESTDIR)/lib/man1/*
-	mkdir -p $(DESTDIR)/lib/man2
-	cp -rp man/man2 $(DESTDIR)/lib
-	-compress -b 12 $(DESTDIR)/lib/man2/*
-	mkdir -p $(DESTDIR)/lib/man4
-	cp -rp man/man4 $(DESTDIR)/lib
-	-compress -b 12 $(DESTDIR)/lib/man4/*
-	mkdir -p $(DESTDIR)/lib/man5
-	cp -rp man/man5 $(DESTDIR)/lib
-	-compress -b 12 $(DESTDIR)/lib/man5/*
-	mkdir -p $(DESTDIR)/lib/man7
-	cp -rp man/man7 $(DESTDIR)/lib
-	-compress -b 12 $(DESTDIR)/lib/man7/*
-	mkdir -p $(DESTDIR)/lib/man8
-	cp -rp man/man8 $(DESTDIR)/lib
-	-compress -b 12 $(DESTDIR)/lib/man8/*
+	mkdir -p $(MANDIR)/man1
+	cp -rp man/man1 $(MANDIR)
+	-compress -b 12 $(MANDIR)/man1/*
+	mkdir -p $(MANDIR)/man2
+	cp -rp man/man2 $(MANDIR)
+	-compress -b 12 $(MANDIR)/man2/*
+	mkdir -p $(MANDIR)/man4
+	cp -rp man/man4 $(MANDIR)
+	-compress -b 12 $(MANDIR)/man4/*
+	mkdir -p $(MANDIR)/man5
+	cp -rp man/man5 $(MANDIR)
+	-compress -b 12 $(MANDIR)/man5/*
+	mkdir -p $(MANDIR)/man7
+	cp -rp man/man7 $(MANDIR)
+	-compress -b 12 $(MANDIR)/man7/*
+	mkdir -p $(MANDIR)/man8
+	cp -rp man/man8 $(MANDIR)
+	-compress -b 12 $(MANDIR)/man8/*
+ifdef CONFIG_COMPAT_V7
+	mkdir -p $(DESTDIR)/lib
+	cp -rp venix/usr/* $(DESTDIR)/usr
+	cp -rp venix/bin/* $(DESTDIR)/usr/bin
+	cp -rp venix/lib/* $(DESTDIR)/lib
+	mv $(DESTDIR)/usr/bin/as $(DESTDIR)/bin
+	mv $(DESTDIR)/usr/bin/ld $(DESTDIR)/bin
+	sed -e 's@ PATH=.*@ PATH=/bin:/usr/bin@' < $(DESTDIR)/etc/profile > /tmp/TLVC.profile
+	sed -e 's@MANPATH=.*@MANPATH=/usr/man:/usr/vman@' < $(DESTDIR)/tmp/profile > /tmp/TLVC.profile1
+	mv /tmp/TLVC.profile1 $(DESTDIR)/etc/profile
+	rm -f /tmp/profile
+endif
 endif
 
 

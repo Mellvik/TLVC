@@ -1,0 +1,53 @@
+.TH TTYNAME 3
+.SH NAME
+ttyname, isatty, ttyslot \- find name of a terminal
+.SH SYNOPSIS
+.nf
+.B "char *ttyname(fildes)"
+.sp
+.B "isatty(fildes)"
+.sp
+.B "ttyslot()"
+.fi
+.SH DESCRIPTION
+.B ttyname
+returns a pointer to the null-terminated path name of the terminal
+device associated with file descriptor
+.IR fildes .
+.PP
+.B isatty
+returns 1 if
+.I fildes
+is associated with a terminal device, 0 otherwise.
+.PP
+.B ttyslot
+returns the number of the entry in the
+.BR ttys (4)
+file for the control
+terminal of the current process.
+.PP
+Note that for every process
+.B /dev/tty
+is synonymous with the process'
+control terminal.
+.SH FILES
+.nf
+/dev/*
+/etc/ttys
+.fi
+.SH "SEE ALSO"
+ioctl(2), ttys(4)
+.SH DIAGNOSTICS
+.B ttyname
+returns a null pointer (0) if
+.I fildes
+does not describe a terminal
+device in directory `/dev'.
+.PP
+.B ttyslot
+returns 0 if `/etc/ttys' is inaccessible or if it cannot determine the
+control terminal.
+.SH BUGS
+The return value points to static data whose content is overwritten by
+each call.
+.sp

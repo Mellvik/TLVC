@@ -1,0 +1,103 @@
+.TH LIBMON 2 "PDP-11 Only"
+.SH NAME
+libmon \- library of system call routines for Pascal programs
+.SH DESCRIPTION
+The modules in this library comprise the VENIX system call interface for
+Pascal programs.
+System calls with their C-language interface are
+described in the other pages of this section of the manual.
+The Pascal
+interface is quite similar.
+.PP
+All calls are available with the following exceptions:
+.PP
+The system call
+.B brk
+is not available, because the memory allocation for
+Pascal programs is quite different.
+.PP
+The system call
+.B signal
+is replaced by
+.BR sigtrp ,
+with the following calling
+sequence:
+.IP
+function sigtrp(signo,trapno:integer):integer;
+.PP
+One of the reasons is that the action values of
+.BR signal ,
+odd for `ignore'
+and zero for `get back to default', interfere with the Pascal procedure
+identification.
+Procedures in Pascal are numbered consecutively from
+zero up.
+The first argument of
+.B sigtrp
+is the signal number
+.I signo
+as for
+.BR signal .
+The second argument is an integer
+.IR trapno ,
+indicating the action
+to be performed when the signal is issued:
+.TP 8
+\-2
+Reset the action for signal
+.I signo
+to the default.
+.TP
+\-3
+Ignore signal
+.IR signo .
+.TP
+0\-255
+Perform an EM-1 instruction TRP with error code
+.IR trapno ,
+whenever the signal
+.I signo
+is issued.
+Note that the error codes
+0\-127 are reserved for EM-1 machine errors and language run-time
+system errors.
+.PP
+The routine
+.B sigtrp
+returns the previous
+.I trapno
+or \-1 if an erroneous signal
+number is specified.
+Only the signal numbers 1, 2, 3, 13, 14, 15 and
+16 may be used as argument for
+.IR sigtrp .
+.SH FILES
+.nf
+.ta 1.8i
+/usr/lib/libmon.a	the version for compiled programs
+/usr/lib/em1_mon.a	the version for interpreted programs
+.fi
+.SH "SEE ALSO"
+em1(1), pc(1), libpc(3)
+.SH DIAGNOSTICS
+All routines put the VENIX error code in the global variable
+.BR errno .
+.B errno
+is not cleared by successful system calls, so it always gives the error
+of the last failed call.
+One exception:
+.BR ptrace (2)
+clears
+.B errno
+when successful.
+.SH AUTHOR
+Johan Stevenson, Vrije Universiteit
+.SH BUGS
+There should be additional routines giving a fatal error when they fail.
+In C you are allowed to call a function without testing its result.
+In Pascal
+you have stronger type checking.
+In these circumstances it would be
+pleasant to have routines which print a nice message and stop execution
+for unexpected errors.
+.sp

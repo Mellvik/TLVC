@@ -1,0 +1,74 @@
+.TH GETES 3 "8086 Only"
+.SH NAME
+getesb, getesw, putesb, putesw \- read/write to ES memory
+.SH SYNOPSIS
+.nf
+.B "char getesb(addr)"
+.B "char *addr;"
+.sp
+.B "getesw(addr)"
+.B "int *addr;"
+.sp
+.B "putesb(val, addr)"
+.B "int *addr;"
+.B "char val;"
+.sp
+.B "putesw(val, addr)"
+.B "int *addr;"
+.B "int val;"
+.fi
+.SH DESCRIPTION
+These functions transfer bytes or words between the 8086 Data Segment
+(DS) and the Extra Segment (ES).
+The DS is normal user program data
+space, while the ES is special purpose data space.
+The
+.B phys
+and
+.BR sdata (2)
+system calls manipulate the ES register, to map it, for example, to the
+graphics display or to a data area common to several processes.
+The
+.BR getesb() ,
+.BR putesb() ,
+etc. functions then allow a program to
+.B read
+and
+.B write
+data from and to the extra segment.
+.PP
+.B getesb()
+takes as an argument a 16 bit address (type
+.BR *char )
+in the ES and
+returns the byte value
+.RB ( char )
+at that location.
+.B putesb()
+takes two arguments:
+a 16 bit address
+.RB ( *char )
+and a single byte
+.RB ( char )
+value, and places
+the value at that address in the ES.
+The functions
+.B getesw()
+and
+.B putesw()
+provide identical capabilities for word
+.RB ( int )
+transfers.
+.PP
+If a
+.B phys
+or
+.B sdata
+call has not been done, the ES is identical to the normal
+DS.
+In this case, the functions listed here are not likely to be useful,
+since normal memory to memory transfers are most easily done using
+standard pointer operations.
+.SH "SEE ALSO"
+phys(2), sdata(2)
+.sp

@@ -1,0 +1,313 @@
+.TH AWK 1
+.SH NAME
+awk \- pattern scanning and processing language
+.SH SYNOPSIS
+.B awk
+[
+.BI \-F c
+] [ prog ] [
+.B \-f
+pfile ] [ file ] ...
+.SH DESCRIPTION
+.B awk
+scans each input
+.I file
+for lines that match any of a set of patterns
+specified in
+.IR prog .
+With each pattern in
+.I prog
+there can be an associated
+action that will be performed when a line of a
+.I file
+matches the pattern.
+The set of patterns may appear literally on the command line as
+.IR prog ,
+or
+in a file specified as
+.B \-f
+.IR pfile .
+See the document ``The awk Programming
+Language'' in the
+.I "Support Tools Guide"
+for information supplementing
+that given below.
+.PP
+Files are read in order; if there are no files, the standard input is read.
+The file name `\-' means the standard input.
+Each line is matched
+against the pattern portion of every pattern-action statement; the associated
+action is performed for each matched pattern.
+.PP
+An input line is made up of fields separated by white space.
+(This
+default can be changed by using FS; see below.)
+The fields are denoted
+$1, $2, ... ; $0 refers to the entire line.
+.PP
+A pattern-action statement has the form
+.IP
+pattern { action }
+.PP
+A missing { action } means print the line; a missing pattern always
+matches.
+.PP
+An action is a sequence of statements.
+A statement can be one of the
+following:
+.PP
+.RS
+.nf
+if ( conditional ) statement [ else statement ]
+while ( conditional ) statement
+for ( expression ; conditional ; expression ) statement
+break
+continue
+{ [ statement ] ... }
+variable = expression
+print [ expression-list ] [ >expression ]
+printf format [ , expression-list ] [ >expression ]
+next	# skip remaining patterns on this input line
+exit	# skip the rest of the input
+.fi
+.RE
+.PP
+Statements are terminated by semicolons, newlines or right braces.
+An
+empty expression-list stands for the whole line.
+Expressions take on
+string or numeric values as appropriate, and are built using the operators
++, \-, *, /, %, and concatenation (indicated by a blank).
+The C operators
+++, \-\-, +=, \-=, *=, /=, and %= are also available in
+expressions.
+Variables may be scalars, array elements (denoted x[i]) or
+fields.
+Variables are initialized to the null string.
+Array subscripts may
+be any string, not necessarily numeric; this allows for a form of associative
+memory.
+String constants are quoted "...".
+.PP
+The
+.B print
+statement prints its arguments on the standard output (or on a
+file if
+.RI > file
+is present), separated by the current output field separator,
+and terminated by the output record separator.
+The
+.B printf
+statement formats
+its expression list according to the format (see
+.BR printf (3)).
+.PP
+The built-in function
+.B length
+returns the length of its argument taken as a
+string, or of the whole line if no argument.
+There are also built-in functions
+.BR exp ,
+.BR log ,
+.BR sqrt ,
+and
+.BR int .
+The last truncates its argument to an
+integer.
+\fBsubstr(\fIs, m, n\fB)\fR
+returns the
+.IR n -character
+substring of
+.I s
+that begins
+at position
+.IR m .
+The function
+\fBsprintf(\fIfmt, expr, expr, ...\fB)\fR
+formats the
+expressions according to the
+.BR printf (3)
+format given by
+.I fmt
+and returns
+the resulting string.
+.PP
+Patterns are arbitrary Boolean combinations (!, ||, &&, and parentheses)
+of regular expressions and relational expressions.
+Regular expressions
+must be surrounded by slashes and are as in
+.B egrep
+(see
+.BR grep (1)).
+Isolated
+regular expressions in a pattern apply to the entire line.
+Regular expressions
+may also occur in relational expressions.
+.PP
+A pattern may consist of two patterns separated by a comma; in this
+case, the action is performed for all lines between an occurrence of the
+first pattern and the next occurrence of the second.
+.PP
+A relational expression is one of the following:
+.PP
+.RS
+.nf
+expression matchop regular-expression
+expression relop expression
+.fi
+.RE
+.PP
+where a relop is any of the six relational operators in C, and a matchop
+is either ~ (for contains) or !~ (for does not contain).
+A conditional is an
+arithmetic expression, a relational expression, or a Boolean combination
+of these.
+.PP
+The special patterns BEGIN and END may be used to capture control
+before the first input line is read and after the last.
+BEGIN must be the
+first pattern, END the last.
+.PP
+A single character
+.I c
+may be used to separate the fields by starting the
+program with
+.IP
+BEGIN { FS = "c" }
+.PP
+or by using the
+.BI \-F c
+option.
+.PP
+Other variable names with special meanings include NF, the number of
+fields in the current record; NR, the ordinal number of the current
+record; FILENAME, the name of the current input file; OFS, the output
+field separator (default blank); ORS, the output record separator (default
+newline); and OFMT, the output format for numbers (default ``%.6g'').
+.SH EXAMPLES
+Print lines longer than 72 characters:
+.IP
+length > 72
+.PP
+This could be executed by typing
+.IP
+awk 'length > 72' < infile
+.PP
+(note use of single quotes) or by placing the program line in a file, called
+for example
+.IR xprog ,
+and typing
+.IP
+awk \-f xprog < infile
+.PP
+The other examples on this page can likewise be typed on the command
+line or placed in a program file; the latter approach is usually most convenient
+for programs longer than a single line.
+.PP
+Print first two fields in opposite order:
+.IP
+{ print $2, $1 }
+.PP
+Add up first column, print sum and average:
+.PP
+.RS
+.nf
+.ta .7i
+	{ s += $1 }
+END	{ print "sum is", s, " average is", s/NR }
+.fi
+.RE
+.PP
+Print fields in reverse order:
+.IP
+{ for (i = NF; i > 0; \-\-i) print $i }
+.PP
+Print all lines between start/stop pairs:
+.IP
+/start/, /stop/
+.PP
+Print all lines whose first field is different from previous one:
+.IP
+$1 != prev { print; prev = $1 }
+.PP
+If
+.B awk
+seems confusing, a practical example may help.
+For example,
+you can use
+.B awk
+to transform matrix data from a spreadsheet into input
+required by a graphics program to generate a bar chart.
+.PP
+First, the matrix data, in the file
+.IR profits :
+.PP
+.RS
+.nf
+.ta 1i 1.8i 2.6i 3.4i
+	1978	1979	1980	1981
+Sales	2	5	9	15
+Costs	1	2.5	4.5	9
+Net	1	2.5	4.5	6
+.fi
+.RE
+.PP
+Now, the
+.B awk
+script, which uses the special NF (number of fields) variable:
+.PP
+.nf
+.ta .5i 1i 1.5i 2i 3.5i
+BEGIN			{ ncols = 0 }		# initialize ncols
+.sp
+	{
+	    if (ncols == 0){
+			ncols = NF;
+			for (c = 1; c <= NF; ++c)
+					col[c] = $c;# read in column headers
+	    }
+		else {
+			for (rows = 2; rows < ncols +2; ++rows)
+					print col[rows-1], $1, $rows
+		}
+	}
+.fi
+.PP
+The output from this program can then be passed through
+.BR sort (1):
+.PP
+.RS
+.nf
+awk \-f awkscript profit | sort > graph.d
+.sp
+cat graph.d
+.sp
+.ta 1i 2i
+1978	Costs	1
+1978	Net	1
+1978	Sales	2
+1979	Costs	2.5
+1979	Net	2.5
+1979	Sales	5
+1980	Costs	4.5
+1980	Net	4.5
+1980	Sales	9
+1981	Costs	9
+1981	Net	6
+1981	Sales 15
+.fi
+.RE
+.PP
+Voila!
+Now you are ready to graph the bar chart.
+.SH "SEE ALSO"
+lex(1), sed(1)
+.br
+``The awk Programming Language'' in the
+.IR "Support Tools Guide" .
+.SH BUGS
+There are no explicit conversions between numbers and strings.
+To force
+an expression to be treated as a number add 0 to it; to force it to be
+treated as a string concatenate "" to it.
+.sp

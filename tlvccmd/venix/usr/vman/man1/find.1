@@ -1,0 +1,179 @@
+.TH FIND 1
+.SH NAME
+find \- find files
+.SH SYNOPSIS
+.B find
+pathname-list expression
+.SH DESCRIPTION
+.B find
+recursively descends the directory hierarchy for each pathname in the
+.I pathname-list
+(i.e., one or more pathnames) seeking files that match a boolean
+.I expression
+written in the primaries given below.
+In the descriptions, the argument
+.I n
+is used as a decimal integer where
+.BI + n
+means more than
+.IR n ,
+.BI \- n
+means less than
+.I n
+and
+.I n
+means exactly
+.IR n .
+.TP 12
+.BI \-name " filename"
+True if the
+.I filename
+argument matches the current file name.
+Normal Shell argument syntax may be used if escaped (watch out for `[', `?' and `*').
+.TP
+.BI \-perm " onum"
+True if the file permission flags exactly match the octal number
+.I onum
+(see
+.BR chmod (1)).
+If
+.I onum
+is prefixed by a minus sign, more flag bits (017777, see
+.BR stat (2))
+become significant and the flags are compared:
+.IR "(flags & onum)==onum" .
+.TP
+.BI \-type " c"
+True if the type of the file is
+.IR c ,
+where
+.I c
+is
+.BR b ,
+.BR c ,
+.B d
+or
+.B f
+for block special file, character special file, directory or plain file.
+.TP
+.BI \-links " n"
+True if the file has
+.I n
+links.
+.TP
+.BI \-user " uname"
+True if the file belongs to the user
+.I uname
+(login name or numeric user ID).
+.TP
+.BI \-group " gname"
+True if the file belongs to group
+.I gname
+(group name or numeric group ID).
+.TP
+.BI \-size " n"
+True if the file is
+.I n
+blocks long (512 bytes per block).
+.TP
+.BI \-inum " n"
+True if the file has inode number
+.IR n .
+.TP
+.BI \-atime " n"
+True if the file has been accessed in
+.I n
+days.
+.TP
+.BI \-mtime " n"
+True if the file has been modified in
+.I n
+days.
+.TP
+.BI \-exec " command"
+True if the executed command returns a zero value as exit status.
+The end of the command must be punctuated by an escaped semicolon.
+A command argument `{}' is replaced by the current pathname.
+.TP
+.BI \-ok " command"
+Like
+.B \-exec
+except that the generated command is written on the standard output, then the standard input is read and the command executed only upon response
+.BR y .
+.TP
+.B \-print
+Always true; causes the current pathname (to the matched file) to be printed to the standard output.
+If
+.B \-print
+is not given, file names will not be printed.
+.TP
+.BI \-newer " file"
+True if the current file has been modified more recently than the argument
+.IR file .
+.PP
+The primaries may be combined using the following operators (in order of decreasing precedence):
+.TP 4
+1)
+A parenthesized group of primaries and operators (parentheses are special to the Shell and must be escaped).
+.TP
+2)
+The negation of a primary (`!' is the unary
+.B not
+operator).
+.TP
+3)
+Concatenation of primaries (the
+.B and
+operation is implied by the juxtaposition of two primaries).
+.TP
+4)
+Alternation of primaries (`\-o' is the
+.B or
+operator).
+.SH EXAMPLES
+To find all files in directory
+.I /u1
+called
+.IR animal :
+.RS
+.nf
+find /u1 \-name animal \-print
+.fi
+.RE
+To remove all files named
+.I a.out
+or
+.I *.o
+that have not been accessed for a week:
+.RS
+.nf
+.sp
+find / \e( \-name a.out \-o \-name '*.o' \e)\e
+	\-atime +7 \-exec rm {} \e;
+.fi
+.RE
+To find all files owned by guest or demo in
+.IR /u0 :
+.RS
+.nf
+find /u0 \e( \-user guest \-o \-user demo\e) \-print
+.fi
+.RE
+Note the use of parentheses.
+Without them, the
+.B \-print
+would apply only to
+.B \-user
+.IR demo ;
+consequently, files owned by guest (\fB\-user\fR \fIguest\fR) would never be listed.
+.SH FILES
+.nf
+/etc/passwd
+/etc/group
+/bin/pwd
+.fi
+.SH "SEE ALSO"
+sh(1), test(1), filsys(4)
+.SH BUGS
+The syntax is painful.
+.sp

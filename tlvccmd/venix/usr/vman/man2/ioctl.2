@@ -1,0 +1,105 @@
+.TH IOCTL 2
+.SH NAME
+ioctl, stty, gtty \- control device
+.SH SYNOPSIS
+.nf
+.B "#include <sgtty.h>"
+.sp
+.B "ioctl(fildes, request, argp)"
+.B "struct sgttyb *argp;"
+.sp
+.B "stty(fildes, argp)"
+.B "struct sgttyb *argp;"
+.sp
+.B "gtty(fildes, argp)"
+.B "struct sgttyb *argp;"
+.fi
+.SH DESCRIPTION
+.B ioctl
+performs a variety of functions on character special files (devices).
+The writeups on various devices in section 7, in the
+.IR "Installation and System Manager's Guide" ,
+discuss how
+.B ioctl
+applies to them.
+.PP
+For certain status setting and status inquiries about terminal devices, the
+functions
+.B stty
+and
+.B gtty
+are equivalent to
+.RS
+.nf
+.B "ioctl(fildes, TIOCSETP, argp)"
+.B "ioctl(fildes, TIOCGETP, argp)"
+.fi
+.RE
+.PP
+respectively; see
+.BR ttys (4).
+.SH "SEE ALSO"
+stty(1), ttys(4), exec(2)
+.SH DIAGNOSTICS
+Zero is returned if the call was successful; \-1 if the file descriptor does
+not refer to the kind of file for which it was intended.
+.SH BUGS
+Strictly speaking, since
+.B ioctl
+may be extended in different ways to devices
+with different properties,
+.I argp
+should have an open-ended declaration like
+.IP
+.B "union { struct sgttyb ...; ... } *argp;"
+.PP
+The important thing is that the size is fixed by `struct sgttyb'.
+.SH ASSEMBLER
+(ioctl = 54.)
+.TP
+PDP-11:
+.nf
+sys ioctl; fildes; request; argp
+.fi
+.TP
+8086:
+.nf
+BX = 54
+AX = fildes
+DX = request
+CX = argp
+int 0Xf1
+.fi
+.PP
+(stty = 31.)
+.TP
+PDP-11:
+.nf
+R0 = fildes
+sys stty; argp
+.fi
+.TP
+8086:
+.nf
+BX = 31
+AX = fildes
+DX = argp
+int 0Xf1
+.fi
+.PP
+(gtty = 32.)
+.TP
+PDP-11:
+.nf
+R0 = fildes
+sys gtty; argp
+.fi
+.TP
+8086:
+.nf
+BX = 32
+AX = fildes
+DX = argp
+int 0Xf1
+.fi
+.sp

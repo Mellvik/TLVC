@@ -1,0 +1,30 @@
+.TH L3TOL 3
+.SH NAME
+l3tol, ltol3 \- convert between 3-byte integers and long integers
+.SH SYNOPSIS
+.nf
+.B "l3tol(lp, cp, n)"
+.B "long *lp;"
+.B "char *cp;"
+.sp
+.B "ltol3(cp, lp, n)"
+.B "char *cp;"
+.B "long *lp;"
+.fi
+.SH DESCRIPTION
+.B l3tol
+converts a list of
+.I n
+three-byte integers packed into a character string
+pointed to by
+.I cp
+into a list of long integers pointed to by
+.IR lp .
+.PP
+.B ltol3
+performs the reverse conversion from long integers
+.RI ( lp )
+to three-byte
+integers
+.RI ( cp ).
+.sp

@@ -1,0 +1,80 @@
+.TH DTREE 1
+.SH NAME
+dtree \- print the tree structure of a directory
+.SH SYNOPSIS
+.B dtree
+[
+.B \-adfglnpsvx
+] [
+.B \-c
+length ] [ dir ]
+.SH DESCRIPTION
+.B dtree
+prints a directory as a tree structure, with the branches on the right
+of the page.
+If
+.I dir
+is specified, it is used as the root of the tree to print;
+the default is to use the current directory.
+The current date is output as
+the first line.
+.PP
+The following options are allowed, and may be given in any order:
+.TP 6
+.B \-a
+include files as well as directories in listing
+.TP
+.B \-d
+sort tree with directories at the top
+.TP
+.B \-f
+sort tree with files at the top
+.TP
+.B \-g
+same as
+.BR \-l ,
+but use group name instead of user name
+.TP
+.B \-l
+Print stats with each listing.
+If both
+.B \-g
+and
+.B \-l
+flags are given,
+both owner and group will be printed.
+.TP
+.B \-n
+Do not sort the tree.
+.TP
+.B \-p
+include files starting with a `.' (except `.' and `..').
+.TP
+.B \-s
+Use shorter stats.
+Implies
+.B \-l
+if
+.B \-g
+isn't given.
+.TP
+.B \-v
+Variable length columns.
+.TP
+.B \-x
+Do not cross mounted file systems.
+.TP
+.B \-c
+Set max column length to be
+.IR length .
+.SH FILES
+.nf
+.ta 1.2i
+/etc/passwd	to get user ID's for \fBdtree \-l\fR.
+/etc/group	to get group ID's for \fBdtree \-g\fR.
+.fi
+.SH "SEE ALSO"
+date(1), pwd(1), stat(2), getgrent(3), dir(4), types(5)
+.SH AUTHOR
+Courtesy of St. Olaf College.
+.sp

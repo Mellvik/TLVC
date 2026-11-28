@@ -1,0 +1,274 @@
+.TH CU 1C
+.SH NAME
+cu \- call UNIX
+.SH SYNOPSIS
+.B cu
+telno [
+.B \-t
+] [
+.B \-s
+speed ] [
+.B \-a
+acu ] [
+.B \-l
+line ]
+.SH DESCRIPTION
+.B cu
+calls up another UNIX or VENIX system, a terminal, or possibly a
+non-UNIX system.
+It manages an interactive conversation with possible
+transfers of text files (transfer of binary files is not possible).
+.I telno
+is the
+telephone number, with minus signs at appropriate places for delays.
+(If
+you do not have an automatic dialer,
+.I telno
+should be a dummy number.)
+The
+.B \-t
+flag is used to dial out to a terminal.
+.I speed
+gives the transmission
+speed (110, 150, 300, 1200, 2400, 4800, 9600); 300 is the default
+value.
+.PP
+The
+.B \-a
+and
+.B \-l
+values may be used to specify pathnames for the ACU
+and communications line devices.
+They can be used to override the following
+built-in defaults:
+.PP
+.nf
+\fB\-a\fR /dev/null
+\fB\-l\fR /dev/com1.dout
+.fi
+.PP
+If no automatic call-up port is used, then
+.I telno
+can be any dummy
+number, and the default
+.B "\-a /dev/null"
+should be used.
+For ease of use,
+.BR mknod (1)
+can be used to make up a /dev/com1.dout which points to
+whatever terminal port is actually used.
+You must have both read and
+write permission on this line.
+.PP
+After making the connection,
+.B cu
+runs as two processes: the
+.I send
+process
+reads the standard input and passes most of it to the remote system; the
+.I receive
+process reads from the remote system and passes most data to the
+standard output.
+In general use, the
+.I send
+and
+.I receive
+processes simply
+allow you to converse with the remote system: the
+.I send
+process sends
+over everything you type at the keyboard (without echoing); the
+.I receive
+process writes to your terminal everything the other system types back
+(including any echoing of what you just typed).
+It is possible to specify
+diversions to allow the redirection of I/O, however, by beginning a line
+with a `~' (this means that files being sent should not have lines beginning
+with `~').
+Be aware that the
+.I send
+and
+.I receive
+processes handle these
+diversions separately:
+.I send
+diversions can only be generated directly from
+your keyboard, and
+.I receive
+diversions can only be generated from the
+other system.
+.PP
+The
+.I send
+process interprets the following:
+.TP 1.6i
+~.
+.PD 0
+.TP
+~EOT
+terminate the conversation.
+.PD
+.TP
+~<file
+send the contents of
+.I file
+to the remote system, as
+though typed at the terminal.
+.TP
+~!
+invoke an interactive shell on the local system.
+.TP
+~!cmd ...
+run the command on the local system (via
+.BR "sh \-c" ).
+See
+.BR sh (1).
+.TP
+~$cmd ...
+run the command locally and send its output to the
+remote system.
+.TP
+~%take from [to]
+copy file `from' (on the remote system) to file `to' on
+the local system.
+If `to' is omitted, the `from' name
+is used both places.
+.TP
+~%put from [to]
+copy file `from' (on local system) to file `to' on
+remote system.
+If `to' is omitted, the `from' name is
+used both places.
+.TP
+~~...
+send the line `~...'.
+.PP
+The
+.I receive
+process handles output diversions of the following form:
+.PP
+.nf
+~>[>][:]file
+zero or more lines to be written to file
+~>
+.fi
+.PP
+In any case, output is diverted (or appended, if `>>' used) to the file.
+If `:' is used, the diversion is
+.IR silent ,
+i.e., it is written only to the file.
+If
+`:' is omitted, output is written both to the file and to the standard output.
+The trailing `~>' terminates the diversion.
+.PP
+The use of
+.BR ~%put
+requires
+.B stty
+and
+.BR cat (1)
+on the remote side.
+It also
+requires that the current erase and kill characters on the remote system
+be identical to the current ones on the local system.
+Backslashes are
+inserted at appropriate places.
+.PP
+The use of
+.B ~%take
+requires the existence of
+.B echo
+and
+.BR tee (1)
+on the
+remote system.
+Also,
+.B "stty tabs"
+mode is required on the remote system if
+tabs are to be copied without expansion.
+.PP
+The following shell script can be run on the remote system to send a list
+of files to the local system:
+.PP
+.RS
+.nf
+.ta .5i
+for f
+do
+	echo "~>$f"
+	cat $f
+	echo "~>"
+done
+.fi
+.RE
+.PP
+For every file specified, the script sends to your
+.I receive
+process the proper
+diversion code, the file, and then a diversion terminator.
+.SH EXAMPLES
+The following might be done to log in to a remote system and exchange
+some files.
+The user logs in on the remote system as user ``phil''.
+After
+exchanging files, the user writes a letter to phil; presumably the real Phil
+will read it when he logs in.
+.PP
+.RS
+.nf
+.ta 1.2i
+cu 1 \-s 300	(modem is 300 baud; dummy telno given)
+login phil	(now talking to remote machine)
+ls	(list files in phil's home directory)
+~%take prog1.c	(copy prog1.c from remote system to yours)
+~%put junk.c	(copy junk.c from your system to remote)
+mail phil	(send mail to phil)
+Phil \-
+	I copied prog1.c, and left you
+	junk.c
+			\-Fred
+^D	(cntrl\-D to end mail)
+login	(log out of remote machine)
+~.	(exit from cu)
+.fi
+.RE
+.PP
+.B cu
+can be used to talk with non-UNIX systems, so long as these systems
+can be told to type the appropriate `~' escape sequences.
+The `put' and
+`take' commands will probably not work, since they do assume certain
+UNIX commands for creating these sequences.
+.PP
+.B cu
+handles XON/XOFF protocols for both transmitting and receiving.
+.SH FILES
+.nf
+.ta 2.4i
+/dev/com1.dout
+/dev/null
+/bin/sh
+/bin/echo, /bin/tee, /bin/stty	commands sent to remote system
+.fi
+.SH "SEE ALSO"
+ttys(4)
+.SH DIAGNOSTICS
+Exit code is zero for normal exit, nonzero (various values) otherwise.
+.SH BUGS
+The syntax is unique.
+.PP
+Lines of text which begin with `~' will be interpreted as commands when
+sent over; if this is a problem, filter your files to add an additional `~' to
+the beginning of any such line.
+.PP
+When executing local commands, a new shell is run to handle each command.
+This means that doing a
+.B ~!cd
+will have no value, since the current
+directory is changed only for the duration of the new shell.
+.PP
+To do several local commands in a row, type
+.B ~!sh
+to start up a temporary
+shell which will stay in effect until a ^D is typed.
+.sp

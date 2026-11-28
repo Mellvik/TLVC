@@ -1,0 +1,46 @@
+.TH ENVIRON 5
+.SH NAME
+environ \- user environment
+.SH DESCRIPTION
+An array of strings called the "environment" is made available by
+.BR exec (2)
+when a process begins. By convention, these strings have the form "name=value". The following names are used by various commands:
+.TP 8
+.B PATH
+The sequence of directory prefixes that
+.BR sh (1),
+.BR time (1),
+.BR nice (1),
+.BR nohup (1),
+etc., apply in searching for a file are known by an incomplete path name. The prefixes are separated by colons (:).
+.BR login (1)
+sets \fBPATH=/bin:/usr/bin\fR.
+.TP
+.B HOME
+Name of the user's login directory, set by
+.BR login (1)
+from the password file
+.BR passwd (4).
+.TP
+.B TERM
+The kind of terminal for which output is to be prepared. Some terminals supported are:
+.nf
+vi200            Visual Technologies
+vi50
+vt52             DEC
+vt100
+h19              Zenith
+.fi
+.PP
+See a complete listing of terminals in \fB/etc/termcap\fR.
+.TP
+.B MAIL
+If this variable is set to the name of a mail file, then the shell informs the user of the arrival of mail in the specified file.
+.PP
+Further names may be placed in the environment by the \fBexport\fR command and "name=value" arguments in
+.BR sh (1).
+.PP
+It is unwise to conflict with certain shell variables that are frequently exported by \fB.profile\fR files: \fBMAIL\fR, \fBPS1\fR, \fBPS2\fR, \fBIFS\fR.
+.SH "SEE ALSO"
+login(1), sh(1), getenv(3C)
+.sp
